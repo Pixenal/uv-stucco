@@ -420,3 +420,7 @@ __declspec(dllexport) void UvgpExportUvgpFile(int32_t vertAmount, Vert *vertBuff
 
 	printf("Finished UVGP export\n");
 }
+
+__declspec(dllexport) void uvgpProjectOntoMesh(const char *objName) {
+	printf("Obj name: %s\n", objName);
+}

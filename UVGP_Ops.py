@@ -3,8 +3,8 @@ import ctypes
 import bmesh
 from bpy.app.handlers import persistent
 
-UvgpLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/UVGP/Win64/UVGP.dll")
-#UvgpLib = ctypes.cdll.LoadLibrary("T:\workshop_folders/UVGPWin/UVGP/x64/Debug/UVGP.dll")
+uvgpLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/UVGP/Win64/UVGP.dll")
+#uvgpLib = ctypes.cdll.LoadLibrary("T:\workshop_folders/UVGPWin/UVGP/x64/Debug/UVGP.dll")
 
 class Vec3(ctypes.Structure):
         _fields_ = [("x", ctypes.c_float),
@@ -66,7 +66,7 @@ class UVGP_OT_UvgpExportUvgpFile(bpy.types.Operator):
                 faceBuffer[face.index].loops[loopIndex].normal.z = loopNormal.z
                 loopIndex += 1
         
-        UvgpLib.UvgpExportUvgpFile(vertAmount, ctypes.pointer(vertBuffer), faceAmount, ctypes.pointer(faceBuffer))
+        uvgpLib.UvgpExportUvgpFile(vertAmount, ctypes.pointer(vertBuffer), faceAmount, ctypes.pointer(faceBuffer))
 
         return {'FINISHED'}
 
@@ -97,6 +97,8 @@ class UVGP_OT_UvgpAssign(bpy.types.Operator):
 
     def execute(self, context):
         uvgp = context.scene.uvgp
+        if len(context.selected_objects) == 0:
+            return {'CANCELLED'}
         for obj in context.selected_objects:
             exists = False
             for target in context.scene.uvgpTargets:
@@ -112,13 +114,30 @@ class UVGP_OT_UvgpAssign(bpy.types.Operator):
             uvgp.nextTargetId += 1
         return {'FINISHED'}
 
+class UVGP_OT_UvgpRemove(bpy.types.Operator):
+    bl_idname = "uvgp.uvgp_remove"
+    bl_label = "UVGP Remove"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        scene = context.scene
+        if scene.uvgpTargetsIndex >= len(scene.uvgpTargets):
+            return {'CANCELLED'}
+        del scene.uvgpTargets[scene.uvgpTargetsIndex].obj["uvgpTargetId"]
+        scene.uvgpTargets.remove(scene.uvgpTargetsIndex)
+        return {'FINISHED'}
+
 @persistent
 def uvgpDepsgraphUpdatePostHandler(dummy):
-    pass
+    scene = bpy.context.scene
+    for target in scene.uvgpTargets:
+        objName = target.obj.name.encode('utf-8')
+        uvgpLib.uvgpProjectOntoMesh(objName);
 
 classes = [UVGP_OT_UvgpExportUvgpFile,
            UVGP_OT_UvgpUpdate,
-           UVGP_OT_UvgpAssign]
+           UVGP_OT_UvgpAssign,
+           UVGP_OT_UvgpRemove]
 
 #Register
 def register():
