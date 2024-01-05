@@ -1,0 +1,54 @@
+INTERMEDIATES_PATH = intermediates
+TARGET_PATH = Win64
+GOAL = $(TARGET_PATH)/UVGP.dll
+COMPILER_C = cl
+LINKER = link
+DEBUGGER = devenv /debugexe
+INCLUDE_PATHS = -ISrc -IThirdParty/Miniz
+COMP_ARGS_C = $(COMPILER_C) -LD -O1 -Ob1 -Zc:preprocessor \
+		    	-c $(INCLUDE_PATHS)
+LINK_ARGS = $(LINKER) -DLL
+DEBUG_ARGS = $(DEBUGGER)
+OBJECTS = $(INTERMEDIATES_PATH)/UVGP.obj $(INTERMEDIATES_PATH)/miniz.obj $(INTERMEDIATES_PATH)/Platform.obj $(INTERMEDIATES_PATH)/Types.obj 
+
+#PHONY TARGETS
+.PHONY : validate_dir clean debug run
+
+#BINARY
+$(GOAL) : Makefile validate_dir update_comp_db $(OBJECTS)
+	$(LINK_ARGS) -OUT:$(GOAL) $(OBJECTS)
+
+#DEBUG
+debug : $(GOAL)
+	$(DEBUG_ARGS) $(GOAL)
+
+#RUN
+run : $(GOAL)
+	$(GOAL)
+	
+#VALIDATE DIR
+validate_dir:
+	-mkdir "$(INTERMEDIATES_PATH)"
+	-mkdir "$(TARGET_PATH)"
+
+#UPDATE COMPILATION DATABASE
+update_comp_db: Makefile
+	make --always-make --dry-run \
+	| grep -wE "gcc|g\+\+|clang|clang++|cl|link" \
+	| grep -w "\-c" \
+	| jq -nR "[inputs|{directory:\".\", command:., file: match(\" [^^ ]+$$\").string[1:]}]" \
+	> compile_commands.json
+
+#INTERMEDIATES
+$(INTERMEDIATES_PATH)/UVGP.obj : Makefile Src/UVGP.c
+	$(COMP_ARGS_C) Src/UVGP.c -Fo$(INTERMEDIATES_PATH)/UVGP.obj
+$(INTERMEDIATES_PATH)/miniz.obj : Makefile ThirdParty/Miniz/miniz.c ThirdParty/Miniz/miniz.h
+	$(COMP_ARGS_C) ThirdParty/Miniz/miniz.c -Fo$(INTERMEDIATES_PATH)/miniz.obj
+$(INTERMEDIATES_PATH)/Platform.obj : Makefile Src/PlatformWin.c Src/Platform.h
+	$(COMP_ARGS_C) Src/PlatformWin.c -Fo$(INTERMEDIATES_PATH)/Platform.obj
+$(INTERMEDIATES_PATH)/Types.obj : Makefile Src/Types.c Src/Types.h
+	$(COMP_ARGS_C) Src/Types.c -Fo$(INTERMEDIATES_PATH)/Types.obj
+
+#CLEAN
+clean : 
+	del $(GOAL) $(OBJECTS)
