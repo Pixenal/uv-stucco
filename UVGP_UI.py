@@ -25,6 +25,7 @@ class UVGP_PT_Uvgp(UvgpParentPanel, bpy.types.Panel):
         row0.template_list("UVGP_UL_UvgpTargets", "", context.scene, "uvgpTargets", context.scene, "uvgpTargetsIndex")
         row0.operator("uvgp.uvgp_assign", text = "Assign")
         row0.operator("uvgp.uvgp_remove", text = "Remove")
+        row0.operator("uvgp.load_uvgp_file", text = "Load File")
 
 classes = [UVGP_PT_Uvgp,
            UVGP_UL_UvgpTargets]

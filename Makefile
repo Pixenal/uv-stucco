@@ -9,7 +9,8 @@ COMP_ARGS_C = $(COMPILER_C) -LD -O1 -Ob1 -Zc:preprocessor \
 		    	-c $(INCLUDE_PATHS)
 LINK_ARGS = $(LINKER) -DLL
 DEBUG_ARGS = $(DEBUGGER)
-OBJECTS = $(INTERMEDIATES_PATH)/UVGP.obj $(INTERMEDIATES_PATH)/miniz.obj $(INTERMEDIATES_PATH)/Platform.obj $(INTERMEDIATES_PATH)/Types.obj 
+OBJECTS = $(INTERMEDIATES_PATH)/UVGP.obj $(INTERMEDIATES_PATH)/miniz.obj $(INTERMEDIATES_PATH)/Platform.obj \
+          $(INTERMEDIATES_PATH)/Types.obj $(INTERMEDIATES_PATH)/QuadTree.obj $(INTERMEDIATES_PATH)/Io.obj
 
 #PHONY TARGETS
 .PHONY : validate_dir clean debug run
@@ -48,6 +49,10 @@ $(INTERMEDIATES_PATH)/Platform.obj : Makefile Src/PlatformWin.c Src/Platform.h
 	$(COMP_ARGS_C) Src/PlatformWin.c -Fo$(INTERMEDIATES_PATH)/Platform.obj
 $(INTERMEDIATES_PATH)/Types.obj : Makefile Src/Types.c Src/Types.h
 	$(COMP_ARGS_C) Src/Types.c -Fo$(INTERMEDIATES_PATH)/Types.obj
+$(INTERMEDIATES_PATH)/QuadTree.obj : Makefile Src/QuadTree.c Src/QuadTree.h
+	$(COMP_ARGS_C) Src/QuadTree.c -Fo$(INTERMEDIATES_PATH)/QuadTree.obj
+$(INTERMEDIATES_PATH)/Io.obj : Makefile Src/Io.c Src/Io.h
+	$(COMP_ARGS_C) Src/Io.c -Fo$(INTERMEDIATES_PATH)/Io.obj
 
 #CLEAN
 clean : 

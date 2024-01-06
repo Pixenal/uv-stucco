@@ -114,6 +114,17 @@ class UVGP_OT_UvgpAssign(bpy.types.Operator):
             uvgp.nextTargetId += 1
         return {'FINISHED'}
 
+class UVGP_OT_UvgpLoadUvgpFile(bpy.types.Operator):
+    bl_idname = "uvgp.load_uvgp_file"
+    bl_label = "Load UVGP File"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        filePath = "T:/workshop_folders/UVGP/TestOutputDir/File.uvgp"
+        filePathUtf8 = filePath.encode('utf-8')
+        uvgpLib.uvgpLoadUvgpFile(filePathUtf8)
+        return {'FINISHED'}
+
 class UVGP_OT_UvgpRemove(bpy.types.Operator):
     bl_idname = "uvgp.uvgp_remove"
     bl_label = "UVGP Remove"
@@ -132,12 +143,45 @@ def uvgpDepsgraphUpdatePostHandler(dummy):
     scene = bpy.context.scene
     for target in scene.uvgpTargets:
         objName = target.obj.name.encode('utf-8')
-        uvgpLib.uvgpProjectOntoMesh(objName);
+
+        obj = context.selected_objects[0]
+        depsgraph = context.evaluated_depsgraph_get()
+        objEval = obj.evaluated_get(depsgraph)
+        meshEval = objEval.data
+
+        bMeshEval = bmesh.new()
+        bMeshEval.from_mesh(meshEval)
+
+        faceAmount = len(bMeshEval.faces)
+        vertAmount = len(bMeshEval.verts)
+        FaceBufferType = Face * faceAmount
+        VertBufferType = Vert * vertAmount
+        faceBuffer = FaceBufferType()
+        vertBuffer = VertBufferType()
+
+        for vert in bMeshEval.verts:
+            vertBuffer[vert.index].pos.x = vert.co.x
+            vertBuffer[vert.index].pos.y = vert.co.y
+            vertBuffer[vert.index].pos.z = vert.co.z
+        
+        for face in bMeshEval.faces:
+            loopIndex = 0
+            faceBuffer[face.index].loopAmount = len(face.loops)
+            for loop in face.loops:
+                faceBuffer[face.index].loops[loopIndex].vert = loop.vert.index
+                loopNormal = loop.calc_normal()
+                faceBuffer[face.index].loops[loopIndex].normal.x = loopNormal.x
+                faceBuffer[face.index].loops[loopIndex].normal.y = loopNormal.y
+                faceBuffer[face.index].loops[loopIndex].normal.z = loopNormal.z
+                loopIndex += 1
+
+        uvgpLib.uvgpProjectOntoMesh(objName, vertAmount, vertBuffer, faceAmount, faceBuffer);
 
 classes = [UVGP_OT_UvgpExportUvgpFile,
            UVGP_OT_UvgpUpdate,
            UVGP_OT_UvgpAssign,
-           UVGP_OT_UvgpRemove]
+           UVGP_OT_UvgpRemove,
+           UVGP_OT_UvgpLoadUvgpFile]
 
 #Register
 def register():
