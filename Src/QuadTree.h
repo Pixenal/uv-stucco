@@ -3,8 +3,6 @@
 
 #define CELL_MAX_VERTS 16
 
-static int32_t cellIndex;
-static int32_t leafAmount;
 
 typedef struct Cell {
 	uint32_t localIndex;

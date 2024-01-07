@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <math.h>
 
+extern int32_t cellIndex;
+extern int32_t leafAmount;
 
 void calcCellBounds(Cell *cell, Vec2 *boundsMin, Vec2 *boundsMax) {
 	float xSide = (float)(cell->localIndex % 2);

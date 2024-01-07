@@ -1,16 +1,22 @@
 #define VERT_ATTRIBUTE_AMOUNT 3
 #define LOOP_ATTRIBUTE_AMOUNT 3
+#define ENCODE_DECODE_BUFFER_LENGTH 5
 
 #include "Io.h"
 #include "QuadTree.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "miniz.h"
 #include "Platform.h"
+
+extern int32_t cellIndex;
+extern int32_t leafAmount;
 
 int32_t decodeSingleBit(UvgpByteString *byteString) {
 	int32_t value = byteString->string[byteString->byteIndex];
 	value >>= byteString->nextBitIndex;
+	value &= 1;
 	byteString->nextBitIndex++;
 	byteString->byteIndex += byteString->nextBitIndex >= 8;
 	byteString->nextBitIndex %= 8;
@@ -50,33 +56,41 @@ void encodeString(UvgpByteString *byteString, unsigned char *string, int32_t len
 }
 
 void decodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits) {
-	unsigned char buffer[10] = {0};
 	int32_t lengthInBytes = lengthInBits / 8;
-	int32_t bufferLengthInBytes = lengthInBytes + (((byteString->nextBitIndex + lengthInBits) % 8) > 0);
-	for (int32_t i = 1; i < bufferLengthInBytes; ++i) {
-		buffer[i] = byteString->string[byteString->byteIndex + i - 1];
+	int32_t bitDifference = lengthInBits - lengthInBytes * 8;
+	lengthInBytes += bitDifference > 0;
+	unsigned char buffer[ENCODE_DECODE_BUFFER_LENGTH] = {0};
+	for (int32_t i = 0; i < ENCODE_DECODE_BUFFER_LENGTH; ++i) {
+		buffer[i] = byteString->string[byteString->byteIndex + i];
 	}
-	for (int32_t i = 1; i < bufferLengthInBytes; ++i) {
+	for (int32_t i = 0; i < ENCODE_DECODE_BUFFER_LENGTH; ++i) {
 		buffer[i] >>= byteString->nextBitIndex;
 		unsigned char nextByteCopy = buffer[i + 1];
 		nextByteCopy <<= 8 - byteString->nextBitIndex;
 		buffer[i] |= nextByteCopy;
 	}
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		value[i] |= buffer[i + 1];
+		value[i] |= buffer[i];
 	}
+	unsigned char mask = UCHAR_MAX >> ((8 - bitDifference) % 8);
+	value[lengthInBytes - 1] &= mask;
 	byteString->nextBitIndex = byteString->nextBitIndex + lengthInBits;
 	byteString->byteIndex += byteString->nextBitIndex / 8;
 	byteString->nextBitIndex %= 8;
 }
 
-void decodeString(UvgpByteString *byteString, char *string) {
-	unsigned char *dataPtr = byteString->string + byteString->byteIndex;
-	do {
-		*string = *dataPtr;
-	} while(*++dataPtr && *++string);
+void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength) {
+	char *stringCopy = string;
 	byteString->byteIndex += byteString->nextBitIndex > 0;
 	byteString->nextBitIndex = 0;
+	unsigned char *dataPtr = byteString->string + byteString->byteIndex;
+	char *lastChar = string + (stringLength - 1);
+	*lastChar = 1;
+	do {
+		*string = *dataPtr;
+	} while(*++dataPtr && !*++string);
+	*lastChar = 0;
+	byteString->byteIndex += stringLength - (lastChar - string) + 1;
 }
 
 void encodeDataAndDestroyQuadTree(Cell *rootCell, int32_t maxTreeDepth, UvgpByteString *data) {
@@ -85,7 +99,6 @@ void encodeDataAndDestroyQuadTree(Cell *rootCell, int32_t maxTreeDepth, UvgpByte
 	int32_t cellStackPointer = 0;
 	unsigned char internalCell = 0u;
 	unsigned char leafCell = 1u;
-	encodeValue(data, &internalCell, 1);
 	do {
 		Cell *cell = cellStack[cellStackPointer];
 		int32_t nextChild = 0;
@@ -123,7 +136,7 @@ void encodeDataAndDestroyQuadTree(Cell *rootCell, int32_t maxTreeDepth, UvgpByte
 
 void writeDebugImage(Cell *rootCell) {
 	FILE* file;
-	file = fopen("T:/workshop_folders/UVGP/DebugOutput.ppm", "w");
+	file = fopen("/run/media/calebdawson/Tuna/workshop_folders/UVGP/DebugOutput_LoadedFile.ppm", "w");
 	fprintf(file, "P3\n%d %d\n255\n", 512, 512);
 	for (int32_t i = 0; i < 512; ++i) {
 		for (int32_t j = 0; j < 512; ++j) {
@@ -243,7 +256,7 @@ void writeUvgpFileAndFreeMemory(Cell *rootCell, int32_t maxTreeDepth, int32_t ve
 
 	header.string = calloc(headerLengthInBytes, sizeof(unsigned char));
 	encodeValue(&header, (unsigned char *)&compressedDataLength, 32);
-	encodeValue(&header, (unsigned char *)&data.byteIndex, 32);
+	encodeValue(&header, (unsigned char *)&dataLength, 32);
 	int32_t vertAttributeAmount = VERT_ATTRIBUTE_AMOUNT;
 	encodeValue(&header, (unsigned char *)&vertAttributeAmount, 8);
 	for (int32_t i = 0; i < VERT_ATTRIBUTE_AMOUNT; ++i) {
@@ -265,7 +278,7 @@ void writeUvgpFileAndFreeMemory(Cell *rootCell, int32_t maxTreeDepth, int32_t ve
 	// CRC for uncompressed data, not compressed!
 	
 	UvgpFile file;
-	uvgpFileOpen(&file, "T:/workshop_folders/UVGP/TestOutputDir/File.uvgp", 0);
+	uvgpFileOpen(&file, "/run/media/calebdawson/Tuna/workshop_folders/UVGP/TestOutputDir/File.uvgp", 0);
 	uvgpFileWrite(&file, (unsigned char *)&headerLengthInBytes, 4);
 	uvgpFileWrite(&file, header.string, header.byteIndex + (header.nextBitIndex > 0));
 	uvgpFileWrite(&file, compressedData, (int32_t)compressedDataLength);
@@ -278,32 +291,32 @@ void writeUvgpFileAndFreeMemory(Cell *rootCell, int32_t maxTreeDepth, int32_t ve
 
 void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString) {
 	UvgpHeader *header = &fileLoaded->header;
-	printf("0\n");
+	//printf("0\n");
 	decodeValue(headerByteString, (unsigned char *)&header->dataLengthCompressed, 32);
-	printf("dataLengthCompressed %d\n", header->dataLengthCompressed);
+	//printf("dataLengthCompressed %d\n", header->dataLengthCompressed);
 	decodeValue(headerByteString, (unsigned char *)&header->dataLength, 32);
-	printf("dataLength %d\n", header->dataLength);
-	decodeValue(headerByteString, (unsigned char *)&header->vertAttributeAmount, 32);
-	printf("vertAttributeAmount %d\n", header->vertAttributeAmount);
-	header->vertAttributeDesc = malloc(sizeof(AttributeDesc) * header->vertAttributeAmount);
-	printf("1\n");
+	//printf("dataLength %d\n", header->dataLength);
+	decodeValue(headerByteString, (unsigned char *)&header->vertAttributeAmount, 8);
+	//printf("vertAttributeAmount %d\n", header->vertAttributeAmount);
+	header->vertAttributeDesc = calloc(header->vertAttributeAmount, sizeof(AttributeDesc));
+	//printf("1\n");
 	for (int32_t i = 0; i < header->vertAttributeAmount; ++i) {
-		decodeString(headerByteString, header->vertAttributeDesc[i].name);
-		printf("vertAttributte[%d] name %s\n", i, header->vertAttributeDesc[i].name);
-		decodeString(headerByteString, header->vertAttributeDesc[i].type);
-		printf("vertAttributte[%d] type %s\n", i, header->vertAttributeDesc[i].type);
+		decodeString(headerByteString, header->vertAttributeDesc[i].name, 64);
+		//printf("vertAttributte[%d] name %s\n", i, header->vertAttributeDesc[i].name);
+		decodeString(headerByteString, header->vertAttributeDesc[i].type, 2);
+		//printf("vertAttributte[%d] type %s\n", i, header->vertAttributeDesc[i].type);
 		decodeValue(headerByteString, (unsigned char *)&header->vertAttributeDesc[i].sizeInBits, 8);
-		printf("vertAttributte[%d] size %d\n", i, header->vertAttributeDesc[i].sizeInBits);
+		//printf("vertAttributte[%d] size %d\n", i, header->vertAttributeDesc[i].sizeInBits);
 	}
 	printf("2\n");
 	decodeValue(headerByteString, (unsigned char *)&header->loopAttributeAmount, 8);
 	printf("loopAttributeAmount %d\n", header->loopAttributeAmount);
-	header->loopAttributeDesc = malloc(sizeof(AttributeDesc) * header->loopAttributeAmount);
+	header->loopAttributeDesc = calloc(header->loopAttributeAmount, sizeof(AttributeDesc));
 	printf("3\n");
 	for (int32_t i = 0; i < header->loopAttributeAmount; ++i) {
 		printf("3.1  iteration: %d\n", i);
-		decodeString(headerByteString, header->loopAttributeDesc[i].name);
-		decodeString(headerByteString, header->loopAttributeDesc[i].type);
+		decodeString(headerByteString, header->loopAttributeDesc[i].name, 64);
+		decodeString(headerByteString, header->loopAttributeDesc[i].type, 2);
 		decodeValue(headerByteString, (unsigned char *)&header->loopAttributeDesc[i].sizeInBits, 8);
 	}
 	printf("4\n");
@@ -327,19 +340,18 @@ void decodeUvgpData(UvgpFileLoaded *fileLoaded, UvgpByteString *dataByteString) 
 	for (int32_t i = 0; i < header->faceAmount; ++i) {
 		Face *face = data->faceBuffer + i;
 		decodeValue(dataByteString, (unsigned char *)&face->loopAmount, 2);
-		for (int32_t j = 0; j < face->loopAmount; ++i) {
-			decodeValue(dataByteString, (unsigned char *)&face->loops[i].vert, 32);
-			decodeValue(dataByteString, (unsigned char *)&face->loops[i].normal.x , 32);
-			decodeValue(dataByteString, (unsigned char *)&face->loops[i].normal.y , 32);
-			decodeValue(dataByteString, (unsigned char *)&face->loops[i].normal.z , 32);
+		for (int32_t j = 0; j < face->loopAmount; ++j) {
+			decodeValue(dataByteString, (unsigned char *)&face->loops[j].vert, 32);
+			decodeValue(dataByteString, (unsigned char *)&face->loops[j].normal.x , 32);
+			decodeValue(dataByteString, (unsigned char *)&face->loops[j].normal.y , 32);
+			decodeValue(dataByteString, (unsigned char *)&face->loops[j].normal.z , 32);
 		}
 	}
 	cellIndex = 1;
 	leafAmount = 0;
 	int32_t maxTreeDepth = calculateMaxTreeDepth(header->vertAmount);
 	Cell **cellStack = malloc(sizeof(Cell *) * maxTreeDepth);
-	data->rootCell = malloc(sizeof(Cell));
-	data->rootCell = 0;
+	data->rootCell = calloc(1, sizeof(Cell));
 	cellStack[0] = data->rootCell;
 	int32_t cellStackPointer = 0;
 	do {
@@ -358,13 +370,19 @@ void decodeUvgpData(UvgpFileLoaded *fileLoaded, UvgpByteString *dataByteString) 
 			}
 			int32_t nextChild = 0;
 			for (int32_t i = 0; i < 4; ++i) {
-				nextChild += cell->children[i].initialized == 0;
+				nextChild += cell->children[i].initialized == 1;
+			}
+			if (nextChild >= 4) {
+				cellStackPointer--;
+				continue;
 			}
 			cellStackPointer++;
 			cellStack[cellStackPointer] = cell->children + nextChild;
 			continue;
 		}
+		cell->vertAmount = 0;
 		decodeValue(dataByteString, (unsigned char *)&cell->vertAmount, 32);
+		cell->verts = calloc(cell->vertAmount, sizeof(Vert));
 		for (int32_t i = 0; i < cell->vertAmount; ++i) {
 			decodeValue(dataByteString, (unsigned char *)(cell->verts + i), 32);
 		}
@@ -386,7 +404,7 @@ void readUvgpFile(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString, 
 	printf("Decoding header\n");
 	decodeUvgpHeader(fileLoaded, headerByteString);
 	unsigned char *dataByteStringRaw = malloc(fileLoaded->header.dataLength);
-	unsigned long dataLengthUncompressed;
+	unsigned long dataLengthUncompressed = fileLoaded->header.dataLength;
 	printf("Reading data\n");
 	uvgpFileRead(&file, dataByteStringRaw, fileLoaded->header.dataLengthCompressed);
 	dataByteString->string = malloc(fileLoaded->header.dataLength);
@@ -409,4 +427,5 @@ void readUvgpFile(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString, 
 	}
 	printf("Decoding data\n");
 	decodeUvgpData(fileLoaded, dataByteString);
+	writeDebugImage(fileLoaded->data.rootCell);
 }

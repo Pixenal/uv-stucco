@@ -3,7 +3,8 @@ import ctypes
 import bmesh
 from bpy.app.handlers import persistent
 
-uvgpLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/UVGP/Win64/UVGP.dll")
+#uvgpLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/UVGP/Win64/UVGP.dll")
+uvgpLib = ctypes.cdll.LoadLibrary("/run/media/calebdawson/Tuna/workshop_folders/UVGP/Linux/UVGP.so")
 #uvgpLib = ctypes.cdll.LoadLibrary("T:\workshop_folders/UVGPWin/UVGP/x64/Debug/UVGP.dll")
 
 class Vec3(ctypes.Structure):
@@ -120,7 +121,7 @@ class UVGP_OT_UvgpLoadUvgpFile(bpy.types.Operator):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        filePath = "T:/workshop_folders/UVGP/TestOutputDir/File.uvgp"
+        filePath = "/run/media/calebdawson/Tuna/workshop_folders/UVGP/TestOutputDir/File.uvgp"
         filePathUtf8 = filePath.encode('utf-8')
         uvgpLib.uvgpLoadUvgpFile(filePathUtf8)
         return {'FINISHED'}

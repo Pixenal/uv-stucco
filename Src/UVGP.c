@@ -1,3 +1,8 @@
+#define DECL_SPEC_EXPORT
+#ifdef PLATFORM_WIN
+	#define DECL_SPEC_EXPORT __declspec(dllexport)
+#endif
+
 #include <string.h>
 #include <stdio.h>
 #include "Types.h"
@@ -15,8 +20,10 @@
 // - Split compressed data into chunks maybe?
 // - Split whole quadtree into chunks?
 
+int32_t cellIndex;
+int32_t leafAmount;
 
-__declspec(dllexport) void UvgpExportUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
+DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
 	printf("%d vertices, and %d faces\n", vertAmount, faceAmount);
 
 	cellIndex = 0;
@@ -29,13 +36,13 @@ __declspec(dllexport) void UvgpExportUvgpFile(int32_t vertAmount, Vert *vertBuff
 	writeUvgpFileAndFreeMemory(rootCell, maxTreeDepth, vertAmount, vertBuffer, faceAmount, faceBuffer);
 }
 
-__declspec(dllexport) void uvgpLoadUvgpFile(char *filePath) {
+DECL_SPEC_EXPORT void uvgpLoadUvgpFile(char *filePath) {
 	UvgpByteString header = {0};
 	UvgpByteString data = {0};
 	UvgpFileLoaded uvgpFileLoaded = {0};
 	readUvgpFile(&uvgpFileLoaded, &header, &data, filePath);
 }
 
-__declspec(dllexport) void uvgpProjectOntoMesh(const char *objName, int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
+DECL_SPEC_EXPORT void uvgpProjectOntoMesh(const char *objName, int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
 	printf("Obj name: %s\n", objName);
 }

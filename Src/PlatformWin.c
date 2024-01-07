@@ -16,7 +16,7 @@ int32_t uvgpFileOpen(UvgpFile *file, char *filePath, int32_t action) {
 			disposition = OPEN_EXISTING;
 			break;
 		default:
-			printf("Failed to open file, invalid action passed to function\n");
+			printf("Failed to open file. Invalid action passed to function\n");
 			return 1;
 	}
 	LPSTR filePathAlt = "File.uvgp";
