@@ -127,6 +127,9 @@ int32_t calculateMaxTreeDepth(int32_t vertAmount) {
 }
 
 void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t vertAmount, Vert *vertBuffer) {
+	cellIndex = 0;
+	leafAmount = 0;
+
 	*rootCell = malloc(sizeof(Cell));
 	*maxTreeDepth = calculateMaxTreeDepth(vertAmount);
 
@@ -148,5 +151,36 @@ void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t vertAmount, 
 	do {
 		processCell(cellStack, &cellStackPointer, &cellStackBase, *rootCell, vertBuffer);
 	} while(cellStackPointer >= 0);
+	free(cellStack);
+}
+
+void destroyQuadTree(Cell *rootCell, int32_t maxTreeDepth) {
+	Cell **cellStack = malloc(sizeof(Cell *) * maxTreeDepth);
+	cellStack[0] = rootCell;
+	int32_t cellStackPointer = 0;
+	do {
+		Cell *cell = cellStack[cellStackPointer];
+		int32_t nextChild = 0;
+		if (cell->children) {
+			cell->initialized = 0;
+			for (int32_t i = 0; i < 4; ++i) {
+				nextChild += cell->children[i].initialized == 0;
+			}
+			if (nextChild < 4) {
+				cellStackPointer++;
+				cellStack[cellStackPointer] = cell->children + nextChild;
+				continue;
+			}
+			free(cell->children);
+		}
+		else {
+			cell->initialized = 0;
+		}
+		if (cell->verts) {
+			free(cell->verts);
+		}
+		cellStackPointer--;
+	} while(cellStackPointer >= 0);
+	free(rootCell);
 	free(cellStack);
 }

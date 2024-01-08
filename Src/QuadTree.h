@@ -13,6 +13,11 @@ typedef struct Cell {
 	int32_t cellIndex;
 } Cell;
 
+typedef struct {
+	Cell *rootCell;
+	int32_t maxTreeDepth;
+} QuadTree;
+
 void calcCellBounds(Cell *cell, Vec2 *boundsMin, Vec2 *boundsMax);
 Cell *findEnclosingCell(Cell *rootCell, Vec2 pos);
 void allocateChildren(Cell *cell);
@@ -20,3 +25,4 @@ void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPoin
 void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase, Cell *rootCell, Vert *vertBuffer);
 int32_t calculateMaxTreeDepth(int32_t vertAmount);
 void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t vertAmount, Vert *vertBuffer);
+void destroyQuadTree(Cell *rootCell, int32_t maxtreedepth);

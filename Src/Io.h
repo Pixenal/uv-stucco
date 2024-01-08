@@ -24,20 +24,20 @@ typedef struct {
 typedef struct {
 	Vert *vertBuffer;
 	Face *faceBuffer;
-	Cell *rootCell;
 } UvgpData;
 
 typedef struct {
 	UvgpHeader header;
 	UvgpData data;
+	QuadTree quadTree;
 } UvgpFileLoaded;
 
 void encodeValue(UvgpByteString *data, unsigned char *value, int32_t lengthInBits);
 void encodeString(UvgpByteString *data, unsigned char *value, int32_t lengthInBits);
 void decodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits);
 void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength);
-void encodeDataAndDestroyQuadTree(Cell *rootCell, int32_t maxTreeDepth, UvgpByteString *data);
 void writeDebugImage(Cell *rootCell);
-void writeUvgpFileAndFreeMemory(Cell *rootCell, int32_t maxTreeDepth, int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer);
+void writeUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer);
 void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString);
-void readUvgpFile(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString, UvgpByteString *dataByteString, char *filePath);
+void loadUvgpFile(UvgpFileLoaded *fileLoaded, char *filePath);
+void destroyUvgpFile(UvgpFileLoaded *fileLoaded);

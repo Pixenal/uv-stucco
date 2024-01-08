@@ -23,26 +23,28 @@
 int32_t cellIndex;
 int32_t leafAmount;
 
-DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
+DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, Vert *vertBuffer,
+                                         int32_t faceAmount, Face *faceBuffer) {
 	printf("%d vertices, and %d faces\n", vertAmount, faceAmount);
-
-	cellIndex = 0;
-	leafAmount = 0;
-
-	Cell *rootCell;
-	int32_t maxTreeDepth;
-	createQuadTree(&rootCell, &maxTreeDepth, vertAmount, vertBuffer);
-	//writeDebugImage(rootCell);
-	writeUvgpFileAndFreeMemory(rootCell, maxTreeDepth, vertAmount, vertBuffer, faceAmount, faceBuffer);
+	writeUvgpFile(vertAmount, vertBuffer, faceAmount, faceBuffer);
 }
 
-DECL_SPEC_EXPORT void uvgpLoadUvgpFile(char *filePath) {
-	UvgpByteString header = {0};
-	UvgpByteString data = {0};
-	UvgpFileLoaded uvgpFileLoaded = {0};
-	readUvgpFile(&uvgpFileLoaded, &header, &data, filePath);
+DECL_SPEC_EXPORT void uvgpLoadUvgpFile(char *filePath, void *uvgpFile) {
+	uvgpFile = calloc(1, sizeof(UvgpFileLoaded));
+	UvgpFileLoaded *fileLoaded = uvgpFile;
+	loadUvgpFile(fileLoaded, filePath);
+	createQuadTree(&fileLoaded->quadTree.rootCell, &fileLoaded->quadTree.maxTreeDepth,
+	               fileLoaded->header.vertAmount, fileLoaded->data.vertBuffer);
+	writeDebugImage(fileLoaded->quadTree.rootCell);
 }
 
-DECL_SPEC_EXPORT void uvgpProjectOntoMesh(const char *objName, int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
+DECL_SPEC_EXPORT void uvgpUnloadUvgpFile(void *uvgpFile) {
+	UvgpFileLoaded *fileLoaded = uvgpFile;
+	destroyQuadTree(fileLoaded->quadTree.rootCell, fileLoaded->quadTree.maxTreeDepth);
+	destroyUvgpFile(fileLoaded);
+}
+
+DECL_SPEC_EXPORT void uvgpProjectOntoMesh(const char *objName, int32_t vertAmount,
+                                          Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
 	printf("Obj name: %s\n", objName);
 }
