@@ -115,7 +115,7 @@ void writeDebugImage(Cell *rootCell) {
 }
 
 
-void writeUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer) {
+void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t faceAmount, int32_t *faceBuffer) {
 	UvgpByteString header;
 	UvgpByteString data;
 	char *vertAttributes[VERT_ATTRIBUTE_AMOUNT];
@@ -176,11 +176,12 @@ void writeUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Fac
 	header.nextBitIndex = 0;
 
 	data.string = calloc(dataLengthInBytes, sizeof(unsigned char));
-	for (int32_t i = 0; i < vertAmount; ++i) {
-		encodeValue(&data, (unsigned char *)&vertBuffer[i].pos.x, 32);
-		encodeValue(&data, (unsigned char *)&vertBuffer[i].pos.y, 32);
-		encodeValue(&data, (unsigned char *)&vertBuffer[i].pos.z, 32);
+	for (int32_t i = 0; i < vertAmount; i += 3) {
+		encodeValue(&data, (unsigned char *)&vertBuffer[i], 32);
+		encodeValue(&data, (unsigned char *)&vertBuffer[i + 1], 32);
+		encodeValue(&data, (unsigned char *)&vertBuffer[i + 2], 32);
 	}
+	/*
 	for (int32_t i = 0; i < faceAmount; ++i) {
 		encodeValue(&data, (unsigned char *)&faceBuffer[i].loopAmount, 2);
 		for (int32_t j = 0; j < faceBuffer[i].loopAmount; ++j) {
@@ -190,6 +191,7 @@ void writeUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Fac
 			encodeValue(&data, (unsigned char *)&faceBuffer[i].loops[j].normal.z, 32);
 		}
 	}
+	*/
 
 	int64_t dataLength = data.byteIndex + (data.nextBitIndex > 0);
 	int64_t dataLengthExtra = dataLength / 1000;

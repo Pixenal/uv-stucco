@@ -37,7 +37,7 @@ void encodeString(UvgpByteString *data, unsigned char *value, int32_t lengthInBi
 void decodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits);
 void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength);
 void writeDebugImage(Cell *rootCell);
-void writeUvgpFile(int32_t vertAmount, Vert *vertBuffer, int32_t faceAmount, Face *faceBuffer);
+void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t faceAmount, int32_t *faceBuffer);
 void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString);
 void loadUvgpFile(UvgpFileLoaded *fileLoaded, char *filePath);
 void destroyUvgpFile(UvgpFileLoaded *fileLoaded);
