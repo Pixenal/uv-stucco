@@ -26,6 +26,27 @@ int32_t leafAmount;
 
 float tempTime = 0;
 
+typedef struct {
+	float x;
+	float y;
+	float z;
+} BlenderVert;
+
+typedef struct {
+	float u;
+	float v;
+} BlenderUv;
+
+typedef struct {
+	int32_t vertAmount;
+	BlenderVert *vertBuffer;
+	int32_t loopAmount;
+	int32_t *loopBuffer;
+	int32_t faceAmount;
+	int32_t *faceBuffer;
+	BlenderUv *uvBuffer;
+} BlenderMeshData;
+
 DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, float *vertBuffer,
                                          int32_t loopAmount, int32_t *loopBuffer,
                                          int32_t faceAmount, int32_t *faceBuffer) {
@@ -48,56 +69,31 @@ DECL_SPEC_EXPORT void uvgpUnloadUvgpFile(void *uvgpFile) {
 	destroyUvgpFile(fileLoaded);
 }
 
-DECL_SPEC_EXPORT void uvgpProjectOntoMesh(int32_t vertAmount, float *vertBuffer,
-                                          int32_t loopAmount, int32_t *loopBuffer,
-                                          int32_t faceAmount, int32_t *faceBuffer,
-										  int32_t edgeAmount, int32_t *edgeBuffer,
-                                          int32_t vertUvgpAmount, float *vertUvgpBuffer,
-                                          int32_t loopUvgpAmount, int32_t *loopUvgpBuffer,
-                                          int32_t faceUvgpAmount, int32_t *faceUvgpBuffer,
-										  int32_t edgeUvgpAmount, int32_t *edgeUvgpBuffer) {
-	printf("vertBuffer address: %p\n", vertBuffer);
-	int32_t vertBufferLength = vertAmount * 3;
-	int32_t vertUvgpBufferLength = vertUvgpAmount * 3;
-	for (int32_t i = 0; i < vertUvgpBufferLength; ++i) {
-		int32_t iMod = i % vertBufferLength;
-		vertUvgpBuffer[i] = vertBuffer[iMod];
-	}
-	for (int32_t i = 0; i < loopUvgpAmount; ++i) {
-		int32_t iMod = i % loopAmount;
-		int32_t offset = vertAmount * (i >= loopAmount);
-		loopUvgpBuffer[i] = loopBuffer[iMod] + offset;
-	}
-	for (int32_t i = 0; i < faceUvgpAmount; ++i) {
-		int32_t iMod = i % faceAmount;
-		int32_t offset = loopAmount * (i >= faceAmount);
-		faceUvgpBuffer[i] = faceBuffer[iMod] + offset;
-	}
-	/*
-	int32_t edgeBufferLength = edgeAmount * 2;
-	int32_t edgeUvgpBufferLength = edgeUvgpAmount * 2;
-	for (int32_t i = 0; i < edgeUvgpBufferLength; ++i) {
-		int32_t iMod = i % edgeBufferLength;
-		int32_t offset = vertAmount * (i >= edgeBufferLength);
-		edgeUvgpBuffer[i] = edgeBuffer[iMod] + offset;
-	}
-	*/
-	struct timespec start, stop;
-	clock_gettime(CLOCK_REALTIME, &start);
-	clock_gettime(CLOCK_REALTIME, &stop);
-	float timeDiff = (float)(stop.tv_sec - start.tv_sec) + (float)(stop.tv_nsec - start.tv_nsec) / 100.0;
-	tempTime += .05;
-	float theta = tempTime;
-	printf("Theta: %f\n", theta);
-	float sinTheta = sin(theta);
-	float cosTheta = cos(theta);
-	for (int32_t i = 0; i < vertUvgpBufferLength; i += 3) {
-		//vertUvgpBuffer[i] += tempTime;
-		//vertUvgpBuffer[i + 1] += tempTime;
-		float x = vertUvgpBuffer[i];
-		float y = vertUvgpBuffer[i + 1];
-		vertUvgpBuffer[i] = x * cosTheta - y * sinTheta;
-		vertUvgpBuffer[i + 1] = x * sinTheta + y * cosTheta;
-		vertUvgpBuffer[i + 2] += .5 * (i >= vertBufferLength);
-	}
+DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData *workMesh) {
+	workMesh->vertAmount = mesh->vertAmount;
+	workMesh->vertBuffer = malloc(sizeof(BlenderVert) * mesh->vertAmount);
+	workMesh->loopAmount = mesh->loopAmount;
+	workMesh->loopBuffer = malloc(sizeof(int32_t) * mesh->loopAmount);
+	workMesh->faceAmount = mesh->faceAmount;
+	workMesh->faceBuffer = malloc(sizeof(int32_t) * mesh->faceAmount);
+	workMesh->uvBuffer = malloc(sizeof(BlenderUv) * mesh->loopAmount);
+
+	memcpy(workMesh->vertBuffer, mesh->vertBuffer, sizeof(BlenderVert) * workMesh->vertAmount);
+	memcpy(workMesh->loopBuffer, mesh->loopBuffer, sizeof(int32_t) * workMesh->loopAmount);
+	memcpy(workMesh->faceBuffer, mesh->faceBuffer, sizeof(int32_t) * workMesh->faceAmount);
+	memcpy(workMesh->uvBuffer, mesh->uvBuffer, sizeof(BlenderUv) * workMesh->loopAmount);
+}
+
+DECL_SPEC_EXPORT void uvgpUpdateMesh(BlenderMeshData *uvgpMesh, BlenderMeshData *workMesh) {
+	memcpy(uvgpMesh->vertBuffer, workMesh->vertBuffer, sizeof(BlenderVert) * uvgpMesh->vertAmount);
+	memcpy(uvgpMesh->loopBuffer, workMesh->loopBuffer, sizeof(int32_t) * uvgpMesh->loopAmount);
+	memcpy(uvgpMesh->faceBuffer, workMesh->faceBuffer, sizeof(int32_t) * uvgpMesh->faceAmount);
+	free(workMesh->vertBuffer);
+	free(workMesh->loopBuffer);
+	free(workMesh->faceBuffer);
+}
+
+DECL_SPEC_EXPORT void uvgpUpdateMeshUv(BlenderMeshData *uvgpMesh, BlenderMeshData *workMesh) {
+	memcpy(uvgpMesh->uvBuffer, workMesh->uvBuffer, sizeof(BlenderUv) * uvgpMesh->loopAmount);
+	free(workMesh->uvBuffer);
 }

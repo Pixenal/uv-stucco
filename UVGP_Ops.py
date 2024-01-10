@@ -23,13 +23,30 @@ class Face(ctypes.Structure):
     _fields_ = [("loopAmount", ctypes.c_int),
                 ("loops", Loop * 4)]
 
+class BlenderVert(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_float),
+                ("y", ctypes.c_float),
+                ("z", ctypes.c_float)]
+
+class BlenderUv(ctypes.Structure):
+    _fields_ = [("u", ctypes.c_float),
+                ("v", ctypes.c_float)]
+
+class BlenderMeshData(ctypes.Structure):
+    _fields_ = [("vertAmount", ctypes.c_int),
+                ("vertBuffer", ctypes.POINTER(BlenderVert)),
+                ("loopAmount", ctypes.c_int),
+                ("loopBuffer", ctypes.POINTER(ctypes.c_int)),
+                ("faceAmount", ctypes.c_int),
+                ("faceBuffer", ctypes.POINTER(ctypes.c_int)),
+                ("uvBuffer", ctypes.POINTER(BlenderUv))]
+
 class UVGP_OT_UvgpExportUvgpFile(bpy.types.Operator):
     bl_idname = "uvgp.uvgp_export_uvgp_file"
     bl_label = "UVGP Export"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        print("Piss")
         if (len(context.selected_objects) == 0):
             print("UVGP export failed, no objects selected.")
             return {'CANCELLED'}
@@ -140,18 +157,22 @@ def uvgpDepsgraphUpdatePostHandler(dummy):
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
 
-        faceAmount = len(meshEval.polygons)
-        loopAmount = len(meshEval.loops)
-        vertAmount = len(meshEval.vertices)
-        edgeAmount = len(meshEval.edges)
+        mesh = BlenderMeshData()
+        mesh.faceAmount = len(meshEval.polygons)
+        mesh.loopAmount = len(meshEval.loops)
+        mesh.vertAmount = len(meshEval.vertices)
         vertsPtr = meshEval.vertices[0].as_pointer()
-        vertsPtrFloat = ctypes.cast(vertsPtr, ctypes.POINTER(ctypes.c_float))
+        mesh.vertBuffer = ctypes.cast(vertsPtr, ctypes.POINTER(BlenderVert))
         loopsPtr = meshEval.loops[0].as_pointer()
-        loopsPtrInt = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
+        mesh.loopBuffer = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
         facesPtr = meshEval.polygons[0].as_pointer()
-        facesPtrInt = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
-        edgesPtr = meshEval.edges[0].as_pointer()
-        edgesPtrInt = ctypes.cast(edgesPtr, ctypes.POINTER(ctypes.c_int))
+        mesh.faceBuffer = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
+        uvPtr = meshEval.uv_layers[0].data[0].as_pointer()
+        mesh.uvBuffer = ctypes.cast(uvPtr, ctypes.POINTER(BlenderUv))
+
+        workMesh = BlenderMeshData()
+
+        uvgpLib.uvgpProjectOntoMesh(ctypes.pointer(mesh), ctypes.pointer(workMesh))
 
         nameUvgp = obj.name + ".Uvgp"
         print(nameUvgp)
@@ -170,32 +191,30 @@ def uvgpDepsgraphUpdatePostHandler(dummy):
             objUvgp.data = meshUvgp
             bpy.data.meshes.remove(meshUvgpOld)
 
-        faceUvgpAmount = faceAmount * 2
-        loopUvgpAmount = loopAmount * 2
-        vertUvgpAmount = vertAmount * 2
-        edgeUvgpAmount = edgeAmount * 2
-        meshUvgp.vertices.add(vertUvgpAmount)
-        meshUvgp.loops.add(loopUvgpAmount)
-        meshUvgp.polygons.add(faceUvgpAmount)
-        #meshUvgp.edges.add(edgeUvgpAmount)
-        vertUvgpAmount = len(meshUvgp.vertices)
-        loopUvgpAmount = len(meshUvgp.loops)
-        faceUvgpAmount = len(meshUvgp.polygons)
-        edgeUvgpAmount = len(meshUvgp.edges)
+        uvgpMesh = BlenderMeshData()
+        print("workMesh.vertAmount ", workMesh.vertAmount)
+        print("workMesh.loopAmount ", workMesh.loopAmount)
+        print("workMesh.faceAmount ", workMesh.faceAmount)
+        meshUvgp.vertices.add(workMesh.vertAmount)
+        meshUvgp.loops.add(workMesh.loopAmount)
+        meshUvgp.polygons.add(workMesh.faceAmount)
+        uvgpMesh.vertAmount = len(meshUvgp.vertices)
+        uvgpMesh.loopAmount = len(meshUvgp.loops)
+        uvgpMesh.faceAmount = len(meshUvgp.polygons)
         vertsUvgpPtr = meshUvgp.vertices[0].as_pointer()
-        vertsUvgpPtrFloat = ctypes.cast(vertsUvgpPtr, ctypes.POINTER(ctypes.c_float))
+        uvgpMesh.vertBuffer = ctypes.cast(vertsUvgpPtr, ctypes.POINTER(BlenderVert))
         loopsUvgpPtr = meshUvgp.loops[0].as_pointer()
-        loopsUvgpPtrInt = ctypes.cast(loopsUvgpPtr, ctypes.POINTER(ctypes.c_int))
+        uvgpMesh.loopBuffer = ctypes.cast(loopsUvgpPtr, ctypes.POINTER(ctypes.c_int))
         facesUvgpPtr = meshUvgp.polygons[0].as_pointer()
-        facesUvgpPtrInt = ctypes.cast(facesUvgpPtr, ctypes.POINTER(ctypes.c_int))
-        #edgesUvgpPtr = meshUvgp.edges[0].as_pointer()
-        edgesUvgpPtr = None
-        #edgesUvgpPtrInt = ctypes.cast(edgesUvgpPtr, ctypes.POINTER(ctypes.c_int))
-        edgesUvgpPtrInt = None
-        
-        uvgpLib.uvgpProjectOntoMesh(vertAmount, vertsPtrFloat, loopAmount, loopsPtrInt, faceAmount, facesPtrInt, edgeAmount, edgesPtrInt,
-                                    vertUvgpAmount, vertsUvgpPtrFloat, loopUvgpAmount, loopsUvgpPtrInt, faceUvgpAmount, facesUvgpPtrInt, edgeUvgpAmount, edgesUvgpPtrInt)
-        print("HI!!!!!!!!")
+        uvgpMesh.faceBuffer = ctypes.cast(facesUvgpPtr, ctypes.POINTER(ctypes.c_int))
+
+        uvgpLib.uvgpUpdateMesh(ctypes.pointer(uvgpMesh), ctypes.pointer(workMesh))
+
+        meshUvgp.uv_layers.new(name="uvmap")
+        uvPtr = meshUvgp.uv_layers[0].data[0].as_pointer()
+        uvgpMesh.uvBuffer = ctypes.cast(uvPtr, ctypes.POINTER(BlenderUv))
+        uvgpLib.uvgpUpdateMeshUv(ctypes.pointer(uvgpMesh), ctypes.pointer(workMesh))
+        print("FinishedUpdating")
         objUvgp.data.update()
 
 classes = [UVGP_OT_UvgpExportUvgpFile,
