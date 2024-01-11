@@ -115,7 +115,7 @@ void writeDebugImage(Cell *rootCell) {
 }
 
 
-void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t faceAmount, int32_t *faceBuffer) {
+void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, int32_t faceAmount, int32_t *faceBuffer) {
 	UvgpByteString header;
 	UvgpByteString data;
 	char *vertAttributes[VERT_ATTRIBUTE_AMOUNT];

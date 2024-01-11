@@ -8,9 +8,11 @@ typedef struct Cell {
 	uint32_t localIndex;
 	uint32_t initialized;
 	struct Cell *children;
-	int32_t vertAmount;
-	int32_t *verts;
+	int32_t faceAmount;
+	int32_t *faces;
 	int32_t cellIndex;
+	Vec2 boundsMin;
+	Vec2 boundsMax;
 } Cell;
 
 typedef struct {
@@ -18,11 +20,12 @@ typedef struct {
 	int32_t maxTreeDepth;
 } QuadTree;
 
-void calcCellBounds(Cell *cell, Vec2 *boundsMin, Vec2 *boundsMax);
+void calcCellBounds(Cell *cell);
 Cell *findEnclosingCell(Cell *rootCell, Vec2 pos);
 void allocateChildren(Cell *cell);
-void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPointer, int32_t *cellStackBase, Vert *vertBuffer);
-void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase, Cell *rootCell, Vert *vertBuffer);
+Cell *findFullyEnclosingCell(Cell *rootCell, int32_t loopStart, int32_t loopEnd, int32_t *loops, Vec2 *verts);
+void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPointer, int32_t *cellStackBase, Vert *vertBuffer, Face *faceBuffer);
+void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase, Cell *rootCell, Vert *vertBuffer, Face *faceBuffer);
 int32_t calculateMaxTreeDepth(int32_t vertAmount);
-void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t vertAmount, Vert *vertBuffer);
+void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t vertAmount, Vert *vertBuffer, Face *faceBuffer);
 void destroyQuadTree(Cell *rootCell, int32_t maxtreedepth);
