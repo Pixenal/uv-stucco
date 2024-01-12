@@ -1,10 +1,13 @@
 #include "QuadTree.h"
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
 
 extern int32_t cellIndex;
 extern int32_t leafAmount;
+
+static int32_t counter = 0;
 
 void calcCellBounds(Cell *cell) {
 	float xSide = (float)(cell->localIndex % 2);
@@ -27,7 +30,7 @@ Cell *findFullyEnclosingCell(Cell *rootCell, int32_t loopStart, int32_t loopEnd,
 		}
 		Vec2 midPoint = _(_(_(cellBoundsMax V2SUB cellBoundsMin) V2MULS .5) V2ADD cellBoundsMin);
 		depth++;
-		Vec2 *vert0 = verts + loops[loopStart];
+		Vec2 *vert0 = verts + loopStart;
 		int32_t childIndexVert0 = (vert0->x >= midPoint.x) + (vert0->y < midPoint.y) * 2;
 		int32_t fullyEnclosed = true;
 		for (int32_t i = loopStart + 1; i < loopEnd; ++i) {
@@ -76,7 +79,7 @@ void allocateChildren(Cell *cell) {
 	leafAmount += 4;
 }
 
-void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPointer, int32_t *cellStackBase, Vert *vertBuffer, Face *faceBuffer) {
+void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPointer, int32_t *cellStackBase, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer) {
 	calcCellBounds(cell);
 	_(&cell->boundsMin V2DIVSEQL (float)pow(2.0, *cellStackPointer - 1));
 	_(&cell->boundsMax V2DIVSEQL (float)pow(2.0, *cellStackPointer - 1));
@@ -87,17 +90,21 @@ void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPoin
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
 	Cell* parentCell = cellStack[*cellStackPointer - 1];
+	cell->faceAmount = 0;
 	for (int32_t i = 0; i < parentCell->faceAmount; ++i) {
 		int32_t face = parentCell->faces[i] - 1;
-		int32_t outsideVerts = faceBuffer[i].loopAmount;
-		for (int32_t j = 0; j < faceBuffer[face].loopAmount; ++j) {
-			int32_t vert = faceBuffer[face].loops[j].vert;
-			outsideVerts -= (vertBuffer[face].pos.x >= cell->boundsMin.x) &&
-			                (vertBuffer[vert].pos.y >= cell->boundsMin.y) &&
-			                (vertBuffer[vert].pos.x < cell->boundsMax.x) &&
-			                (vertBuffer[vert].pos.y < cell->boundsMax.y);
+		int32_t faceStart = faceBuffer[face];
+		int32_t faceEnd = faceBuffer[face + 1];
+		int32_t faceLoopAmount = faceEnd - faceStart;
+		int32_t isInside = 0;
+		for (int32_t j = 0; j < faceLoopAmount; ++j) {
+			int32_t vert = loopBuffer[faceStart + j];
+			isInside += (vertBuffer[vert].x >= cell->boundsMin.x) &&
+			                (vertBuffer[vert].y >= cell->boundsMin.y) &&
+			                (vertBuffer[vert].x < cell->boundsMax.x) &&
+			                (vertBuffer[vert].y < cell->boundsMax.y);
 		}
-		if (!outsideVerts) {
+		if (isInside) {
 			parentCell->faces[i] *= -1;
 			cell->faceAmount++;
 		}
@@ -114,11 +121,11 @@ void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPoin
 	}
 }
 
-void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase, Cell *rootCell, Vert *vertBuffer, Face *faceBuffer) {
+void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase, Cell *rootCell, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer) {
 	// First, calculate the positions of the cells bounding points
 	Cell *cell = cellStack[*cellStackPointer];
 	if (cell->faceAmount < 0) {
-		addEnclosedVertsToCell(cellStack, cell, cellStackPointer, cellStackBase, vertBuffer, faceBuffer);
+		addEnclosedVertsToCell(cellStack, cell, cellStackPointer, cellStackBase, vertBuffer, loopBuffer, faceBuffer);
 	}
 
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
@@ -150,14 +157,15 @@ int32_t calculateMaxTreeDepth(int32_t vertAmount) {
 	return log(CELL_MAX_VERTS * vertAmount) / log(4) + 2;
 }
 
-void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t faceAmount, Vert *vertBuffer, Face *faceBuffer) {
+void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t faceAmount, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer) {
 	cellIndex = 0;
 	leafAmount = 0;
+	counter = 0;
 
 	*rootCell = malloc(sizeof(Cell));
-	*maxTreeDepth = calculateMaxTreeDepth(faceAmount);
+	*maxTreeDepth = 32;
 
-	Cell **cellStack = malloc(sizeof(Cell *) * *maxTreeDepth);
+	Cell *cellStack[32];
 	(*rootCell)->cellIndex = cellIndex;
 	cellIndex++;
 	cellStack[0] = *rootCell;
@@ -173,13 +181,14 @@ void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t faceAmount, 
 	int32_t cellStackPointer = 1;
 	int32_t cellStackBase = 0;
 	do {
-		processCell(cellStack, &cellStackPointer, &cellStackBase, *rootCell, vertBuffer, faceBuffer);
+		processCell(cellStack, &cellStackPointer, &cellStackBase, *rootCell, vertBuffer, loopBuffer, faceBuffer);
+		counter++;
 	} while(cellStackPointer >= 0);
-	free(cellStack);
+	printf("Created quadTree -- cells: %d, leaves: %d\n", cellIndex, leafAmount);
 }
 
 void destroyQuadTree(Cell *rootCell, int32_t maxTreeDepth) {
-	Cell **cellStack = malloc(sizeof(Cell *) * maxTreeDepth);
+	Cell *cellStack[32];
 	cellStack[0] = rootCell;
 	int32_t cellStackPointer = 0;
 	do {
@@ -206,5 +215,4 @@ void destroyQuadTree(Cell *rootCell, int32_t maxTreeDepth) {
 		cellStackPointer--;
 	} while(cellStackPointer >= 0);
 	free(rootCell);
-	free(cellStack);
 }

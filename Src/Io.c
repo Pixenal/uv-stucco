@@ -115,7 +115,7 @@ void writeDebugImage(Cell *rootCell) {
 }
 
 
-void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, int32_t faceAmount, int32_t *faceBuffer) {
+void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, Vec3 *normalBuffer, int32_t faceAmount, int32_t *faceBuffer) {
 	UvgpByteString header;
 	UvgpByteString data;
 	char *vertAttributes[VERT_ATTRIBUTE_AMOUNT];
@@ -176,22 +176,22 @@ void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t loopAmount, in
 	header.nextBitIndex = 0;
 
 	data.string = calloc(dataLengthInBytes, sizeof(unsigned char));
-	for (int32_t i = 0; i < vertAmount; i += 3) {
-		encodeValue(&data, (unsigned char *)&vertBuffer[i], 32);
-		encodeValue(&data, (unsigned char *)&vertBuffer[i + 1], 32);
-		encodeValue(&data, (unsigned char *)&vertBuffer[i + 2], 32);
+	for (int32_t i = 0; i < vertAmount; ++i) {
+		encodeValue(&data, (unsigned char *)&vertBuffer[i].x, 32);
+		encodeValue(&data, (unsigned char *)&vertBuffer[i].y, 32);
+		encodeValue(&data, (unsigned char *)&vertBuffer[i].z, 32);
 	}
-	/*
+	for (int32_t i = 0; i < loopAmount; ++i) {
+		encodeValue(&data, (unsigned char *)&loopBuffer[i], 32);
+	}
+	for (int32_t i = 0; i < loopAmount; ++i) {
+		encodeValue(&data, (unsigned char *)&normalBuffer[i].x, 32);
+		encodeValue(&data, (unsigned char *)&normalBuffer[i].y, 32);
+		encodeValue(&data, (unsigned char *)&normalBuffer[i].z, 32);
+	}
 	for (int32_t i = 0; i < faceAmount; ++i) {
-		encodeValue(&data, (unsigned char *)&faceBuffer[i].loopAmount, 2);
-		for (int32_t j = 0; j < faceBuffer[i].loopAmount; ++j) {
-			encodeValue(&data, (unsigned char *)&faceBuffer[i].loops[j].vert, 32);
-			encodeValue(&data, (unsigned char *)&faceBuffer[i].loops[j].normal.x, 32);
-			encodeValue(&data, (unsigned char *)&faceBuffer[i].loops[j].normal.y, 32);
-			encodeValue(&data, (unsigned char *)&faceBuffer[i].loops[j].normal.z, 32);
-		}
+		encodeValue(&data, (unsigned char *)&faceBuffer[i], 32);
 	}
-	*/
 
 	int64_t dataLength = data.byteIndex + (data.nextBitIndex > 0);
 	int64_t dataLengthExtra = dataLength / 1000;
@@ -232,8 +232,8 @@ void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t loopAmount, in
 		encodeValue(&header, (unsigned char *)&loopAttributeSize[i], 8);
 	}
 	encodeValue(&header, (unsigned char *)&vertAmount, 32);
+	encodeValue(&header, (unsigned char *)&loopAmount, 32);
 	encodeValue(&header, (unsigned char *)&faceAmount, 32);
-	encodeValue(&header, (unsigned char *)&cellIndex, 32);
 
 	// CRC for uncompressed data, not compressed!
 	
@@ -281,8 +281,8 @@ void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteStri
 	}
 	printf("4\n");
 	decodeValue(headerByteString, (unsigned char *)&header->vertAmount, 32);
+	decodeValue(headerByteString, (unsigned char *)&header->loopAmount, 32);
 	decodeValue(headerByteString, (unsigned char *)&header->faceAmount, 32);
-	decodeValue(headerByteString, (unsigned char *)&header->cellAmount, 32);
 	printf("5\n");
 
 }
@@ -290,23 +290,29 @@ void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteStri
 void decodeUvgpData(UvgpFileLoaded *fileLoaded, UvgpByteString *dataByteString) {
 	UvgpHeader *header = &fileLoaded->header;
 	UvgpData *data = &fileLoaded->data;
-	data->vertBuffer = malloc(sizeof(Vert) * header->vertAmount);
+	data->vertBuffer = calloc(header->vertAmount, sizeof(Vec3));
 	for (int32_t i = 0; i < header->vertAmount; ++i) {
-		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].pos.x, 32);
-		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].pos.y, 32);
-		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].pos.z, 32);
+		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].x, 32);
+		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].y, 32);
+		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].z, 32);
 	}
-	data->faceBuffer = malloc(sizeof(Face) * header->faceAmount);
+	data->loopBuffer = calloc(header->loopAmount, sizeof(int32_t));
+	for (int32_t i = 0; i < header->loopAmount; ++i) {
+		decodeValue(dataByteString, (unsigned char *)&data->loopBuffer[i], 32);
+	}
+	data->normalBuffer = calloc(header->loopAmount, sizeof(Vec3));
+	for (int32_t i = 0; i < header->loopAmount; ++i) {
+		decodeValue(dataByteString, (unsigned char *)&data->normalBuffer[i].x, 32);
+		decodeValue(dataByteString, (unsigned char *)&data->normalBuffer[i].y, 32);
+		decodeValue(dataByteString, (unsigned char *)&data->normalBuffer[i].z, 32);
+	}
+	// + 1 because blender stores an extra at end, so that number of loops can be
+	// checked with faceBuffer[i + 1] - faceBuffer[i], without causing a crash.
+	data->faceBuffer = calloc(header->faceAmount + 1, sizeof(int32_t));
 	for (int32_t i = 0; i < header->faceAmount; ++i) {
-		Face *face = data->faceBuffer + i;
-		decodeValue(dataByteString, (unsigned char *)&face->loopAmount, 2);
-		for (int32_t j = 0; j < face->loopAmount; ++j) {
-			decodeValue(dataByteString, (unsigned char *)&face->loops[j].vert, 32);
-			decodeValue(dataByteString, (unsigned char *)&face->loops[j].normal.x , 32);
-			decodeValue(dataByteString, (unsigned char *)&face->loops[j].normal.y , 32);
-			decodeValue(dataByteString, (unsigned char *)&face->loops[j].normal.z , 32);
-		}
+		decodeValue(dataByteString, (unsigned char *)&data->faceBuffer[i], 32);
 	}
+	data->faceBuffer[header->faceAmount] = header->loopAmount;
 }
 
 void loadUvgpFile(UvgpFileLoaded *fileLoaded, char *filePath) {

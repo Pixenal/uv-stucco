@@ -17,13 +17,16 @@ typedef struct {
 	int32_t loopAttributeAmount;
 	AttributeDesc *loopAttributeDesc;
 	int32_t vertAmount;
+	int32_t loopAmount;
 	int32_t faceAmount;
 	int32_t cellAmount;
 } UvgpHeader;
 
 typedef struct {
-	Vert *vertBuffer;
-	Face *faceBuffer;
+	Vec3 *vertBuffer;
+	int32_t *loopBuffer;
+	Vec3 *normalBuffer;
+	int32_t *faceBuffer;
 } UvgpData;
 
 typedef struct {
@@ -37,7 +40,7 @@ void encodeString(UvgpByteString *data, unsigned char *value, int32_t lengthInBi
 void decodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits);
 void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength);
 void writeDebugImage(Cell *rootCell);
-void writeUvgpFile(int32_t vertAmount, float *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, int32_t faceAmount, int32_t *faceBuffer);
+void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, Vec3 *normalBuffer, int32_t faceAmount, int32_t *faceBuffer);
 void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString);
 void loadUvgpFile(UvgpFileLoaded *fileLoaded, char *filePath);
 void destroyUvgpFile(UvgpFileLoaded *fileLoaded);

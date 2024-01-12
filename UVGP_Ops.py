@@ -1,5 +1,6 @@
 import bpy
 import ctypes
+import numpy
 import bmesh
 from bpy.app.handlers import persistent
 
@@ -65,13 +66,19 @@ class UVGP_OT_UvgpExportUvgpFile(bpy.types.Operator):
         loopAmount = len(meshEval.loops)
         vertAmount = len(meshEval.vertices)
         vertsPtr = meshEval.vertices[0].as_pointer()
-        vertsPtrFloat = ctypes.cast(vertsPtr, ctypes.POINTER(ctypes.c_float))
+        vertsPtrFloat = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
         loopsPtr = meshEval.loops[0].as_pointer()
         loopsPtrInt = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
         facesPtr = meshEval.polygons[0].as_pointer()
+        normals = numpy.zeros(loopAmount * 3, dtype = numpy.float32)
+        meshEval.loops.foreach_get("normal", normals)
         facesPtrInt = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
-        
-        uvgpLib.UvgpExportUvgpFile(vertAmount, vertsPtrFloat, loopAmount, loopsPtrInt, faceAmount, facesPtrInt)
+
+        uvgpLib.UvgpExportUvgpFile.argtypes = (ctypes.c_int, ctypes.POINTER(Vec3),
+                                               ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+                                               numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
+                                               ctypes.c_int, ctypes.POINTER(ctypes.c_int))
+        uvgpLib.UvgpExportUvgpFile(vertAmount, vertsPtrFloat, loopAmount, loopsPtrInt, normals, faceAmount, facesPtrInt)
 
         return {'FINISHED'}
 
