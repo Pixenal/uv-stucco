@@ -23,7 +23,9 @@ typedef struct {
 void calcCellBounds(Cell *cell);
 Cell *findEnclosingCell(Cell *rootCell, Vec2 pos);
 void allocateChildren(Cell *cell);
-Cell *findFullyEnclosingCell(Cell *rootCell, int32_t loopStart, int32_t loopEnd, int32_t *loops, Vec2 *verts);
+void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount, Cell **enclosingCells,
+                            int32_t *cellFacesTotal, Cell *rootCell, int32_t loopStart,
+                            int32_t loopEnd, int32_t *loops, Vec2 *verts);
 void addEnclosedVertsToCell(Cell **cellStack, Cell *cell, int32_t *cellStackPointer, int32_t *cellStackBase, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer);
 void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase, Cell *rootCell, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer);
 int32_t calculateMaxTreeDepth(int32_t vertAmount);

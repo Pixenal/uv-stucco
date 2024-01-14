@@ -18,8 +18,110 @@ void calcCellBounds(Cell *cell) {
 	cell->boundsMax.y = 1.0 - (1.0 - ySide) * .5;
 }
 
+void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
+                            Cell **enclosingCellFaces, int32_t *totalCellFaces,
+                            Cell *rootCell, int32_t loopStart, int32_t loopEnd,
+                            int32_t *loops, Vec2 *verts) {
+	typedef struct {
+		int32_t a;
+		int32_t b;
+		int32_t c;
+		int32_t d;
+	} Children;
+	Cell *cellStack[16];
+	Children children[16];
+	cellStack[0] = rootCell;
+	rootCell->initialized = 0;
+	int32_t cellStackPointer = 0;
+	int32_t loopAmount = loopEnd - loopStart;
+	do {
+		Cell *cell = cellStack[cellStackPointer];
+		if (!cell->children) {
+			enclosingCellFaces[*enclosingCellAmount] = cell;
+			++*enclosingCellAmount;
+			*totalCellFaces += cell->faceAmount;
+			cellStackPointer--;
+			cell->initialized = 1;
+			continue;
+		}
+		if (cell->initialized) {
+			int32_t nextChild = -1;
+			for (int32_t i = 0; i < 4; ++i) {
+				if (!cell->children[i].initialized &&
+				    *((int32_t *)(children + cellStackPointer) + i)) {
+					nextChild = i;
+					break;
+				}
+			}
+			if (nextChild == -1) {
+				cellStackPointer--;
+				continue;
+			}
+			cellStackPointer++;
+			cellStack[cellStackPointer] = cell->children + nextChild;
+			continue;
+		}
+		Vec2 midPoint = _(_(_(cell->boundsMax V2SUB cell->boundsMin) V2MULS .5) V2ADD cell->boundsMin);
+		midPoint.x += (float)tileMin.x;
+		midPoint.y += (float)tileMin.y;
+		iVec2 sides[loopAmount];
+		iVec2 commonSides = {1, 1};
+		for (int32_t i = 0; i < loopAmount; ++i) {
+			int32_t loopIndex = loopStart + i;
+			sides[i].x = verts[loopIndex].x >= midPoint.x;
+			sides[i].y = verts[loopIndex].y < midPoint.y;
+			for (int32_t j = 0; j < i; ++j) {
+				commonSides.x *= sides[i].x == sides[j].x;
+				commonSides.y *= sides[i].y == sides[j].y;
+			}
+		}
+		if (!commonSides.x && !commonSides.y) {
+			enclosingCellFaces[*enclosingCellAmount] = cell;
+			++*enclosingCellAmount;
+			*totalCellFaces += cell->faceAmount;
+			cellStackPointer--;
+			cell->initialized = 1;
+			continue;
+		}
+		iVec2 signs = {
+			.x = sides[0].x,
+			.y = sides[0].y
+		};
+		if (commonSides.x && commonSides.y) {
+			children[cellStackPointer].a = !signs.x && !signs.y;
+			children[cellStackPointer].b = signs.x && !signs.y;
+			children[cellStackPointer].c = !signs.x && signs.y;
+			children[cellStackPointer].d = signs.x && signs.y;
+		}
+		else {
+			int32_t top, bottom = top = commonSides.y;
+			int32_t left, right = left = commonSides.x;
+			top *= !signs.y;
+			bottom *= signs.y;
+			left *= !signs.x;
+			right *= signs.x;
+			children[cellStackPointer].a = top || left;
+			children[cellStackPointer].b = top || right;
+			children[cellStackPointer].c = bottom || left;
+			children[cellStackPointer].d = bottom || right;
+		}
+		cell->initialized = 1;
+		for (int32_t i = 0; i < 4; ++i) {
+			cell->children[i].initialized = 0;
+		}
+		int32_t nextChild = 0;
+		for (int32_t i = 0; i < 4; ++i) {
+			if (*((int32_t *)(children + cellStackPointer) + i)) {
+				nextChild = i;
+				break;
+			}
+		}
+		cellStackPointer++;
+		cellStack[cellStackPointer] = cell->children + nextChild;
+	} while (cellStackPointer >= 0);
+}
 
-Cell *findFullyEnclosingCell(Cell *rootCell, int32_t loopStart, int32_t loopEnd, int32_t *loops, Vec2 *verts) {
+Cell *findFullyEnclosingCellOld(Cell *rootCell, int32_t loopStart, int32_t loopEnd, int32_t *loops, Vec2 *verts) {
 	Vec2 cellBoundsMin = {.x = .0, .y = .0};
 	Vec2 cellBoundsMax = {.x = 1.0, .y = 1.0};
 	Cell *cell = rootCell;
@@ -36,7 +138,7 @@ Cell *findFullyEnclosingCell(Cell *rootCell, int32_t loopStart, int32_t loopEnd,
 		for (int32_t i = loopStart + 1; i < loopEnd; ++i) {
 			int32_t childIndexVerti = (verts[i].x >= midPoint.x) +
 			                          (verts[i].y < midPoint.y) * 2;
-			fullyEnclosed = childIndexVerti == childIndexVert0;
+			fullyEnclosed *= childIndexVerti == childIndexVert0;
 		}
 		if (!fullyEnclosed) {
 			return cell;
@@ -169,6 +271,8 @@ void createQuadTree(Cell **rootCell, int32_t *maxTreeDepth, int32_t faceAmount, 
 	(*rootCell)->cellIndex = cellIndex;
 	cellIndex++;
 	cellStack[0] = *rootCell;
+	(*rootCell)->boundsMin.x = (*rootCell)->boundsMin.y = .0f;
+	(*rootCell)->boundsMax.x = (*rootCell)->boundsMax.y = 1.0f;
 	(*rootCell)->localIndex = 0;
 	(*rootCell)->initialized = 1;
 	allocateChildren(*rootCell);
