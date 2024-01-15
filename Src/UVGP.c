@@ -350,7 +350,7 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 				Vec2 tileMin = {k, j};
 				int32_t faceStart = mesh->faceBuffer[i];
 				int32_t faceEnd = mesh->faceBuffer[i + 1];
-				processCellFaces(tileMin, faceCellsInfo->faceAmount, cellFaces,
+				processCellFaces(tileMin, faceCellsInfo[i].faceAmount, cellFaces,
 				                 fileLoaded, mesh, workMesh, faceStart, faceEnd);
 			}
 		}
