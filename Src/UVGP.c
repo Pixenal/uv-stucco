@@ -37,6 +37,12 @@ typedef struct {
 	Vec2 *uvBuffer;
 } BlenderMeshData;
 
+typedef struct {
+	Cell **cells;
+	int32_t cellAmount;
+	int32_t faceAmount;
+} FaceCellsInfo;
+
 static UvgpFileLoaded *fileLoaded;
 
 DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, Vec3 *vertBuffer,
@@ -67,7 +73,7 @@ int32_t isPointInPolygon(Vec2 point, int32_t faceIndex, Vec3 *verts, int32_t *lo
 	return 0;
 }
 
-void clipPass(int32_t loopTop, Vec3 *loopBuffer, int32_t *newLoopTop, Vec3 *newLoopBuffer, int32_t *clipLoop, Vec3 *clipLoopVerts, Vec2 *uv, Vec2 *uvNext, Vec2 *uvCross, int32_t *insideBuffer){
+void clipPass(Vec2 tileMin, int32_t loopTop, Vec3 *loopBuffer, int32_t *newLoopTop, Vec3 *newLoopBuffer, int32_t *clipLoop, Vec3 *clipLoopVerts, Vec2 *uv, Vec2 *uvNext, Vec2 *uvCross, int32_t *insideBuffer){
 	for (int32_t i = 0; i < loopTop; ++i) {
 		Vec2 uvgpVert = *(Vec2 *)&loopBuffer[i];
 		int32_t vertNextIndex = (i + 1) % loopTop;
@@ -142,7 +148,7 @@ void addCellFaceToWorkMesh(int32_t loopTop, Vec3 *loopBuffer, BlenderMeshData *w
 	workMesh->faceAmount++;
 }
 
-void clipAgainstFace(int32_t *loopTop, Vec3 *loopBuffer, BlenderMeshData *mesh, int32_t loopAmount, int32_t faceStart) {
+void clipAgainstFace(Vec2 tileMin, int32_t *loopTop, Vec3 *loopBuffer, BlenderMeshData *mesh, int32_t loopAmount, int32_t faceStart) {
 	for (int32_t i = 0; i < loopAmount; ++i) {
 		Vec2 uv = mesh->uvBuffer[i + faceStart];
 		int32_t uvNextIndex = ((i + 1) % loopAmount) + faceStart;
@@ -156,7 +162,8 @@ void clipAgainstFace(int32_t *loopTop, Vec3 *loopBuffer, BlenderMeshData *mesh, 
 		int32_t newLoopTop = 0;
 		Vec2 uvCross = vec2Cross(uvDir);
 
-		clipPass(*loopTop, loopBuffer, &newLoopTop, newLoopBuffer, clipLoop, clipLoopVerts, &uv, &uvNext, &uvCross, insideBuffer);
+		clipPass(tileMin, *loopTop, loopBuffer, &newLoopTop, newLoopBuffer,
+		         clipLoop, clipLoopVerts, &uv, &uvNext, &uvCross, insideBuffer);
 
 		if (newLoopTop <= 2) {
 			*loopTop = newLoopTop;
@@ -167,10 +174,12 @@ void clipAgainstFace(int32_t *loopTop, Vec3 *loopBuffer, BlenderMeshData *mesh, 
 	}
 }
 
-void processCellFaces(int32_t cellFacesTotal, int32_t *cellFaces, UvgpFileLoaded *fileLoaded,
+void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, UvgpFileLoaded *fileLoaded,
                       BlenderMeshData *mesh, BlenderMeshData *workMesh, int32_t faceStart,
                       int32_t faceEnd) {
+
 	for (int32_t i = 0; i < cellFacesTotal; ++i) {
+		int32_t tileSign[2] = {};
 		//need to subtract one, as that face indices are offset by one,
 		//in order to be able to negate them when contstructing quadtree (can't negate zero)
 		int32_t uvgpFaceIndex = cellFaces[i] - 1;
@@ -183,8 +192,10 @@ void processCellFaces(int32_t cellFacesTotal, int32_t *cellFaces, UvgpFileLoaded
 		for (int32_t j = 0; j < uvgpFaceAmount; ++j) {
 			int32_t vertIndex = fileLoaded->data.loopBuffer[uvgpFaceStart + j];
 			loopBuffer[j] = fileLoaded->data.vertBuffer[vertIndex];
+			loopBuffer[j].x += tileMin.x;
+			loopBuffer[j].y += tileMin.y;
 		}
-		clipAgainstFace(&loopTop, loopBuffer, mesh, loopAmount, faceStart);
+		clipAgainstFace(tileMin, &loopTop, loopBuffer, mesh, loopAmount, faceStart);
 		addCellFaceToWorkMesh(loopTop, loopBuffer, workMesh, mesh, faceStart, faceEnd);
 	}
 }
@@ -203,7 +214,7 @@ void getFaceBounds(Vec2 *boundsMin, Vec2 *boundsMax, Vec2 *uvBuffer, int32_t fac
 }
 
 int32_t clipCellsToFace (int32_t *enclosingCellAmount, Cell **enclosingCells, int32_t *cellFacesTotal,
-                         iVec2 tileMin, int32_t faceStart,
+                         int32_t *totalCellFacesNoDup, iVec2 tileMin, int32_t faceStart,
                          int32_t faceEnd, BlenderMeshData *mesh) {
 	int32_t loopAmount = faceEnd - faceStart;
 	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
@@ -241,54 +252,67 @@ int32_t clipCellsToFace (int32_t *enclosingCellAmount, Cell **enclosingCells, in
 	}
 	//find fully enclosing cell using clipped face
 	findFullyEnclosingCell(tileMin, enclosingCellAmount, enclosingCells, cellFacesTotal,
-	                       fileLoaded->quadTree.rootCell, faceStart,
+	                       totalCellFacesNoDup, fileLoaded->quadTree.rootCell, faceStart,
 	                       faceEnd, mesh->loopBuffer, mesh->uvBuffer);
 	return 0;
 }
 
-int32_t rasterizeFaceInCells(int32_t faceIndex, int32_t **cellFaces, int32_t *totalCellFaces,
-                             iVec2 faceBoundsMin, iVec2 faceBoundsMax, int32_t faceStart,
-                             int32_t faceEnd, BlenderMeshData *mesh) {
+int32_t rasterizeFaceInCells(int32_t *cellFacesMax, int32_t faceIndex, FaceCellsInfo *faceCellsInfo, int32_t *totalCellFaces,
+                             iVec2 faceBoundsMin, iVec2 faceBoundsMax,
+                             int32_t faceStart, int32_t faceEnd, BlenderMeshData *mesh) {
 	Cell *enclosingCells[256];
+	int32_t totalCellFacesNoDup = 0;
 	int32_t enclosingCellAmount = 0;
 	for (int32_t i = faceBoundsMin.y; i <= faceBoundsMax.y; ++i) {
 		for (int32_t j = faceBoundsMin.x; j <= faceBoundsMax.x; ++j) {
 			int32_t result;
 			iVec2 tileMin = {j, i};
+			int32_t cellTop = enclosingCellAmount;
+			int32_t totalFaces = *totalCellFaces;
 			//continue until the smallest cell that fully encloses the face is found (result == 0).
 			//if face fully encloses the while uv tile (result == 1), then return (root cell will be used).
 			//if the face is not within the current tile, then skip tile (result == 2).
 			result = clipCellsToFace(&enclosingCellAmount, enclosingCells, totalCellFaces,
-			                         tileMin, faceStart, faceEnd, mesh);
+			                         &totalCellFacesNoDup, tileMin, faceStart, faceEnd, mesh);
 			if (result == 1) {
 				//fully enclosed
 				return 1;
 			}
 		}
 	}
-	// copy faces over to a new contiguous array to avoid cache thrashing
-	*cellFaces = malloc(sizeof(int32_t) * *totalCellFaces);
-	int32_t facesNextIndex = 0;
-	for (int32_t i = 0; i < enclosingCellAmount; ++i) {
-		Cell *cell = enclosingCells[i];
-		memcpy(*cellFaces + facesNextIndex, cell->faces, sizeof(int32_t) * cell->faceAmount);
-		facesNextIndex += cell->faceAmount;
+	faceCellsInfo->cells = malloc(sizeof(Cell *) * enclosingCellAmount);
+	memcpy(faceCellsInfo->cells, enclosingCells, sizeof(Cell *) * enclosingCellAmount);
+	faceCellsInfo->cellAmount = enclosingCellAmount;
+	faceCellsInfo->faceAmount = totalCellFacesNoDup;
+	if (totalCellFacesNoDup > *cellFacesMax) {
+		*cellFacesMax = totalCellFacesNoDup;
 	}
 	return 0;
 }
 
-void getAllEnclosingCellsForFaces(int32_t *totalCellFaces, int32_t **cellFaces, BlenderMeshData *mesh) {
+int32_t uvgpFloor(float a) {
+	int32_t aTrunc = a;
+	aTrunc -= ((float)aTrunc != a) && (a < .0f);
+	return aTrunc;
+}
+
+void getAllEnclosingCellsForFaces(int32_t *cellFacesMax, iVec2 *faceBoundsMin, iVec2 *faceBoundsMax,
+                                  int32_t *totalCellFaces,
+								  FaceCellsInfo *faceCellsInfo, BlenderMeshData *mesh) {
 	for (int32_t i = 0; i < mesh->faceAmount; ++i) {
 		int32_t faceStart = mesh->faceBuffer[i];
 		int32_t faceEnd = mesh->faceBuffer[i + 1];
-		Vec2 faceBoundsMin, faceBoundsMax;
-		getFaceBounds(&faceBoundsMin, &faceBoundsMax, mesh->uvBuffer, faceStart, faceEnd);
-		iVec2 faceBoundsMinTrunc = {(int32_t)faceBoundsMin.x, (int32_t)faceBoundsMin.x};
-		iVec2 faceBoundsMaxTrunc = {(int32_t)faceBoundsMax.x, (int32_t)faceBoundsMax.x};
-		if (rasterizeFaceInCells(i, cellFaces, totalCellFaces, faceBoundsMinTrunc,
-		                         faceBoundsMaxTrunc, faceStart, faceEnd, mesh)) {
+		Vec2 faceBoundsMinf, faceBoundsMaxf;
+		getFaceBounds(&faceBoundsMinf, &faceBoundsMaxf, mesh->uvBuffer, faceStart, faceEnd);
+		faceBoundsMin->x = uvgpFloor(faceBoundsMinf.x);
+		faceBoundsMin->y = uvgpFloor(faceBoundsMinf.y);
+		faceBoundsMax->x = uvgpFloor(faceBoundsMaxf.x);
+		faceBoundsMax->y = uvgpFloor(faceBoundsMaxf.y);
+		if (rasterizeFaceInCells(cellFacesMax, i, faceCellsInfo + i, totalCellFaces, *faceBoundsMin,
+		                         *faceBoundsMax, faceStart, faceEnd, mesh)) {
 			Cell *rootCell = fileLoaded->quadTree.rootCell;
-			cellFaces[0] = rootCell->faces;
+			faceCellsInfo[i].cells = malloc(sizeof(Cell *));
+			*faceCellsInfo[i].cells = rootCell;
 			*totalCellFaces = rootCell->faceAmount;
 			return;
 		}
@@ -296,23 +320,44 @@ void getAllEnclosingCellsForFaces(int32_t *totalCellFaces, int32_t **cellFaces, 
 }
 
 DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData *workMesh) {
-	int32_t *cellFaces;
 	int32_t cellFacesTotal = 0;;
-	getAllEnclosingCellsForFaces(&cellFacesTotal, &cellFaces, mesh);
+	iVec2 faceBoundsMin, faceBoundsMax;
+	int32_t cellFacesMax = 0;
+	FaceCellsInfo *faceCellsInfo = malloc(sizeof(FaceCellsInfo) * mesh->faceAmount);
+	getAllEnclosingCellsForFaces(&cellFacesMax, &faceBoundsMin, &faceBoundsMax, &cellFacesTotal,
+	                             faceCellsInfo, mesh);
 	int32_t bufferSize = mesh->faceAmount + cellFacesTotal;
 	workMesh->faceBuffer = malloc(sizeof(int32_t) * (bufferSize + 1));
 	workMesh->loopBuffer = malloc(sizeof(int32_t) * bufferSize * 2);
-	workMesh->vertBuffer = malloc(sizeof(Vec3) * bufferSize);
+	workMesh->vertBuffer = malloc(sizeof(Vec3) * bufferSize * 4);
 	workMesh->uvBuffer = malloc(sizeof(Vec2) * bufferSize * 2);
 	int32_t workMeshFaceTop = 0;
 	int32_t workMeshLoopTop = 0;
 	int32_t workMeshVertTop = 0;
 	int32_t workMeshUvTop = 0;
+	int32_t *cellFaces = malloc(sizeof(int32_t) * cellFacesMax);
 	for (int32_t i = 0; i < mesh->faceAmount; ++i) {
-		int32_t faceStart = mesh->faceBuffer[i];
-		int32_t faceEnd = mesh->faceBuffer[i + 1];
-		processCellFaces(cellFacesTotal, cellFaces, fileLoaded, mesh, workMesh, faceStart, faceEnd);
+		// copy faces over to a new contiguous array to avoid cache thrashing
+		int32_t facesNextIndex = 0;
+		for (int32_t j = 0; j < faceCellsInfo[i].cellAmount; ++j) {
+			Cell *cell = faceCellsInfo[i].cells[j];
+			memcpy(cellFaces + facesNextIndex, cell->faces, sizeof(int32_t) * cell->faceAmount);
+			facesNextIndex += cell->faceAmount;
+		}
+		//iterate through tiles
+		for (int32_t j = faceBoundsMin.y; j <= faceBoundsMax.y; ++j) {
+			for (int32_t k = faceBoundsMin.x; k <= faceBoundsMax.x; ++k) {
+				Vec2 tileMin = {k, j};
+				int32_t faceStart = mesh->faceBuffer[i];
+				int32_t faceEnd = mesh->faceBuffer[i + 1];
+				processCellFaces(tileMin, faceCellsInfo->faceAmount, cellFaces,
+				                 fileLoaded, mesh, workMesh, faceStart, faceEnd);
+			}
+		}
+		free(faceCellsInfo[i].cells);
 	}
+	free(cellFaces);
+	free(faceCellsInfo);
 	workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
 }
 

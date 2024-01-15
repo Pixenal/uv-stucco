@@ -18,10 +18,28 @@ void calcCellBounds(Cell *cell) {
 	cell->boundsMax.y = 1.0 - (1.0 - ySide) * .5;
 }
 
+void addCellToEnclosingCells(Cell *cell, int32_t *enclosingCellAmount, Cell **enclosingCellFaces,
+                             int32_t *totalCellFaces, int32_t *totalCellFacesNoDup) {
+	*totalCellFaces += cell->faceAmount;
+	int32_t isDup = false;
+	for (int32_t i = 0; i < *enclosingCellAmount; ++i) {
+		if (enclosingCellFaces[i] == cell) {
+			isDup = true;
+			break;
+		}
+	}
+	if (!isDup) {
+		enclosingCellFaces[*enclosingCellAmount] = cell;
+		++*enclosingCellAmount;
+		*totalCellFacesNoDup += cell->faceAmount;
+	}
+}
+
 void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
                             Cell **enclosingCellFaces, int32_t *totalCellFaces,
-                            Cell *rootCell, int32_t loopStart, int32_t loopEnd,
-                            int32_t *loops, Vec2 *verts) {
+                            int32_t *totalCellFacesNoDup, Cell *rootCell,
+                            int32_t loopStart, int32_t loopEnd, int32_t *loops,
+                            Vec2 *verts) {
 	typedef struct {
 		int32_t a;
 		int32_t b;
@@ -37,9 +55,8 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 	do {
 		Cell *cell = cellStack[cellStackPointer];
 		if (!cell->children) {
-			enclosingCellFaces[*enclosingCellAmount] = cell;
-			++*enclosingCellAmount;
-			*totalCellFaces += cell->faceAmount;
+			addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
+			                        totalCellFaces, totalCellFacesNoDup);
 			cellStackPointer--;
 			cell->initialized = 1;
 			continue;
@@ -76,9 +93,8 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 			}
 		}
 		if (!commonSides.x && !commonSides.y) {
-			enclosingCellFaces[*enclosingCellAmount] = cell;
-			++*enclosingCellAmount;
-			*totalCellFaces += cell->faceAmount;
+			addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
+			                        totalCellFaces, totalCellFacesNoDup);
 			cellStackPointer--;
 			cell->initialized = 1;
 			continue;
