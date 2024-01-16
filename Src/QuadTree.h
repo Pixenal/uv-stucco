@@ -3,18 +3,6 @@
 
 #define CELL_MAX_VERTS 256
 
-
-typedef struct Cell {
-	uint32_t localIndex;
-	uint32_t initialized;
-	struct Cell *children;
-	int32_t faceAmount;
-	int32_t *faces;
-	int32_t cellIndex;
-	Vec2 boundsMin;
-	Vec2 boundsMax;
-} Cell;
-
 typedef struct {
 	Cell *rootCell;
 	int32_t maxTreeDepth;

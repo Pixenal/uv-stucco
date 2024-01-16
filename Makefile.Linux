@@ -10,7 +10,8 @@ COMP_ARGS_C = $(COMPILER_C) -g -O0 -DEBUG -D PLATFORM_LINUX -fPIC -c $(INCLUDE_P
 LINK_ARGS = $(COMPILER_C) -shared
 DEBUG_ARGS = $(DEBUGGER)
 OBJECTS = $(INTERMEDIATES_PATH)/UVGP.o $(INTERMEDIATES_PATH)/miniz.o $(INTERMEDIATES_PATH)/Platform.o \
-          $(INTERMEDIATES_PATH)/Types.o $(INTERMEDIATES_PATH)/QuadTree.o $(INTERMEDIATES_PATH)/Io.o
+          $(INTERMEDIATES_PATH)/Types.o $(INTERMEDIATES_PATH)/QuadTree.o $(INTERMEDIATES_PATH)/Io.o \
+		  $(INTERMEDIATES_PATH)/ThreadPool.o
 
 #PHONY TARGETS
 .PHONY : validate_dir clean debug run
@@ -53,6 +54,8 @@ $(INTERMEDIATES_PATH)/QuadTree.o : Makefile.Linux Src/QuadTree.c Src/QuadTree.h
 	$(COMP_ARGS_C) Src/QuadTree.c -o $(INTERMEDIATES_PATH)/QuadTree.o
 $(INTERMEDIATES_PATH)/Io.o : Makefile.Linux Src/Io.c Src/Io.h Src/QuadTree.h
 	$(COMP_ARGS_C) Src/Io.c -o $(INTERMEDIATES_PATH)/Io.o
+$(INTERMEDIATES_PATH)/ThreadPool.o : Makefile.Linux Src/ThreadPool.c Src/ThreadPool.h
+	$(COMP_ARGS_C) Src/ThreadPool.c -o $(INTERMEDIATES_PATH)/ThreadPool.o
 
 #CLEAN
 clean :

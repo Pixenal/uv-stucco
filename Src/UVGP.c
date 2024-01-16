@@ -15,6 +15,7 @@
 #include "Io.h"
 #include <sys/time.h>
 #include <float.h>
+#include "ThreadPool.h"
 
 // TODO
 // - Reduce the bits written to the UVGP file for vert and loop indices, based on the total amount, in order to save space.
@@ -22,33 +23,12 @@
 // - Split compressed data into chunks maybe?
 // - Split whole quadtree into chunks?
 
+extern int32_t threadAmount;
+
 int32_t cellIndex;
 int32_t leafAmount;
 
 float tempTime = 0;
-
-typedef struct {
-	int32_t vertAmount;
-	Vec3 *vertBuffer;
-	int32_t loopAmount;
-	int32_t *loopBuffer;
-	int32_t faceAmount;
-	int32_t *faceBuffer;
-	Vec2 *uvBuffer;
-} BlenderMeshData;
-
-typedef struct {
-	Cell **cells;
-	int32_t cellAmount;
-	int32_t faceAmount;
-} FaceCellsInfo;
-
-//TODO: reduce faces to 4 in order to lower this from 12
-typedef struct {
-	int8_t used;
-	int8_t loopAmount;
-	int32_t loops[24];
-} VertAdj;
 
 static UvgpFileLoaded *fileLoaded;
 
@@ -60,6 +40,7 @@ DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, Vec3 *vertBuffer,
 }
 
 DECL_SPEC_EXPORT void uvgpLoadUvgpFile(char *filePath) {
+	createThreadPool();
 	fileLoaded = calloc(1, sizeof(UvgpFileLoaded));
 	loadUvgpFile(fileLoaded, filePath);
 	createQuadTree(&fileLoaded->quadTree.rootCell, &fileLoaded->quadTree.maxTreeDepth,
@@ -144,6 +125,7 @@ void addCellFaceToWorkMesh(Vec2 tileMin,int32_t loopTop, Vec3 *loopBuffer, int32
 			vertAdj->loopAmount++;
 		}
 		workMesh->loopBuffer[workMesh->loopAmount + i] = vertIndex;
+		workMesh->uvBuffer[workMesh->loopAmount + i] = *(Vec2 *)&loopBuffer[i];
 	}
 	workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
 	workMesh->loopAmount += loopTop;
@@ -364,25 +346,26 @@ void getAllEnclosingCellsForFaces(int32_t *cellFacesMax, iVec2 *faceBoundsMin, i
 	}
 }
 
-DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData *workMesh) {
+void projectOntoMeshJob(void *argsPtr) {
+	ThreadArg *args = argsPtr;
 	int32_t cellFacesTotal = 0;;
 	iVec2 faceBoundsMin, faceBoundsMax;
 	int32_t cellFacesMax = 0;
-	FaceCellsInfo *faceCellsInfo = malloc(sizeof(FaceCellsInfo) * mesh->faceAmount);
+	FaceCellsInfo *faceCellsInfo = malloc(sizeof(FaceCellsInfo) * args->mesh.faceAmount);
 	getAllEnclosingCellsForFaces(&cellFacesMax, &faceBoundsMin, &faceBoundsMax, &cellFacesTotal,
-	                             faceCellsInfo, mesh);
-	int32_t bufferSize = mesh->faceAmount + cellFacesTotal;
-	workMesh->faceBuffer = malloc(sizeof(int32_t) * (bufferSize + 1));
-	workMesh->loopBuffer = malloc(sizeof(int32_t) * bufferSize * 2);
-	workMesh->vertBuffer = malloc(sizeof(Vec3) * bufferSize * 4);
-	workMesh->uvBuffer = malloc(sizeof(Vec2) * bufferSize * 2);
+	                             faceCellsInfo, &args->mesh);
+	int32_t bufferSize = args->mesh.faceAmount + cellFacesTotal;
+	args->localMesh.faceBuffer = malloc(sizeof(int32_t) * bufferSize*4);
+	args->localMesh.loopBuffer = malloc(sizeof(int32_t) * bufferSize * 6);
+	args->localMesh.vertBuffer = malloc(sizeof(Vec3) * bufferSize*4);
+	args->localMesh.uvBuffer = malloc(sizeof(Vec2) * bufferSize * 6);
 	int32_t workMeshFaceTop = 0;
 	int32_t workMeshLoopTop = 0;
 	int32_t workMeshVertTop = 0;
 	int32_t workMeshUvTop = 0;
 	int32_t *cellFaces = malloc(sizeof(int32_t) * cellFacesMax);
 	VertAdj *uvgpVertAdj = calloc(fileLoaded->header.vertAmount, sizeof(VertAdj));
-	for (int32_t i = 0; i < mesh->faceAmount; ++i) {
+	for (int32_t i = 0; i < args->mesh.faceAmount; ++i) {
 		// copy faces over to a new contiguous array to avoid cache thrashing
 		int32_t facesNextIndex = 0;
 		for (int32_t j = 0; j < faceCellsInfo[i].cellAmount; ++j) {
@@ -394,10 +377,10 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 		for (int32_t j = faceBoundsMin.y; j <= faceBoundsMax.y; ++j) {
 			for (int32_t k = faceBoundsMin.x; k <= faceBoundsMax.x; ++k) {
 				Vec2 tileMin = {k, j};
-				int32_t faceStart = mesh->faceBuffer[i];
-				int32_t faceEnd = mesh->faceBuffer[i + 1];
+				int32_t faceStart = args->mesh.faceBuffer[i];
+				int32_t faceEnd = args->mesh.faceBuffer[i + 1];
 				processCellFaces(tileMin, faceCellsInfo[i].faceAmount, cellFaces,
-				                 fileLoaded, mesh, workMesh, faceStart, faceEnd, uvgpVertAdj);
+				                 fileLoaded, &args->mesh, &args->localMesh, faceStart, faceEnd, uvgpVertAdj);
 			}
 		}
 		free(faceCellsInfo[i].cells);
@@ -405,13 +388,79 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 	free(uvgpVertAdj);
 	free(cellFaces);
 	free(faceCellsInfo);
+	mutexLock();
+	++*args->jobsCompleted;
+	mutexUnlock();
+}
+
+DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData *workMesh) {
+	int32_t facesPerThread = mesh->faceAmount / threadAmount;
+	int32_t threadAmountMinus1 = threadAmount - 1;
+	ThreadArg jobArgs[MAX_THREADS] = {0};
+	void *jobArgPtrs[MAX_THREADS];
+	int32_t jobsCompleted = 0;
+	for (int32_t i = 0; i < threadAmount; ++i) {
+		int32_t meshStart = facesPerThread * i;
+		int32_t meshEnd = i == threadAmountMinus1 ?
+			mesh->faceAmount : meshStart + facesPerThread;
+		BlenderMeshData meshPart = *mesh;
+		meshPart.faceBuffer += meshStart;
+		meshPart.faceAmount = meshEnd - meshStart;
+		jobArgs[i].mesh = meshPart;
+		jobArgs[i].jobsCompleted = &jobsCompleted;
+		jobArgPtrs[i] = jobArgs + i;
+	}
+	pushJobs(threadAmount, projectOntoMeshJob, jobArgPtrs);
+	struct timespec remaining, request = {0, 10000};
+	int32_t waiting;
+	do  {
+		nanosleep(&request, &remaining);
+		mutexLock();
+		waiting = jobsCompleted < threadAmount;
+		mutexUnlock();
+	} while(waiting);
+	int32_t workMeshFaces, workMeshLoops, workMeshVerts;
+	workMeshFaces = workMeshLoops = workMeshVerts = 0;
+	for (int32_t i = 0; i < threadAmount; ++i) {
+		workMeshFaces += jobArgs[i].localMesh.faceAmount;
+		workMeshLoops += jobArgs[i].localMesh.loopAmount;
+		workMeshVerts += jobArgs[i].localMesh.vertAmount;
+	}
+	workMesh->faceBuffer = malloc(sizeof(int32_t) * (workMeshFaces + 1));
+	workMesh->loopBuffer = malloc(sizeof(int32_t) * workMeshLoops);
+	workMesh->vertBuffer = malloc(sizeof(Vec3) * workMeshVerts);
+	workMesh->uvBuffer = malloc(sizeof(Vec2) * workMeshLoops);
+	for (int32_t i = 0; i < threadAmount; ++i) {
+		BlenderMeshData *localMesh = &jobArgs[i].localMesh;
+		for (int32_t j = 0; j < localMesh->faceAmount; ++j) {
+			localMesh->faceBuffer[j] += workMesh->faceAmount;
+		}
+		for (int32_t j = 0; j < localMesh->loopAmount; ++j) {
+			localMesh->loopBuffer[j] += workMesh->loopAmount;
+		}
+		int32_t *facesStart = workMesh->faceBuffer + workMesh->faceAmount;
+		int32_t *loopsStart = workMesh->loopBuffer + workMesh->loopAmount;
+		Vec3 *vertsStart = workMesh->vertBuffer + workMesh->vertAmount;
+		Vec2 *uvsStart = workMesh->uvBuffer + workMesh->loopAmount;
+		memcpy(facesStart, localMesh->faceBuffer, sizeof(int32_t) * localMesh->faceAmount);
+		free(localMesh->faceBuffer);
+		workMesh->faceAmount += localMesh->faceAmount;
+		memcpy(loopsStart, localMesh->loopBuffer, sizeof(int32_t) * localMesh->loopAmount);
+		free(localMesh->loopBuffer);
+		memcpy(uvsStart, localMesh->uvBuffer, sizeof(Vec2) * localMesh->loopAmount);
+		free(localMesh->uvBuffer);
+		workMesh->loopAmount += localMesh->loopAmount;
+		memcpy(vertsStart, localMesh->vertBuffer, sizeof(Vec3) * localMesh->vertAmount);
+		free(localMesh->vertBuffer);
+		workMesh->vertAmount += localMesh->vertAmount;
+	}
 	workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
 }
 
 DECL_SPEC_EXPORT void uvgpUpdateMesh(BlenderMeshData *uvgpMesh, BlenderMeshData *workMesh) {
 	memcpy(uvgpMesh->vertBuffer, workMesh->vertBuffer, sizeof(Vec3) * uvgpMesh->vertAmount);
 	memcpy(uvgpMesh->loopBuffer, workMesh->loopBuffer, sizeof(int32_t) * uvgpMesh->loopAmount);
-	memcpy(uvgpMesh->faceBuffer, workMesh->faceBuffer, sizeof(int32_t) * uvgpMesh->faceAmount);
+	memcpy(uvgpMesh->faceBuffer, workMesh->faceBuffer, sizeof(int32_t) * (uvgpMesh->faceAmount + 1));
 	free(workMesh->vertBuffer);
 	free(workMesh->loopBuffer);
 	free(workMesh->faceBuffer);
