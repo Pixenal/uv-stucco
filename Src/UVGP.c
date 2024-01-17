@@ -3,6 +3,10 @@
 	#define DECL_SPEC_EXPORT __declspec(dllexport)
 #endif
 
+#define CLOCK_START gettimeofday(&start, NULL)
+#define CLOCK_STOP(a) gettimeofday(&stop, NULL); printf("%s - %s: %lu\n", __func__, (a), getTimeDiff(&start, &stop))
+#define CLOCK_STOP_NO_PRINT gettimeofday(&stop, NULL)
+
 #include <string.h>
 #include <stdio.h>
 #include "Types.h"
@@ -31,6 +35,10 @@ int32_t leafAmount;
 float tempTime = 0;
 
 static UvgpFileLoaded *fileLoaded;
+
+uint64_t getTimeDiff(struct timeval *start, struct timeval *stop) {
+	return (stop->tv_sec - start->tv_sec) * 1000000 + (stop->tv_usec - start->tv_usec);
+}
 
 DECL_SPEC_EXPORT void UvgpExportUvgpFile(int32_t vertAmount, Vec3 *vertBuffer,
                                          int32_t loopAmount, int32_t *loopBuffer, Vec3 *normalBuffer,
@@ -120,6 +128,7 @@ void addCellFaceToWorkMesh(Vec2 tileMin,int32_t loopTop, Vec3 *loopBuffer, int32
 		}
 		else {
 			VertAdj *vertAdj = uvgpVertAdj + vertIndex;
+			vertIndex = (vertIndex + 1) * -1;
 			vertAdj->used = 1;
 			vertAdj->loops[vertAdj->loopAmount] = workMesh->loopAmount + i;
 			vertAdj->loopAmount++;
@@ -163,7 +172,9 @@ void clipAgainstFace(Vec2 tileMin, int32_t *loopTop, Vec3 *loopBuffer, int32_t *
 
 void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, UvgpFileLoaded *fileLoaded,
                       BlenderMeshData *mesh, BlenderMeshData *workMesh, int32_t faceStart,
-                      int32_t faceEnd, VertAdj *uvgpVertAdj) {
+                      int32_t faceEnd, VertAdj *uvgpVertAdj, uint64_t *timeSpent) {
+	struct timeval start, stop;
+	CLOCK_START;
 	int32_t workMeshVertBase = workMesh->vertAmount;
 	for (int32_t i = 0; i < cellFacesTotal; ++i) {
 		//need to subtract one, as that face indices are offset by one,
@@ -187,6 +198,9 @@ void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, 
 		addCellFaceToWorkMesh(tileMin, loopTop, loopBuffer, indexBuffer, workMesh,
 		                      mesh, faceStart, faceEnd, uvgpVertAdj);
 	}
+	CLOCK_STOP_NO_PRINT;
+	timeSpent[0] += getTimeDiff(&start, &stop);
+	CLOCK_START;
 	Vec3 triUv0;
 	Vec3 triUv1;
 	Vec3 triUv2;
@@ -208,23 +222,36 @@ void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, 
 		workMesh->vertBuffer[vertIndex] =
 			barycentricToCartesian(triVert0, triVert1, triVert2, &vertBc);
 	}
-	for (int32_t i = 0; i < fileLoaded->header.vertAmount; ++i) {
-		VertAdj *vertAdj = uvgpVertAdj + i;
-		if (!vertAdj->used) {
+	struct timeval start2, stop2;
+	for (int32_t i = 0; i < workMesh->loopAmount; ++i) {
+		if (workMesh->loopBuffer[i] >= 0) {
 			continue;
 		}
-		Vec3 vert = fileLoaded->data.vertBuffer[i];
+		gettimeofday(&start2, NULL);
+		int32_t *vertIndex = workMesh->loopBuffer + i;
+		*vertIndex = (*vertIndex * -1) - 1;
+		Vec3 vert = fileLoaded->data.vertBuffer[*vertIndex];
 		_((Vec2 *)&vert V2SUBEQL tileMin);
 		Vec3 vertBc = cartesianToBarycentric(&triUv0, &triUv1, &triUv2, &vert);
 		workMesh->vertBuffer[workMesh->vertAmount] =
 			barycentricToCartesian(triVert0, triVert1, triVert2, &vertBc);
+		VertAdj *vertAdj = uvgpVertAdj + *vertIndex;
 		for (int32_t j = 0; j < vertAdj->loopAmount; ++j) {
 			int32_t loopIndex = vertAdj->loops[j];
 			workMesh->loopBuffer[loopIndex] = workMesh->vertAmount;
 		}
+		vertAdj->used = 0;
+		vertAdj->loopAmount = 0;
 		workMesh->vertAmount++;
+		gettimeofday(&stop2, NULL);
+		timeSpent[2] += getTimeDiff(&start2, &stop2);
 	}
-	memset(uvgpVertAdj, 0, sizeof(VertAdj) * fileLoaded->header.vertAmount);
+	CLOCK_STOP_NO_PRINT;
+	timeSpent[1] += getTimeDiff(&start, &stop);
+	//CLOCK_START;
+	//memset(uvgpVertAdj, 0, sizeof(VertAdj) * fileLoaded->header.vertAmount);
+	//CLOCK_STOP_NO_PRINT;
+	//timeSpent[2] += getTimeDiff(&start, &stop);
 }
 
 void getFaceBounds(Vec2 *boundsMin, Vec2 *boundsMax, Vec2 *uvBuffer, int32_t faceStart, int32_t faceEnd) {
@@ -347,6 +374,8 @@ void getAllEnclosingCellsForFaces(int32_t *cellFacesMax, iVec2 *faceBoundsMin, i
 }
 
 void projectOntoMeshJob(void *argsPtr) {
+	struct timeval start, stop;
+	CLOCK_START;
 	ThreadArg *args = argsPtr;
 	int32_t cellFacesTotal = 0;;
 	iVec2 faceBoundsMin, faceBoundsMax;
@@ -354,17 +383,26 @@ void projectOntoMeshJob(void *argsPtr) {
 	FaceCellsInfo *faceCellsInfo = malloc(sizeof(FaceCellsInfo) * args->mesh.faceAmount);
 	getAllEnclosingCellsForFaces(&cellFacesMax, &faceBoundsMin, &faceBoundsMax, &cellFacesTotal,
 	                             faceCellsInfo, &args->mesh);
+	CLOCK_STOP("getting enclosing cells");
+	CLOCK_START;
 	int32_t bufferSize = args->mesh.faceAmount + cellFacesTotal;
-	args->localMesh.faceBuffer = malloc(sizeof(int32_t) * bufferSize*4);
-	args->localMesh.loopBuffer = malloc(sizeof(int32_t) * bufferSize * 6);
-	args->localMesh.vertBuffer = malloc(sizeof(Vec3) * bufferSize*4);
-	args->localMesh.uvBuffer = malloc(sizeof(Vec2) * bufferSize * 6);
+	args->localMesh.faceBuffer = malloc(sizeof(int32_t) * bufferSize);
+	args->localMesh.loopBuffer = malloc(sizeof(int32_t) * bufferSize * 2);
+	args->localMesh.vertBuffer = malloc(sizeof(Vec3) * bufferSize);
+	args->localMesh.uvBuffer = malloc(sizeof(Vec2) * bufferSize * 2);
 	int32_t workMeshFaceTop = 0;
 	int32_t workMeshLoopTop = 0;
 	int32_t workMeshVertTop = 0;
 	int32_t workMeshUvTop = 0;
+	CLOCK_STOP("allocating local mesh");
+	CLOCK_START;
 	int32_t *cellFaces = malloc(sizeof(int32_t) * cellFacesMax);
+	CLOCK_STOP("allocating cell faces");
+	CLOCK_START;
 	VertAdj *uvgpVertAdj = calloc(fileLoaded->header.vertAmount, sizeof(VertAdj));
+	CLOCK_STOP("allocating vert adj");
+	uint64_t timeSpent[3] = {0};
+	CLOCK_START;
 	for (int32_t i = 0; i < args->mesh.faceAmount; ++i) {
 		// copy faces over to a new contiguous array to avoid cache thrashing
 		int32_t facesNextIndex = 0;
@@ -380,20 +418,30 @@ void projectOntoMeshJob(void *argsPtr) {
 				int32_t faceStart = args->mesh.faceBuffer[i];
 				int32_t faceEnd = args->mesh.faceBuffer[i + 1];
 				processCellFaces(tileMin, faceCellsInfo[i].faceAmount, cellFaces,
-				                 fileLoaded, &args->mesh, &args->localMesh, faceStart, faceEnd, uvgpVertAdj);
+				                 fileLoaded, &args->mesh, &args->localMesh, faceStart,
+				                 faceEnd, uvgpVertAdj, timeSpent);
 			}
 		}
 		free(faceCellsInfo[i].cells);
 	}
+	CLOCK_STOP("projecting");
+	printf("  ^  project: %lu, move & transform: %lu, memset vert adj: %lu\n",
+			timeSpent[0], timeSpent[1], timeSpent[2]);
+	CLOCK_START;
 	free(uvgpVertAdj);
 	free(cellFaces);
 	free(faceCellsInfo);
+	CLOCK_STOP("freeing memory");
+	CLOCK_START;
 	mutexLock();
 	++*args->jobsCompleted;
 	mutexUnlock();
+	CLOCK_STOP("setting jobs completed");
 }
 
 DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData *workMesh) {
+	struct timeval start, stop;
+	CLOCK_START;
 	int32_t facesPerThread = mesh->faceAmount / threadAmount;
 	int32_t threadAmountMinus1 = threadAmount - 1;
 	ThreadArg jobArgs[MAX_THREADS] = {0};
@@ -408,10 +456,13 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 		meshPart.faceAmount = meshEnd - meshStart;
 		jobArgs[i].mesh = meshPart;
 		jobArgs[i].jobsCompleted = &jobsCompleted;
+		jobArgs[i].id = i;
 		jobArgPtrs[i] = jobArgs + i;
 	}
 	pushJobs(threadAmount, projectOntoMeshJob, jobArgPtrs);
-	struct timespec remaining, request = {0, 10000};
+	CLOCK_STOP("send off jobs");
+	CLOCK_START;
+	struct timespec remaining, request = {0, 1000};
 	int32_t waiting;
 	do  {
 		nanosleep(&request, &remaining);
@@ -419,6 +470,8 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 		waiting = jobsCompleted < threadAmount;
 		mutexUnlock();
 	} while(waiting);
+	CLOCK_STOP("waiting");
+	CLOCK_START;
 	int32_t workMeshFaces, workMeshLoops, workMeshVerts;
 	workMeshFaces = workMeshLoops = workMeshVerts = 0;
 	for (int32_t i = 0; i < threadAmount; ++i) {
@@ -433,10 +486,10 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 	for (int32_t i = 0; i < threadAmount; ++i) {
 		BlenderMeshData *localMesh = &jobArgs[i].localMesh;
 		for (int32_t j = 0; j < localMesh->faceAmount; ++j) {
-			localMesh->faceBuffer[j] += workMesh->faceAmount;
+			localMesh->faceBuffer[j] += workMesh->loopAmount;
 		}
 		for (int32_t j = 0; j < localMesh->loopAmount; ++j) {
-			localMesh->loopBuffer[j] += workMesh->loopAmount;
+			localMesh->loopBuffer[j] += workMesh->vertAmount;
 		}
 		int32_t *facesStart = workMesh->faceBuffer + workMesh->faceAmount;
 		int32_t *loopsStart = workMesh->loopBuffer + workMesh->loopAmount;
@@ -455,6 +508,7 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 		workMesh->vertAmount += localMesh->vertAmount;
 	}
 	workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
+	CLOCK_STOP("moving to work mesh");
 }
 
 DECL_SPEC_EXPORT void uvgpUpdateMesh(BlenderMeshData *uvgpMesh, BlenderMeshData *workMesh) {
