@@ -39,7 +39,7 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
                             Cell **enclosingCellFaces, int32_t *totalCellFaces,
                             int32_t *totalCellFacesNoDup, Cell *rootCell,
                             int32_t loopStart, int32_t loopEnd, int32_t *loops,
-                            Vec2 *verts) {
+                            Vec2 *verts, int8_t *cellInits) {
 	typedef struct {
 		int32_t a;
 		int32_t b;
@@ -49,22 +49,25 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 	Cell *cellStack[16];
 	Children children[16];
 	cellStack[0] = rootCell;
-	rootCell->initialized = 0;
+	cellInits[0] = 0;
 	int32_t cellStackPointer = 0;
 	int32_t loopAmount = loopEnd - loopStart;
+	for (int32_t i = 0; i < 4; ++i) {
+		cellInits[rootCell->children[i].cellIndex] = 0;
+	}
 	do {
 		Cell *cell = cellStack[cellStackPointer];
 		if (!cell->children) {
 			addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
 			                        totalCellFaces, totalCellFacesNoDup);
 			cellStackPointer--;
-			cell->initialized = 1;
+			cellInits[cell->cellIndex] = 1;
 			continue;
 		}
-		if (cell->initialized) {
+		if (cellInits[cell->cellIndex]) {
 			int32_t nextChild = -1;
 			for (int32_t i = 0; i < 4; ++i) {
-				if (!cell->children[i].initialized &&
+				if (!cellInits[cell->children[i].cellIndex] &&
 				    *((int32_t *)(children + cellStackPointer) + i)) {
 					nextChild = i;
 					break;
@@ -96,7 +99,7 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 			addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
 			                        totalCellFaces, totalCellFacesNoDup);
 			cellStackPointer--;
-			cell->initialized = 1;
+			cellInits[cell->cellIndex] = 1;
 			continue;
 		}
 		iVec2 signs = {
@@ -121,9 +124,9 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 			children[cellStackPointer].c = bottom || left;
 			children[cellStackPointer].d = bottom || right;
 		}
-		cell->initialized = 1;
+		cellInits[cell->cellIndex] = 1;
 		for (int32_t i = 0; i < 4; ++i) {
-			cell->children[i].initialized = 0;
+			cellInits[cell->children[i].cellIndex] = 0;
 		}
 		int32_t nextChild = 0;
 		for (int32_t i = 0; i < 4; ++i) {
@@ -186,7 +189,9 @@ Cell *findEnclosingCell(Cell *rootCell, Vec2 pos) {
 void allocateChildren(Cell *cell) {
 	cell->children = malloc(sizeof(Cell) * 4);
 	for (int32_t i = 0; i < 4; ++i) {
-		cell->children[i].cellIndex = rand();
+		// v for visualizing quadtree v
+		//cell->children[i].cellIndex = rand();
+		cell->children[i].cellIndex = cellIndex;
 		cellIndex++;
 		cell->children[i].localIndex = (uint32_t)i;
 		cell->children[i].initialized = 0u;

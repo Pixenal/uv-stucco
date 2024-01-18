@@ -5,9 +5,10 @@ COMPILER_C = gcc
 LINKER = link
 DEBUGGER = gdb
 INCLUDE_PATHS = -ISrc -IThirdParty/Miniz
+#-flto -O2
 #-g -O0 -DEBUG
-COMP_ARGS_C = $(COMPILER_C) -O2 -D PLATFORM_LINUX -fPIC -c $(INCLUDE_PATHS)
-LINK_ARGS = $(COMPILER_C) -shared
+COMP_ARGS_C = $(COMPILER_C) -flto -O2 -pthread -D PLATFORM_LINUX -fPIC -c $(INCLUDE_PATHS)
+LINK_ARGS = $(COMPILER_C) -flto -O2 -pthread -shared
 DEBUG_ARGS = $(DEBUGGER)
 OBJECTS = $(INTERMEDIATES_PATH)/UVGP.o $(INTERMEDIATES_PATH)/miniz.o $(INTERMEDIATES_PATH)/Platform.o \
           $(INTERMEDIATES_PATH)/Types.o $(INTERMEDIATES_PATH)/QuadTree.o $(INTERMEDIATES_PATH)/Io.o \
@@ -42,19 +43,20 @@ update_comp_db: Makefile.Linux
 	> compile_commands.json
 
 #INTERMEDIATES
-$(INTERMEDIATES_PATH)/UVGP.o : Makefile.Linux Src/UVGP.c Src/QuadTree.h Src/Io.h
+$(INTERMEDIATES_PATH)/UVGP.o : Makefile.Linux Src/UVGP.c Src/QuadTree.h Src/Io.h Src/ThreadPool.h \
+	Src/Types.h
 	$(COMP_ARGS_C) Src/UVGP.c -o $(INTERMEDIATES_PATH)/UVGP.o
 $(INTERMEDIATES_PATH)/miniz.o : Makefile.Linux ThirdParty/Miniz/miniz.c ThirdParty/Miniz/miniz.h
 	$(COMP_ARGS_C) ThirdParty/Miniz/miniz.c -o $(INTERMEDIATES_PATH)/miniz.o
-$(INTERMEDIATES_PATH)/Platform.o : Makefile.Linux Src/PlatformLinux.c Src/Platform.h
+$(INTERMEDIATES_PATH)/Platform.o : Makefile.Linux Src/PlatformLinux.c Src/Platform.h Src/Types.h
 	$(COMP_ARGS_C) Src/PlatformLinux.c -o $(INTERMEDIATES_PATH)/Platform.o
 $(INTERMEDIATES_PATH)/Types.o : Makefile.Linux Src/Types.c Src/Types.h
 	$(COMP_ARGS_C) Src/Types.c -o $(INTERMEDIATES_PATH)/Types.o
-$(INTERMEDIATES_PATH)/QuadTree.o : Makefile.Linux Src/QuadTree.c Src/QuadTree.h
+$(INTERMEDIATES_PATH)/QuadTree.o : Makefile.Linux Src/QuadTree.c Src/QuadTree.h Src/Types.h
 	$(COMP_ARGS_C) Src/QuadTree.c -o $(INTERMEDIATES_PATH)/QuadTree.o
-$(INTERMEDIATES_PATH)/Io.o : Makefile.Linux Src/Io.c Src/Io.h Src/QuadTree.h
+$(INTERMEDIATES_PATH)/Io.o : Makefile.Linux Src/Io.c Src/Io.h Src/QuadTree.h Src/Platform.h Src/Types.h
 	$(COMP_ARGS_C) Src/Io.c -o $(INTERMEDIATES_PATH)/Io.o
-$(INTERMEDIATES_PATH)/ThreadPool.o : Makefile.Linux Src/ThreadPool.c Src/ThreadPool.h
+$(INTERMEDIATES_PATH)/ThreadPool.o : Makefile.Linux Src/ThreadPool.c Src/ThreadPool.h Src/Types.h
 	$(COMP_ARGS_C) Src/ThreadPool.c -o $(INTERMEDIATES_PATH)/ThreadPool.o
 
 #CLEAN
