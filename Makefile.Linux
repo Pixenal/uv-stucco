@@ -5,8 +5,8 @@ COMPILER_C = gcc
 LINKER = link
 DEBUGGER = gdb
 INCLUDE_PATHS = -ISrc -IThirdParty/Miniz
-#-flto -O2
-#-g -O0 -DEBUG
+#COMP_ARGS_C = $(COMPILER_C) -g -O0 -DEBUG -pthread -D PLATFORM_LINUX -fPIC -c $(INCLUDE_PATHS)
+#LINK_ARGS = $(COMPILER_C) -pthread -shared
 COMP_ARGS_C = $(COMPILER_C) -flto -O2 -pthread -D PLATFORM_LINUX -fPIC -c $(INCLUDE_PATHS)
 LINK_ARGS = $(COMPILER_C) -flto -O2 -pthread -shared
 DEBUG_ARGS = $(DEBUGGER)
