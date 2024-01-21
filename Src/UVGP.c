@@ -51,9 +51,10 @@ DECL_SPEC_EXPORT void uvgpLoadUvgpFile(char *filePath) {
 	createThreadPool();
 	fileLoaded = calloc(1, sizeof(UvgpFileLoaded));
 	loadUvgpFile(fileLoaded, filePath);
-	createQuadTree(&fileLoaded->quadTree.rootCell, &fileLoaded->quadTree.maxTreeDepth,
-	               fileLoaded->header.faceAmount, fileLoaded->data.vertBuffer, fileLoaded->data.loopBuffer, fileLoaded->data.faceBuffer);
-	writeDebugImage(fileLoaded->quadTree.rootCell);
+	createQuadTree(&fileLoaded->quadTree,
+	               fileLoaded->header.faceAmount, fileLoaded->data.vertBuffer,
+				   fileLoaded->data.loopBuffer, fileLoaded->data.faceBuffer);
+	//writeDebugImage(fileLoaded->quadTree.rootCell);
 }
 
 DECL_SPEC_EXPORT void uvgpUnloadUvgpFile(void *uvgpFile) {
@@ -62,11 +63,10 @@ DECL_SPEC_EXPORT void uvgpUnloadUvgpFile(void *uvgpFile) {
 	destroyUvgpFile(fileLoaded);
 }
 
-uint32_t fnvHash(uint32_t value, uint32_t size) {
+uint32_t fnvHash(uint8_t *value, int32_t valueSize, uint32_t size) {
 	uint32_t hash = 2166136261;
-	uint8_t *valuePtr = (uint8_t *)&value;
-	for (int32_t i = 0; i < 4; ++i) {
-		hash ^= valuePtr[i];
+	for (int32_t i = 0; i < valueSize; ++i) {
+		hash ^= value[i];
 		hash *= 16777619;
 	}
 	hash %= size;
@@ -83,7 +83,7 @@ int32_t isPointInPolygon(Vec2 point, int32_t faceIndex, Vec3 *verts, int32_t *lo
 void clipPass(Vec2 tileMin, int32_t loopTop, Vec3 *loopBuffer, int32_t *indexBuffer, int32_t *newLoopTop,
               Vec3 *newLoopBuffer, int32_t *newIndexBuffer, int32_t *clipLoop,
               Vec3 *clipLoopVerts, Vec2 *uv, Vec2 *uvNext, Vec2 *uvCross, int32_t *insideBuffer,
-			  int32_t *baseLoopBuffer, int32_t *newBaseLoopBuffer, int32_t loopIndex) {
+			  int32_t *baseLoopBuffer, int32_t *newBaseLoopBuffer, int32_t loopIndex, int32_t *edgeFace) {
 	for (int32_t i = 0; i < loopTop; ++i) {
 		Vec2 uvgpVert = *(Vec2 *)&loopBuffer[i];
 		int32_t vertNextIndex = (i + 1) % loopTop;
@@ -101,6 +101,7 @@ void clipPass(Vec2 tileMin, int32_t loopTop, Vec3 *loopBuffer, int32_t *indexBuf
 			(*newLoopTop)++;
 		}
 		if (insideBuffer[i] != insideBuffer[vertNextIndex]) {
+			*edgeFace += 1;
 			Vec2 uvgpVert = *(Vec2 *)&loopBuffer[i];
 			Vec2 uvgpVertNext = *(Vec2 *)&loopBuffer[vertNextIndex];
 			float t = (uvgpVert.x - uv->x) * (uv->y - uvNext->y) -
@@ -120,24 +121,29 @@ void clipPass(Vec2 tileMin, int32_t loopTop, Vec3 *loopBuffer, int32_t *indexBuf
 void addCellFaceToWorkMesh(Vec2 tileMin,int32_t loopTop, Vec3 *loopBuffer, int32_t *indexBuffer,
                            BlenderMeshData *workMesh, BlenderMeshData *mesh, int32_t faceStart,
                            int32_t faceEnd, VertAdj *uvgpVertAdj, uint32_t vertAdjSize,
-						   int32_t *baseLoopBuffer, BoundaryVert *boundaryBuffer) {
+						   int32_t *baseLoopBuffer, BoundaryVert *boundaryBuffer,
+	                       int32_t boundaryBufferSize, int32_t *maxDepth, int32_t edgeFace,
+						   int32_t faceIndex) {
 	if (loopTop <= 2) {
 		return;
 	}
+	int32_t loopStart = workMesh->loopAmount;
+	int32_t boundaryLoopStart = workMesh->boundaryLoopAmount;
 	int32_t vertsAdded = 0;
 	for (int32_t i = 0; i < loopTop; ++i) {
 		int32_t vertIndex = indexBuffer[i];
 		if (vertIndex < 0) {
+			continue;
+			/*
 			int32_t loopIndex = baseLoopBuffer[i];
 			int32_t loopAmount = faceEnd - faceStart;
 			int32_t baseVert = mesh->loopBuffer[faceStart + loopIndex];
 			int32_t loopNextIndex = (loopIndex + 1) % loopAmount;
 			int32_t baseVertNext = mesh->loopBuffer[faceStart + loopNextIndex];
 			int32_t edgeId = baseVert + baseVertNext;
-			int32_t hash = fnvHash(edgeId, mesh->vertAmount);
+			int32_t hash = fnvHash((uint8_t *)&edgeId, 4, boundaryBufferSize);
 			BoundaryVert *entry = boundaryBuffer + hash;
-			Vec2 vertLow = _(*(Vec2 *)&loopBuffer[i] V2SUBS .0001f);
-			Vec2 vertHigh = _(*(Vec2 *)&loopBuffer[i] V2ADDS .0001f);
+			int32_t depth = 0;
 			do {
 				if (!entry->loopAmount) {
 					workMesh->vertBuffer[workMesh->vertAmount] = loopBuffer[i];
@@ -146,28 +152,36 @@ void addCellFaceToWorkMesh(Vec2 tileMin,int32_t loopTop, Vec3 *loopBuffer, int32
 					break;
 				}
 				Vec3 *entryVert = workMesh->vertBuffer + entry->vert;
-				int32_t match = entryVert->x > vertLow.x &&
-				                entryVert->y > vertLow.y &&
-				                entryVert->x < vertHigh.x &&
-								entryVert->y < vertHigh.y;
+				int32_t match = loopBuffer[i].x == entryVert->x &&
+								loopBuffer[i].y == entryVert->y;
 				if (match) {
 					break;
 				}
 				if (!entry->next) {
+					depth++;
 					entry = entry->next = calloc(1, sizeof(BoundaryVert));
 					workMesh->vertBuffer[workMesh->vertAmount] = loopBuffer[i];
 					entry->vert = workMesh->vertAmount;
 					workMesh->vertAmount++;
 					break;
 				}
+				depth++;
 				entry = entry->next;
 			} while (1);
 			entry->loopAmount++;
 			vertIndex = entry->vert;
+			if (depth > *maxDepth) {
+				*maxDepth = depth;
+			}
+			*/
+
+			//vertIndex = workMesh->boundaryVertAmount;
+			//workMesh->vertBuffer[vertIndex] = loopBuffer[i];
+			//workMesh->boundaryVertAmount--;
 		}
 		else {
 			uint32_t uVertIndex = vertIndex;
-			int32_t hash = fnvHash(vertIndex, vertAdjSize);
+			int32_t hash = fnvHash((uint8_t *)&uVertIndex, 4, vertAdjSize);
 			VertAdj *vertAdj = uvgpVertAdj + hash;
 			do {
 				if (!vertAdj->loopAmount) {
@@ -195,18 +209,53 @@ void addCellFaceToWorkMesh(Vec2 tileMin,int32_t loopTop, Vec3 *loopBuffer, int32
 				vertAdj = vertAdj->next;
 			} while (1);
 			vertAdj->loopAmount++;
-			workMesh->uvBuffer[workMesh->loopAmount + i] = *(Vec2 *)&loopBuffer[i];
+			if (edgeFace) {
+				workMesh->uvBuffer[workMesh->boundaryLoopAmount] = *(Vec2 *)&loopBuffer[i];
+			}
+			else {
+				workMesh->uvBuffer[workMesh->loopAmount] = *(Vec2 *)&loopBuffer[i];
+			}
 		}
-		workMesh->loopBuffer[workMesh->loopAmount + i] = vertIndex;
+		if (edgeFace) {
+			workMesh->loopBuffer[workMesh->boundaryLoopAmount] = vertIndex;
+			workMesh->boundaryLoopAmount--;
+		}
+		else {
+			workMesh->loopBuffer[workMesh->loopAmount] = vertIndex;
+			workMesh->loopAmount++;
+		}
 	}
-	workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
-	workMesh->loopAmount += loopTop;
-	workMesh->faceAmount++;
+	if (edgeFace) {
+		workMesh->faceBuffer[workMesh->boundaryFaceAmount] = boundaryLoopStart;
+		int32_t hash = fnvHash((uint8_t *)&faceIndex, 4, boundaryBufferSize);
+		BoundaryVert *entry = boundaryBuffer + hash;
+		do {
+			if (!entry->valid) {
+				entry->face = workMesh->boundaryFaceAmount;
+				entry->faceIndex = faceIndex;
+				entry->valid = 1;
+				break;
+			}
+			if (!entry->next) {
+				entry = entry->next = calloc(1, sizeof(BoundaryVert));
+				entry->face = workMesh->boundaryFaceAmount;
+				entry->faceIndex = faceIndex;
+				entry->valid = 1;
+				break;
+			}
+			entry = entry->next;
+		} while (1);
+		workMesh->boundaryFaceAmount--;
+	}
+	else {
+		workMesh->faceBuffer[workMesh->faceAmount] = loopStart;
+		workMesh->faceAmount++;
+	}
 }
 
 void clipAgainstFace(Vec2 tileMin, int32_t *loopTop, Vec3 *loopBuffer, int32_t *indexBuffer,
                      BlenderMeshData *mesh, int32_t loopAmount, int32_t faceStart,
-					 int32_t *baseLoopBuffer) {
+					 int32_t *baseLoopBuffer, int32_t *edgeFace) {
 	for (int32_t i = 0; i < loopAmount; ++i) {
 		Vec2 uv = mesh->uvBuffer[i + faceStart];
 		int32_t uvNextIndex = ((i + 1) % loopAmount) + faceStart;
@@ -224,7 +273,7 @@ void clipAgainstFace(Vec2 tileMin, int32_t *loopTop, Vec3 *loopBuffer, int32_t *
 
 		clipPass(tileMin, *loopTop, loopBuffer, indexBuffer, &newLoopTop, newLoopBuffer, newIndexBuffer,
 		         clipLoop, clipLoopVerts, &uv, &uvNext, &uvCross, insideBuffer, baseLoopBuffer,
-				 newBaseLoopBuffer, i);
+				 newBaseLoopBuffer, i, edgeFace);
 
 		if (newLoopTop <= 2) {
 			*loopTop = newLoopTop;
@@ -247,16 +296,14 @@ void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, 
                       BlenderMeshData *mesh, BlenderMeshData *workMesh, int32_t faceStart,
                       int32_t faceEnd, VertAdj *uvgpVertAdj, uint64_t *timeSpent, uint32_t vertAdjSize,
                       int32_t *averageDepth, BoundaryVert *boundaryBuffer, int32_t *boundaryFaceStart,
-					  int32_t faceIndex) {
+					  int32_t faceIndex, int32_t boundaryBufferSize, int32_t *maxDepth) {
 	struct timeval start, stop;
 	CLOCK_START;
 	//*boundaryFaceStart = workMesh->boundaryLoopAmount;
 	//int32_t boundaryVertStart = workMesh->boundaryVertAmount;
 	int32_t vertAmountBase = workMesh->vertAmount;
 	for (int32_t i = 0; i < cellFacesTotal; ++i) {
-		//need to subtract one, as that face indices are offset by one,
-		//in order to be able to negate them when contstructing quadtree (can't negate zero)
-		int32_t uvgpFaceIndex = cellFaces[i] - 1;
+		int32_t uvgpFaceIndex = cellFaces[i];
 		int32_t loopAmount = faceEnd - faceStart;
 		Vec3 loopBuffer[12];
 		int32_t indexBuffer[12];
@@ -272,11 +319,13 @@ void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, 
 			loopBuffer[j].x += tileMin.x;
 			loopBuffer[j].y += tileMin.y;
 		}
+		int32_t edgeFace = 0;
 		clipAgainstFace(tileMin, &loopTop, loopBuffer, indexBuffer, mesh, loopAmount,
-		                faceStart, baseLoopBuffer);
+		                faceStart, baseLoopBuffer, &edgeFace);
 		addCellFaceToWorkMesh(tileMin, loopTop, loopBuffer, indexBuffer, workMesh,
 		                      mesh, faceStart, faceEnd, uvgpVertAdj, vertAdjSize,
-							  baseLoopBuffer, boundaryBuffer);
+							  baseLoopBuffer, boundaryBuffer, boundaryBufferSize, maxDepth, edgeFace,
+							  uvgpFaceIndex);
 	}
 	CLOCK_STOP_NO_PRINT;
 	timeSpent[0] += getTimeDiff(&start, &stop);
@@ -293,6 +342,7 @@ void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, 
 	Vec3 *triVert0 = mesh->vertBuffer + mesh->loopBuffer[faceStart];
 	Vec3 *triVert1 = mesh->vertBuffer + mesh->loopBuffer[faceStart + 1];
 	Vec3 *triVert2 = mesh->vertBuffer + mesh->loopBuffer[faceStart + 2];
+	/*
 	for (int32_t i = vertAmountBase; i < workMesh->vertAmount; ++i) {
 		Vec3 vert = workMesh->vertBuffer[i];
 		vert.z = .0f;
@@ -301,6 +351,7 @@ void processCellFaces(Vec2 tileMin, int32_t cellFacesTotal, int32_t *cellFaces, 
 		workMesh->vertBuffer[i] =
 			barycentricToCartesian(triVert0, triVert1, triVert2, &vertBc);
 	}
+	*/
 	//printf("Total vert adj: %d %d %d - depth: %d %d\n", totalEmpty, totalComputed, vertAdjSize, maxDepth, *averageDepth);
 	CLOCK_STOP_NO_PRINT;
 	timeSpent[1] += getTimeDiff(&start, &stop);
@@ -323,9 +374,9 @@ void getFaceBounds(Vec2 *boundsMin, Vec2 *boundsMax, Vec2 *uvBuffer, int32_t fac
 	}
 }
 
-int32_t clipCellsToFace (int32_t *enclosingCellAmount, Cell **enclosingCells, int32_t *cellFacesTotal,
-                         int32_t *totalCellFacesNoDup, iVec2 tileMin, int32_t faceStart,
-                         int32_t faceEnd, BlenderMeshData *mesh, int8_t *cellInits) {
+int32_t clipCellsToFace (int32_t *enclosingCellAmount, Cell **enclosingCells, int8_t *enclosingCellType,
+						 int32_t *cellFacesTotal, int32_t *totalCellFacesNoDup, iVec2 tileMin,
+						 int32_t faceStart, int32_t faceEnd, BlenderMeshData *mesh, int8_t *cellInits) {
 	int32_t loopAmount = faceEnd - faceStart;
 	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
 	int32_t faceVertInside = 0;
@@ -361,7 +412,7 @@ int32_t clipCellsToFace (int32_t *enclosingCellAmount, Cell **enclosingCells, in
 		return 0;
 	}
 	//find fully enclosing cell using clipped face
-	findFullyEnclosingCell(tileMin, enclosingCellAmount, enclosingCells, cellFacesTotal,
+	findFullyEnclosingCell(tileMin, enclosingCellAmount, enclosingCells, enclosingCellType, cellFacesTotal,
 	                       totalCellFacesNoDup, fileLoaded->quadTree.rootCell, faceStart,
 	                       faceEnd, mesh->loopBuffer, mesh->uvBuffer, cellInits);
 	return 0;
@@ -372,6 +423,7 @@ int32_t rasterizeFaceInCells(int32_t *cellFacesMax, int32_t faceIndex, FaceCells
                              int32_t faceStart, int32_t faceEnd, BlenderMeshData *mesh,
                              int8_t *cellInits) {
 	Cell *enclosingCells[256];
+	int8_t enclosingCellType[256];
 	int32_t totalCellFacesNoDup = 0;
 	int32_t enclosingCellAmount = 0;
 	for (int32_t i = faceBoundsMin.y; i <= faceBoundsMax.y; ++i) {
@@ -383,8 +435,9 @@ int32_t rasterizeFaceInCells(int32_t *cellFacesMax, int32_t faceIndex, FaceCells
 			//continue until the smallest cell that fully encloses the face is found (result == 0).
 			//if face fully encloses the while uv tile (result == 1), then return (root cell will be used).
 			//if the face is not within the current tile, then skip tile (result == 2).
-			result = clipCellsToFace(&enclosingCellAmount, enclosingCells, totalCellFaces,
-			                         &totalCellFacesNoDup, tileMin, faceStart, faceEnd, mesh, cellInits);
+			result = clipCellsToFace(&enclosingCellAmount, enclosingCells, enclosingCellType,
+			                         totalCellFaces, &totalCellFacesNoDup, tileMin, faceStart,
+			                         faceEnd, mesh, cellInits);
 			if (result == 1) {
 				//fully enclosed
 				return 1;
@@ -392,7 +445,9 @@ int32_t rasterizeFaceInCells(int32_t *cellFacesMax, int32_t faceIndex, FaceCells
 		}
 	}
 	faceCellsInfo->cells = malloc(sizeof(Cell *) * enclosingCellAmount);
+	faceCellsInfo->cellType = malloc(sizeof(int8_t) * enclosingCellAmount);
 	memcpy(faceCellsInfo->cells, enclosingCells, sizeof(Cell *) * enclosingCellAmount);
+	memcpy(faceCellsInfo->cellType, enclosingCellType, sizeof(int8_t) * enclosingCellAmount);
 	faceCellsInfo->cellAmount = enclosingCellAmount;
 	faceCellsInfo->faceAmount = totalCellFacesNoDup;
 	if (totalCellFacesNoDup > *cellFacesMax) {
@@ -452,10 +507,16 @@ void projectOntoMeshJob(void *argsPtr) {
 	                             faceCellsInfo, &args->mesh, &averageUvgpFacesPerFace);
 	CLOCK_STOP("getting enclosing cells");
 	CLOCK_START;
-	args->boundaryBuffer = calloc(args->mesh.vertAmount, sizeof(BoundaryVert));
 	//args->boundaryFace = malloc(sizeof(int32_t) * args->mesh.faceAmount + 1);
 	int32_t bufferSize = args->mesh.faceAmount + cellFacesTotal;
+	args->bufferSize = bufferSize;
 	int32_t loopBufferSize = bufferSize * 2;
+	args->loopBufferSize = loopBufferSize;
+	int32_t boundaryBufferSize = bufferSize;
+	args->boundaryBuffer = calloc(boundaryBufferSize, sizeof(BoundaryVert));
+	args->localMesh.boundaryVertAmount = bufferSize - 1;
+	args->localMesh.boundaryLoopAmount = loopBufferSize - 1;
+	args->localMesh.boundaryFaceAmount = bufferSize - 1;
 	args->localMesh.faceBuffer = malloc(sizeof(int32_t) * bufferSize);
 	args->localMesh.loopBuffer = malloc(sizeof(int32_t) * loopBufferSize);
 	args->localMesh.vertBuffer = malloc(sizeof(Vec3) * bufferSize);
@@ -473,14 +534,22 @@ void projectOntoMeshJob(void *argsPtr) {
 	VertAdj *uvgpVertAdj = calloc(vertAdjSize, sizeof(VertAdj));
 	CLOCK_STOP("allocating vert adj");
 	uint64_t timeSpent[3] = {0};
+	int32_t maxDepth;
 	CLOCK_START;
 	for (int32_t i = 0; i < args->mesh.faceAmount; ++i) {
-		// copy faces over to a new contiguous array to avoid cache thrashing
+		// copy faces over to a new contiguous array
 		int32_t facesNextIndex = 0;
 		for (int32_t j = 0; j < faceCellsInfo[i].cellAmount; ++j) {
 			Cell *cell = faceCellsInfo[i].cells[j];
-			memcpy(cellFaces + facesNextIndex, cell->faces, sizeof(int32_t) * cell->faceAmount);
-			facesNextIndex += cell->faceAmount;
+			int32_t facesAdded = 0;
+			if (faceCellsInfo[i].cellType[j]) {
+				memcpy(cellFaces + facesNextIndex, cell->edgeFaces, sizeof(int32_t) * cell->edgeFaceAmount);
+				facesNextIndex += cell->edgeFaceAmount;
+			}
+			if (faceCellsInfo[i].cellType[j] != 1) {
+				memcpy(cellFaces + facesNextIndex, cell->faces, sizeof(int32_t) * cell->faceAmount);
+				facesNextIndex += cell->faceAmount;
+			}
 		}
 		//iterate through tiles
 		for (int32_t j = faceBoundsMin.y; j <= faceBoundsMax.y; ++j) {
@@ -492,19 +561,83 @@ void projectOntoMeshJob(void *argsPtr) {
 				                 fileLoaded, &args->mesh, &args->localMesh, faceStart,
 				                 faceEnd, uvgpVertAdj, timeSpent, vertAdjSize,
 				                 &args->averageVertAdjDepth, args->boundaryBuffer,
-								 args->boundaryFaceStart + i, i);
+								 args->boundaryFaceStart + i, i, boundaryBufferSize,
+								 &maxDepth);
 			}
 		}
 		free(faceCellsInfo[i].cells);
 	}
+	args->localMesh.faceBuffer[args->localMesh.boundaryFaceAmount] = 
+		args->localMesh.boundaryLoopAmount;
+	args->totalFaces = args->localMesh.faceAmount;
+	args->totalLoops = args->localMesh.loopAmount;
+	//args->totalFaces = args->localMesh.faceAmount + (bufferSize - args->localMesh.boundaryFaceAmount);
+	//args->totalLoops = args->localMesh.loopAmount + (loopBufferSize - args->localMesh.boundaryLoopAmount);
+	args->totalVerts = args->localMesh.vertAmount;
+	printf("MaxDepth: %d\n", maxDepth);
 	CLOCK_STOP("projecting");
 	printf("  ^  project: %lu, move & transform: %lu, memset vert adj: %lu\n",
 			timeSpent[0], timeSpent[1], timeSpent[2]);
 	CLOCK_START;
+	if (1) {
+		args->finalBoundary = malloc(sizeof(BoundaryVert * ) *
+				(bufferSize - args->localMesh.boundaryFaceAmount));
+		args->totalBoundaryFaces = 0;
+		BoundaryVert *entryBuffer[256];
+		int32_t entryBufferTop = 0;
+		for (int32_t i = 0; i < boundaryBufferSize; ++i) {
+			BoundaryVert *entry = args->boundaryBuffer + i;
+			do {
+				if (!entry->valid) {
+					break;
+				}
+				entryBuffer[entryBufferTop++] = entry;
+				BoundaryVert *nextEntry = entry->next;
+				entry->next = NULL;
+				entry = nextEntry;
+			} while (entry);
+			for (int32_t j = 0; j < entryBufferTop; ++j) {
+				if (!entryBuffer[j]) {
+					continue;
+				}
+				entry = entryBuffer[j];
+				int32_t faceStart = args->localMesh.faceBuffer[entry->face];
+				int32_t faceEnd = args->localMesh.faceBuffer[entry->face - 1];
+				int32_t loopAmount = faceStart - faceEnd;
+				args->totalLoops += loopAmount;
+				for (int32_t k = j + 1; k < entryBufferTop; ++k) {
+					if (!entryBuffer[k]) {
+						continue;
+					}
+					BoundaryVert *otherEntry = entryBuffer[k];
+					if (entry->faceIndex != otherEntry->faceIndex) {
+						continue;
+					}
+					int32_t otherFaceStart = args->localMesh.faceBuffer[otherEntry->face];
+					int32_t otherFaceEnd = args->localMesh.faceBuffer[otherEntry->face - 1];
+					int32_t otherLoopAmount = otherFaceStart - otherFaceEnd;
+					args->totalLoops += otherLoopAmount;
+					entryBuffer[k] = NULL;
+					BoundaryVert *nextEntry = entry;
+					do {
+						if (!nextEntry->next) {
+							nextEntry->next = otherEntry;
+							break;
+						}
+						nextEntry = nextEntry->next;
+					} while(1);
+				}
+				args->totalFaces++;
+				args->finalBoundary[args->totalBoundaryFaces] = entry;
+				args->totalBoundaryFaces++;
+
+			}
+			entryBufferTop = 0;
+		}
+	}
 	free(uvgpVertAdj);
 	free(cellFaces);
 	free(faceCellsInfo);
-	free(args->boundaryBuffer);
 	CLOCK_STOP("freeing memory");
 	CLOCK_START;
 	mutexLock();
@@ -552,9 +685,9 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 	workMeshFaces = workMeshLoops = workMeshVerts = 0;
 	for (int32_t i = 0; i < threadAmount; ++i) {
 		averageVertAdjDepth += jobArgs[i].averageVertAdjDepth;
-		workMeshFaces += jobArgs[i].localMesh.faceAmount;
-		workMeshLoops += jobArgs[i].localMesh.loopAmount;
-		workMeshVerts += jobArgs[i].localMesh.vertAmount;
+		workMeshFaces += jobArgs[i].totalFaces;
+		workMeshLoops += jobArgs[i].totalLoops;
+		workMeshVerts += jobArgs[i].totalVerts;
 	}
 	averageVertAdjDepth /= threadAmount;
 	printf("Average Vert Adj Depth: %d\n", averageVertAdjDepth);
@@ -572,21 +705,45 @@ DECL_SPEC_EXPORT void uvgpProjectOntoMesh(BlenderMeshData *mesh, BlenderMeshData
 		for (int32_t j = 0; j < localMesh->loopAmount; ++j) {
 			localMesh->loopBuffer[j] += workMesh->vertAmount;
 		}
+		for (int32_t j = jobArgs[i].loopBufferSize - 1; j > localMesh->boundaryLoopAmount; --j) {
+			localMesh->loopBuffer[j] += workMesh->vertAmount;
+		}
 		int32_t *facesStart = workMesh->faceBuffer + workMesh->faceAmount;
 		int32_t *loopsStart = workMesh->loopBuffer + workMesh->loopAmount;
 		Vec3 *vertsStart = workMesh->vertBuffer + workMesh->vertAmount;
 		Vec2 *uvsStart = workMesh->uvBuffer + workMesh->loopAmount;
 		memcpy(facesStart, localMesh->faceBuffer, sizeof(int32_t) * localMesh->faceAmount);
-		free(localMesh->faceBuffer);
 		workMesh->faceAmount += localMesh->faceAmount;
 		memcpy(loopsStart, localMesh->loopBuffer, sizeof(int32_t) * localMesh->loopAmount);
-		free(localMesh->loopBuffer);
 		memcpy(uvsStart, localMesh->uvBuffer, sizeof(Vec2) * localMesh->loopAmount);
-		free(localMesh->uvBuffer);
 		workMesh->loopAmount += localMesh->loopAmount;
 		memcpy(vertsStart, localMesh->vertBuffer, sizeof(Vec3) * localMesh->vertAmount);
-		free(localMesh->vertBuffer);
 		workMesh->vertAmount += localMesh->vertAmount;
+
+		for (int32_t j = 0; j < jobArgs[i].totalBoundaryFaces; ++j) {
+			workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
+			BoundaryVert *entry = jobArgs[i].finalBoundary[j];
+			do {
+				int32_t faceStart = localMesh->faceBuffer[entry->face];
+				int32_t faceEnd = localMesh->faceBuffer[entry->face - 1];
+				int32_t loopAmount = faceStart - faceEnd;
+				for (int32_t k = 0; k < loopAmount; ++k) {
+					workMesh->loopBuffer[workMesh->loopAmount + k] =
+						localMesh->loopBuffer[faceStart - k];
+					workMesh->uvBuffer[workMesh->loopAmount + k] =
+						localMesh->uvBuffer[faceStart - k];
+				}
+				workMesh->loopAmount += loopAmount;
+				entry = entry->next;
+			} while(entry);
+			workMesh->faceAmount++;
+		}
+		free(localMesh->faceBuffer);
+		free(localMesh->loopBuffer);
+		free(localMesh->uvBuffer);
+		free(localMesh->vertBuffer);
+		free(jobArgs[i].boundaryBuffer);
+		free(jobArgs[i].finalBoundary);
 	}
 	workMesh->faceBuffer[workMesh->faceAmount] = workMesh->loopAmount;
 	CLOCK_STOP("moving to work mesh");
