@@ -19,32 +19,30 @@ void calcCellBounds(Cell *cell) {
 	cell->boundsMax.y = 1.0 - (1.0 - ySide) * .5;
 }
 
-void addCellToEnclosingCells(Cell *cell, int32_t *enclosingCellAmount, Cell **enclosingCellFaces,
-                             int8_t *enclosingCellType, int32_t *totalCellFaces,
-							 int32_t *totalCellFacesNoDup, int32_t edge) {
+void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCellsInfo, int32_t edge) {
 	int32_t faceAmount = edge ? cell->edgeFaceAmount : cell->faceAmount;
-	*totalCellFaces += faceAmount;
+	pEnclosingCellsInfo->faceTotal += faceAmount;
 	int32_t dupIndex = -1;
-	for (int32_t i = 0; i < *enclosingCellAmount; ++i) {
-		if (enclosingCellFaces[i] == cell) {
+	for (int32_t i = 0; i < pEnclosingCellsInfo->cellAmount; ++i) {
+		if (pEnclosingCellsInfo->cells[i] == cell) {
 			dupIndex = i;
 			break;
 		}
 	}
 	if (dupIndex >= 0) {
-		if (!enclosingCellType[dupIndex] && edge) {
-			enclosingCellType[dupIndex] = 2;
+		if (!pEnclosingCellsInfo->cellType[dupIndex] && edge) {
+			pEnclosingCellsInfo->cellType[dupIndex] = 2;
 		}
 		return;
 	}
-	enclosingCellFaces[*enclosingCellAmount] = cell;
-	enclosingCellType[*enclosingCellAmount] = edge;
-	++*enclosingCellAmount;
-	*totalCellFacesNoDup += faceAmount;
+	pEnclosingCellsInfo->cells[pEnclosingCellsInfo->cellAmount] = cell;
+	pEnclosingCellsInfo->cellType[pEnclosingCellsInfo->cellAmount] = edge;
+	pEnclosingCellsInfo->cellAmount++;;
+	pEnclosingCellsInfo->faceTotalNoDup += faceAmount;
 }
 
 int32_t findFaceQuadrantUv(int32_t loopAmount, int32_t loopStart,
-                         Vec2 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
+                           Vec3 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
 	iVec2 sides[loopAmount];
 	for (int32_t i = 0; i < loopAmount; ++i) {
@@ -70,14 +68,14 @@ int32_t findFaceQuadrantUv(int32_t loopAmount, int32_t loopStart,
 }
 
 int32_t findFaceQuadrant(int32_t loopAmount, int32_t faceStart,
-                         Vec3 *verts, int32_t *loopBuffer, Vec2 midPoint,
+                         MeshData *pMesh, Vec2 midPoint,
 						 iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
 	iVec2 sides[loopAmount];
 	for (int32_t i = 0; i < loopAmount; ++i) {
-		int32_t vertIndex = loopBuffer[faceStart + i];
-		sides[i].x = verts[vertIndex].x >= midPoint.x;
-		sides[i].y = verts[vertIndex].y < midPoint.y;
+		int32_t vertIndex = pMesh->pLoops[faceStart + i];
+		sides[i].x = pMesh->pVerts[vertIndex].x >= midPoint.x;
+		sides[i].y = pMesh->pVerts[vertIndex].y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
 			commonSides->x *= sides[i].x == sides[j].x;
 			commonSides->y *= sides[i].y == sides[j].y;
@@ -88,11 +86,9 @@ int32_t findFaceQuadrant(int32_t loopAmount, int32_t faceStart,
 	return commonSides->x && commonSides->y;
 }
 
-void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
-                            Cell **enclosingCellFaces, int8_t *enclosingCellType,
-							int32_t *totalCellFaces, int32_t *totalCellFacesNoDup,
-							Cell *rootCell, int32_t loopStart, int32_t loopEnd,
-							int32_t *loops, Vec2 *verts, int8_t *cellInits) {
+void quadTreeGetAllEnclosingCells(iVec2 tileMin, EnclosingCellsInfo *pEnclosingCellsInfo,
+									 Cell *pRootCell, int32_t loopStart, int32_t loopEnd,
+							         MeshData *pMesh, int8_t *pCellInits) {
 	typedef struct {
 		int32_t a;
 		int32_t b;
@@ -101,26 +97,25 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 	} Children;
 	Cell *cellStack[16];
 	Children children[16];
-	cellStack[0] = rootCell;
-	cellInits[0] = 0;
+	cellStack[0] = pRootCell;
+	pCellInits[0] = 0;
 	int32_t cellStackPointer = 0;
 	int32_t loopAmount = loopEnd - loopStart;
 	for (int32_t i = 0; i < 4; ++i) {
-		cellInits[rootCell->children[i].cellIndex] = 0;
+		pCellInits[pRootCell->pChildren[i].cellIndex] = 0;
 	}
 	do {
 		Cell *cell = cellStack[cellStackPointer];
-		if (!cell->children) {
-			addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
-			                        enclosingCellType, totalCellFaces, totalCellFacesNoDup, 0);
+		if (!cell->pChildren) {
+			addCellToEnclosingCells(cell, pEnclosingCellsInfo, 0);
 			cellStackPointer--;
-			cellInits[cell->cellIndex] = 1;
+			pCellInits[cell->cellIndex] = 1;
 			continue;
 		}
-		if (cellInits[cell->cellIndex]) {
+		if (pCellInits[cell->cellIndex]) {
 			int32_t nextChild = -1;
 			for (int32_t i = 0; i < 4; ++i) {
-				if (!cellInits[cell->children[i].cellIndex] &&
+				if (!pCellInits[cell->pChildren[i].cellIndex] &&
 				    *((int32_t *)(children + cellStackPointer) + i)) {
 					nextChild = i;
 					break;
@@ -131,7 +126,7 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 				continue;
 			}
 			cellStackPointer++;
-			cellStack[cellStackPointer] = cell->children + nextChild;
+			cellStack[cellStackPointer] = cell->pChildren + nextChild;
 			continue;
 		}
 		Vec2 midPoint = _(_(_(cell->boundsMax V2SUB cell->boundsMin) V2MULS .5) V2ADD cell->boundsMin);
@@ -139,14 +134,13 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 		iVec2 commonSides;
 		midPoint.x += (float)tileMin.x;
 		midPoint.y += (float)tileMin.y;
-		int32_t result = findFaceQuadrantUv(loopAmount, loopStart, verts, midPoint,
-		                                  &commonSides, &signs);
+		int32_t result = findFaceQuadrantUv(loopAmount, loopStart, pMesh->pVerts, midPoint,
+		                                    &commonSides, &signs);
 		switch (result) {
 			case 0: {
-				addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
-										enclosingCellType, totalCellFaces, totalCellFacesNoDup, 0);
+				addCellToEnclosingCells(cell, pEnclosingCellsInfo, 0);
 				cellStackPointer--;
-				cellInits[cell->cellIndex] = 1;
+				pCellInits[cell->cellIndex] = 1;
 				continue;
 			}
 			case 1: {
@@ -170,11 +164,10 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 				break;
 			}
 		}
-		addCellToEnclosingCells(cell, enclosingCellAmount, enclosingCellFaces,
-								enclosingCellType, totalCellFaces, totalCellFacesNoDup, 1);
-		cellInits[cell->cellIndex] = 1;
+		addCellToEnclosingCells(cell, pEnclosingCellsInfo, 1);
+		pCellInits[cell->cellIndex] = 1;
 		for (int32_t i = 0; i < 4; ++i) {
-			cellInits[cell->children[i].cellIndex] = 0;
+			pCellInits[cell->pChildren[i].cellIndex] = 0;
 		}
 		int32_t nextChild = 0;
 		for (int32_t i = 0; i < 4; ++i) {
@@ -184,36 +177,8 @@ void findFullyEnclosingCell(iVec2 tileMin, int32_t *enclosingCellAmount,
 			}
 		}
 		cellStackPointer++;
-		cellStack[cellStackPointer] = cell->children + nextChild;
+		cellStack[cellStackPointer] = cell->pChildren + nextChild;
 	} while (cellStackPointer >= 0);
-}
-
-Cell *findFullyEnclosingCellOld(Cell *rootCell, int32_t loopStart, int32_t loopEnd, int32_t *loops, Vec2 *verts) {
-	Vec2 cellBoundsMin = {.x = .0, .y = .0};
-	Vec2 cellBoundsMax = {.x = 1.0, .y = 1.0};
-	Cell *cell = rootCell;
-	int32_t depth = -1;
-	while (true) {
-		if (!cell->children) {
-			return cell;
-		}
-		Vec2 midPoint = _(_(_(cellBoundsMax V2SUB cellBoundsMin) V2MULS .5) V2ADD cellBoundsMin);
-		depth++;
-		Vec2 *vert0 = verts + loopStart;
-		int32_t childIndexVert0 = (vert0->x >= midPoint.x) + (vert0->y < midPoint.y) * 2;
-		int32_t fullyEnclosed = true;
-		for (int32_t i = loopStart + 1; i < loopEnd; ++i) {
-			int32_t childIndexVerti = (verts[i].x >= midPoint.x) +
-			                          (verts[i].y < midPoint.y) * 2;
-			fullyEnclosed *= childIndexVerti == childIndexVert0;
-		}
-		if (!fullyEnclosed) {
-			return cell;
-		}
-		cell = cell->children + childIndexVert0;
-		cellBoundsMin = cell->boundsMin;
-		cellBoundsMax = cell->boundsMax;
-	};
 }
 
 Cell *findEnclosingCell(Cell *rootCell, Vec2 pos) {
@@ -222,13 +187,13 @@ Cell *findEnclosingCell(Cell *rootCell, Vec2 pos) {
 	Cell *cell = rootCell;
 	int32_t depth = -1;
 	while (true) {
-		if (!cell->children) {
+		if (!cell->pChildren) {
 			return cell;
 		}
 		Vec2 midPoint = _(_(_(cellBoundsMax V2SUB cellBoundsMin) V2MULS .5) V2ADD cellBoundsMin);
 		depth++;
 		int32_t childIndex = (pos.x >= midPoint.x) + (pos.y < midPoint.y) * 2;
-		cell = cell->children + childIndex;
+		cell = cell->pChildren + childIndex;
 		cellBoundsMin = cell->boundsMin;
 		cellBoundsMax = cell->boundsMax;
 	};
@@ -243,71 +208,65 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPointer) {
 	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
 }
 
-void addEnclosedVertsToCell(Cell *parentCell, Vec3 *vertBuffer,
-                            int32_t *loopBuffer, int32_t *faceBuffer, int8_t *faceFlag) {
+void addEnclosedVertsToCell(Cell *pParentCell, MeshData *pMesh, int8_t *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
-	Vec2 midPoint = parentCell->children[1].boundsMin;
-	for (int32_t i = 0; i < parentCell->faceAmount; ++i) {
-		int32_t face = parentCell->faces[i];
-		int32_t faceStart = faceBuffer[face];
-		int32_t faceEnd = faceBuffer[face + 1];
+	Vec2 midPoint = pParentCell->pChildren[1].boundsMin;
+	for (int32_t i = 0; i < pParentCell->faceAmount; ++i) {
+		int32_t face = pParentCell->pFaces[i];
+		int32_t faceStart = pMesh->pFaces[face];
+		int32_t faceEnd = pMesh->pFaces[face + 1];
 		int32_t faceLoopAmount = faceEnd - faceStart;
-		int32_t isInside = 0;
-		iVec2 insideBuffer = {0};
-		int32_t inside[4];
 		iVec2 signs;
 		iVec2 commonSides;
 		int32_t result = findFaceQuadrant(faceLoopAmount, faceStart,
-		                                  vertBuffer, loopBuffer, midPoint,
+		                                  pMesh, midPoint,
 		                                  &commonSides, &signs);
 		if (result) {
 			int32_t child = signs.x + signs.y * 2;
-			faceFlag[i] = child + 1;
-			parentCell->children[child].faceAmount++;
+			pFaceFlag[i] = child + 1;
+			pParentCell->pChildren[child].faceAmount++;
 		}
 		else {
-			faceFlag[i] = -1;
-			parentCell->edgeFaceAmount++;
+			pFaceFlag[i] = -1;
+			pParentCell->edgeFaceAmount++;
 		}
 	}
 	for (int32_t i = 0; i < 4; ++i) {
-		Cell *cell = parentCell->children + i;
+		Cell *cell = pParentCell->pChildren + i;
 		if (cell->faceAmount) {
-			cell->faces = malloc(sizeof(int32_t) * cell->faceAmount);
+			cell->pFaces = malloc(sizeof(int32_t) * cell->faceAmount);
 		}
 	}
-	if (parentCell->edgeFaceAmount) {
-		parentCell->edgeFaces = malloc(sizeof(int32_t) * parentCell->edgeFaceAmount);
+	if (pParentCell->edgeFaceAmount) {
+		pParentCell->pEdgeFaces = malloc(sizeof(int32_t) * pParentCell->edgeFaceAmount);
 	}
 	int32_t facesTop[4] = {0};
 	int32_t edgeFacesTop = 0;
-	for (int32_t i = 0; i < parentCell->faceAmount; ++i) {
-		if (!faceFlag[i]) {
+	for (int32_t i = 0; i < pParentCell->faceAmount; ++i) {
+		if (!pFaceFlag[i]) {
 			continue;
 		}
-		if (faceFlag[i] > 0) {
-			int32_t child = faceFlag[i] - 1;
-			Cell *cell = parentCell->children + child;
-			cell->faces[facesTop[child]] = parentCell->faces[i];
+		if (pFaceFlag[i] > 0) {
+			int32_t child = pFaceFlag[i] - 1;
+			Cell *cell = pParentCell->pChildren + child;
+			cell->pFaces[facesTop[child]] = pParentCell->pFaces[i];
 			facesTop[child]++;
 		}
 		else {
-			parentCell->edgeFaces[edgeFacesTop] = parentCell->faces[i];
+			pParentCell->pEdgeFaces[edgeFacesTop] = pParentCell->pFaces[i];
 			edgeFacesTop++;
 		}
-		faceFlag[i] = 0;
+		pFaceFlag[i] = 0;
 	}
 }
 
-void allocateChildren(Cell *parentCell, Cell **cellStack, int32_t cellStackPointer,
-                      Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer,
-					  int8_t *faceFlag) {
-	parentCell->children = calloc(4, sizeof(Cell));
+void allocateChildren(Cell *parentCell, int32_t cellStackPointer) {
+	parentCell->pChildren = calloc(4, sizeof(Cell));
 	for (int32_t i = 0; i < 4; ++i) {
 		// v for visualizing quadtree v
 		//cell->children[i].cellIndex = rand();
-		Cell *cell = parentCell->children + i;
+		Cell *cell = parentCell->pChildren + i;
 		cell->cellIndex = cellIndex;
 		cellIndex++;
 		cell->localIndex = (uint32_t)i;
@@ -317,50 +276,47 @@ void allocateChildren(Cell *parentCell, Cell **cellStack, int32_t cellStackPoint
 }
 
 
-void processCell(Cell **cellStack, int32_t *cellStackPointer, int32_t *cellStackBase,
-                Cell *rootCell, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer,
-                QuadTree *quadTree, int8_t *faceFlag) {
-	Cell *cell = cellStack[*cellStackPointer];
+void processCell(Cell **pCellStack, int32_t *pCellStackPointer, MeshData *pMesh,
+                 int8_t *pFaceFlag) {
+	Cell *cell = pCellStack[*pCellStackPointer];
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
 	int32_t hasChildren = cell->faceAmount > CELL_MAX_VERTS;
 	if (hasChildren) {
 		// Get number of children
 		int32_t childAmount = 0;
-		if (!cell->children) {
+		if (!cell->pChildren) {
 			leafAmount--;
-			allocateChildren(cell, cellStack, *cellStackPointer,
-			                 vertBuffer, loopBuffer, faceBuffer,
-							 faceFlag);
-			addEnclosedVertsToCell(cell, vertBuffer, loopBuffer, faceBuffer, faceFlag);
+			allocateChildren(cell,*pCellStackPointer);
+			addEnclosedVertsToCell(cell, pMesh, pFaceFlag);
 		}
 		for (int32_t i = 0; i < 4; ++i) {
-			childAmount += (int32_t)cell->children[i].initialized;
+			childAmount += (int32_t)cell->pChildren[i].initialized;
 		}
 		// If the cell has children, and they are not yet all initialized,
 		// then add the next one to the stack
 		if (childAmount < 4) {
-			(*cellStackPointer)++;
-			cellStack[*cellStackPointer] = cell->children + childAmount;
+			(*pCellStackPointer)++;
+			pCellStack[*pCellStackPointer] = cell->pChildren + childAmount;
 			return;
 		}
 	}
 	// Otherwise, set the current cell as initialized, and pop it off the stack
 	cell->initialized = 1;
-	(*cellStackPointer)--;
+	(*pCellStackPointer)--;
 }
 
 int32_t calculateMaxTreeDepth(int32_t vertAmount) {
 	return log(CELL_MAX_VERTS * vertAmount) / log(4) + 2;
 }
 
-void createQuadTree(QuadTree *quadTree, int32_t faceAmount, Vec3 *vertBuffer, int32_t *loopBuffer, int32_t *faceBuffer) {
+void createQuadTree(QuadTree *pQuadTree, MeshData *pMesh) {
 	cellIndex = 0;
 	leafAmount = 0;
 	counter = 0;
 
-	quadTree->rootCell = calloc(1, sizeof(Cell));
-	Cell *rootCell = quadTree->rootCell;
-	quadTree->maxTreeDepth = 32;
+	pQuadTree->pRootCell = calloc(1, sizeof(Cell));
+	Cell *rootCell = pQuadTree->pRootCell;
+	pQuadTree->maxTreeDepth = 32;
 
 	Cell *cellStack[32];
 	rootCell->cellIndex = cellIndex;
@@ -368,53 +324,50 @@ void createQuadTree(QuadTree *quadTree, int32_t faceAmount, Vec3 *vertBuffer, in
 	cellStack[0] = rootCell;
 	rootCell->boundsMax.x = rootCell->boundsMax.y = 1.0f;
 	rootCell->initialized = 1;
-	int8_t *faceFlag = calloc(faceAmount, sizeof(int8_t));
-	rootCell->faceAmount = faceAmount;
-	rootCell->faces = malloc(sizeof(int32_t) * faceAmount);
-	for (int32_t i = 0; i < faceAmount; ++i) {
-		rootCell->faces[i] = i;
+	int8_t *pFaceFlag = calloc(pMesh->faceAmount, sizeof(int8_t));
+	rootCell->faceAmount = pMesh->faceAmount;
+	rootCell->pFaces = malloc(sizeof(int32_t) * pMesh->faceAmount);
+	for (int32_t i = 0; i < pMesh->faceAmount; ++i) {
+		rootCell->pFaces[i] = i;
 	}
-	allocateChildren(rootCell, cellStack, 0, vertBuffer, loopBuffer, faceBuffer, faceFlag);
-	addEnclosedVertsToCell(rootCell, vertBuffer, loopBuffer, faceBuffer, faceFlag);
-	cellStack[1] = rootCell->children;
+	allocateChildren(rootCell, 0);
+	addEnclosedVertsToCell(rootCell, pMesh, pFaceFlag);
+	cellStack[1] = rootCell->pChildren;
 	int32_t cellStackPointer = 1;
-	int32_t cellStackBase = 0;
 	do {
-		processCell(cellStack, &cellStackPointer, &cellStackBase,
-		            rootCell, vertBuffer, loopBuffer, faceBuffer,
-		            quadTree, faceFlag);
+		processCell(cellStack, &cellStackPointer, pMesh, pFaceFlag);
 		counter++;
 	} while(cellStackPointer >= 0);
 	printf("Created quadTree -- cells: %d, leaves: %d\n", cellIndex, leafAmount);
 }
 
-void destroyQuadTree(Cell *rootCell, int32_t maxTreeDepth) {
+void destroyQuadTree(Cell *rootCell) {
 	Cell *cellStack[32];
 	cellStack[0] = rootCell;
 	int32_t cellStackPointer = 0;
 	do {
 		Cell *cell = cellStack[cellStackPointer];
 		int32_t nextChild = 0;
-		if (cell->children) {
+		if (cell->pChildren) {
 			cell->initialized = 0;
 			for (int32_t i = 0; i < 4; ++i) {
-				nextChild += cell->children[i].initialized == 0;
+				nextChild += cell->pChildren[i].initialized == 0;
 			}
 			if (nextChild < 4) {
 				cellStackPointer++;
-				cellStack[cellStackPointer] = cell->children + nextChild;
+				cellStack[cellStackPointer] = cell->pChildren + nextChild;
 				continue;
 			}
-			free(cell->children);
+			free(cell->pChildren);
 		}
 		else {
 			cell->initialized = 0;
 		}
-		if (cell->faces) {
-			free(cell->faces);
+		if (cell->pFaces) {
+			free(cell->pFaces);
 		}
-		if (cell->edgeFaces) {
-			free(cell->edgeFaces);
+		if (cell->pEdgeFaces) {
+			free(cell->pEdgeFaces);
 		}
 		cellStackPointer--;
 	} while(cellStackPointer >= 0);

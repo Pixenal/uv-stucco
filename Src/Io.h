@@ -13,34 +13,18 @@ typedef struct {
 	int32_t dataLength;
 	int32_t dataLengthCompressed;
 	int32_t vertAttributeAmount;
-	AttributeDesc *vertAttributeDesc;
+	AttributeDesc *pVertAttributeDesc;
 	int32_t loopAttributeAmount;
-	AttributeDesc *loopAttributeDesc;
-	int32_t vertAmount;
-	int32_t loopAmount;
-	int32_t faceAmount;
-	int32_t cellAmount;
-} UvgpHeader;
+	AttributeDesc *pLoopAttributeDesc;
+} RuvmHeader;
 
 typedef struct {
-	Vec3 *vertBuffer;
-	int32_t *loopBuffer;
-	Vec3 *normalBuffer;
-	int32_t *faceBuffer;
-} UvgpData;
-
-typedef struct {
-	UvgpHeader header;
-	UvgpData data;
+	RuvmHeader header;
+	MeshData mesh;
 	QuadTree quadTree;
-} UvgpFileLoaded;
+} RuvmFileLoaded;
 
-void encodeValue(UvgpByteString *data, unsigned char *value, int32_t lengthInBits);
-void encodeString(UvgpByteString *data, unsigned char *value, int32_t lengthInBits);
-void decodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits);
-void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength);
-void writeDebugImage(Cell *rootCell);
-void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, Vec3 *normalBuffer, int32_t faceAmount, int32_t *faceBuffer);
-void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString);
-void loadUvgpFile(UvgpFileLoaded *fileLoaded, char *filePath);
-void destroyUvgpFile(UvgpFileLoaded *fileLoaded);
+void writeDebugImage(Cell *pRootCell);
+void writeRuvmFile(MeshData *pMesh);
+void loadRuvmFile(RuvmFileLoaded *pFileLoaded, char *pFilePath);
+void destroyRuvmFile(RuvmFileLoaded *pFileLoaded);

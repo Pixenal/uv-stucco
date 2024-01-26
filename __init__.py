@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "UVGP",
+    "name": "Reverse UV Mapper",
     "description": "An addon for projecting geometry onto the surface of a mesh, using UVs",
     "author": "Pixenal",
     "version": (1, 0),
@@ -11,27 +11,27 @@ bl_info = {
 import importlib
 
 if ("bpy" in locals()):
-    importlib.reload(UVGP_Props)
-    importlib.reload(UVGP_Ops)
-    importlib.reload(UVGP_UI)
+    importlib.reload(RUVM_Props)
+    importlib.reload(RUVM_Ops)
+    importlib.reload(RUVM_UI)
 else:
-    from . import UVGP_Props
-    from . import UVGP_Ops
-    from . import UVGP_UI
+    from . import RUVM_Props
+    from . import RUVM_Ops
+    from . import RUVM_UI
 
 import bpy
 
 #Register
 def register():
-    print("Registering UVGP")
-    UVGP_Props.register()
-    UVGP_Ops.register()
-    UVGP_UI.register()
+    print("Registering RUVM")
+    RUVM_Props.register()
+    RUVM_Ops.register()
+    RUVM_UI.register()
 
 #Unregister
 def unregister():
-    print("Registering UVGP")
-    UVGP_Props.unregister()
-    UVGP_Ops.unregister()
-    UVGP_UI.unregister()
+    print("Registering RUVM")
+    RUVM_Props.unregister()
+    RUVM_Ops.unregister()
+    RUVM_UI.unregister()
 

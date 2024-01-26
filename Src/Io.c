@@ -13,8 +13,14 @@
 extern int32_t cellIndex;
 extern int32_t leafAmount;
 
-int32_t decodeSingleBit(UvgpByteString *byteString) {
-	int32_t value = byteString->string[byteString->byteIndex];
+typedef struct {
+	unsigned char *pString;
+	int32_t nextBitIndex;
+	int32_t byteIndex;
+} ByteString;
+
+int32_t decodeSingleBit(ByteString *byteString) {
+	int32_t value = byteString->pString[byteString->byteIndex];
 	value >>= byteString->nextBitIndex;
 	value &= 1;
 	byteString->nextBitIndex++;
@@ -23,8 +29,8 @@ int32_t decodeSingleBit(UvgpByteString *byteString) {
 	return value;
 }
 
-void encodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits) {
-	unsigned char valueBuffer[10] = {0};
+void encodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
+	uint8_t valueBuffer[10] = {0};
 	int32_t lengthInBytes = lengthInBits / 8;
 	lengthInBytes += (lengthInBits - lengthInBytes * 8) > 0;
 	for (int32_t i = 1; i <= lengthInBytes; ++i) {
@@ -32,58 +38,57 @@ void encodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengt
 	}
 	for (int32_t i = 7; i >= 1; --i) {
 		valueBuffer[i] <<= byteString->nextBitIndex;
-		unsigned char nextByteCopy = valueBuffer[i - 1];
+		uint8_t nextByteCopy = valueBuffer[i - 1];
 		nextByteCopy >>= 8 - byteString->nextBitIndex;
 		valueBuffer[i] |= nextByteCopy;
 	}
 	int32_t writeUpTo = lengthInBytes + (byteString->nextBitIndex > 0);
 	for (int32_t i = 0; i < writeUpTo; ++i) {
-		byteString->string[byteString->byteIndex + i] |= valueBuffer[i + 1];
+		byteString->pString[byteString->byteIndex + i] |= valueBuffer[i + 1];
 	}
 	byteString->nextBitIndex = byteString->nextBitIndex + lengthInBits;
 	byteString->byteIndex += byteString->nextBitIndex / 8;
 	byteString->nextBitIndex %= 8;
 }
 
-void encodeString(UvgpByteString *byteString, unsigned char *string, int32_t lengthInBits) {
+void encodeString(ByteString *byteString, uint8_t *string, int32_t lengthInBits) {
 	int32_t lengthInBytes = lengthInBits / 8;
 	byteString->byteIndex += byteString->nextBitIndex > 0;
 	byteString->nextBitIndex = 0;
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		byteString->string[byteString->byteIndex] = string[i];
+		byteString->pString[byteString->byteIndex] = string[i];
 		byteString->byteIndex++;
 	}
 }
 
-void decodeValue(UvgpByteString *byteString, unsigned char *value, int32_t lengthInBits) {
+void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
 	int32_t lengthInBytes = lengthInBits / 8;
 	int32_t bitDifference = lengthInBits - lengthInBytes * 8;
 	lengthInBytes += bitDifference > 0;
-	unsigned char buffer[ENCODE_DECODE_BUFFER_LENGTH] = {0};
+	uint8_t buffer[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	for (int32_t i = 0; i < ENCODE_DECODE_BUFFER_LENGTH; ++i) {
-		buffer[i] = byteString->string[byteString->byteIndex + i];
+		buffer[i] = byteString->pString[byteString->byteIndex + i];
 	}
 	for (int32_t i = 0; i < ENCODE_DECODE_BUFFER_LENGTH; ++i) {
 		buffer[i] >>= byteString->nextBitIndex;
-		unsigned char nextByteCopy = buffer[i + 1];
+		uint8_t nextByteCopy = buffer[i + 1];
 		nextByteCopy <<= 8 - byteString->nextBitIndex;
 		buffer[i] |= nextByteCopy;
 	}
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
 		value[i] |= buffer[i];
 	}
-	unsigned char mask = UCHAR_MAX >> ((8 - bitDifference) % 8);
+	uint8_t mask = UCHAR_MAX >> ((8 - bitDifference) % 8);
 	value[lengthInBytes - 1] &= mask;
 	byteString->nextBitIndex = byteString->nextBitIndex + lengthInBits;
 	byteString->byteIndex += byteString->nextBitIndex / 8;
 	byteString->nextBitIndex %= 8;
 }
 
-void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength) {
-	char *stringCopy = string;
+void decodeString(ByteString *byteString, char *string, int32_t stringLength) {
 	byteString->byteIndex += byteString->nextBitIndex > 0;
 	byteString->nextBitIndex = 0;
-	unsigned char *dataPtr = byteString->string + byteString->byteIndex;
+	uint8_t *dataPtr = byteString->pString + byteString->byteIndex;
 	char *lastChar = string + (stringLength - 1);
 	*lastChar = 1;
 	do {
@@ -95,12 +100,11 @@ void decodeString(UvgpByteString *byteString, char *string, int32_t stringLength
 
 void writeDebugImage(Cell *rootCell) {
 	FILE* file;
-	file = fopen("/run/media/calebdawson/Tuna/workshop_folders/UVGP/DebugOutput_LoadedFile.ppm", "w");
+	file = fopen("/run/media/calebdawson/Tuna/workshop_folders/RUVM/DebugOutput_LoadedFile.ppm", "w");
 	fprintf(file, "P3\n%d %d\n255\n", 512, 512);
 	for (int32_t i = 0; i < 512; ++i) {
 		for (int32_t j = 0; j < 512; ++j) {
 			unsigned char red, green, blue, alpha;
-			int32_t linearIndex = (i * 512) + j;
 			float pixelSize = 1.0 / (float)512;
 			Vec2 pixelPos = {.x = pixelSize * j, .y = pixelSize * i};
 			Cell *enclosingCell = findEnclosingCell(rootCell, pixelPos);
@@ -115,9 +119,9 @@ void writeDebugImage(Cell *rootCell) {
 }
 
 
-void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int32_t *loopBuffer, Vec3 *normalBuffer, int32_t faceAmount, int32_t *faceBuffer) {
-	UvgpByteString header;
-	UvgpByteString data;
+void writeRuvmFile(MeshData *pMesh) {
+	ByteString header;
+	ByteString data;
 	char *vertAttributes[VERT_ATTRIBUTE_AMOUNT];
 	char *vertAttributeTypes[VERT_ATTRIBUTE_AMOUNT];
 	int32_t vertAttributeSize[VERT_ATTRIBUTE_AMOUNT];
@@ -163,11 +167,11 @@ void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int
 	                             32 +
 	                             32 +
 	                             32;
-	int64_t dataLengthInBits = vertAttributeByteLength * 8 * vertAmount +
-	                           2 + (32 + loopAttributeByteLength * 8) * 4 * faceAmount +
+	int64_t dataLengthInBits = vertAttributeByteLength * 8 * pMesh->vertAmount +
+	                           2 + (32 + loopAttributeByteLength * 8) * 4 * pMesh->faceAmount +
 	                           cellIndex +
 	                           32 * leafAmount +
-	                           32 * vertAmount;
+	                           32 * pMesh->vertAmount;
 	int32_t headerLengthInBytes = (int32_t)(headerLengthInBits / 8 + 2);
 	int32_t dataLengthInBytes = (int32_t)(dataLengthInBits / 8 + 2);
 	data.byteIndex = 0;
@@ -175,22 +179,22 @@ void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int
 	header.byteIndex = 0;
 	header.nextBitIndex = 0;
 
-	data.string = calloc(dataLengthInBytes, sizeof(unsigned char));
-	for (int32_t i = 0; i < vertAmount; ++i) {
-		encodeValue(&data, (unsigned char *)&vertBuffer[i].x, 32);
-		encodeValue(&data, (unsigned char *)&vertBuffer[i].y, 32);
-		encodeValue(&data, (unsigned char *)&vertBuffer[i].z, 32);
+	data.pString = calloc(dataLengthInBytes, 8);
+	for (int32_t i = 0; i < pMesh->vertAmount; ++i) {
+		encodeValue(&data, (uint8_t *)&pMesh->pVerts[i].x, 32);
+		encodeValue(&data, (uint8_t *)&pMesh->pVerts[i].y, 32);
+		encodeValue(&data, (uint8_t *)&pMesh->pVerts[i].z, 32);
 	}
-	for (int32_t i = 0; i < loopAmount; ++i) {
-		encodeValue(&data, (unsigned char *)&loopBuffer[i], 32);
+	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+		encodeValue(&data, (uint8_t *)&pMesh->pLoops[i], 32);
 	}
-	for (int32_t i = 0; i < loopAmount; ++i) {
-		encodeValue(&data, (unsigned char *)&normalBuffer[i].x, 32);
-		encodeValue(&data, (unsigned char *)&normalBuffer[i].y, 32);
-		encodeValue(&data, (unsigned char *)&normalBuffer[i].z, 32);
+	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].x, 32);
+		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].y, 32);
+		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].z, 32);
 	}
-	for (int32_t i = 0; i < faceAmount; ++i) {
-		encodeValue(&data, (unsigned char *)&faceBuffer[i], 32);
+	for (int32_t i = 0; i < pMesh->faceAmount; ++i) {
+		encodeValue(&data, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
 
 	int64_t dataLength = data.byteIndex + (data.nextBitIndex > 0);
@@ -198,166 +202,166 @@ void writeUvgpFile(int32_t vertAmount, Vec3 *vertBuffer, int32_t loopAmount, int
 	dataLengthExtra += ((dataLength * 1000) - dataLength) > 0;
 	dataLengthExtra += 12;
 	unsigned long compressedDataLength = dataLength + dataLengthExtra;
-	unsigned char *compressedData = malloc(compressedDataLength);
-	int32_t zResult = compress(compressedData, &compressedDataLength, data.string, dataLength);
+	uint8_t *compressedData = malloc(compressedDataLength);
+	int32_t zResult = compress(compressedData, &compressedDataLength, data.pString, dataLength);
 	switch(zResult) {
 		case Z_OK:
-			printf("Successfully compressed UVGP data\n");
+			printf("Successfully compressed RUVM data\n");
 			break;
 		case Z_MEM_ERROR:
-			printf("Failed to compress UVGP data, memory error\n");
+			printf("Failed to compress RUVM data, memory error\n");
 			break;
 		case Z_BUF_ERROR:
-			printf("Failed to compress UVGP data, output buffer too small\n");
+			printf("Failed to compress RUVM data, output buffer too small\n");
 			break;
 	}
 
 	printf("Compressed data is %lu long\n", compressedDataLength);
 
-	header.string = calloc(headerLengthInBytes, sizeof(unsigned char));
-	encodeValue(&header, (unsigned char *)&compressedDataLength, 32);
-	encodeValue(&header, (unsigned char *)&dataLength, 32);
+	header.pString = calloc(headerLengthInBytes, sizeof(uint8_t));
+	encodeValue(&header, (uint8_t *)&compressedDataLength, 32);
+	encodeValue(&header, (uint8_t *)&dataLength, 32);
 	int32_t vertAttributeAmount = VERT_ATTRIBUTE_AMOUNT;
-	encodeValue(&header, (unsigned char *)&vertAttributeAmount, 8);
+	encodeValue(&header, (uint8_t *)&vertAttributeAmount, 8);
 	for (int32_t i = 0; i < VERT_ATTRIBUTE_AMOUNT; ++i) {
-		encodeString(&header, (unsigned char *)vertAttributes[i], (strlen(vertAttributes[i]) + 1) * 8);
-		encodeString(&header, (unsigned char *)vertAttributeTypes[i], (strlen(vertAttributeTypes[i]) + 1) * 8);
-		encodeValue(&header, (unsigned char *)&vertAttributeSize[i], 8);
+		encodeString(&header, (uint8_t *)vertAttributes[i], (strlen(vertAttributes[i]) + 1) * 8);
+		encodeString(&header, (uint8_t *)vertAttributeTypes[i], (strlen(vertAttributeTypes[i]) + 1) * 8);
+		encodeValue(&header, (uint8_t *)&vertAttributeSize[i], 8);
 	}
 	int32_t loopAttributeAmount = LOOP_ATTRIBUTE_AMOUNT;
-	encodeValue(&header, (unsigned char *)&loopAttributeAmount, 8);
+	encodeValue(&header, (uint8_t *)&loopAttributeAmount, 8);
 	for (int32_t i = 0; i < LOOP_ATTRIBUTE_AMOUNT; ++i) {
-		encodeString(&header, (unsigned char *)loopAttributes[i], (strlen(loopAttributes[i]) + 1) * 8);
-		encodeString(&header, (unsigned char *)loopAttributeTypes[i], (strlen(loopAttributeTypes[i]) + 1) * 8);
-		encodeValue(&header, (unsigned char *)&loopAttributeSize[i], 8);
+		encodeString(&header, (uint8_t *)loopAttributes[i], (strlen(loopAttributes[i]) + 1) * 8);
+		encodeString(&header, (uint8_t *)loopAttributeTypes[i], (strlen(loopAttributeTypes[i]) + 1) * 8);
+		encodeValue(&header, (uint8_t *)&loopAttributeSize[i], 8);
 	}
-	encodeValue(&header, (unsigned char *)&vertAmount, 32);
-	encodeValue(&header, (unsigned char *)&loopAmount, 32);
-	encodeValue(&header, (unsigned char *)&faceAmount, 32);
+	encodeValue(&header, (uint8_t *)&pMesh->vertAmount, 32);
+	encodeValue(&header, (uint8_t *)&pMesh->loopAmount, 32);
+	encodeValue(&header, (uint8_t *)&pMesh->faceAmount, 32);
 
 	// CRC for uncompressed data, not compressed!
 	
-	UvgpFile file;
-	uvgpFileOpen(&file, "/run/media/calebdawson/Tuna/workshop_folders/UVGP/TestOutputDir/File.uvgp", 0);
-	uvgpFileWrite(&file, (unsigned char *)&headerLengthInBytes, 4);
-	uvgpFileWrite(&file, header.string, header.byteIndex + (header.nextBitIndex > 0));
-	uvgpFileWrite(&file, compressedData, (int32_t)compressedDataLength);
-	uvgpFileClose(&file);
+	PlatformFile file;
+	platformFileOpen(&file, "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File.ruvm", 0);
+	platformFileWrite(&file, (uint8_t *)&headerLengthInBytes, 4);
+	platformFileWrite(&file, header.pString, header.byteIndex + (header.nextBitIndex > 0));
+	platformFileWrite(&file, compressedData, (int32_t)compressedDataLength);
+	platformFileClose(&file);
 
-	free(data.string);
+	free(data.pString);
 
-	printf("Finished UVGP export\n");
+	printf("Finished RUVM export\n");
 }
 
-void decodeUvgpHeader(UvgpFileLoaded *fileLoaded, UvgpByteString *headerByteString) {
-	UvgpHeader *header = &fileLoaded->header;
+void decodeRuvmHeader(RuvmFileLoaded *pFileLoaded, ByteString *headerByteString) {
+	RuvmHeader *header = &pFileLoaded->header;
+	MeshData *pMesh = &pFileLoaded->mesh;
 	//printf("0\n");
-	decodeValue(headerByteString, (unsigned char *)&header->dataLengthCompressed, 32);
+	decodeValue(headerByteString, (uint8_t *)&header->dataLengthCompressed, 32);
 	//printf("dataLengthCompressed %d\n", header->dataLengthCompressed);
-	decodeValue(headerByteString, (unsigned char *)&header->dataLength, 32);
+	decodeValue(headerByteString, (uint8_t *)&header->dataLength, 32);
 	//printf("dataLength %d\n", header->dataLength);
-	decodeValue(headerByteString, (unsigned char *)&header->vertAttributeAmount, 8);
+	decodeValue(headerByteString, (uint8_t *)&header->vertAttributeAmount, 8);
 	//printf("vertAttributeAmount %d\n", header->vertAttributeAmount);
-	header->vertAttributeDesc = calloc(header->vertAttributeAmount, sizeof(AttributeDesc));
+	header->pVertAttributeDesc = calloc(header->vertAttributeAmount, sizeof(AttributeDesc));
 	//printf("1\n");
 	for (int32_t i = 0; i < header->vertAttributeAmount; ++i) {
-		decodeString(headerByteString, header->vertAttributeDesc[i].name, 64);
+		decodeString(headerByteString, header->pVertAttributeDesc[i].name, 64);
 		//printf("vertAttributte[%d] name %s\n", i, header->vertAttributeDesc[i].name);
-		decodeString(headerByteString, header->vertAttributeDesc[i].type, 2);
+		decodeString(headerByteString, header->pVertAttributeDesc[i].type, 2);
 		//printf("vertAttributte[%d] type %s\n", i, header->vertAttributeDesc[i].type);
-		decodeValue(headerByteString, (unsigned char *)&header->vertAttributeDesc[i].sizeInBits, 8);
+		decodeValue(headerByteString, (uint8_t *)&header->pVertAttributeDesc[i].sizeInBits, 8);
 		//printf("vertAttributte[%d] size %d\n", i, header->vertAttributeDesc[i].sizeInBits);
 	}
 	printf("2\n");
-	decodeValue(headerByteString, (unsigned char *)&header->loopAttributeAmount, 8);
+	decodeValue(headerByteString, (uint8_t *)&header->loopAttributeAmount, 8);
 	printf("loopAttributeAmount %d\n", header->loopAttributeAmount);
-	header->loopAttributeDesc = calloc(header->loopAttributeAmount, sizeof(AttributeDesc));
+	header->pLoopAttributeDesc = calloc(header->loopAttributeAmount, sizeof(AttributeDesc));
 	printf("3\n");
 	for (int32_t i = 0; i < header->loopAttributeAmount; ++i) {
 		printf("3.1  iteration: %d\n", i);
-		decodeString(headerByteString, header->loopAttributeDesc[i].name, 64);
-		decodeString(headerByteString, header->loopAttributeDesc[i].type, 2);
-		decodeValue(headerByteString, (unsigned char *)&header->loopAttributeDesc[i].sizeInBits, 8);
+		decodeString(headerByteString, header->pLoopAttributeDesc[i].name, 64);
+		decodeString(headerByteString, header->pLoopAttributeDesc[i].type, 2);
+		decodeValue(headerByteString, (uint8_t *)&header->pLoopAttributeDesc[i].sizeInBits, 8);
 	}
 	printf("4\n");
-	decodeValue(headerByteString, (unsigned char *)&header->vertAmount, 32);
-	decodeValue(headerByteString, (unsigned char *)&header->loopAmount, 32);
-	decodeValue(headerByteString, (unsigned char *)&header->faceAmount, 32);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->vertAmount, 32);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->loopAmount, 32);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->faceAmount, 32);
 	printf("5\n");
 
 }
 
-void decodeUvgpData(UvgpFileLoaded *fileLoaded, UvgpByteString *dataByteString) {
-	UvgpHeader *header = &fileLoaded->header;
-	UvgpData *data = &fileLoaded->data;
-	data->vertBuffer = calloc(header->vertAmount, sizeof(Vec3));
-	for (int32_t i = 0; i < header->vertAmount; ++i) {
-		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].x, 32);
-		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].y, 32);
-		decodeValue(dataByteString, (unsigned char *)&data->vertBuffer[i].z, 32);
+void decodeRuvmData(RuvmFileLoaded *pFileLoaded, ByteString *dataByteString) {
+	MeshData *pMesh = &pFileLoaded->mesh;
+	pMesh->pVerts = calloc(pMesh->vertAmount, sizeof(Vec3));
+	for (int32_t i = 0; i < pMesh->vertAmount; ++i) {
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pVerts[i].x, 32);
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pVerts[i].y, 32);
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pVerts[i].z, 32);
 	}
-	data->loopBuffer = calloc(header->loopAmount, sizeof(int32_t));
-	for (int32_t i = 0; i < header->loopAmount; ++i) {
-		decodeValue(dataByteString, (unsigned char *)&data->loopBuffer[i], 32);
+	pMesh->pLoops = calloc(pMesh->loopAmount, sizeof(int32_t));
+	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pLoops[i], 32);
 	}
-	data->normalBuffer = calloc(header->loopAmount, sizeof(Vec3));
-	for (int32_t i = 0; i < header->loopAmount; ++i) {
-		decodeValue(dataByteString, (unsigned char *)&data->normalBuffer[i].x, 32);
-		decodeValue(dataByteString, (unsigned char *)&data->normalBuffer[i].y, 32);
-		decodeValue(dataByteString, (unsigned char *)&data->normalBuffer[i].z, 32);
+	pMesh->pNormals = calloc(pMesh->loopAmount, sizeof(Vec3));
+	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pNormals[i].x, 32);
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pNormals[i].y, 32);
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pNormals[i].z, 32);
 	}
 	// + 1 because blender stores an extra at end, so that number of loops can be
 	// checked with faceBuffer[i + 1] - faceBuffer[i], without causing a crash.
-	data->faceBuffer = calloc(header->faceAmount + 1, sizeof(int32_t));
-	for (int32_t i = 0; i < header->faceAmount; ++i) {
-		decodeValue(dataByteString, (unsigned char *)&data->faceBuffer[i], 32);
+	pMesh->pFaces = calloc(pMesh->faceAmount + 1, sizeof(int32_t));
+	for (int32_t i = 0; i < pMesh->faceAmount; ++i) {
+		decodeValue(dataByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
-	data->faceBuffer[header->faceAmount] = header->loopAmount;
+	pMesh->pFaces[pMesh->faceAmount] = pMesh->loopAmount;
 }
 
-void loadUvgpFile(UvgpFileLoaded *fileLoaded, char *filePath) {
-	UvgpByteString headerByteString = {0};
-	UvgpByteString dataByteString = {0};
-	UvgpFile file;
-	printf("Loading UVGP file: %s\n", filePath);
-	uvgpFileOpen(&file, filePath, 1);
-	unsigned char *headerLength = malloc(4);
-	uvgpFileRead(&file, headerLength, 4);
+void loadRuvmFile(RuvmFileLoaded *pFileLoaded, char *filePath) {
+	ByteString headerByteString = {0};
+	ByteString dataByteString = {0};
+	PlatformFile file;
+	printf("Loading RUVM file: %s\n", filePath);
+	platformFileOpen(&file, filePath, 1);
+	uint8_t *headerLength = malloc(4);
+	platformFileRead(&file, headerLength, 4);
 	int32_t headerLengthInt = *((int32_t *)headerLength);
 	printf("Header is %d bytes\n", headerLengthInt);
-	headerByteString.string = malloc(headerLengthInt);
+	headerByteString.pString = malloc(headerLengthInt);
 	printf("Reading header\n");
-	uvgpFileRead(&file, headerByteString.string, headerLengthInt);
+	platformFileRead(&file, headerByteString.pString, headerLengthInt);
 	printf("Decoding header\n");
-	decodeUvgpHeader(fileLoaded, &headerByteString);
-	unsigned char *dataByteStringRaw = malloc(fileLoaded->header.dataLength);
-	unsigned long dataLengthUncompressed = fileLoaded->header.dataLength;
+	decodeRuvmHeader(pFileLoaded, &headerByteString);
+	uint8_t *dataByteStringRaw = malloc(pFileLoaded->header.dataLength);
+	unsigned long dataLengthUncompressed = pFileLoaded->header.dataLength;
 	printf("Reading data\n");
-	uvgpFileRead(&file, dataByteStringRaw, fileLoaded->header.dataLengthCompressed);
-	dataByteString.string = malloc(fileLoaded->header.dataLength);
+	platformFileRead(&file, dataByteStringRaw, pFileLoaded->header.dataLengthCompressed);
+	dataByteString.pString = malloc(pFileLoaded->header.dataLength);
 	printf("Decompressing data\n");
-	int32_t zResult = uncompress(dataByteString.string, &dataLengthUncompressed, dataByteStringRaw, fileLoaded->header.dataLengthCompressed);
+	int32_t zResult = uncompress(dataByteString.pString, &dataLengthUncompressed, dataByteStringRaw, pFileLoaded->header.dataLengthCompressed);
 	switch(zResult) {
 		case Z_OK:
-			printf("Successfully decompressed UVGP file data\n");
+			printf("Successfully decompressed RUVM file data\n");
 			break;
 		case Z_MEM_ERROR:
-			printf("Failed to decompress UVGP file data. Memory error\n");
+			printf("Failed to decompress RUVM file data. Memory error\n");
 			break;
 		case Z_BUF_ERROR:
-			printf("Failed to decompress UVGP file data. Buffer was too small\n");
+			printf("Failed to decompress RUVM file data. Buffer was too small\n");
 			break;
 	}
-	if (dataLengthUncompressed != fileLoaded->header.dataLength) {
-		printf("Failed to load UVGP file. Decompressed data size doesn't match header description\n");
+	if (dataLengthUncompressed != pFileLoaded->header.dataLength) {
+		printf("Failed to load RUVM file. Decompressed data size doesn't match header description\n");
 		return;
 	}
 	printf("Decoding data\n");
-	decodeUvgpData(fileLoaded, &dataByteString);
+	decodeRuvmData(pFileLoaded, &dataByteString);
 }
 
-void destroyUvgpFile(UvgpFileLoaded *fileLoaded) {
-	free(fileLoaded->data.vertBuffer);
-	free(fileLoaded->data.faceBuffer);
-	free(fileLoaded);
+void destroyRuvmFile(RuvmFileLoaded *pFileLoaded) {
+	free(pFileLoaded->mesh.pVerts);
+	free(pFileLoaded->mesh.pFaces);
+	free(pFileLoaded);
 }

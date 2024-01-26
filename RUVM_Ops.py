@@ -4,9 +4,9 @@ import numpy
 import bmesh
 from bpy.app.handlers import persistent
 
-#uvgpLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/UVGP/Win64/UVGP.dll")
-uvgpLib = ctypes.cdll.LoadLibrary("/run/media/calebdawson/Tuna/workshop_folders/UVGP/Linux/UVGP.so")
-#uvgpLib = ctypes.cdll.LoadLibrary("T:\workshop_folders/UVGPWin/UVGP/x64/Debug/UVGP.dll")
+#ruvmLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/RUVM/Win64/RUVM.dll")
+ruvmLib = ctypes.cdll.LoadLibrary("/run/media/calebdawson/Tuna/workshop_folders/RUVM/Linux/RUVM.so")
+#ruvmLib = ctypes.cdll.LoadLibrary("T:\workshop_folders/RUVMWin/RUVM/x64/Debug/RUVM.dll")
 
 class Vec2(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
@@ -42,17 +42,17 @@ class BlenderMeshData(ctypes.Structure):
                 ("faceBuffer", ctypes.POINTER(ctypes.c_int)),
                 ("uvBuffer", ctypes.POINTER(Vec2))]
 
-class UVGP_OT_UvgpExportUvgpFile(bpy.types.Operator):
-    bl_idname = "uvgp.uvgp_export_uvgp_file"
-    bl_label = "UVGP Export"
+class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
+    bl_idname = "ruvm.ruvm_export_ruvm_file"
+    bl_label = "RUVM Export"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
         if (len(context.selected_objects) == 0):
-            print("UVGP export failed, no objects selected.")
+            print("RUVM export failed, no objects selected.")
             return {'CANCELLED'}
         if (len(context.selected_objects) > 1):
-            print("UVGP export failed, more than one object selected.")
+            print("RUVM export failed, more than one object selected.")
             return {'CANCELLED'}
         obj = context.selected_objects[0]
         depsgraph = context.evaluated_depsgraph_get()
@@ -74,87 +74,87 @@ class UVGP_OT_UvgpExportUvgpFile(bpy.types.Operator):
         meshEval.loops.foreach_get("normal", normals)
         facesPtrInt = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
 
-        uvgpLib.UvgpExportUvgpFile.argtypes = (ctypes.c_int, ctypes.POINTER(Vec3),
+        ruvmLib.RuvmExportRuvmFile.argtypes = (ctypes.c_int, ctypes.POINTER(Vec3),
                                                ctypes.c_int, ctypes.POINTER(ctypes.c_int),
                                                numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
                                                ctypes.c_int, ctypes.POINTER(ctypes.c_int))
-        uvgpLib.UvgpExportUvgpFile(vertAmount, vertsPtrFloat, loopAmount, loopsPtrInt, normals, faceAmount, facesPtrInt)
+        ruvmLib.RuvmExportRuvmFile(vertAmount, vertsPtrFloat, loopAmount, loopsPtrInt, normals, faceAmount, facesPtrInt)
 
         return {'FINISHED'}
 
-class UVGP_OT_UvgpUpdate(bpy.types.Operator):
-    bl_idname = "uvgp.uvgp_update"
-    bl_label = "UVGP Update"
+class RUVM_OT_RuvmUpdate(bpy.types.Operator):
+    bl_idname = "ruvm.ruvm_update"
+    bl_label = "RUVM Update"
 
     def __init__(self):
-        print("Initializing UVGP")
+        print("Initializing RUVM")
 
     def __del__(self):
-        print("Ending UVGP")
+        print("Ending RUVM")
 
     def execute(self, context):
         return {'FINISHED'}
 
     def modal(self, context, event):
-        print("Updating UVGP")
+        print("Updating RUVM")
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
         return {'RUNNING_MODAL'}
 
-class UVGP_OT_UvgpAssign(bpy.types.Operator):
-    bl_idname = "uvgp.uvgp_assign"
-    bl_label = "UVGP Assign"
+class RUVM_OT_RuvmAssign(bpy.types.Operator):
+    bl_idname = "ruvm.ruvm_assign"
+    bl_label = "RUVM Assign"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        uvgp = context.scene.uvgp
+        ruvm = context.scene.ruvm
         if len(context.selected_objects) == 0:
             return {'CANCELLED'}
         for obj in context.selected_objects:
             exists = False
-            for target in context.scene.uvgpTargets:
+            for target in context.scene.ruvmTargets:
                 if target.obj == obj:
                     exists = True
                     break
             if exists:
                 continue
-            newTarget = context.scene.uvgpTargets.add()
+            newTarget = context.scene.ruvmTargets.add()
             newTarget.obj = obj.id_data
-            newTarget.id = uvgp.nextTargetId
-            obj.uvgpTargetId = uvgp.nextTargetId
-            uvgp.nextTargetId += 1
+            newTarget.id = ruvm.nextTargetId
+            obj.ruvmTargetId = ruvm.nextTargetId
+            ruvm.nextTargetId += 1
         return {'FINISHED'}
 
-class UVGP_OT_UvgpLoadUvgpFile(bpy.types.Operator):
-    bl_idname = "uvgp.load_uvgp_file"
-    bl_label = "Load UVGP File"
+class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator):
+    bl_idname = "ruvm.load_ruvm_file"
+    bl_label = "Load RUVM File"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        filePath = "/run/media/calebdawson/Tuna/workshop_folders/UVGP/TestOutputDir/File.uvgp"
+        filePath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File.ruvm"
         filePathUtf8 = filePath.encode('utf-8')
-        uvgpLib.uvgpLoadUvgpFile(filePathUtf8)
+        ruvmLib.ruvmLoadRuvmFile(filePathUtf8)
         return {'FINISHED'}
 
-class UVGP_OT_UvgpRemove(bpy.types.Operator):
-    bl_idname = "uvgp.uvgp_remove"
-    bl_label = "UVGP Remove"
+class RUVM_OT_RuvmRemove(bpy.types.Operator):
+    bl_idname = "ruvm.ruvm_remove"
+    bl_label = "RUVM Remove"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
         scene = context.scene
-        if scene.uvgpTargetsIndex >= len(scene.uvgpTargets):
+        if scene.ruvmTargetsIndex >= len(scene.ruvmTargets):
             return {'CANCELLED'}
-        del scene.uvgpTargets[scene.uvgpTargetsIndex].obj["uvgpTargetId"]
-        scene.uvgpTargets.remove(scene.uvgpTargetsIndex)
+        del scene.ruvmTargets[scene.ruvmTargetsIndex].obj["ruvmTargetId"]
+        scene.ruvmTargets.remove(scene.ruvmTargetsIndex)
         return {'FINISHED'}
 
 @persistent
-def uvgpDepsgraphUpdatePostHandler(dummy):
+def ruvmDepsgraphUpdatePostHandler(dummy):
     scene = bpy.context.scene
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    for target in scene.uvgpTargets:
+    for target in scene.ruvmTargets:
         obj = target.obj;
         if not(obj in bpy.context.selected_objects):
             continue
@@ -179,65 +179,65 @@ def uvgpDepsgraphUpdatePostHandler(dummy):
 
         workMesh = BlenderMeshData()
 
-        uvgpLib.uvgpProjectOntoMesh(ctypes.pointer(mesh), ctypes.pointer(workMesh))
+        ruvmLib.ruvmMapToMesh(ctypes.pointer(mesh), ctypes.pointer(workMesh))
 
-        nameUvgp = obj.name + ".Uvgp"
-        print(nameUvgp)
+        nameRuvm = obj.name + ".Ruvm"
+        print(nameRuvm)
 
-        objUvgp = bpy.data.objects.get(nameUvgp, None)
-        if not(objUvgp):
-            print("Not objUvgp")
-            meshUvgp = bpy.data.meshes.new(nameUvgp)
-            objUvgp = bpy.data.objects.new(nameUvgp, meshUvgp)
-            scene.collection.objects.link(objUvgp)
+        objRuvm = bpy.data.objects.get(nameRuvm, None)
+        if not(objRuvm):
+            print("Not objRuvm")
+            meshRuvm = bpy.data.meshes.new(nameRuvm)
+            objRuvm = bpy.data.objects.new(nameRuvm, meshRuvm)
+            scene.collection.objects.link(objRuvm)
         else:
-            print("Yes objUvgp")
-            meshUvgpOld = objUvgp.data
-            meshUvgpOld.name += ".Old"
-            meshUvgp = bpy.data.meshes.new(nameUvgp)
-            objUvgp.data = meshUvgp
-            bpy.data.meshes.remove(meshUvgpOld)
+            print("Yes objRuvm")
+            meshRuvmOld = objRuvm.data
+            meshRuvmOld.name += ".Old"
+            meshRuvm = bpy.data.meshes.new(nameRuvm)
+            objRuvm.data = meshRuvm
+            bpy.data.meshes.remove(meshRuvmOld)
 
-        uvgpMesh = BlenderMeshData()
+        ruvmMesh = BlenderMeshData()
         print("workMesh.vertAmount ", workMesh.vertAmount)
         print("workMesh.loopAmount ", workMesh.loopAmount)
         print("workMesh.faceAmount ", workMesh.faceAmount)
-        meshUvgp.vertices.add(workMesh.vertAmount)
-        meshUvgp.loops.add(workMesh.loopAmount)
-        meshUvgp.polygons.add(workMesh.faceAmount)
-        uvgpMesh.vertAmount = len(meshUvgp.vertices)
-        uvgpMesh.loopAmount = len(meshUvgp.loops)
-        uvgpMesh.faceAmount = len(meshUvgp.polygons)
-        vertsUvgpPtr = meshUvgp.vertices[0].as_pointer()
-        uvgpMesh.vertBuffer = ctypes.cast(vertsUvgpPtr, ctypes.POINTER(Vec3))
-        loopsUvgpPtr = meshUvgp.loops[0].as_pointer()
-        uvgpMesh.loopBuffer = ctypes.cast(loopsUvgpPtr, ctypes.POINTER(ctypes.c_int))
-        facesUvgpPtr = meshUvgp.polygons[0].as_pointer()
-        uvgpMesh.faceBuffer = ctypes.cast(facesUvgpPtr, ctypes.POINTER(ctypes.c_int))
+        meshRuvm.vertices.add(workMesh.vertAmount)
+        meshRuvm.loops.add(workMesh.loopAmount)
+        meshRuvm.polygons.add(workMesh.faceAmount)
+        ruvmMesh.vertAmount = len(meshRuvm.vertices)
+        ruvmMesh.loopAmount = len(meshRuvm.loops)
+        ruvmMesh.faceAmount = len(meshRuvm.polygons)
+        vertsRuvmPtr = meshRuvm.vertices[0].as_pointer()
+        ruvmMesh.vertBuffer = ctypes.cast(vertsRuvmPtr, ctypes.POINTER(Vec3))
+        loopsRuvmPtr = meshRuvm.loops[0].as_pointer()
+        ruvmMesh.loopBuffer = ctypes.cast(loopsRuvmPtr, ctypes.POINTER(ctypes.c_int))
+        facesRuvmPtr = meshRuvm.polygons[0].as_pointer()
+        ruvmMesh.faceBuffer = ctypes.cast(facesRuvmPtr, ctypes.POINTER(ctypes.c_int))
 
-        uvgpLib.uvgpUpdateMesh(ctypes.pointer(uvgpMesh), ctypes.pointer(workMesh))
+        ruvmLib.ruvmUpdateMesh(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
 
-        meshUvgp.uv_layers.new(name="uvmap")
-        uvPtr = meshUvgp.uv_layers[0].data[0].as_pointer()
-        uvgpMesh.uvBuffer = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
-        uvgpLib.uvgpUpdateMeshUv(ctypes.pointer(uvgpMesh), ctypes.pointer(workMesh))
+        meshRuvm.uv_layers.new(name="uvmap")
+        uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
+        ruvmMesh.uvBuffer = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
+        ruvmLib.ruvmUpdateMeshUv(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
         print("FinishedUpdating")
-        objUvgp.data.update()
+        objRuvm.data.update()
 
-classes = [UVGP_OT_UvgpExportUvgpFile,
-           UVGP_OT_UvgpUpdate,
-           UVGP_OT_UvgpAssign,
-           UVGP_OT_UvgpRemove,
-           UVGP_OT_UvgpLoadUvgpFile]
+classes = [RUVM_OT_RuvmExportRuvmFile,
+           RUVM_OT_RuvmUpdate,
+           RUVM_OT_RuvmAssign,
+           RUVM_OT_RuvmRemove,
+           RUVM_OT_RuvmLoadRuvmFile]
 
 #Register
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.app.handlers.depsgraph_update_post.append(uvgpDepsgraphUpdatePostHandler)
+    bpy.app.handlers.depsgraph_update_post.append(ruvmDepsgraphUpdatePostHandler)
 
 #Unregister
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    bpy.app.handlers.depsgraph_update_post.remove(uvgpDepsgraphUpdatePostHandler)
+    bpy.app.handlers.depsgraph_update_post.remove(ruvmDepsgraphUpdatePostHandler)
