@@ -30,16 +30,16 @@ int32_t uvgpFileOpen(UvgpFile *file, char *filePath, int32_t action) {
 	return 0;
 }
 
-int32_t uvgpFileWrite(UvgpFile *file, unsigned char *data, int32_t dataLength) {
+int32_t uvgpFileWrite(UvgpFile *file, unsigned char *data, int32_t dataSize) {
 	HANDLE hFile = (HANDLE)file->file;
 	DWORD bytesWritten;
-	int32_t returnCode = WriteFile(hFile, data, dataLength, &bytesWritten, NULL);
+	int32_t returnCode = WriteFile(hFile, data, dataSize, &bytesWritten, NULL);
 	if (!returnCode) {
 		DWORD lastError =  GetLastError();
 		printf("Failed to write to UVGP file. Error: %lu\n", lastError);
 		return 1;
 	}
-	if (bytesWritten != dataLength) {
+	if (bytesWritten != dataSize) {
 		printf("Failed. Number of bytes written to UVGP does not match data length\n");
 	}
 	return 0;

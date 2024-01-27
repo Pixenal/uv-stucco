@@ -11,7 +11,7 @@
 #include "Platform.h"
 
 extern int32_t cellIndex;
-extern int32_t leafAmount;
+extern int32_t leafSize;
 
 typedef struct {
 	unsigned char *pString;
@@ -85,17 +85,17 @@ void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
 	byteString->nextBitIndex %= 8;
 }
 
-void decodeString(ByteString *byteString, char *string, int32_t stringLength) {
+void decodeString(ByteString *byteString, char *string, int32_t stringSize) {
 	byteString->byteIndex += byteString->nextBitIndex > 0;
 	byteString->nextBitIndex = 0;
 	uint8_t *dataPtr = byteString->pString + byteString->byteIndex;
-	char *lastChar = string + (stringLength - 1);
+	char *lastChar = string + (stringSize - 1);
 	*lastChar = 1;
 	do {
 		*string = *dataPtr;
 	} while(*++dataPtr && !*++string);
 	*lastChar = 0;
-	byteString->byteIndex += stringLength - (lastChar - string) + 1;
+	byteString->byteIndex += stringSize - (lastChar - string) + 1;
 }
 
 void writeDebugImage(Cell *rootCell) {
@@ -124,86 +124,86 @@ void writeRuvmFile(MeshData *pMesh) {
 	ByteString data;
 	char *vertAttributes[VERT_ATTRIBUTE_AMOUNT];
 	char *vertAttributeTypes[VERT_ATTRIBUTE_AMOUNT];
-	int32_t vertAttributeSize[VERT_ATTRIBUTE_AMOUNT];
+	int32_t vertAttributeSizes[VERT_ATTRIBUTE_AMOUNT];
 	vertAttributes[0] = "position.x";
 	vertAttributeTypes[0] = "f";
-	vertAttributeSize[0] = 32;
+	vertAttributeSizes[0] = 32;
 	vertAttributes[1] = "position.y";
 	vertAttributeTypes[1] = "f";
-	vertAttributeSize[1] = 32;
+	vertAttributeSizes[1] = 32;
 	vertAttributes[2] = "position.z";
 	vertAttributeTypes[2] = "f";
-	vertAttributeSize[2] = 32;
+	vertAttributeSizes[2] = 32;
 	char *loopAttributes[LOOP_ATTRIBUTE_AMOUNT];
 	char *loopAttributeTypes[LOOP_ATTRIBUTE_AMOUNT];
-	int32_t loopAttributeSize[LOOP_ATTRIBUTE_AMOUNT];
+	int32_t loopAttributeSizes[LOOP_ATTRIBUTE_AMOUNT];
 	loopAttributes[0] = "normal.x";
 	loopAttributeTypes[0] = "f";
-	loopAttributeSize[0] = 32;
+	loopAttributeSizes[0] = 32;
 	loopAttributes[1] = "normal.y";
 	loopAttributeTypes[1] = "f";
-	loopAttributeSize[1] = 32;
+	loopAttributeSizes[1] = 32;
 	loopAttributes[2] = "normal.z";
 	loopAttributeTypes[2] = "f";
-	loopAttributeSize[2] = 32;
-	int32_t headerAttributesByteLength = 0;
-	int32_t vertAttributeByteLength = 0;
+	loopAttributeSizes[2] = 32;
+	int32_t headerAttributesByteSize = 0;
+	int32_t vertAttributeByteSize = 0;
 	for (int32_t i = 0; i < VERT_ATTRIBUTE_AMOUNT; ++i) {
-		headerAttributesByteLength += strlen(vertAttributes[i]) + 1;
-		headerAttributesByteLength += strlen(vertAttributeTypes[i]) + 1;
-		headerAttributesByteLength += 1;
-		vertAttributeByteLength += vertAttributeSize[i];
+		headerAttributesByteSize += strlen(vertAttributes[i]) + 1;
+		headerAttributesByteSize += strlen(vertAttributeTypes[i]) + 1;
+		headerAttributesByteSize += 1;
+		vertAttributeByteSize += vertAttributeSizes[i];
 	}
-	int32_t loopAttributeByteLength = 0;
+	int32_t loopAttributeByteSize = 0;
 	for (int32_t i = 0; i < LOOP_ATTRIBUTE_AMOUNT; ++i) {
-		headerAttributesByteLength += strlen(loopAttributes[i]) + 1;
-		headerAttributesByteLength += strlen(loopAttributeTypes[i]) + 1;
-		headerAttributesByteLength += 1;
-		loopAttributeByteLength += loopAttributeSize[i];
+		headerAttributesByteSize += strlen(loopAttributes[i]) + 1;
+		headerAttributesByteSize += strlen(loopAttributeTypes[i]) + 1;
+		headerAttributesByteSize += 1;
+		loopAttributeByteSize += loopAttributeSizes[i];
 	}
-	int64_t headerLengthInBits = 32 +
+	int64_t headerSizeInBits = 32 +
 	                             32 +
-	                             headerAttributesByteLength * 8 +
+	                             headerAttributesByteSize * 8 +
 	                             32 +
 	                             32 +
 	                             32;
-	int64_t dataLengthInBits = vertAttributeByteLength * 8 * pMesh->vertAmount +
-	                           2 + (32 + loopAttributeByteLength * 8) * 4 * pMesh->faceAmount +
+	int64_t dataSizeInBits = vertAttributeByteSize * 8 * pMesh->vertSize +
+	                           2 + (32 + loopAttributeByteSize * 8) * 4 * pMesh->faceSize +
 	                           cellIndex +
-	                           32 * leafAmount +
-	                           32 * pMesh->vertAmount;
-	int32_t headerLengthInBytes = (int32_t)(headerLengthInBits / 8 + 2);
-	int32_t dataLengthInBytes = (int32_t)(dataLengthInBits / 8 + 2);
+	                           32 * leafSize +
+	                           32 * pMesh->vertSize;
+	int32_t headerSizeInBytes = (int32_t)(headerSizeInBits / 8 + 2);
+	int32_t dataSizeInBytes = (int32_t)(dataSizeInBits / 8 + 2);
 	data.byteIndex = 0;
 	data.nextBitIndex = 0;
 	header.byteIndex = 0;
 	header.nextBitIndex = 0;
 
-	data.pString = calloc(dataLengthInBytes, 8);
-	for (int32_t i = 0; i < pMesh->vertAmount; ++i) {
+	data.pString = calloc(dataSizeInBytes, 8);
+	for (int32_t i = 0; i < pMesh->vertSize; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pVerts[i].x, 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pVerts[i].y, 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pVerts[i].z, 32);
 	}
-	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+	for (int32_t i = 0; i < pMesh->loopSize; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pLoops[i], 32);
 	}
-	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+	for (int32_t i = 0; i < pMesh->loopSize; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].x, 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].y, 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].z, 32);
 	}
-	for (int32_t i = 0; i < pMesh->faceAmount; ++i) {
+	for (int32_t i = 0; i < pMesh->faceSize; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
 
-	int64_t dataLength = data.byteIndex + (data.nextBitIndex > 0);
-	int64_t dataLengthExtra = dataLength / 1000;
-	dataLengthExtra += ((dataLength * 1000) - dataLength) > 0;
-	dataLengthExtra += 12;
-	unsigned long compressedDataLength = dataLength + dataLengthExtra;
-	uint8_t *compressedData = malloc(compressedDataLength);
-	int32_t zResult = compress(compressedData, &compressedDataLength, data.pString, dataLength);
+	int64_t dataSize = data.byteIndex + (data.nextBitIndex > 0);
+	int64_t dataSizeExtra = dataSize / 1000;
+	dataSizeExtra += ((dataSize * 1000) - dataSize) > 0;
+	dataSizeExtra += 12;
+	unsigned long compressedDataSize = dataSize + dataSizeExtra;
+	uint8_t *compressedData = malloc(compressedDataSize);
+	int32_t zResult = compress(compressedData, &compressedDataSize, data.pString, dataSize);
 	switch(zResult) {
 		case Z_OK:
 			printf("Successfully compressed RUVM data\n");
@@ -216,36 +216,36 @@ void writeRuvmFile(MeshData *pMesh) {
 			break;
 	}
 
-	printf("Compressed data is %lu long\n", compressedDataLength);
+	printf("Compressed data is %lu long\n", compressedDataSize);
 
-	header.pString = calloc(headerLengthInBytes, sizeof(uint8_t));
-	encodeValue(&header, (uint8_t *)&compressedDataLength, 32);
-	encodeValue(&header, (uint8_t *)&dataLength, 32);
-	int32_t vertAttributeAmount = VERT_ATTRIBUTE_AMOUNT;
-	encodeValue(&header, (uint8_t *)&vertAttributeAmount, 8);
+	header.pString = calloc(headerSizeInBytes, sizeof(uint8_t));
+	encodeValue(&header, (uint8_t *)&compressedDataSize, 32);
+	encodeValue(&header, (uint8_t *)&dataSize, 32);
+	int32_t vertAttributeSize = VERT_ATTRIBUTE_AMOUNT;
+	encodeValue(&header, (uint8_t *)&vertAttributeSize, 8);
 	for (int32_t i = 0; i < VERT_ATTRIBUTE_AMOUNT; ++i) {
 		encodeString(&header, (uint8_t *)vertAttributes[i], (strlen(vertAttributes[i]) + 1) * 8);
 		encodeString(&header, (uint8_t *)vertAttributeTypes[i], (strlen(vertAttributeTypes[i]) + 1) * 8);
-		encodeValue(&header, (uint8_t *)&vertAttributeSize[i], 8);
+		encodeValue(&header, (uint8_t *)&vertAttributeSizes[i], 8);
 	}
-	int32_t loopAttributeAmount = LOOP_ATTRIBUTE_AMOUNT;
-	encodeValue(&header, (uint8_t *)&loopAttributeAmount, 8);
+	int32_t loopAttributeSize = LOOP_ATTRIBUTE_AMOUNT;
+	encodeValue(&header, (uint8_t *)&loopAttributeSize, 8);
 	for (int32_t i = 0; i < LOOP_ATTRIBUTE_AMOUNT; ++i) {
 		encodeString(&header, (uint8_t *)loopAttributes[i], (strlen(loopAttributes[i]) + 1) * 8);
 		encodeString(&header, (uint8_t *)loopAttributeTypes[i], (strlen(loopAttributeTypes[i]) + 1) * 8);
-		encodeValue(&header, (uint8_t *)&loopAttributeSize[i], 8);
+		encodeValue(&header, (uint8_t *)&loopAttributeSizes[i], 8);
 	}
-	encodeValue(&header, (uint8_t *)&pMesh->vertAmount, 32);
-	encodeValue(&header, (uint8_t *)&pMesh->loopAmount, 32);
-	encodeValue(&header, (uint8_t *)&pMesh->faceAmount, 32);
+	encodeValue(&header, (uint8_t *)&pMesh->vertSize, 32);
+	encodeValue(&header, (uint8_t *)&pMesh->loopSize, 32);
+	encodeValue(&header, (uint8_t *)&pMesh->faceSize, 32);
 
 	// CRC for uncompressed data, not compressed!
 	
 	PlatformFile file;
 	platformFileOpen(&file, "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File.ruvm", 0);
-	platformFileWrite(&file, (uint8_t *)&headerLengthInBytes, 4);
+	platformFileWrite(&file, (uint8_t *)&headerSizeInBytes, 4);
 	platformFileWrite(&file, header.pString, header.byteIndex + (header.nextBitIndex > 0));
-	platformFileWrite(&file, compressedData, (int32_t)compressedDataLength);
+	platformFileWrite(&file, compressedData, (int32_t)compressedDataSize);
 	platformFileClose(&file);
 
 	free(data.pString);
@@ -257,15 +257,15 @@ void decodeRuvmHeader(RuvmFileLoaded *pFileLoaded, ByteString *headerByteString)
 	RuvmHeader *header = &pFileLoaded->header;
 	MeshData *pMesh = &pFileLoaded->mesh;
 	//printf("0\n");
-	decodeValue(headerByteString, (uint8_t *)&header->dataLengthCompressed, 32);
-	//printf("dataLengthCompressed %d\n", header->dataLengthCompressed);
-	decodeValue(headerByteString, (uint8_t *)&header->dataLength, 32);
-	//printf("dataLength %d\n", header->dataLength);
-	decodeValue(headerByteString, (uint8_t *)&header->vertAttributeAmount, 8);
-	//printf("vertAttributeAmount %d\n", header->vertAttributeAmount);
-	header->pVertAttributeDesc = calloc(header->vertAttributeAmount, sizeof(AttributeDesc));
+	decodeValue(headerByteString, (uint8_t *)&header->dataSizeCompressed, 32);
+	//printf("dataSizeCompressed %d\n", header->dataSizeCompressed);
+	decodeValue(headerByteString, (uint8_t *)&header->dataSize, 32);
+	//printf("dataSize %d\n", header->dataSize);
+	decodeValue(headerByteString, (uint8_t *)&header->vertAttributeSize, 8);
+	//printf("vertAttributeSize %d\n", header->vertAttributeSize);
+	header->pVertAttributeDesc = calloc(header->vertAttributeSize, sizeof(AttributeDesc));
 	//printf("1\n");
-	for (int32_t i = 0; i < header->vertAttributeAmount; ++i) {
+	for (int32_t i = 0; i < header->vertAttributeSize; ++i) {
 		decodeString(headerByteString, header->pVertAttributeDesc[i].name, 64);
 		//printf("vertAttributte[%d] name %s\n", i, header->vertAttributeDesc[i].name);
 		decodeString(headerByteString, header->pVertAttributeDesc[i].type, 2);
@@ -274,49 +274,49 @@ void decodeRuvmHeader(RuvmFileLoaded *pFileLoaded, ByteString *headerByteString)
 		//printf("vertAttributte[%d] size %d\n", i, header->vertAttributeDesc[i].sizeInBits);
 	}
 	printf("2\n");
-	decodeValue(headerByteString, (uint8_t *)&header->loopAttributeAmount, 8);
-	printf("loopAttributeAmount %d\n", header->loopAttributeAmount);
-	header->pLoopAttributeDesc = calloc(header->loopAttributeAmount, sizeof(AttributeDesc));
+	decodeValue(headerByteString, (uint8_t *)&header->loopAttributeSize, 8);
+	printf("loopAttributeSize %d\n", header->loopAttributeSize);
+	header->pLoopAttributeDesc = calloc(header->loopAttributeSize, sizeof(AttributeDesc));
 	printf("3\n");
-	for (int32_t i = 0; i < header->loopAttributeAmount; ++i) {
+	for (int32_t i = 0; i < header->loopAttributeSize; ++i) {
 		printf("3.1  iteration: %d\n", i);
 		decodeString(headerByteString, header->pLoopAttributeDesc[i].name, 64);
 		decodeString(headerByteString, header->pLoopAttributeDesc[i].type, 2);
 		decodeValue(headerByteString, (uint8_t *)&header->pLoopAttributeDesc[i].sizeInBits, 8);
 	}
 	printf("4\n");
-	decodeValue(headerByteString, (uint8_t *)&pMesh->vertAmount, 32);
-	decodeValue(headerByteString, (uint8_t *)&pMesh->loopAmount, 32);
-	decodeValue(headerByteString, (uint8_t *)&pMesh->faceAmount, 32);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->vertSize, 32);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->loopSize, 32);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->faceSize, 32);
 	printf("5\n");
 
 }
 
 void decodeRuvmData(RuvmFileLoaded *pFileLoaded, ByteString *dataByteString) {
 	MeshData *pMesh = &pFileLoaded->mesh;
-	pMesh->pVerts = calloc(pMesh->vertAmount, sizeof(Vec3));
-	for (int32_t i = 0; i < pMesh->vertAmount; ++i) {
+	pMesh->pVerts = calloc(pMesh->vertSize, sizeof(Vec3));
+	for (int32_t i = 0; i < pMesh->vertSize; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pVerts[i].x, 32);
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pVerts[i].y, 32);
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pVerts[i].z, 32);
 	}
-	pMesh->pLoops = calloc(pMesh->loopAmount, sizeof(int32_t));
-	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+	pMesh->pLoops = calloc(pMesh->loopSize, sizeof(int32_t));
+	for (int32_t i = 0; i < pMesh->loopSize; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pLoops[i], 32);
 	}
-	pMesh->pNormals = calloc(pMesh->loopAmount, sizeof(Vec3));
-	for (int32_t i = 0; i < pMesh->loopAmount; ++i) {
+	pMesh->pNormals = calloc(pMesh->loopSize, sizeof(Vec3));
+	for (int32_t i = 0; i < pMesh->loopSize; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pNormals[i].x, 32);
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pNormals[i].y, 32);
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pNormals[i].z, 32);
 	}
 	// + 1 because blender stores an extra at end, so that number of loops can be
 	// checked with faceBuffer[i + 1] - faceBuffer[i], without causing a crash.
-	pMesh->pFaces = calloc(pMesh->faceAmount + 1, sizeof(int32_t));
-	for (int32_t i = 0; i < pMesh->faceAmount; ++i) {
+	pMesh->pFaces = calloc(pMesh->faceSize + 1, sizeof(int32_t));
+	for (int32_t i = 0; i < pMesh->faceSize; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
-	pMesh->pFaces[pMesh->faceAmount] = pMesh->loopAmount;
+	pMesh->pFaces[pMesh->faceSize] = pMesh->loopSize;
 }
 
 void loadRuvmFile(RuvmFileLoaded *pFileLoaded, char *filePath) {
@@ -325,22 +325,22 @@ void loadRuvmFile(RuvmFileLoaded *pFileLoaded, char *filePath) {
 	PlatformFile file;
 	printf("Loading RUVM file: %s\n", filePath);
 	platformFileOpen(&file, filePath, 1);
-	uint8_t *headerLength = malloc(4);
-	platformFileRead(&file, headerLength, 4);
-	int32_t headerLengthInt = *((int32_t *)headerLength);
-	printf("Header is %d bytes\n", headerLengthInt);
-	headerByteString.pString = malloc(headerLengthInt);
+	uint8_t *headerSize = malloc(4);
+	platformFileRead(&file, headerSize, 4);
+	int32_t headerSizeInt = *((int32_t *)headerSize);
+	printf("Header is %d bytes\n", headerSizeInt);
+	headerByteString.pString = malloc(headerSizeInt);
 	printf("Reading header\n");
-	platformFileRead(&file, headerByteString.pString, headerLengthInt);
+	platformFileRead(&file, headerByteString.pString, headerSizeInt);
 	printf("Decoding header\n");
 	decodeRuvmHeader(pFileLoaded, &headerByteString);
-	uint8_t *dataByteStringRaw = malloc(pFileLoaded->header.dataLength);
-	unsigned long dataLengthUncompressed = pFileLoaded->header.dataLength;
+	uint8_t *dataByteStringRaw = malloc(pFileLoaded->header.dataSize);
+	unsigned long dataSizeUncompressed = pFileLoaded->header.dataSize;
 	printf("Reading data\n");
-	platformFileRead(&file, dataByteStringRaw, pFileLoaded->header.dataLengthCompressed);
-	dataByteString.pString = malloc(pFileLoaded->header.dataLength);
+	platformFileRead(&file, dataByteStringRaw, pFileLoaded->header.dataSizeCompressed);
+	dataByteString.pString = malloc(pFileLoaded->header.dataSize);
 	printf("Decompressing data\n");
-	int32_t zResult = uncompress(dataByteString.pString, &dataLengthUncompressed, dataByteStringRaw, pFileLoaded->header.dataLengthCompressed);
+	int32_t zResult = uncompress(dataByteString.pString, &dataSizeUncompressed, dataByteStringRaw, pFileLoaded->header.dataSizeCompressed);
 	switch(zResult) {
 		case Z_OK:
 			printf("Successfully decompressed RUVM file data\n");
@@ -352,7 +352,7 @@ void loadRuvmFile(RuvmFileLoaded *pFileLoaded, char *filePath) {
 			printf("Failed to decompress RUVM file data. Buffer was too small\n");
 			break;
 	}
-	if (dataLengthUncompressed != pFileLoaded->header.dataLength) {
+	if (dataSizeUncompressed != pFileLoaded->header.dataSize) {
 		printf("Failed to load RUVM file. Decompressed data size doesn't match header description\n");
 		return;
 	}

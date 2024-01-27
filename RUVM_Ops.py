@@ -25,7 +25,7 @@ class Loop(ctypes.Structure):
                 ("normal", Vec3)]
 
 class Face(ctypes.Structure):
-    _fields_ = [("loopAmount", ctypes.c_int),
+    _fields_ = [("loopSize", ctypes.c_int),
                 ("loops", Loop * 4)]
 
 class Vec3(ctypes.Structure):
@@ -34,13 +34,17 @@ class Vec3(ctypes.Structure):
                 ("z", ctypes.c_float)]
 
 class BlenderMeshData(ctypes.Structure):
-    _fields_ = [("vertAmount", ctypes.c_int),
-                ("vertBuffer", ctypes.POINTER(Vec3)),
-                ("loopAmount", ctypes.c_int),
-                ("loopBuffer", ctypes.POINTER(ctypes.c_int)),
-                ("faceAmount", ctypes.c_int),
-                ("faceBuffer", ctypes.POINTER(ctypes.c_int)),
-                ("uvBuffer", ctypes.POINTER(Vec2))]
+    _fields_ = [("vertSize", ctypes.c_int),
+                ("boundaryVertSize", ctypes.c_int),
+                ("pVerts", ctypes.POINTER(Vec3)),
+                ("loopSize", ctypes.c_int),
+                ("boundaryLoopSize", ctypes.c_int),
+                ("pLoops", ctypes.POINTER(ctypes.c_int)),
+                ("pNormals", ctypes.POINTER(Vec3)),
+                ("faceSize", ctypes.c_int),
+                ("boundaryFaceSize", ctypes.c_int),
+                ("pFaces", ctypes.POINTER(ctypes.c_int)),
+                ("pUvs", ctypes.POINTER(Vec2))]
 
 class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
     bl_idname = "ruvm.ruvm_export_ruvm_file"
@@ -62,15 +66,15 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
         bMeshEval = bmesh.new()
         bMeshEval.from_mesh(meshEval)
 
-        faceAmount = len(meshEval.polygons)
-        loopAmount = len(meshEval.loops)
-        vertAmount = len(meshEval.vertices)
+        faceSize = len(meshEval.polygons)
+        loopSize = len(meshEval.loops)
+        vertSize = len(meshEval.vertices)
         vertsPtr = meshEval.vertices[0].as_pointer()
         vertsPtrFloat = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
         loopsPtr = meshEval.loops[0].as_pointer()
         loopsPtrInt = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
         facesPtr = meshEval.polygons[0].as_pointer()
-        normals = numpy.zeros(loopAmount * 3, dtype = numpy.float32)
+        normals = numpy.zeros(loopSize * 3, dtype = numpy.float32)
         meshEval.loops.foreach_get("normal", normals)
         facesPtrInt = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
 
@@ -78,7 +82,7 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
                                                ctypes.c_int, ctypes.POINTER(ctypes.c_int),
                                                numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
                                                ctypes.c_int, ctypes.POINTER(ctypes.c_int))
-        ruvmLib.RuvmExportRuvmFile(vertAmount, vertsPtrFloat, loopAmount, loopsPtrInt, normals, faceAmount, facesPtrInt)
+        ruvmLib.RuvmExportRuvmFile(vertSize, vertsPtrFloat, loopSize, loopsPtrInt, normals, faceSize, facesPtrInt)
 
         return {'FINISHED'}
 
@@ -165,17 +169,17 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         meshEval = objEval.data
 
         mesh = BlenderMeshData()
-        mesh.faceAmount = len(meshEval.polygons)
-        mesh.loopAmount = len(meshEval.loops)
-        mesh.vertAmount = len(meshEval.vertices)
+        mesh.faceSize = len(meshEval.polygons)
+        mesh.loopSize = len(meshEval.loops)
+        mesh.vertSize = len(meshEval.vertices)
         vertsPtr = meshEval.vertices[0].as_pointer()
-        mesh.vertBuffer = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
+        mesh.pVerts = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
         loopsPtr = meshEval.loops[0].as_pointer()
-        mesh.loopBuffer = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
+        mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
         facesPtr = meshEval.polygons[0].as_pointer()
-        mesh.faceBuffer = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
+        mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
         uvPtr = meshEval.uv_layers[0].data[0].as_pointer()
-        mesh.uvBuffer = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
+        mesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
 
         workMesh = BlenderMeshData()
 
@@ -199,27 +203,27 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             bpy.data.meshes.remove(meshRuvmOld)
 
         ruvmMesh = BlenderMeshData()
-        print("workMesh.vertAmount ", workMesh.vertAmount)
-        print("workMesh.loopAmount ", workMesh.loopAmount)
-        print("workMesh.faceAmount ", workMesh.faceAmount)
-        meshRuvm.vertices.add(workMesh.vertAmount)
-        meshRuvm.loops.add(workMesh.loopAmount)
-        meshRuvm.polygons.add(workMesh.faceAmount)
-        ruvmMesh.vertAmount = len(meshRuvm.vertices)
-        ruvmMesh.loopAmount = len(meshRuvm.loops)
-        ruvmMesh.faceAmount = len(meshRuvm.polygons)
+        print("workMesh.vertSize ", workMesh.vertSize)
+        print("workMesh.loopSize ", workMesh.loopSize)
+        print("workMesh.faceSize ", workMesh.faceSize)
+        meshRuvm.vertices.add(workMesh.vertSize)
+        meshRuvm.loops.add(workMesh.loopSize)
+        meshRuvm.polygons.add(workMesh.faceSize)
+        ruvmMesh.vertSize = len(meshRuvm.vertices)
+        ruvmMesh.loopSize = len(meshRuvm.loops)
+        ruvmMesh.faceSize = len(meshRuvm.polygons)
         vertsRuvmPtr = meshRuvm.vertices[0].as_pointer()
-        ruvmMesh.vertBuffer = ctypes.cast(vertsRuvmPtr, ctypes.POINTER(Vec3))
+        ruvmMesh.pVerts = ctypes.cast(vertsRuvmPtr, ctypes.POINTER(Vec3))
         loopsRuvmPtr = meshRuvm.loops[0].as_pointer()
-        ruvmMesh.loopBuffer = ctypes.cast(loopsRuvmPtr, ctypes.POINTER(ctypes.c_int))
+        ruvmMesh.pLoops = ctypes.cast(loopsRuvmPtr, ctypes.POINTER(ctypes.c_int))
         facesRuvmPtr = meshRuvm.polygons[0].as_pointer()
-        ruvmMesh.faceBuffer = ctypes.cast(facesRuvmPtr, ctypes.POINTER(ctypes.c_int))
+        ruvmMesh.pFaces = ctypes.cast(facesRuvmPtr, ctypes.POINTER(ctypes.c_int))
 
         ruvmLib.ruvmUpdateMesh(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
 
         meshRuvm.uv_layers.new(name="uvmap")
         uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
-        ruvmMesh.uvBuffer = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
+        ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
         ruvmLib.ruvmUpdateMeshUv(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
         print("FinishedUpdating")
         objRuvm.data.update()

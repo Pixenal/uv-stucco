@@ -10,11 +10,11 @@ typedef struct {
 } AttributeDesc;
 
 typedef struct {
-	int32_t dataLength;
-	int32_t dataLengthCompressed;
-	int32_t vertAttributeAmount;
+	int32_t dataSize;
+	int32_t dataSizeCompressed;
+	int32_t vertAttributeSize;
 	AttributeDesc *pVertAttributeDesc;
-	int32_t loopAttributeAmount;
+	int32_t loopAttributeSize;
 	AttributeDesc *pLoopAttributeDesc;
 } RuvmHeader;
 
