@@ -1,7 +1,7 @@
 #pragma once
 #include "Types.h"
 
-#define CELL_MAX_VERTS 256
+#define CELL_MAX_VERTS 128
 
 typedef struct {
 	Cell *pRootCell;
