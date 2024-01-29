@@ -2,12 +2,13 @@ INTERMEDIATES_PATH = intermediates
 TARGET_PATH = Linux
 GOAL = $(TARGET_PATH)/RUVM.so
 COMPILER_C = clang
+DEBUG_COMPILER_C = gcc
 LINKER = link
 DEBUGGER = gdb
 INCLUDE_PATHS = -ISrc -IThirdParty/Miniz
-#COMP_ARGS_C = $(COMPILER_C) -g -O0 -DEBUG -pthread -Wshadow -Wunused \
+#COMP_ARGS_C = $(DEBUG_COMPILER_C) -g -O0 -DEBUG -pthread -Wshadow -Wunused \
 #   		  -Wunused-parameter -D PLATFORM_LINUX -fPIC -c $(INCLUDE_PATHS)
-#LINK_ARGS = $(COMPILER_C) -pthread -shared
+#LINK_ARGS = $(DEBUG_COMPILER_C) -pthread -shared
 OPTIMIZATION_ARGS = -ftree-vectorize -mavx2 -finline-functions -flto -O2
 COMP_ARGS_C = $(COMPILER_C) $(OPTIMIZATION_ARGS) -pthread -D PLATFORM_LINUX \
 			  -fPIC -c $(INCLUDE_PATHS)

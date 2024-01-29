@@ -66,23 +66,27 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
         bMeshEval = bmesh.new()
         bMeshEval.from_mesh(meshEval)
 
-        faceSize = len(meshEval.polygons)
-        loopSize = len(meshEval.loops)
-        vertSize = len(meshEval.vertices)
-        vertsPtr = meshEval.vertices[0].as_pointer()
-        vertsPtrFloat = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
-        loopsPtr = meshEval.loops[0].as_pointer()
-        loopsPtrInt = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
-        facesPtr = meshEval.polygons[0].as_pointer()
-        normals = numpy.zeros(loopSize * 3, dtype = numpy.float32)
-        meshEval.loops.foreach_get("normal", normals)
-        facesPtrInt = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
+        mesh = BlenderMeshData()
+        mesh.faceSize = len(meshEval.polygons)
+        mesh.loopSize = len(meshEval.loops)
+        mesh.vertSize = len(meshEval.vertices)
 
-        ruvmLib.RuvmExportRuvmFile.argtypes = (ctypes.c_int, ctypes.POINTER(Vec3),
-                                               ctypes.c_int, ctypes.POINTER(ctypes.c_int),
-                                               numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
-                                               ctypes.c_int, ctypes.POINTER(ctypes.c_int))
-        ruvmLib.RuvmExportRuvmFile(vertSize, vertsPtrFloat, loopSize, loopsPtrInt, normals, faceSize, facesPtrInt)
+        normals = numpy.zeros(mesh.loopSize * 3, dtype = numpy.float32)
+        meshEval.calc_normals_split()
+        meshEval.loops.foreach_get("normal", normals)
+
+        vertsPtr = meshEval.vertices[0].as_pointer()
+        mesh.pVerts = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
+        loopsPtr = meshEval.loops[0].as_pointer()
+        mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
+        facesPtr = meshEval.polygons[0].as_pointer()
+        mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
+        uvPtr = meshEval.uv_layers[0].data[0].as_pointer()
+        mesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(Vec2))
+
+        ruvmLib.RuvmExportRuvmFile.argtypes = (ctypes.POINTER(BlenderMeshData),
+                                               numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
+        ruvmLib.RuvmExportRuvmFile(mesh, normals)
 
         return {'FINISHED'}
 
@@ -172,6 +176,11 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         mesh.faceSize = len(meshEval.polygons)
         mesh.loopSize = len(meshEval.loops)
         mesh.vertSize = len(meshEval.vertices)
+
+        normals = numpy.zeros(mesh.loopSize * 3, dtype = numpy.float32)
+        meshEval.calc_normals_split()
+        meshEval.loops.foreach_get("normal", normals)
+
         vertsPtr = meshEval.vertices[0].as_pointer()
         mesh.pVerts = ctypes.cast(vertsPtr, ctypes.POINTER(Vec3))
         loopsPtr = meshEval.loops[0].as_pointer()
@@ -183,7 +192,10 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
 
         workMesh = BlenderMeshData()
 
-        ruvmLib.ruvmMapToMesh(ctypes.pointer(mesh), ctypes.pointer(workMesh))
+        ruvmLib.ruvmMapToMesh.argtypes = (ctypes.POINTER(BlenderMeshData),
+                                              ctypes.POINTER(BlenderMeshData),
+                                              numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
+        ruvmLib.ruvmMapToMesh(ctypes.pointer(mesh), ctypes.pointer(workMesh), normals)
 
         nameRuvm = obj.name + ".Ruvm"
         print(nameRuvm)
