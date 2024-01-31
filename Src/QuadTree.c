@@ -86,9 +86,9 @@ int32_t findFaceQuadrant(int32_t loopSize, int32_t faceStart,
 	return commonSides->x && commonSides->y;
 }
 
-void quadTreeGetAllEnclosingCells(iVec2 tileMin, EnclosingCellsInfo *pEnclosingCellsInfo,
-									 Cell *pRootCell, int32_t loopStart, int32_t loopEnd,
-							         MeshData *pMesh, int8_t *pCellInits) {
+void quadTreeGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
+                                  int8_t *pCellInits, MeshData *pMesh, FaceInfo faceInfo,
+								  iVec2 tileMin) {
 	typedef struct {
 		int32_t a;
 		int32_t b;
@@ -100,7 +100,6 @@ void quadTreeGetAllEnclosingCells(iVec2 tileMin, EnclosingCellsInfo *pEnclosingC
 	cellStack[0] = pRootCell;
 	pCellInits[0] = 0;
 	int32_t cellStackPointer = 0;
-	int32_t loopSize = loopEnd - loopStart;
 	for (int32_t i = 0; i < 4; ++i) {
 		pCellInits[pRootCell->pChildren[i].cellIndex] = 0;
 	}
@@ -134,7 +133,7 @@ void quadTreeGetAllEnclosingCells(iVec2 tileMin, EnclosingCellsInfo *pEnclosingC
 		iVec2 commonSides;
 		midPoint.x += (float)tileMin.x;
 		midPoint.y += (float)tileMin.y;
-		int32_t result = findFaceQuadrantUv(loopSize, loopStart, pMesh->pUvs, midPoint,
+		int32_t result = findFaceQuadrantUv(faceInfo.size, faceInfo.start, pMesh->pUvs, midPoint,
 		                                    &commonSides, &signs);
 		switch (result) {
 			case 0: {

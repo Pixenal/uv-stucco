@@ -37,10 +37,32 @@ int32_t debugFaceIndex = 0;
 float tempTime = 0;
 
 typedef struct {
-	int32_t start;
-	int32_t end;
-	int32_t size;
-} FaceInfo;
+	iVec2 min, max;
+	Vec2 fMin, fMax;
+} FaceBounds;
+
+typedef struct {
+	int32_t cellFacesTotal;
+	int32_t cellFacesMax;
+	FaceCellsInfo *pFaceCellsInfo;
+	int32_t*pCellFaces;
+	int32_t averageRuvmFacesPerFace;
+	int8_t *pCellInits;
+	FaceInfo faceInfo;
+	FaceBounds faceBounds;
+} EnclosingCellsVars;
+
+typedef struct {
+	int32_t vertAdjSize;
+	VertAdj *pRuvmVertAdj;
+	int32_t bufferSize;
+	int32_t boundaryBufferSize;
+} MapToMeshVars;
+
+typedef struct {
+	int32_t timeSpent;
+	int32_t maxDepth;
+} DebugAndPerfVars;
 
 static RuvmFileLoaded *pFileLoaded;
 
@@ -295,12 +317,6 @@ void clipRuvmFaceAgainstBaseFace(int32_t *loopBufferSize, LoopBuffer *pLoopBuffe
 	}
 }
 
-void CellsDebugCustom() {
-	int a = 0;
-	a += 1;
-	return;
-}
-
 void transformClippedFaceFromUvToXyz(int32_t loopBufferSize, LoopBuffer *loopBuffer, Vec2 *pTriUv,
                                   Vec3 *pTriXyz, Vec3 *pTriNormals, Vec2 tileMin) {
 	for (int32_t j = 0; j < loopBufferSize; ++j) {
@@ -381,26 +397,26 @@ void mapToSingleFace(Vec2 tileMin, int32_t tile, int32_t cellFacesTotal, int32_t
 	//timeSpent[2] += getTimeDiff(&start, &stop);
 }
 
-void getFaceBounds(Vec2 *boundsMin, Vec2 *boundsMax, Vec2 *pUvs, int32_t faceStart, int32_t faceEnd) {
-	boundsMin->x = boundsMin->y = FLT_MAX;
-	boundsMax->x = boundsMax->y = .0f;
-	int32_t faceLoopSize = faceEnd - faceStart;
-	for (int32_t i = 0; i < faceLoopSize; ++i) {
-		Vec2 *uv = pUvs + faceStart + i;
-		boundsMin->x = uv->x < boundsMin->x ? uv->x : boundsMin->x;
-		boundsMin->y = uv->y < boundsMin->y ? uv->y : boundsMin->y;
-		boundsMax->x = uv->x > boundsMax->x ? uv->x : boundsMax->x;
-		boundsMax->y = uv->y > boundsMax->y ? uv->y : boundsMax->y;
+void getFaceBounds(FaceBounds *pBounds, Vec2 *pUvs, FaceInfo faceInfo) {
+	pBounds->fMin.x = pBounds->fMin.y = FLT_MAX;
+	pBounds->fMax.x = pBounds->fMax.y = .0f;
+	for (int32_t i = 0; i < faceInfo.size; ++i) {
+		Vec2 *uv = pUvs + faceInfo.start + i;
+		pBounds->fMin.x = uv->x < pBounds->fMin.x ? uv->x : pBounds->fMin.x;
+		pBounds->fMin.y = uv->y < pBounds->fMin.y ? uv->y : pBounds->fMin.y;
+		pBounds->fMax.x = uv->x > pBounds->fMax.x ? uv->x : pBounds->fMax.x;
+		pBounds->fMax.y = uv->y > pBounds->fMax.y ? uv->y : pBounds->fMax.y;
 	}
 }
 
-void checkIfFaceIsInsideTile(int32_t *pIsInsideBuffer, int32_t *pFaceVertInside,
-		                     MeshData *pMesh, int32_t faceStart,
-							 int32_t loopSize, iVec2 tileMin) {
-	for (int32_t i = 0; i < loopSize; ++i) {
+void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars, int32_t *pIsInsideBuffer,
+		                     int32_t *pFaceVertInside, MeshData *pMesh, iVec2 tileMin) {
+	FaceInfo *pFaceInfo = &pEcVars->faceInfo;
+	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
+	for (int32_t i = 0; i < pEcVars->faceInfo.size; ++i) {
 		//check if current edge intersects tile
-		Vec2 *loop = pMesh->pUvs + faceStart + i;
-		int32_t nextLoopIndex = faceStart + (i + 1) % loopSize;
+		Vec2 *loop = pMesh->pUvs + pFaceInfo->start + i;
+		int32_t nextLoopIndex = pFaceInfo->start + (i + 1) % pFaceInfo->size;
 		Vec2 *loopNext = pMesh->pUvs + nextLoopIndex;
 		Vec2 loopDir = _(*loopNext V2SUB *loop);
 		Vec2 loopCross = vec2Cross(loopDir);
@@ -414,24 +430,21 @@ void checkIfFaceIsInsideTile(int32_t *pIsInsideBuffer, int32_t *pFaceVertInside,
 		//edge cases may not be cause by the above, like if a face entered the tile,
 		//and then exited the same side, with a single vert in the tile.
 		//Checking for verts will catch this:
-		Vec2 tileMinf = {tileMin.x, tileMin.y};
-		Vec2 tileMaxf = {tileMinf.x + 1.0f, tileMinf.y + 1.0f};
-		*pFaceVertInside += _(*loop V2GREAT tileMinf) && _(*loop V2LESSEQL tileMaxf);
+		*pFaceVertInside += _(*loop V2GREAT pFaceBounds->fMin) &&
+		                    _(*loop V2LESSEQL pFaceBounds->fMax);
 	}
 }
 
-int32_t getEnclosingCellsForFaceWithinTile(EnclosingCellsInfo *pEnclosingCellsInfo, iVec2 tileMin,
-						 int32_t faceStart, int32_t faceEnd, MeshData *pMesh, int8_t *cellInits) {
-	int32_t loopSize = faceEnd - faceStart;
+int32_t getCellsForFaceWithinTile(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
+                                  EnclosingCellsInfo *pCellsBuffer, iVec2 tileMin) {
 	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
 	int32_t faceVertInside = 0;
-	checkIfFaceIsInsideTile(isInsideBuffer, &faceVertInside, pMesh, faceStart,
-							loopSize, tileMin);
+	checkIfFaceIsInsideTile(pEcVars, isInsideBuffer, &faceVertInside, &pArgs->mesh, tileMin);
 	int32_t isInside = isInsideBuffer[0] || isInsideBuffer[1] ||
 	                   isInsideBuffer[2] || isInsideBuffer[3];
-	if (isInsideBuffer[0] && isInsideBuffer[1] &&
-	    isInsideBuffer[2] && isInsideBuffer[3]) {
-		//fully enclosed
+	int32_t isFullyEnclosed = isInsideBuffer[0] && isInsideBuffer[1] &&
+	                          isInsideBuffer[2] && isInsideBuffer[3];
+	if (isFullyEnclosed) {
 		return 1;
 	}
 	if (!faceVertInside && !isInside) {
@@ -439,85 +452,70 @@ int32_t getEnclosingCellsForFaceWithinTile(EnclosingCellsInfo *pEnclosingCellsIn
 		return 0;
 	}
 	//find fully enclosing cell using clipped face
-	quadTreeGetAllEnclosingCells(tileMin, pEnclosingCellsInfo, pFileLoaded->quadTree.pRootCell,
-	                             faceStart, faceEnd, pMesh, cellInits);
+	quadTreeGetAllEnclosingCells(pFileLoaded->quadTree.pRootCell, pCellsBuffer,
+	                             pEcVars->pCellInits, &pArgs->mesh, pEcVars->faceInfo, tileMin);
 	return 0;
 }
 
-void copyCellsIntoTotalList(int32_t *pTotalCellFaces, EnclosingCellsInfo *pEnclosingCellsBuffer,
-		                   FaceCellsInfo *pFaceCellsInfo, int32_t *pCellFacesMax) {
-	*pTotalCellFaces += pEnclosingCellsBuffer->faceTotal;
-	pFaceCellsInfo->pCells = malloc(sizeof(Cell *) * pEnclosingCellsBuffer->cellSize);
-	pFaceCellsInfo->pCellType = malloc(sizeof(int32_t) * pEnclosingCellsBuffer->cellSize);
-	memcpy(pFaceCellsInfo->pCells, pEnclosingCellsBuffer->cells, sizeof(Cell *) *
-	       pEnclosingCellsBuffer->cellSize);
-	memcpy(pFaceCellsInfo->pCellType, pEnclosingCellsBuffer->cellType, sizeof(int32_t) *
-	       pEnclosingCellsBuffer->cellSize);
-	pFaceCellsInfo->cellSize = pEnclosingCellsBuffer->cellSize;
-	pFaceCellsInfo->faceSize = pEnclosingCellsBuffer->faceTotalNoDup;
-	if (pEnclosingCellsBuffer->faceTotalNoDup > *pCellFacesMax) {
-		*pCellFacesMax = pEnclosingCellsBuffer->faceTotalNoDup;
+void copyCellsIntoTotalList(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *pCellsBuffer,
+                            int32_t faceIndex) {
+	FaceCellsInfo *pEntry = pEcVars->pFaceCellsInfo + faceIndex;
+	pEcVars->cellFacesTotal += pCellsBuffer->faceTotal;
+	pEntry->pCells = malloc(sizeof(Cell *) * pCellsBuffer->cellSize);
+	pEntry->pCellType = malloc(sizeof(int32_t) * pCellsBuffer->cellSize);
+	memcpy(pEntry->pCells, pCellsBuffer->cells, sizeof(Cell *) *
+	       pCellsBuffer->cellSize);
+	memcpy(pEntry->pCellType, pCellsBuffer->cellType, sizeof(int32_t) *
+	       pCellsBuffer->cellSize);
+	pEntry->cellSize = pCellsBuffer->cellSize;
+	pEntry->faceSize = pCellsBuffer->faceTotalNoDup;
+	if (pCellsBuffer->faceTotalNoDup > pEcVars->cellFacesMax) {
+		pEcVars->cellFacesMax = pCellsBuffer->faceTotalNoDup;
 	}
 }
 
-int32_t getEnclosingCellsForFace(int32_t *cellFacesMax, FaceCellsInfo *faceCellsInfo,
-								   int32_t *totalCellFaces, iVec2 faceBoundsMin,
-								   iVec2 faceBoundsMax, int32_t faceStart,
-								   int32_t faceEnd, MeshData *mesh, int8_t *cellInits) {
-	EnclosingCellsInfo enclosingCellsBuffer = {0};
-	for (int32_t i = faceBoundsMin.y; i <= faceBoundsMax.y; ++i) {
-		for (int32_t j = faceBoundsMin.x; j <= faceBoundsMax.x; ++j) {
-			int32_t result;
+int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars, int32_t i) {
+	EnclosingCellsInfo cellsBuffer = {0};
+	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
+	for (int32_t i = pFaceBounds->min.y; i <= pFaceBounds->max.y; ++i) {
+		for (int32_t j = pFaceBounds->min.x; j <= pFaceBounds->max.x; ++j) {
 			iVec2 tileMin = {j, i};
 			//continue until the smallest cell that fully encloses the face is found (result == 0).
 			//if face fully encloses the while uv tile (result == 1), then return (root cell will be used).
 			//if the face is not within the current tile, then skip tile (result == 2).
-			result = getEnclosingCellsForFaceWithinTile(&enclosingCellsBuffer, tileMin,
-					                                    faceStart, faceEnd, mesh, cellInits);
-			if (result == 1) {
+			if (getCellsForFaceWithinTile(pArgs, pEcVars, &cellsBuffer, tileMin)) {
 				//fully enclosed
 				return 1;
 			}
 		}
 	}
-	copyCellsIntoTotalList(totalCellFaces, &enclosingCellsBuffer, faceCellsInfo, cellFacesMax);
+	copyCellsIntoTotalList(pEcVars, &cellsBuffer, i);
 	return 0;
 }
 
-int32_t ruvmFloor(float a) {
-	int32_t aTrunc = a;
-	aTrunc -= ((float)aTrunc != a) && (a < .0f);
-	return aTrunc;
-}
-
-void getEnclosingCellsForAllFaces(int32_t *cellFacesMax, iVec2 *faceBoundsMin, iVec2 *faceBoundsMax,
-                                  int32_t *totalCellFaces, FaceCellsInfo *faceCellsInfo, MeshData *pMesh,
-                                  int32_t *averageRuvmFacesPerFace) {
-	int8_t *cellInits = malloc(cellIndex);
-	for (int32_t i = 0; i < pMesh->faceSize; ++i) {
-		int32_t faceStart = pMesh->pFaces[i];
-		int32_t faceEnd = pMesh->pFaces[i + 1];
-		Vec2 faceBoundsMinf, faceBoundsMaxf;
-		getFaceBounds(&faceBoundsMinf, &faceBoundsMaxf, pMesh->pUvs, faceStart, faceEnd);
-		faceBoundsMin->x = ruvmFloor(faceBoundsMinf.x);
-		faceBoundsMin->y = ruvmFloor(faceBoundsMinf.y);
-		faceBoundsMax->x = ruvmFloor(faceBoundsMaxf.x);
-		faceBoundsMax->y = ruvmFloor(faceBoundsMaxf.y);
-		if (getEnclosingCellsForFace(cellFacesMax, faceCellsInfo + i, totalCellFaces, *faceBoundsMin,
-		                             *faceBoundsMax, faceStart, faceEnd, pMesh, cellInits)) {
+void getEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcVars) {
+	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
+	pEcVars->pCellInits = malloc(cellIndex);
+	for (int32_t i = 0; i < pArgs->mesh.faceSize; ++i) {
+		int32_t start, end;
+		start = pEcVars->faceInfo.start = pArgs->mesh.pFaces[i];
+		end = pEcVars->faceInfo.end = pArgs->mesh.pFaces[i + 1];
+		pEcVars->faceInfo.size = end - start;
+		getFaceBounds(pFaceBounds, pArgs->mesh.pUvs, pEcVars->faceInfo);
+		pFaceBounds->min = vec2FloorAssign(&pFaceBounds->fMin);
+		pFaceBounds->max = vec2FloorAssign(&pFaceBounds->fMax);
+		_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
+		if (getCellsForSingleFace(pArgs, pEcVars, i)) {
 			Cell *rootCell = pFileLoaded->quadTree.pRootCell;
-			faceCellsInfo[i].pCells = malloc(sizeof(Cell *));
-			*faceCellsInfo[i].pCells = rootCell;
-			*totalCellFaces += rootCell->faceSize;
+			pEcVars->pFaceCellsInfo[i].pCells = malloc(sizeof(Cell *));
+			*pEcVars->pFaceCellsInfo[i].pCells = rootCell;
+			pEcVars->cellFacesTotal += rootCell->faceSize;
 		}
-		if (faceCellsInfo[i].faceSize < 1000) {
-			CellsDebugCustom();
-		}
-		*averageRuvmFacesPerFace += faceCellsInfo[i].faceSize;
+		pEcVars->averageRuvmFacesPerFace += pEcVars->pFaceCellsInfo[i].faceSize;
 		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
 	}
-	free(cellInits);
-	*averageRuvmFacesPerFace /= pMesh->faceSize;
+	free(pEcVars->pCellInits);
+	pEcVars->averageRuvmFacesPerFace /= pArgs->mesh.faceSize;
 }
 
 void allocateStructuresForMapping(ThreadArg *pArgs, int32_t cellFacesMax, int32_t bufferSize,
@@ -569,45 +567,41 @@ void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellF
 void mapToMeshJob(void *pArgsPtr) {
 	struct timeval start, stop;
 	CLOCK_START;
+	EnclosingCellsVars ecVars = {0};
 	ThreadArg *pArgs = pArgsPtr;
-	int32_t cellFacesTotal = 0;;
-	iVec2 faceBoundsMin, faceBoundsMax;
-	int32_t cellFacesMax = 0;
-	FaceCellsInfo *pFaceCellsInfo = malloc(sizeof(FaceCellsInfo) * pArgs->mesh.faceSize);
-	int32_t averageRuvmFacesPerFace = 0;
-	getEnclosingCellsForAllFaces(&cellFacesMax, &faceBoundsMin, &faceBoundsMax, &cellFacesTotal,
-	                             pFaceCellsInfo, &pArgs->mesh, &averageRuvmFacesPerFace);
+	ecVars.pFaceCellsInfo = malloc(sizeof(FaceCellsInfo) * pArgs->mesh.faceSize);
+	getEnclosingCellsForAllFaces(pArgs, &ecVars);
 	CLOCK_STOP("getting enclosing cells");
 	int32_t vertAdjSize;
 	int32_t *pCellFaces;
 	VertAdj *pRuvmVertAdj;
-	int32_t bufferSize = pArgs->mesh.faceSize + cellFacesTotal;
+	int32_t bufferSize = pArgs->mesh.faceSize + ecVars.cellFacesTotal;
 	int32_t boundaryBufferSize = 50000;
 	pArgs->boundaryBufferSize = boundaryBufferSize;
-	allocateStructuresForMapping(pArgs, cellFacesMax, bufferSize, boundaryBufferSize,
-			                     averageRuvmFacesPerFace, &pCellFaces, &pRuvmVertAdj,
+	allocateStructuresForMapping(pArgs, ecVars.cellFacesMax, bufferSize, boundaryBufferSize,
+			                     ecVars.averageRuvmFacesPerFace, &pCellFaces, &pRuvmVertAdj,
 								 &vertAdjSize);
 	uint64_t timeSpent[3] = {0};
 	int32_t maxDepth;
 	CLOCK_START;
 	for (int32_t i = 0; i < pArgs->mesh.faceSize; ++i) {
 		// copy faces over to a new contiguous array
-		copyCellFacesIntoSingleArray(pFaceCellsInfo, pCellFaces, i);
+		copyCellFacesIntoSingleArray(ecVars.pFaceCellsInfo, pCellFaces, i);
 		//iterate through tiles
-		for (int32_t j = faceBoundsMin.y; j <= faceBoundsMax.y; ++j) {
-			for (int32_t k = faceBoundsMin.x; k <= faceBoundsMax.x; ++k) {
+		for (int32_t j = ecVars.faceBounds.min.y; j <= ecVars.faceBounds.max.y; ++j) {
+			for (int32_t k = ecVars.faceBounds.min.x; k <= ecVars.faceBounds.max.x; ++k) {
 				Vec2 tileMin = {k, j};
-				int32_t tile = k + (j * faceBoundsMax.x);
+				int32_t tile = k + (j * ecVars.faceBounds.max.x);
 				int32_t faceStart = pArgs->mesh.pFaces[i];
 				int32_t faceEnd = pArgs->mesh.pFaces[i + 1];
-				mapToSingleFace(tileMin, tile, pFaceCellsInfo[i].faceSize, pCellFaces,
+				mapToSingleFace(tileMin, tile, ecVars.pFaceCellsInfo[i].faceSize, pCellFaces,
 				                &pArgs->mesh, &pArgs->localMesh, faceStart, faceEnd,
 								pRuvmVertAdj, timeSpent, vertAdjSize, pArgs->pBoundaryBuffer,
 								boundaryBufferSize, &maxDepth, &pArgs->totalFaces, &pArgs->totalLoops,
 								pArgs->id);
 			}
 		}
-		free(pFaceCellsInfo[i].pCells);
+		free(ecVars.pFaceCellsInfo[i].pCells);
 	}
 	pArgs->localMesh.pFaces[pArgs->localMesh.boundaryFaceSize] = 
 		pArgs->localMesh.boundaryLoopSize;
@@ -628,7 +622,7 @@ void mapToMeshJob(void *pArgsPtr) {
 	CLOCK_STOP("Stringing Boundary Buffer");
 	free(pRuvmVertAdj);
 	free(pCellFaces);
-	free(pFaceCellsInfo);
+	free(ecVars.pFaceCellsInfo);
 	CLOCK_START;
 	mutexLock();
 	++*pArgs->pJobsCompleted;

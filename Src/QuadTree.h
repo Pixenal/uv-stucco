@@ -23,9 +23,9 @@ typedef struct {
 void calcCellBounds(Cell *pCell);
 Cell *findEnclosingCell(Cell *pRootCell, Vec2 pos);
 void allocateChildren(Cell *parentCell, int32_t cellStackPointer);
-void quadTreeGetAllEnclosingCells(iVec2 tileMin, EnclosingCellsInfo *pEnclosingCellsInfo,
-									 Cell *pRootCell, int32_t loopStart, int32_t loopEnd,
-							         MeshData *pMesh, int8_t *pCellInits);
+void quadTreeGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
+                                  int8_t *pCellInits, MeshData *pMesh, FaceInfo faceInfo,
+								  iVec2 tileMin);
 void addEnclosedVertsToCell(Cell *pParentCell, MeshData *pMesh, int8_t *pFaceFlag);
 void processCell(Cell **pCellStack, int32_t *pCellStackPointer, MeshData *pMesh,
                  int8_t *pFaceFlag);
