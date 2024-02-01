@@ -207,6 +207,44 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPointer) {
 	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
 }
 
+int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, MeshData *pMesh) {
+	for (int32_t k = 0; k < pAncestor->edgeFaceSize; ++k) {
+		int32_t faceIndex = pAncestor->pEdgeFaces[k];
+		FaceInfo face;
+		face.start = pMesh->pFaces[faceIndex];
+		face.end = pMesh->pFaces[faceIndex + 1];
+		face.size = face.end - face.start;
+		//doesn't catch cases where edge intersect with bounds,
+		//replace with a better method
+		if (checkFaceIsInBounds(pChild->boundsMin, pChild->boundsMax, face, pMesh)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void addLinkEdgesToCells(Cell* pParentCell, MeshData *pMesh, Cell **pCellStack,
+                         int32_t cellStackPointer) {
+	int32_t buf[32];
+	int32_t bufSize;
+	for (int32_t i = 0; i < 4; ++i) {
+		bufSize = 0;
+		Cell *pChild = pParentCell->pChildren + i;
+		for (int32_t j = cellStackPointer; j >= 0; --j) {
+			Cell *pAncestor = pCellStack[j];
+			if (checkIfLinkedEdge(pChild, pAncestor, pMesh)) {
+				buf[bufSize] = pAncestor->cellIndex;
+				bufSize++;
+			}
+		}
+		if (bufSize) {
+			pChild->pLinkEdges = malloc(sizeof(int32_t) * bufSize);
+			pChild->linkEdgeSize = bufSize;
+			memcpy(pChild->pLinkEdges, buf, sizeof(int32_t) * bufSize);
+		}
+	}
+}
+
 void addEnclosedVertsToCell(Cell *pParentCell, MeshData *pMesh, int8_t *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
@@ -287,6 +325,7 @@ void processCell(Cell **pCellStack, int32_t *pCellStackPointer, MeshData *pMesh,
 			leafSize--;
 			allocateChildren(cell,*pCellStackPointer);
 			addEnclosedVertsToCell(cell, pMesh, pFaceFlag);
+			addLinkEdgesToCells(cell, pMesh, pCellStack, *pCellStackPointer);
 		}
 		for (int32_t i = 0; i < 4; ++i) {
 			childSize += (int32_t)cell->pChildren[i].initialized;
@@ -331,6 +370,7 @@ void createQuadTree(QuadTree *pQuadTree, MeshData *pMesh) {
 	}
 	allocateChildren(rootCell, 0);
 	addEnclosedVertsToCell(rootCell, pMesh, pFaceFlag);
+	addLinkEdgesToCells(rootCell, pMesh, cellStack, 0);
 	cellStack[1] = rootCell->pChildren;
 	int32_t cellStackPointer = 1;
 	do {
@@ -361,6 +401,9 @@ void destroyQuadTree(Cell *rootCell) {
 		}
 		else {
 			cell->initialized = 0;
+		}
+		if (cell->pLinkEdges) {
+			free(cell->pLinkEdges);
 		}
 		if (cell->pFaces) {
 			free(cell->pFaces);

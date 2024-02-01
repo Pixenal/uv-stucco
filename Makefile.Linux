@@ -10,6 +10,7 @@ INCLUDE_PATHS = -ISrc -IThirdParty/Miniz
 #   		  -Wunused-parameter -D PLATFORM_LINUX -fPIC -c $(INCLUDE_PATHS)
 #LINK_ARGS = $(DEBUG_COMPILER_C) -pthread -shared
 OPTIMIZATION_ARGS = -ftree-vectorize -mavx2 -finline-functions -flto -O2
+#OPTIMIZATION_ARGS = -O0
 COMP_ARGS_C = $(COMPILER_C) $(OPTIMIZATION_ARGS) -pthread -D PLATFORM_LINUX \
    		  -fPIC -c $(INCLUDE_PATHS)
 LINK_ARGS = $(COMPILER_C) $(OPTIMIZATION_ARGS) -pthread -shared

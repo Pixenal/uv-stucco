@@ -39,6 +39,7 @@ float tempTime = 0;
 typedef struct {
 	iVec2 min, max;
 	Vec2 fMin, fMax;
+	Vec2 fMinSmall, fMaxSmall;
 } FaceBounds;
 
 typedef struct {
@@ -121,6 +122,17 @@ uint32_t fnvHash(uint8_t *value, int32_t valueSize, uint32_t size) {
 	return hash;
 }
 
+void getFaceBounds(FaceBounds *pBounds, Vec2 *pUvs, FaceInfo faceInfo) {
+	pBounds->fMin.x = pBounds->fMin.y = FLT_MAX;
+	pBounds->fMax.x = pBounds->fMax.y = .0f;
+	for (int32_t i = 0; i < faceInfo.size; ++i) {
+		Vec2 *uv = pUvs + faceInfo.start + i;
+		pBounds->fMin.x = uv->x < pBounds->fMin.x ? uv->x : pBounds->fMin.x;
+		pBounds->fMin.y = uv->y < pBounds->fMin.y ? uv->y : pBounds->fMin.y;
+		pBounds->fMax.x = uv->x > pBounds->fMax.x ? uv->x : pBounds->fMax.x;
+		pBounds->fMax.y = uv->y > pBounds->fMax.y ? uv->y : pBounds->fMax.y;
+	}
+}
 
 void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWrap *pNewLoopBuf,
                                    int32_t *pInsideBuf, LoopInfo *pBaseLoop,
@@ -353,6 +365,8 @@ void mapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
                      MapToMeshVars *pMmVars, DebugAndPerfVars *pDpVars,
 					 Vec2 fTileMin, int32_t tile, FaceInfo baseFace) {
 	struct timeval start, stop;
+	FaceBounds bounds;
+	getFaceBounds(&bounds, pArgs->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri;
 	baseTri.uv[0] = _(pArgs->mesh.pUvs[baseFace.start] V2SUB fTileMin);
 	baseTri.uv[1] = _(pArgs->mesh.pUvs[baseFace.start + 1] V2SUB fTileMin);
@@ -362,11 +376,19 @@ void mapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	baseTri.xyz[2] = pArgs->mesh.pVerts[pArgs->mesh.pLoops[baseFace.start + 2]];
 	baseTri.pNormals = pArgs->mesh.pNormals + baseFace.start;
 	for (int32_t i = 0; i < pEcVars->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
+		//CLOCK_START;
 		FaceInfo ruvmFace;
 		ruvmFace.index = pEcVars->pCellFaces[i];
 		ruvmFace.start = pFileLoaded->mesh.pFaces[ruvmFace.index];
 		ruvmFace.end = pFileLoaded->mesh.pFaces[ruvmFace.index + 1];
 		ruvmFace.size = ruvmFace.end - ruvmFace.start;
+		//CLOCK_START;
+		if (!checkFaceIsInBounds(bounds.fMin, bounds.fMax, ruvmFace, &pFileLoaded->mesh)) {
+			continue;
+		}
+		pArgs->averageRuvmFacesPerFace++;
+		//CLOCK_STOP_NO_PRINT;
+		//pDpVars->timeSpent[1] += getTimeDiff(&start, &stop);
 		LoopBufferWrap loopBuf = {0};
 		loopBuf.size = ruvmFace.size;
 		for (int32_t j = 0; j < ruvmFace.size; ++j) {
@@ -377,20 +399,16 @@ void mapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 			loopBuf.buf[j].loop.y += fTileMin.y;
 			loopBuf.buf[j].sort = j;
 		}
+		//CLOCK_STOP_NO_PRINT;
+		//pDpVars->timeSpent[0] += getTimeDiff(&start, &stop);
 		int32_t edgeFace = 0;
-		CLOCK_START;
 		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace);
-		CLOCK_STOP_NO_PRINT;
-		pDpVars->timeSpent[0] += getTimeDiff(&start, &stop);
-		CLOCK_START;
 		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin);
-		CLOCK_STOP_NO_PRINT;
-		pDpVars->timeSpent[1] += getTimeDiff(&start, &stop);
-		CLOCK_START;
+		//CLOCK_START;
 		addClippedFaceToLocalMesh(pArgs, pMmVars, &loopBuf, edgeFace,
 		                          ruvmFace, tile);
-		CLOCK_STOP_NO_PRINT;
-		pDpVars->timeSpent[2] += getTimeDiff(&start, &stop);
+		//CLOCK_STOP_NO_PRINT;
+		//pDpVars->timeSpent[2] += getTimeDiff(&start, &stop);
 	}
 	debugFaceIndex++;
 	//printf("Total vert adj: %d %d %d - depth: %d %d\n", totalEmpty, totalComputed, vertAdjSize, maxDepth, *averageDepth);
@@ -398,18 +416,6 @@ void mapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	//memset(ruvmVertAdj, 0, sizeof(VertAdj) * pFileLoaded->header.vertSize);
 	//CLOCK_STOP_NO_PRINT;
 	//timeSpent[2] += getTimeDiff(&start, &stop);
-}
-
-void getFaceBounds(FaceBounds *pBounds, Vec2 *pUvs, FaceInfo faceInfo) {
-	pBounds->fMin.x = pBounds->fMin.y = FLT_MAX;
-	pBounds->fMax.x = pBounds->fMax.y = .0f;
-	for (int32_t i = 0; i < faceInfo.size; ++i) {
-		Vec2 *uv = pUvs + faceInfo.start + i;
-		pBounds->fMin.x = uv->x < pBounds->fMin.x ? uv->x : pBounds->fMin.x;
-		pBounds->fMin.y = uv->y < pBounds->fMin.y ? uv->y : pBounds->fMin.y;
-		pBounds->fMax.x = uv->x > pBounds->fMax.x ? uv->x : pBounds->fMax.x;
-		pBounds->fMax.y = uv->y > pBounds->fMax.y ? uv->y : pBounds->fMax.y;
-	}
 }
 
 void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars, int32_t *pIsInsideBuffer,
@@ -460,6 +466,43 @@ int32_t getCellsForFaceWithinTile(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	return 0;
 }
 
+int32_t checkBranchCellIsLinked(EnclosingCellsInfo *pCellsBuffer, int32_t index) {
+	Cell *cell = pCellsBuffer->cells[index];
+	for (int32_t j = 0; j < pCellsBuffer->cellSize; ++j) {
+		if (pCellsBuffer->cellType[j] || index == j) {
+			continue;
+		}
+		Cell *leaf = pCellsBuffer->cells[j];
+		for (int32_t k = 0; k < leaf->linkEdgeSize; ++k) {
+			if (cell->cellIndex == leaf->pLinkEdges[k]) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+void removeNonLinkedBranchCells(EnclosingCellsInfo *pCellsBuffer) {
+	for (int32_t i = 0; i < pCellsBuffer->cellSize;) {
+		if (!pCellsBuffer->cellType[i]) {
+			i++;
+			continue;
+		}
+		if (checkBranchCellIsLinked(pCellsBuffer, i)) {
+			i++;
+			continue;
+		}
+		Cell *pCell = pCellsBuffer->cells[i];
+		pCellsBuffer->faceTotal -= pCell->edgeFaceSize;
+		pCellsBuffer->faceTotalNoDup -= pCell->edgeFaceSize;
+		for (int32_t j = i; j < pCellsBuffer->cellSize - 1; ++j) {
+			pCellsBuffer->cells[j] = pCellsBuffer->cells[j + 1];
+			pCellsBuffer->cellType[j] = pCellsBuffer->cellType[j + 1];
+		}
+		pCellsBuffer->cellSize--;
+	}
+}
+
 void copyCellsIntoTotalList(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *pCellsBuffer,
                             int32_t faceIndex) {
 	FaceCellsInfo *pEntry = pEcVars->pFaceCellsInfo + faceIndex;
@@ -492,6 +535,7 @@ int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars, int
 			}
 		}
 	}
+	removeNonLinkedBranchCells(&cellsBuffer);
 	copyCellsIntoTotalList(pEcVars, &cellsBuffer, faceIndex);
 	return 0;
 }
@@ -505,6 +549,8 @@ void getEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcVars)
 		end = pEcVars->faceInfo.end = pArgs->mesh.pFaces[i + 1];
 		pEcVars->faceInfo.size = end - start;
 		getFaceBounds(pFaceBounds, pArgs->mesh.pUvs, pEcVars->faceInfo);
+		pFaceBounds->fMinSmall = pFaceBounds->fMin;
+		pFaceBounds->fMaxSmall = pFaceBounds->fMax;
 		pFaceBounds->min = vec2FloorAssign(&pFaceBounds->fMin);
 		pFaceBounds->max = vec2FloorAssign(&pFaceBounds->fMax);
 		_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
@@ -598,6 +644,7 @@ void mapToMeshJob(void *pArgsPtr) {
 		}
 		free(ecVars.pFaceCellsInfo[i].pCells);
 	}
+	pArgs->averageRuvmFacesPerFace /= pArgs->mesh.faceSize;
 	printf("#######Boundary Buffer Size: %d\n", pArgs->localMesh.boundaryFaceSize);
 	pArgs->localMesh.pFaces[pArgs->localMesh.boundaryFaceSize] = 
 		pArgs->localMesh.boundaryLoopSize;
@@ -987,6 +1034,13 @@ DECL_SPEC_EXPORT void ruvmMapToMesh(MeshData *pMesh, MeshData *pWorkMesh, float 
 		mutexUnlock();
 	} while(waiting);
 	CLOCK_STOP("waiting");
+
+	int64_t averageRuvmFacesPerFace = 0;
+	for(int32_t i = 0; i < threadAmount; ++i) {
+		averageRuvmFacesPerFace += jobArgs[i].averageRuvmFacesPerFace;
+	}
+	averageRuvmFacesPerFace /= threadAmount;
+	printf("---- averageRuvmFacesPerFace: %lu ----\n", averageRuvmFacesPerFace);
 
 	combineJobMeshesIntoSingleMesh(pWorkMesh, jobArgs);
 }
