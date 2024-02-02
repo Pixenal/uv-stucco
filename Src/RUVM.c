@@ -376,18 +376,18 @@ void mapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	baseTri.xyz[2] = pArgs->mesh.pVerts[pArgs->mesh.pLoops[baseFace.start + 2]];
 	baseTri.pNormals = pArgs->mesh.pNormals + baseFace.start;
 	for (int32_t i = 0; i < pEcVars->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
-		//CLOCK_START;
+		////CLOCK_START;
 		FaceInfo ruvmFace;
 		ruvmFace.index = pEcVars->pCellFaces[i];
 		ruvmFace.start = pFileLoaded->mesh.pFaces[ruvmFace.index];
 		ruvmFace.end = pFileLoaded->mesh.pFaces[ruvmFace.index + 1];
 		ruvmFace.size = ruvmFace.end - ruvmFace.start;
-		//CLOCK_START;
+		////CLOCK_START;
+		pArgs->averageRuvmFacesPerFace++;
 		if (!checkFaceIsInBounds(bounds.fMin, bounds.fMax, ruvmFace, &pFileLoaded->mesh)) {
 			continue;
 		}
-		pArgs->averageRuvmFacesPerFace++;
-		//CLOCK_STOP_NO_PRINT;
+		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[1] += getTimeDiff(&start, &stop);
 		LoopBufferWrap loopBuf = {0};
 		loopBuf.size = ruvmFace.size;
@@ -399,22 +399,22 @@ void mapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 			loopBuf.buf[j].loop.y += fTileMin.y;
 			loopBuf.buf[j].sort = j;
 		}
-		//CLOCK_STOP_NO_PRINT;
+		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[0] += getTimeDiff(&start, &stop);
 		int32_t edgeFace = 0;
 		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace);
 		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin);
-		//CLOCK_START;
+		////CLOCK_START;
 		addClippedFaceToLocalMesh(pArgs, pMmVars, &loopBuf, edgeFace,
 		                          ruvmFace, tile);
-		//CLOCK_STOP_NO_PRINT;
+		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[2] += getTimeDiff(&start, &stop);
 	}
 	debugFaceIndex++;
 	//printf("Total vert adj: %d %d %d - depth: %d %d\n", totalEmpty, totalComputed, vertAdjSize, maxDepth, *averageDepth);
-	//CLOCK_START;
+	////CLOCK_START;
 	//memset(ruvmVertAdj, 0, sizeof(VertAdj) * pFileLoaded->header.vertSize);
-	//CLOCK_STOP_NO_PRINT;
+	////CLOCK_STOP_NO_PRINT;
 	//timeSpent[2] += getTimeDiff(&start, &stop);
 }
 
@@ -506,7 +506,7 @@ void removeNonLinkedBranchCells(EnclosingCellsInfo *pCellsBuffer) {
 void copyCellsIntoTotalList(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *pCellsBuffer,
                             int32_t faceIndex) {
 	FaceCellsInfo *pEntry = pEcVars->pFaceCellsInfo + faceIndex;
-	pEcVars->cellFacesTotal += pCellsBuffer->faceTotal;
+	pEcVars->cellFacesTotal += pCellsBuffer->faceTotalNoDup;
 	pEntry->pCells = malloc(sizeof(Cell *) * pCellsBuffer->cellSize);
 	pEntry->pCellType = malloc(sizeof(int32_t) * pCellsBuffer->cellSize);
 	memcpy(pEntry->pCells, pCellsBuffer->cells, sizeof(Cell *) *
@@ -570,7 +570,6 @@ void getEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcVars)
 void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
                                   MapToMeshVars *pMmVars) {
 	struct timeval start, stop;
-	CLOCK_START;
 	//pArgs->boundaryFace = malloc(sizeof(int32_t) * pArgs->mesh.faceSize + 1);
 	int32_t loopBufferSize = pArgs->bufferSize * 2;
 	pArgs->loopBufferSize = loopBufferSize;
@@ -582,14 +581,11 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	pArgs->localMesh.pLoops = malloc(sizeof(int32_t) * loopBufferSize);
 	pArgs->localMesh.pVerts = malloc(sizeof(Vec3) * pArgs->bufferSize);
 	pArgs->localMesh.pUvs = malloc(sizeof(Vec2) * loopBufferSize);
-	CLOCK_STOP("allocating local mesh");
-	CLOCK_START;
 	pEcVars->pCellFaces = malloc(sizeof(int32_t) * pEcVars->cellFacesMax);
-	CLOCK_STOP("allocating cell faces");
-	CLOCK_START;
-	pMmVars->vertAdjSize = pEcVars->averageRuvmFacesPerFace / 10;
+	pMmVars->vertAdjSize = pEcVars->cellFacesTotal / 150;
+	printf("VertAdjBufSize: %d\n", pMmVars->vertAdjSize);
+	//pMmVars->vertAdjSize = 4000;
 	pMmVars->pRuvmVertAdj = calloc(pMmVars->vertAdjSize, sizeof(VertAdj));
-	CLOCK_STOP("allocating vert adj");
 }
 
 void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellFaces,
@@ -612,74 +608,100 @@ void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellF
 
 void mapToMeshJob(void *pArgsPtr) {
 	struct timeval start, stop;
-	CLOCK_START;
+	//CLOCK_START;
 	EnclosingCellsVars ecVars = {0};
-	ThreadArg *pArgs = pArgsPtr;
-	ecVars.pFaceCellsInfo = malloc(sizeof(FaceCellsInfo) * pArgs->mesh.faceSize);
-	getEnclosingCellsForAllFaces(pArgs, &ecVars);
-	CLOCK_STOP("getting enclosing cells");
+	SendOffArgs *pSend = pArgsPtr;
+	ThreadArg args = {0};
+	args.id = pSend->id;
+	args.boundaryBufferSize = pSend->boundaryBufferSize;
+	args.mesh = pSend->mesh;
+	ecVars.pFaceCellsInfo = malloc(sizeof(FaceCellsInfo) * args.mesh.faceSize);
+	getEnclosingCellsForAllFaces(&args, &ecVars);
+	//CLOCK_STOP("getting enclosing cells");
+	//CLOCK_START;
 	MapToMeshVars mmVars = {0};
-	pArgs->bufferSize = pArgs->mesh.faceSize + ecVars.cellFacesTotal;
-	pArgs->boundaryBufferSize = 50000;
-	allocateStructuresForMapping(pArgs, &ecVars, &mmVars);
+	args.bufferSize = args.mesh.faceSize + ecVars.cellFacesTotal;
+	allocateStructuresForMapping(&args, &ecVars, &mmVars);
 	DebugAndPerfVars dpVars = {0};
-	CLOCK_START;
-	for (int32_t i = 0; i < pArgs->mesh.faceSize; ++i) {
+	//CLOCK_STOP("allocate structures for mapping");
+	uint64_t mappingTime, copySingleTime;
+	copySingleTime = 0;
+	mappingTime = 0;
+	for (int32_t i = 0; i < args.mesh.faceSize; ++i) {
+		//CLOCK_START;
 		// copy faces over to a new contiguous array
 		copyCellFacesIntoSingleArray(ecVars.pFaceCellsInfo, ecVars.pCellFaces, i);
 		//iterate through tiles
+		//CLOCK_STOP_NO_PRINT;
+		copySingleTime += getTimeDiff(&start, &stop);
+		//CLOCK_START;
 		FaceBounds *pFaceBounds = &ecVars.faceBounds;
 		for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
 			for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
 				Vec2 fTileMin = {k, j};
 				int32_t tile = k + (j * ecVars.faceBounds.max.x);
 				FaceInfo baseFace;
-				baseFace.start = pArgs->mesh.pFaces[i];
-				baseFace.end = pArgs->mesh.pFaces[i + 1];
+				baseFace.start = args.mesh.pFaces[i];
+				baseFace.end = args.mesh.pFaces[i + 1];
 				baseFace.size = baseFace.end - baseFace.start;
 				baseFace.index = i;
-				mapToSingleFace(pArgs, &ecVars, &mmVars, &dpVars, fTileMin, tile,
+				mapToSingleFace(&args, &ecVars, &mmVars, &dpVars, fTileMin, tile,
 				                baseFace);
 			}
 		}
+		//CLOCK_STOP_NO_PRINT;
+		mappingTime += getTimeDiff(&start, &stop);
 		free(ecVars.pFaceCellsInfo[i].pCells);
 	}
-	pArgs->averageRuvmFacesPerFace /= pArgs->mesh.faceSize;
-	printf("#######Boundary Buffer Size: %d\n", pArgs->localMesh.boundaryFaceSize);
-	pArgs->localMesh.pFaces[pArgs->localMesh.boundaryFaceSize] = 
-		pArgs->localMesh.boundaryLoopSize;
-	pArgs->totalBoundaryFaces = pArgs->totalFaces;
-	pArgs->totalFaces += pArgs->localMesh.faceSize;
-	pArgs->totalLoops += pArgs->localMesh.loopSize;
+	//printf("copy faces into single array %lu\n", copySingleTime);
+	//printf("maping %lu\n", mappingTime);
+	//CLOCK_START;
+	args.averageRuvmFacesPerFace /= args.mesh.faceSize;
+	//printf("#######Boundary Buffer Size: %d\n", pArgs->localMesh.boundaryFaceSize);
+	args.localMesh.pFaces[args.localMesh.boundaryFaceSize] = 
+		args.localMesh.boundaryLoopSize;
+	args.totalBoundaryFaces = args.totalFaces;
+	args.totalFaces += args.localMesh.faceSize;
+	args.totalLoops += args.localMesh.loopSize;
 	//pArgs->totalFaces = pArgs->localMesh.faceSize +
 	//	(bufferSize - pArgs->localMesh.boundaryFaceSize);
 	//pArgs->totalLoops = pArgs->localMesh.loopSize +
 	//	(loopBufferSize - pArgs->localMesh.boundaryLoopSize);
-	pArgs->totalVerts = pArgs->localMesh.vertSize +
-		(pArgs->bufferSize - pArgs->localMesh.boundaryVertSize);
-	printf("MaxDepth: %d\n", dpVars.maxDepth);
-	CLOCK_STOP("projecting");
-	printf("  ^  project: %lu, move & transform: %lu, memset vert adj: %lu\n",
-			dpVars.timeSpent[0], dpVars.timeSpent[1], dpVars.timeSpent[2]);
-	CLOCK_START;
+	args.totalVerts = args.localMesh.vertSize +
+		(args.bufferSize - args.localMesh.boundaryVertSize);
+	//printf("MaxDepth: %d\n", dpVars.maxDepth);
+	////CLOCK_STOP("projecting");
+	//printf("  ^  project: %lu, move & transform: %lu, memset vert adj: %lu\n",
+	//		dpVars.timeSpent[0], dpVars.timeSpent[1], dpVars.timeSpent[2]);
 	//processBoundaryBuffer(pArgs, bufferSize, boundaryBufferSize);
-	CLOCK_STOP("Stringing Boundary Buffer");
 	free(mmVars.pRuvmVertAdj);
 	free(ecVars.pCellFaces);
 	free(ecVars.pFaceCellsInfo);
-	CLOCK_START;
+	//CLOCK_STOP("post mapping stuff");
+	//CLOCK_START;
+	pSend->pBoundaryBuffer = args.pBoundaryBuffer;
+	pSend->averageVertAdjDepth = args.averageVertAdjDepth;
+	pSend->averageRuvmFacesPerFace = args.averageRuvmFacesPerFace;
+	pSend->localMesh = args.localMesh;
+	pSend->vertBase = args.vertBase;
+	pSend->totalBoundaryFaces = args.totalBoundaryFaces;
+	pSend->totalVerts = args.totalVerts;
+	pSend->totalLoops = args.totalLoops;
+	pSend->totalFaces = args.totalFaces;
 	mutexLock();
-	++*pArgs->pJobsCompleted;
+	++*pSend->pJobsCompleted;
 	mutexUnlock();
-	CLOCK_STOP("setting jobs completed");
+	//CLOCK_STOP("setting jobs completed");
 }
 
-void sendOffJobs(ThreadArg *pJobArgs, int32_t *pJobsCompleted, MeshData *pMesh) {
+void sendOffJobs(SendOffArgs *pJobArgs, int32_t *pJobsCompleted, MeshData *pMesh) {
 	struct timeval start, stop;
-	CLOCK_START;
+	//CLOCK_START;
 	int32_t facesPerThread = pMesh->faceSize / threadAmount;
 	int32_t threadAmountMinus1 = threadAmount - 1;
 	void *jobArgPtrs[MAX_THREADS];
+	int32_t boundaryBufferSize = pFileLoaded->mesh.faceSize / 5;
+	printf("fromjobsendoff: BoundaryBufferSize: %d\n", boundaryBufferSize);
 	for (int32_t i = 0; i < threadAmount; ++i) {
 		int32_t meshStart = facesPerThread * i;
 		int32_t meshEnd = i == threadAmountMinus1 ?
@@ -687,6 +709,7 @@ void sendOffJobs(ThreadArg *pJobArgs, int32_t *pJobsCompleted, MeshData *pMesh) 
 		MeshData meshPart = *pMesh;
 		meshPart.pFaces += meshStart;
 		meshPart.faceSize = meshEnd - meshStart;
+		pJobArgs[i].boundaryBufferSize = boundaryBufferSize;
 		pJobArgs[i].averageVertAdjDepth = 0;
 		pJobArgs[i].mesh = meshPart;
 		pJobArgs[i].pJobsCompleted = pJobsCompleted;
@@ -694,10 +717,10 @@ void sendOffJobs(ThreadArg *pJobArgs, int32_t *pJobsCompleted, MeshData *pMesh) 
 		jobArgPtrs[i] = pJobArgs + i;
 	}
 	pushJobs(threadAmount, mapToMeshJob, jobArgPtrs);
-	CLOCK_STOP("send off jobs");
+	//CLOCK_STOP("send off jobs");
 }
 
-void allocateWorkMesh(MeshData *pWorkMesh, ThreadArg *pJobArgs) {
+void allocateWorkMesh(MeshData *pWorkMesh, SendOffArgs *pJobArgs) {
 	int32_t averageVertAdjDepth = 0;
 	int32_t workMeshFaces, workMeshLoops, workMeshVerts;
 	workMeshFaces = workMeshLoops = workMeshVerts = 0;
@@ -716,7 +739,7 @@ void allocateWorkMesh(MeshData *pWorkMesh, ThreadArg *pJobArgs) {
 	pWorkMesh->pUvs = malloc(sizeof(Vec2) * workMeshLoops);
 }
 
-void copyMesh(int32_t jobIndex, MeshData *pWorkMesh, ThreadArg *pJobArgs) {
+void copyMesh(int32_t jobIndex, MeshData *pWorkMesh, SendOffArgs *pJobArgs) {
 	MeshData *localMesh = &pJobArgs[jobIndex].localMesh;
 	for (int32_t j = 0; j < localMesh->faceSize; ++j) {
 		localMesh->pFaces[j] += pWorkMesh->loopSize;
@@ -748,7 +771,7 @@ void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry, MeshData *p
 	pEdgeEntry->loops = 1;
 }
 
-void addFaceLoopsAndVertsToBuffer(ThreadArg *pJobArgs, MeshData *pWorkMesh, BoundaryVert *pEntry,
+void addFaceLoopsAndVertsToBuffer(SendOffArgs *pJobArgs, MeshData *pWorkMesh, BoundaryVert *pEntry,
                                   int32_t seamFace, int32_t *loopBufferSize, int32_t *pLoopBuffer,
 								  Vec2 *pUvBuffer, FaceInfo *ruvmFaceInfo, int32_t edgeTableSize,
 								  EdgeTable *pEdgeTable, int32_t *pRuvmIndicesSort) {
@@ -907,7 +930,7 @@ int32_t determineIfSeamFace(BoundaryVert *pEntry, int32_t *pEntryNum) {
 	return ruvmLoops < faceSize;
 }
 
-void mergeAndCopyEdgeFaces(MeshData *pWorkMesh, ThreadArg *pJobArgs,
+void mergeAndCopyEdgeFaces(MeshData *pWorkMesh, SendOffArgs *pJobArgs,
 		                   int32_t edgeTableSize, EdgeTable *pEdgeTable,
 						   int32_t allBoundaryFacesSize, BoundaryVert **pAllBoundaryFaces) {
 	for (int32_t j = 0; j < allBoundaryFacesSize; ++j) {
@@ -954,9 +977,9 @@ void mergeAndCopyEdgeFaces(MeshData *pWorkMesh, ThreadArg *pJobArgs,
 
 }
 
-void combineJobMeshesIntoSingleMesh(MeshData *pWorkMesh, ThreadArg *pJobArgs) {
+void combineJobMeshesIntoSingleMesh(MeshData *pWorkMesh, SendOffArgs *pJobArgs) {
 	struct timeval start, stop;
-	CLOCK_START;
+	//CLOCK_START;
 	allocateWorkMesh(pWorkMesh, pJobArgs);
 	int32_t totalBoundaryFaces = 0;
 	for (int32_t i = 0; i < threadAmount; ++i) {
@@ -1013,27 +1036,28 @@ void combineJobMeshesIntoSingleMesh(MeshData *pWorkMesh, ThreadArg *pJobArgs) {
 	free(pAllBoundaryFaces);
 	free(pEdgeTable);
 	pWorkMesh->pFaces[pWorkMesh->faceSize] = pWorkMesh->loopSize;
-	CLOCK_STOP("moving to work mesh");
+	//CLOCK_STOP("moving to work mesh");
 }
 
 DECL_SPEC_EXPORT void ruvmMapToMesh(MeshData *pMesh, MeshData *pWorkMesh, float *pNormals) {
+	struct timeval start, stop;
+	CLOCK_START;
 	pMesh->pNormals = (Vec3 *)pNormals;
 	
-	ThreadArg jobArgs[MAX_THREADS] = {0};
+	SendOffArgs jobArgs[MAX_THREADS] = {0};
 	int32_t jobsCompleted = 0;
 	sendOffJobs(jobArgs, &jobsCompleted, pMesh);
 
-	struct timeval start, stop;
-	CLOCK_START;
-	struct timespec remaining, request = {0, 1000};
+	executeJobIfPresent();
+	//mapToMeshJob((void *)jobArgs);
 	int32_t waiting;
+	struct timespec remaining, request = {0, 25};
 	do  {
 		nanosleep(&request, &remaining);
 		mutexLock();
 		waiting = jobsCompleted < threadAmount;
 		mutexUnlock();
 	} while(waiting);
-	CLOCK_STOP("waiting");
 
 	int64_t averageRuvmFacesPerFace = 0;
 	for(int32_t i = 0; i < threadAmount; ++i) {
@@ -1043,6 +1067,7 @@ DECL_SPEC_EXPORT void ruvmMapToMesh(MeshData *pMesh, MeshData *pWorkMesh, float 
 	printf("---- averageRuvmFacesPerFace: %lu ----\n", averageRuvmFacesPerFace);
 
 	combineJobMeshesIntoSingleMesh(pWorkMesh, jobArgs);
+	CLOCK_STOP("Whole Total");
 }
 
 DECL_SPEC_EXPORT void ruvmUpdateMesh(MeshData *ruvmMesh, MeshData *workMesh) {

@@ -13,6 +13,7 @@ OPTIMIZATION_ARGS = -ftree-vectorize -mavx2 -finline-functions -flto -O2
 #OPTIMIZATION_ARGS = -O0
 COMP_ARGS_C = $(COMPILER_C) $(OPTIMIZATION_ARGS) -pthread -D PLATFORM_LINUX \
    		  -fPIC -c $(INCLUDE_PATHS)
+MIMALLOC = -Lmimalloc-2.1/libmimalloc.a
 LINK_ARGS = $(COMPILER_C) $(OPTIMIZATION_ARGS) -pthread -shared
 DEBUG_ARGS = $(DEBUGGER)
 OBJECTS = $(INTERMEDIATES_PATH)/RUVM.o $(INTERMEDIATES_PATH)/miniz.o $(INTERMEDIATES_PATH)/Platform.o \

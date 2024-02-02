@@ -137,10 +137,15 @@ void quadTreeGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosin
 		                                    &commonSides, &signs);
 		switch (result) {
 			case 0: {
-				addCellToEnclosingCells(cell, pEnclosingCellsInfo, 0);
-				cellStackPointer--;
-				pCellInits[cell->cellIndex] = 1;
-				continue;
+				//addCellToEnclosingCells(cell, pEnclosingCellsInfo, 0);
+				//cellStackPointer--;
+				//pCellInits[cell->cellIndex] = 1;
+				//continue;
+				children[cellStackPointer].a = 1;
+				children[cellStackPointer].b = 1;
+				children[cellStackPointer].c = 1;
+				children[cellStackPointer].d = 1;
+				break;
 			}
 			case 1: {
 				children[cellStackPointer].a = !signs.x && !signs.y;
