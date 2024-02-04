@@ -140,7 +140,7 @@ class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        filePath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File_Misc_F.ruvm"
+        filePath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File_Misc_B.ruvm"
         filePathUtf8 = filePath.encode('utf-8')
         ruvmLib.ruvmLoadRuvmFile(filePathUtf8)
         return {'FINISHED'}

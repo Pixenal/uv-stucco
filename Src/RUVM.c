@@ -59,6 +59,8 @@ typedef struct {
 	int8_t *pCellInits;
 	FaceInfo faceInfo;
 	FaceBounds faceBounds;
+	int8_t *pCellTable;
+	int32_t uniqueFaces;
 } EnclosingCellsVars;
 
 typedef struct {
@@ -520,6 +522,58 @@ void copyCellsIntoTotalList(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *pCe
 	}
 }
 
+void recordCellsInTable(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *pCellsBuffer) {
+	for (int32_t i = 0; i < pCellsBuffer->cellSize; ++i) {
+		Cell *pCell = pCellsBuffer->cells[i];
+		//must be != 0, not > 0, so as to catch entries set to -1
+		if (pEcVars->pCellTable[pCell->cellIndex] != 0) {
+			continue;
+		}
+		int32_t cellType = pCellsBuffer->cellType[i];
+		pEcVars->pCellTable[pCell->cellIndex] = cellType + 1;
+		Cell *pStack[32] = {0};
+		int8_t childrenLeft[32] = {0};
+		pStack[0] = pCell;
+		int32_t stackPointer = 0;
+		pEcVars->uniqueFaces += cellType == 1 ?
+			pCell->edgeFaceSize : pCell->faceSize;
+		if (cellType != 0 || pCell->pChildren == NULL) {
+			continue;
+		}
+		//if cell is not a leaf, and if it isn't an edgefaces cell,
+		//then subtract faces from any child cells that have been counted,
+		//and/ or set their table entry to -1 so they're not added
+		//to the count in future
+		do {
+			Cell *pChild = pStack[stackPointer];
+			int32_t nextChild = childrenLeft[stackPointer];
+			if (nextChild > 3) {
+				stackPointer--;
+				continue;
+			}
+			int32_t childType = pEcVars->pCellTable[pChild->cellIndex];
+			if (pChild != pCell) {
+				//must be > 0, so that cells with an entry of -1 arn't touched,
+				// as they haven't been added to uniqueFaces
+				if (childType > 0) {
+					pEcVars->uniqueFaces -= childType == 2 ?
+						pChild->edgeFaceSize : pChild->faceSize;
+				}
+				//set to -1 so this cell isn't added to the count in future
+				pEcVars->pCellTable[pChild->cellIndex] = -1;
+			}
+			if (pChild->pChildren == NULL) {
+				stackPointer--;
+				continue;
+			}
+			childrenLeft[stackPointer]++;
+			stackPointer++;
+			pStack[stackPointer] = pChild->pChildren + nextChild;
+			childrenLeft[stackPointer] = 0;
+		} while (stackPointer >= 0);
+	}
+}
+
 int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars, int32_t faceIndex) {
 	EnclosingCellsInfo cellsBuffer = {0};
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
@@ -536,6 +590,7 @@ int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars, int
 		}
 	}
 	removeNonLinkedBranchCells(&cellsBuffer);
+	recordCellsInTable(pEcVars, &cellsBuffer);
 	copyCellsIntoTotalList(pEcVars, &cellsBuffer, faceIndex);
 	return 0;
 }
@@ -543,6 +598,7 @@ int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars, int
 void getEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcVars) {
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
 	pEcVars->pCellInits = malloc(cellIndex);
+	pEcVars->pCellTable = calloc(cellIndex, sizeof(int8_t));
 	for (int32_t i = 0; i < pArgs->mesh.faceSize; ++i) {
 		int32_t start, end;
 		start = pEcVars->faceInfo.start = pArgs->mesh.pFaces[i];
@@ -563,6 +619,7 @@ void getEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcVars)
 		pEcVars->averageRuvmFacesPerFace += pEcVars->pFaceCellsInfo[i].faceSize;
 		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
 	}
+	free(pEcVars->pCellTable);
 	free(pEcVars->pCellInits);
 	pEcVars->averageRuvmFacesPerFace /= pArgs->mesh.faceSize;
 }
@@ -582,7 +639,11 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	pArgs->localMesh.pVerts = malloc(sizeof(Vec3) * pArgs->bufferSize);
 	pArgs->localMesh.pUvs = malloc(sizeof(Vec2) * loopBufferSize);
 	pEcVars->pCellFaces = malloc(sizeof(int32_t) * pEcVars->cellFacesMax);
-	pMmVars->vertAdjSize = pEcVars->cellFacesTotal / 150;
+	//TODO: maybe reduce further if unifaces if low,
+	//as a larger buffer seems more necessary at higher face counts.
+	//Doesn't provie much speed up at lower resolutions.
+	pMmVars->vertAdjSize = pEcVars->uniqueFaces / 10;
+	printf("Unique ruvm: %d\n", pEcVars->uniqueFaces);
 	printf("VertAdjBufSize: %d\n", pMmVars->vertAdjSize);
 	//pMmVars->vertAdjSize = 4000;
 	pMmVars->pRuvmVertAdj = calloc(pMmVars->vertAdjSize, sizeof(VertAdj));
