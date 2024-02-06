@@ -10,6 +10,8 @@ typedef struct {
 	int32_t edgeFaceSize;
 	int32_t *pEdgeFaces;
 	int32_t maxTreeDepth;
+	int32_t cellCount;
+	int32_t leafCount;
 } QuadTree;
 
 typedef struct {
@@ -20,15 +22,8 @@ typedef struct {
 	int32_t faceTotalNoDup;
 } EnclosingCellsInfo;
 
-void calcCellBounds(Cell *pCell);
-Cell *findEnclosingCell(Cell *pRootCell, Vec2 pos);
-void allocateChildren(Cell *parentCell, int32_t cellStackPointer);
-void quadTreeGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
-                                  int8_t *pCellInits, MeshData *pMesh, FaceInfo faceInfo,
+void ruvmGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
+                                  int8_t *pCellInits, Mesh *pMesh, FaceInfo faceInfo,
 								  iVec2 tileMin);
-void addEnclosedVertsToCell(Cell *pParentCell, MeshData *pMesh, int8_t *pFaceFlag);
-void processCell(Cell **pCellStack, int32_t *pCellStackPointer, MeshData *pMesh,
-                 int8_t *pFaceFlag);
-int32_t calculateMaxTreeDepth(int32_t vertSize);
-void createQuadTree(QuadTree *pQuadTree, MeshData *pMesh);
-void destroyQuadTree(Cell *pRootCell);
+void ruvmCreateQuadTree(RuvmMap pMap);
+void ruvmDestroyQuadTree(Cell *pRootCell);

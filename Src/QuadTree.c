@@ -1,16 +1,16 @@
-#include "QuadTree.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
-#include <memory.h>
 
-extern int32_t cellIndex;
-extern int32_t leafSize;
+#include <QuadTree.h>
+#include <Context.h>
+#include <MapFile.h>
 
 static int32_t counter = 0;
 
-void calcCellBounds(Cell *cell) {
+static void calcCellBounds(Cell *cell) {
 	float xSide = (float)(cell->localIndex % 2);
 	float ySide = (float)(((cell->localIndex + 2) / 2) % 2);
 	cell->boundsMin.x = xSide * .5;
@@ -19,7 +19,7 @@ void calcCellBounds(Cell *cell) {
 	cell->boundsMax.y = 1.0 - (1.0 - ySide) * .5;
 }
 
-void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCellsInfo, int32_t edge) {
+static void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCellsInfo, int32_t edge) {
 	int32_t faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
 	pEnclosingCellsInfo->faceTotal += faceSize;
 	int32_t dupIndex = -1;
@@ -41,7 +41,7 @@ void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCellsInfo
 	pEnclosingCellsInfo->faceTotalNoDup += faceSize;
 }
 
-int32_t findFaceQuadrantUv(int32_t loopSize, int32_t loopStart,
+static int32_t findFaceQuadrantUv(int32_t loopSize, int32_t loopStart,
                            Vec2 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
 	iVec2 sides[loopSize];
@@ -67,8 +67,8 @@ int32_t findFaceQuadrantUv(int32_t loopSize, int32_t loopStart,
 	}
 }
 
-int32_t findFaceQuadrant(int32_t loopSize, int32_t faceStart,
-                         MeshData *pMesh, Vec2 midPoint,
+static int32_t findFaceQuadrant(int32_t loopSize, int32_t faceStart,
+                         Mesh *pMesh, Vec2 midPoint,
 						 iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
 	iVec2 sides[loopSize];
@@ -86,8 +86,8 @@ int32_t findFaceQuadrant(int32_t loopSize, int32_t faceStart,
 	return commonSides->x && commonSides->y;
 }
 
-void quadTreeGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
-                                  int8_t *pCellInits, MeshData *pMesh, FaceInfo faceInfo,
+void ruvmGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
+                                  int8_t *pCellInits, Mesh *pMesh, FaceInfo faceInfo,
 								  iVec2 tileMin) {
 	typedef struct {
 		int32_t a;
@@ -203,7 +203,7 @@ Cell *findEnclosingCell(Cell *rootCell, Vec2 pos) {
 	};
 }
 
-void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPointer) {
+static void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPointer) {
 	calcCellBounds(cell);
 	_(&cell->boundsMin V2DIVSEQL (float)pow(2.0, cellStackPointer));
 	_(&cell->boundsMax V2DIVSEQL (float)pow(2.0, cellStackPointer));
@@ -212,7 +212,7 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPointer) {
 	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
 }
 
-int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, MeshData *pMesh) {
+static int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh) {
 	for (int32_t k = 0; k < pAncestor->edgeFaceSize; ++k) {
 		int32_t faceIndex = pAncestor->pEdgeFaces[k];
 		FaceInfo face;
@@ -228,7 +228,7 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, MeshData *pMesh) {
 	return 0;
 }
 
-void addLinkEdgesToCells(Cell* pParentCell, MeshData *pMesh, Cell **pCellStack,
+void addLinkEdgesToCells(Cell* pParentCell, Mesh *pMesh, Cell **pCellStack,
                          int32_t cellStackPointer) {
 	int32_t buf[32];
 	int32_t bufSize;
@@ -250,7 +250,7 @@ void addLinkEdgesToCells(Cell* pParentCell, MeshData *pMesh, Cell **pCellStack,
 	}
 }
 
-void addEnclosedVertsToCell(Cell *pParentCell, MeshData *pMesh, int8_t *pFaceFlag) {
+static void addEnclosedVertsToCell(Cell *pParentCell, Mesh *pMesh, int8_t *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
 	Vec2 midPoint = pParentCell->pChildren[1].boundsMin;
@@ -303,23 +303,23 @@ void addEnclosedVertsToCell(Cell *pParentCell, MeshData *pMesh, int8_t *pFaceFla
 	}
 }
 
-void allocateChildren(Cell *parentCell, int32_t cellStackPointer) {
+static void allocateChildren(Cell *parentCell, int32_t cellStackPointer, RuvmMap pMap) {
 	parentCell->pChildren = calloc(4, sizeof(Cell));
 	for (int32_t i = 0; i < 4; ++i) {
 		// v for visualizing quadtree v
 		//cell->children[i].cellIndex = rand();
 		Cell *cell = parentCell->pChildren + i;
-		cell->cellIndex = cellIndex;
-		cellIndex++;
+		cell->cellIndex = pMap->quadTree.cellCount;
+		pMap->quadTree.cellCount++;
 		cell->localIndex = (uint32_t)i;
 		setCellBounds(cell, parentCell, cellStackPointer);
 	}
-	leafSize += 4;
+	pMap->quadTree.leafCount += 4;
 }
 
 
-void processCell(Cell **pCellStack, int32_t *pCellStackPointer, MeshData *pMesh,
-                 int8_t *pFaceFlag) {
+static void processCell(Cell **pCellStack, int32_t *pCellStackPointer, Mesh *pMesh,
+                 int8_t *pFaceFlag, RuvmMap pMap) {
 	Cell *cell = pCellStack[*pCellStackPointer];
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
 	int32_t hasChildren = cell->faceSize > CELL_MAX_VERTS;
@@ -327,8 +327,8 @@ void processCell(Cell **pCellStack, int32_t *pCellStackPointer, MeshData *pMesh,
 		// Get number of children
 		int32_t childSize = 0;
 		if (!cell->pChildren) {
-			leafSize--;
-			allocateChildren(cell,*pCellStackPointer);
+			pMap->quadTree.leafCount--;
+			allocateChildren(cell,*pCellStackPointer, pMap);
 			addEnclosedVertsToCell(cell, pMesh, pFaceFlag);
 			addLinkEdgesToCells(cell, pMesh, pCellStack, *pCellStackPointer);
 		}
@@ -352,9 +352,11 @@ int32_t calculateMaxTreeDepth(int32_t vertSize) {
 	return log(CELL_MAX_VERTS * vertSize) / log(4) + 2;
 }
 
-void createQuadTree(QuadTree *pQuadTree, MeshData *pMesh) {
-	cellIndex = 0;
-	leafSize = 0;
+void ruvmCreateQuadTree(RuvmMap pMap) {
+	QuadTree *pQuadTree = &pMap->quadTree;
+	Mesh *pMesh = &pMap->mesh;
+	pQuadTree->cellCount = 0;
+	pQuadTree->leafCount = 0;
 	counter = 0;
 
 	pQuadTree->pRootCell = calloc(1, sizeof(Cell));
@@ -362,30 +364,30 @@ void createQuadTree(QuadTree *pQuadTree, MeshData *pMesh) {
 	pQuadTree->maxTreeDepth = 32;
 
 	Cell *cellStack[32];
-	rootCell->cellIndex = cellIndex;
-	cellIndex++;
+	rootCell->cellIndex = 0;
+	pQuadTree->cellCount = 1;
 	cellStack[0] = rootCell;
 	rootCell->boundsMax.x = rootCell->boundsMax.y = 1.0f;
 	rootCell->initialized = 1;
-	int8_t *pFaceFlag = calloc(pMesh->faceSize, sizeof(int8_t));
-	rootCell->faceSize = pMesh->faceSize;
-	rootCell->pFaces = malloc(sizeof(int32_t) * pMesh->faceSize);
-	for (int32_t i = 0; i < pMesh->faceSize; ++i) {
+	int8_t *pFaceFlag = calloc(pMesh->faceCount, sizeof(int8_t));
+	rootCell->faceSize = pMesh->faceCount;
+	rootCell->pFaces = malloc(sizeof(int32_t) * pMesh->faceCount);
+	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		rootCell->pFaces[i] = i;
 	}
-	allocateChildren(rootCell, 0);
+	allocateChildren(rootCell, 0, pMap);
 	addEnclosedVertsToCell(rootCell, pMesh, pFaceFlag);
 	addLinkEdgesToCells(rootCell, pMesh, cellStack, 0);
 	cellStack[1] = rootCell->pChildren;
 	int32_t cellStackPointer = 1;
 	do {
-		processCell(cellStack, &cellStackPointer, pMesh, pFaceFlag);
+		processCell(cellStack, &cellStackPointer, pMesh, pFaceFlag, pMap);
 		counter++;
 	} while(cellStackPointer >= 0);
-	printf("Created quadTree -- cells: %d, leaves: %d\n", cellIndex, leafSize);
+	printf("Created quadTree -- cells: %d, leaves: %d\n", pQuadTree->cellCount, pQuadTree->leafCount);
 }
 
-void destroyQuadTree(Cell *rootCell) {
+void ruvmDestroyQuadTree(Cell *rootCell) {
 	Cell *cellStack[32];
 	cellStack[0] = rootCell;
 	int32_t cellStackPointer = 0;
