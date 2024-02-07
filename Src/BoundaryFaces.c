@@ -125,7 +125,10 @@ static void addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, Sen
 			pUvBuffer[*loopBufferSize] = localMesh->pUvs[faceStart - k];
 			(*loopBufferSize)++;
 		}
+		BoundaryVert *pPrevEntry;
+		pPrevEntry = pEntry;
 		pEntry = pEntry->pNext;
+		pContext->alloc.pFree(pPrevEntry);
 	} while(pEntry);
 }
 
@@ -218,7 +221,6 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 			pMeshOut->pUvs[loopBase + k] = uvBuffer[indexTable[k + 1]];
 		}
 	}
-
 }
 
 void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, SendOffArgs *pJobArgs) {
@@ -231,6 +233,7 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, 
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		for (int32_t hash = 0; hash < pJobArgs[i].boundaryBufferSize; ++hash) {
 			BoundaryDir *pEntryDir = pJobArgs[i].pBoundaryBuffer + hash;
+			int32_t depth = 0;
 			do {
 				if (pEntryDir->pEntry) {
 					int32_t faceIndex = pEntryDir->pEntry->faceIndex;
@@ -253,7 +256,12 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, 
 					pAllBoundaryFaces[allBoundaryFacesSize] = pEntryDir->pEntry;
 					allBoundaryFacesSize++;
 				}
-				pEntryDir = pEntryDir->pNext;
+				BoundaryDir *pNextEntryDir = pEntryDir->pNext;
+				if (depth != 0) {
+					pContext->alloc.pFree(pEntryDir);
+				}
+				pEntryDir = pNextEntryDir;
+				depth++;
 			} while (pEntryDir);
 		}
 	}
@@ -263,5 +271,13 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, 
 	                      pAllBoundaryFaces);
 	
 	pContext->alloc.pFree(pAllBoundaryFaces);
+	for (int32_t i = 0; i < edgeTableSize; ++i) {
+		EdgeTable *pEntry = pEdgeTable[i].pNext;
+		while (pEntry) {
+			EdgeTable *pNextEntry = pEntry->pNext;
+			pContext->alloc.pFree(pEntry);
+			pEntry = pNextEntry;
+		}
+	}
 	pContext->alloc.pFree(pEdgeTable);
 }

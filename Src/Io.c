@@ -1,5 +1,5 @@
 #define VERT_ATTRIBUTE_AMOUNT 3
-#define LOOP_ATTRIBUTE_AMOUNT 5
+#define LOOP_ATTRIBUTE_AMOUNT 3
 #define ENCODE_DECODE_BUFFER_LENGTH 5
 
 #include <stdlib.h>
@@ -151,21 +151,23 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	loopAttributes[2] = "normal.z";
 	loopAttributeTypes[2] = "f";
 	loopAttributeSizes[2] = 32;
+	/*
 	loopAttributes[3] = "uv.u";
 	loopAttributeTypes[3] = "f";
 	loopAttributeSizes[3] = 32;
 	loopAttributes[4] = "uv.v";
 	loopAttributeTypes[4] = "f";
 	loopAttributeSizes[4] = 32;
+	*/
 	int32_t headerAttributesByteSize = 0;
-	int32_t vertAttributeByteSize = 0;
+	int64_t vertAttributeByteSize = 0;
 	for (int32_t i = 0; i < VERT_ATTRIBUTE_AMOUNT; ++i) {
 		headerAttributesByteSize += strlen(vertAttributes[i]) + 1;
 		headerAttributesByteSize += strlen(vertAttributeTypes[i]) + 1;
 		headerAttributesByteSize += 1;
 		vertAttributeByteSize += vertAttributeSizes[i];
 	}
-	int32_t loopAttributeByteSize = 0;
+	int64_t loopAttributeByteSize = 0;
 	for (int32_t i = 0; i < LOOP_ATTRIBUTE_AMOUNT; ++i) {
 		headerAttributesByteSize += strlen(loopAttributes[i]) + 1;
 		headerAttributesByteSize += strlen(loopAttributeTypes[i]) + 1;
@@ -178,13 +180,11 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	                             32 +
 	                             32 +
 	                             32;
-	int64_t dataSizeInBits = vertAttributeByteSize * 8 * pMesh->vertCount +
-	                           2 + (32 + loopAttributeByteSize * 8) * 4 * pMesh->faceCount +
-	                           1 +
-	                           32 * 1 +
-	                           32 * pMesh->vertCount;
+	int64_t dataSizeInBits = vertAttributeByteSize * 8l * (int64_t)pMesh->vertCount +
+	                           (32l + loopAttributeByteSize * 8l) * pMesh->loopCount +
+	                           32l * pMesh->faceCount;
 	int32_t headerSizeInBytes = (int32_t)(headerSizeInBits / 8 + 2);
-	int32_t dataSizeInBytes = (int32_t)(dataSizeInBits / 8 + 2);
+	int64_t dataSizeInBytes = (int64_t)(dataSizeInBits / 8l + 2l);
 	data.byteIndex = 0;
 	data.nextBitIndex = 0;
 	header.byteIndex = 0;
@@ -204,10 +204,12 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].y, 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pNormals[i].z, 32);
 	}
+	/*
 	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pUvs[i].x, 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pUvs[i].y, 32);
 	}
+	*/
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
@@ -349,7 +351,7 @@ void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath, in
 	void *pFile;
 	printf("Loading RUVM file: %s\n", filePath);
 	pContext->io.pOpen(&pFile, filePath, 1, &pContext->alloc);
-	uint8_t *headerSize = pContext->alloc.pMalloc(4);
+	uint8_t headerSize[4];
 	pContext->io.pRead(pFile, headerSize, 4);
 	int32_t headerSizeInt = *((int32_t *)headerSize);
 	printf("Ruvm File Header Size: %d\n", headerSizeInt);
@@ -367,6 +369,7 @@ void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath, in
 	dataByteString.pString = pContext->alloc.pMalloc(pMapFile->header.dataSize);
 	printf("Decompressing data\n");
 	int32_t zResult = uncompress(dataByteString.pString, &dataSizeUncompressed, dataByteStringRaw, pMapFile->header.dataSizeCompressed);
+	pContext->alloc.pFree(dataByteStringRaw);
 	switch(zResult) {
 		case Z_OK:
 			printf("Successfully decompressed RUVM file data\n");
@@ -384,6 +387,8 @@ void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath, in
 	}
 	printf("Decoding data\n");
 	decodeRuvmData(pContext, pMapFile, &dataByteString, getUvs);
+	pContext->alloc.pFree(headerByteString.pString);
+	pContext->alloc.pFree(dataByteString.pString);
 }
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {

@@ -67,16 +67,16 @@ void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                       char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
 	ruvmLoadRuvmFile(pContext, pMap, filePath, 0);
-	ruvmCreateQuadTree(pMap);
+	ruvmCreateQuadTree(pContext, pMap);
 	*pMapHandle = pMap;
 	//writeDebugImage(pMap->quadTree.rootCell);
 }
 
 void ruvmMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
-	ruvmDestroyQuadTree(pMap->quadTree.pRootCell);
-	pContext->alloc.pFree(pMap->mesh.pFaces);
-	pContext->alloc.pFree(pMap->mesh.pVerts);
-	pContext->alloc.pFree(pMap->mesh.pFaces);
+	ruvmDestroyQuadTree(pContext, pMap->quadTree.pRootCell);
+	ruvmMeshDestroy(pContext, &pMap->mesh);
+	pContext->alloc.pFree(pMap->header.pLoopAttributeDesc);
+	pContext->alloc.pFree(pMap->header.pVertAttributeDesc);
 	pContext->alloc.pFree(pMap);
 }
 
@@ -173,6 +173,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		mappingTime += getTimeDiff(&start, &stop);
 		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCells);
+		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCellType);
 	}
 	//printf("copy faces into single array %lu\n", copySingleTime);
 	//printf("maping %lu\n", mappingTime);
@@ -195,6 +196,18 @@ static void mapToMeshJob(void *pArgsPtr) {
 	//printf("  ^  project: %lu, move & transform: %lu, memset vert adj: %lu\n",
 	//		dpVars.timeSpent[0], dpVars.timeSpent[1], dpVars.timeSpent[2]);
 	//processBoundaryBuffer(pArgs, bufferSize, boundaryBufferSize);
+	for (int32_t i = 0; i < mmVars.vertAdjSize; ++i) {
+		VertAdj *pEntry = mmVars.pRuvmVertAdj + i;
+		if (!pEntry->loopSize) {
+			continue;
+		}
+		pEntry = pEntry->pNext;
+		while (pEntry) {
+			VertAdj *pNextEntry = pEntry->pNext;
+			args.alloc.pFree(pEntry);
+			pEntry = pNextEntry;
+		};
+	}
 	args.alloc.pFree(mmVars.pRuvmVertAdj);
 	args.alloc.pFree(ecVars.pCellFaces);
 	args.alloc.pFree(ecVars.pFaceCellsInfo);
@@ -344,8 +357,19 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 }
 
 void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
-	pContext->alloc.pFree(pMesh->pVerts);
-	pContext->alloc.pFree(pMesh->pLoops);
-	pContext->alloc.pFree(pMesh->pFaces);
-	pContext->alloc.pFree(pMesh->pUvs);
+	if(pMesh->pFaces) {
+		pContext->alloc.pFree(pMesh->pFaces);
+	}
+	if (pMesh->pLoops) {
+		pContext->alloc.pFree(pMesh->pLoops);
+	}
+	if (pMesh->pNormals) {
+		pContext->alloc.pFree(pMesh->pNormals);
+	}
+	if (pMesh->pUvs) {
+		pContext->alloc.pFree(pMesh->pUvs);
+	}
+	if (pMesh->pVerts) {
+		pContext->alloc.pFree(pMesh->pVerts);
+	}
 }

@@ -25,5 +25,5 @@ typedef struct {
 void ruvmGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
                                   int8_t *pCellInits, Mesh *pMesh, FaceInfo faceInfo,
 								  iVec2 tileMin);
-void ruvmCreateQuadTree(RuvmMap pMap);
-void ruvmDestroyQuadTree(Cell *pRootCell);
+void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
+void ruvmDestroyQuadTree(RuvmContext pContext, Cell *rootCell);

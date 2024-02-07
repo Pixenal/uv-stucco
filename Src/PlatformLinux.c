@@ -53,5 +53,6 @@ int32_t ruvmPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRea
 int32_t ruvmPlatformFileClose(void *file) {
 	PlatformContext *pState = file;
 	fclose(pState->pFile);
+	pState->alloc.pFree(pState);
 	return 0;
 }

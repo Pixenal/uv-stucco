@@ -228,8 +228,8 @@ static int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh) {
 	return 0;
 }
 
-void addLinkEdgesToCells(Cell* pParentCell, Mesh *pMesh, Cell **pCellStack,
-                         int32_t cellStackPointer) {
+void addLinkEdgesToCells(RuvmContext pContext, Cell* pParentCell, Mesh *pMesh,
+                         Cell **pCellStack, int32_t cellStackPointer) {
 	int32_t buf[32];
 	int32_t bufSize;
 	for (int32_t i = 0; i < 4; ++i) {
@@ -243,14 +243,15 @@ void addLinkEdgesToCells(Cell* pParentCell, Mesh *pMesh, Cell **pCellStack,
 			}
 		}
 		if (bufSize) {
-			pChild->pLinkEdges = malloc(sizeof(int32_t) * bufSize);
+			pChild->pLinkEdges = pContext->alloc.pMalloc(sizeof(int32_t) * bufSize);
 			pChild->linkEdgeSize = bufSize;
 			memcpy(pChild->pLinkEdges, buf, sizeof(int32_t) * bufSize);
 		}
 	}
 }
 
-static void addEnclosedVertsToCell(Cell *pParentCell, Mesh *pMesh, int8_t *pFaceFlag) {
+static void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
+                                   Mesh *pMesh, int8_t *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
 	Vec2 midPoint = pParentCell->pChildren[1].boundsMin;
@@ -277,11 +278,11 @@ static void addEnclosedVertsToCell(Cell *pParentCell, Mesh *pMesh, int8_t *pFace
 	for (int32_t i = 0; i < 4; ++i) {
 		Cell *cell = pParentCell->pChildren + i;
 		if (cell->faceSize) {
-			cell->pFaces = malloc(sizeof(int32_t) * cell->faceSize);
+			cell->pFaces = pContext->alloc.pMalloc(sizeof(int32_t) * cell->faceSize);
 		}
 	}
 	if (pParentCell->edgeFaceSize) {
-		pParentCell->pEdgeFaces = malloc(sizeof(int32_t) * pParentCell->edgeFaceSize);
+		pParentCell->pEdgeFaces = pContext->alloc.pMalloc(sizeof(int32_t) * pParentCell->edgeFaceSize);
 	}
 	int32_t facesSize[4] = {0};
 	int32_t edgeFacesSize = 0;
@@ -303,8 +304,9 @@ static void addEnclosedVertsToCell(Cell *pParentCell, Mesh *pMesh, int8_t *pFace
 	}
 }
 
-static void allocateChildren(Cell *parentCell, int32_t cellStackPointer, RuvmMap pMap) {
-	parentCell->pChildren = calloc(4, sizeof(Cell));
+static void allocateChildren(RuvmContext pContext, Cell *parentCell,
+                             int32_t cellStackPointer, RuvmMap pMap) {
+	parentCell->pChildren = pContext->alloc.pCalloc(4, sizeof(Cell));
 	for (int32_t i = 0; i < 4; ++i) {
 		// v for visualizing quadtree v
 		//cell->children[i].cellIndex = rand();
@@ -318,8 +320,9 @@ static void allocateChildren(Cell *parentCell, int32_t cellStackPointer, RuvmMap
 }
 
 
-static void processCell(Cell **pCellStack, int32_t *pCellStackPointer, Mesh *pMesh,
-                 int8_t *pFaceFlag, RuvmMap pMap) {
+static void processCell(RuvmContext pContext, Cell **pCellStack,
+                        int32_t *pCellStackPointer, Mesh *pMesh,
+                        int8_t *pFaceFlag, RuvmMap pMap) {
 	Cell *cell = pCellStack[*pCellStackPointer];
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
 	int32_t hasChildren = cell->faceSize > CELL_MAX_VERTS;
@@ -328,9 +331,9 @@ static void processCell(Cell **pCellStack, int32_t *pCellStackPointer, Mesh *pMe
 		int32_t childSize = 0;
 		if (!cell->pChildren) {
 			pMap->quadTree.leafCount--;
-			allocateChildren(cell,*pCellStackPointer, pMap);
-			addEnclosedVertsToCell(cell, pMesh, pFaceFlag);
-			addLinkEdgesToCells(cell, pMesh, pCellStack, *pCellStackPointer);
+			allocateChildren(pContext, cell,*pCellStackPointer, pMap);
+			addEnclosedVertsToCell(pContext, cell, pMesh, pFaceFlag);
+			addLinkEdgesToCells(pContext, cell, pMesh, pCellStack, *pCellStackPointer);
 		}
 		for (int32_t i = 0; i < 4; ++i) {
 			childSize += (int32_t)cell->pChildren[i].initialized;
@@ -352,42 +355,43 @@ int32_t calculateMaxTreeDepth(int32_t vertSize) {
 	return log(CELL_MAX_VERTS * vertSize) / log(4) + 2;
 }
 
-void ruvmCreateQuadTree(RuvmMap pMap) {
+void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	QuadTree *pQuadTree = &pMap->quadTree;
 	Mesh *pMesh = &pMap->mesh;
 	pQuadTree->cellCount = 0;
 	pQuadTree->leafCount = 0;
 	counter = 0;
 
-	pQuadTree->pRootCell = calloc(1, sizeof(Cell));
+	pQuadTree->pRootCell = pContext->alloc.pCalloc(1, sizeof(Cell));
 	Cell *rootCell = pQuadTree->pRootCell;
 	pQuadTree->maxTreeDepth = 32;
 
-	Cell *cellStack[32];
+	Cell *cellStack[256];
 	rootCell->cellIndex = 0;
 	pQuadTree->cellCount = 1;
 	cellStack[0] = rootCell;
 	rootCell->boundsMax.x = rootCell->boundsMax.y = 1.0f;
 	rootCell->initialized = 1;
-	int8_t *pFaceFlag = calloc(pMesh->faceCount, sizeof(int8_t));
+	int8_t *pFaceFlag = pContext->alloc.pCalloc(pMesh->faceCount, sizeof(int8_t));
 	rootCell->faceSize = pMesh->faceCount;
-	rootCell->pFaces = malloc(sizeof(int32_t) * pMesh->faceCount);
+	rootCell->pFaces = pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		rootCell->pFaces[i] = i;
 	}
-	allocateChildren(rootCell, 0, pMap);
-	addEnclosedVertsToCell(rootCell, pMesh, pFaceFlag);
-	addLinkEdgesToCells(rootCell, pMesh, cellStack, 0);
+	allocateChildren(pContext, rootCell, 0, pMap);
+	addEnclosedVertsToCell(pContext, rootCell, pMesh, pFaceFlag);
+	addLinkEdgesToCells(pContext, rootCell, pMesh, cellStack, 0);
 	cellStack[1] = rootCell->pChildren;
 	int32_t cellStackPointer = 1;
 	do {
-		processCell(cellStack, &cellStackPointer, pMesh, pFaceFlag, pMap);
+		processCell(pContext, cellStack, &cellStackPointer, pMesh, pFaceFlag, pMap);
 		counter++;
 	} while(cellStackPointer >= 0);
+	pContext->alloc.pFree(pFaceFlag);
 	printf("Created quadTree -- cells: %d, leaves: %d\n", pQuadTree->cellCount, pQuadTree->leafCount);
 }
 
-void ruvmDestroyQuadTree(Cell *rootCell) {
+void ruvmDestroyQuadTree(RuvmContext pContext, Cell *rootCell) {
 	Cell *cellStack[32];
 	cellStack[0] = rootCell;
 	int32_t cellStackPointer = 0;
@@ -404,21 +408,21 @@ void ruvmDestroyQuadTree(Cell *rootCell) {
 				cellStack[cellStackPointer] = cell->pChildren + nextChild;
 				continue;
 			}
-			free(cell->pChildren);
+			pContext->alloc.pFree(cell->pChildren);
 		}
 		else {
 			cell->initialized = 0;
 		}
 		if (cell->pLinkEdges) {
-			free(cell->pLinkEdges);
+			pContext->alloc.pFree(cell->pLinkEdges);
 		}
 		if (cell->pFaces) {
-			free(cell->pFaces);
+			pContext->alloc.pFree(cell->pFaces);
 		}
 		if (cell->pEdgeFaces) {
-			free(cell->pEdgeFaces);
+			pContext->alloc.pFree(cell->pEdgeFaces);
 		}
 		cellStackPointer--;
 	} while(cellStackPointer >= 0);
-	free(rootCell);
+	pContext->alloc.pFree(rootCell);
 }
