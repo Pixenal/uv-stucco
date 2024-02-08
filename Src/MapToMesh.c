@@ -1,4 +1,6 @@
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <Context.h>
 #include <MapToMesh.h>
@@ -21,32 +23,66 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 		}
 		if (pInsideBuf[i] != pInsideBuf[vertNextIndex]) {
 			*pEdgeFace += 1;
-			Vec3 *pRuvmVert = &pLoopBuf->buf[i].loop;
-			Vec3 *pRuvmVertNext = &pLoopBuf->buf[vertNextIndex].loop;
-			Vec3 ruvmDir = _(*pRuvmVert V3SUB *pRuvmVertNext);
-			Vec3 ruvmDirBack = _(*pRuvmVertNext V3SUB *pRuvmVert);
-			float t = (pRuvmVert->x - pBaseLoop->vert.x) * pBaseLoop->dirBack.y;
-			t -= (pRuvmVert->y - pBaseLoop->vert.y) * pBaseLoop->dirBack.x;
-			t /= ruvmDir.x * pBaseLoop->dirBack.y - ruvmDir.y * pBaseLoop->dirBack.x;
-			Vec3 intersection = _(*pRuvmVert V3ADD _(ruvmDirBack V3MULS t));
 			LoopBuffer *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
-			pNewLoopBuf->size++;
-			pNewEntry->loop = intersection;
+			if (pLoopBuf->buf[i].index < 0 && pLoopBuf->buf[vertNextIndex].index < 0) {
+				int32_t whichVert = pLoopBuf->buf[i].baseLoop == pBaseLoop->index - 1;
+				*(Vec2 *)&pNewEntry->loop = whichVert ?
+					pBaseLoop->vert : pBaseLoop->vertNext;
+				pNewEntry->isBaseLoop = whichVert ?
+					pBaseLoop->localIndex : pBaseLoop->localIndexNext;
+			}
+			else {
+				Vec3 *pRuvmVert = &pLoopBuf->buf[i].loop;
+				Vec3 *pRuvmVertNext = &pLoopBuf->buf[vertNextIndex].loop;
+				Vec3 ruvmDir = _(*pRuvmVert V3SUB *pRuvmVertNext);
+				Vec3 ruvmDirBack = _(*pRuvmVertNext V3SUB *pRuvmVert);
+				float t = (pRuvmVert->x - pBaseLoop->vert.x) * pBaseLoop->dirBack.y;
+				t -= (pRuvmVert->y - pBaseLoop->vert.y) * pBaseLoop->dirBack.x;
+				t /= ruvmDir.x * pBaseLoop->dirBack.y - ruvmDir.y * pBaseLoop->dirBack.x;
+				Vec3 intersection = _(*pRuvmVert V3ADD _(ruvmDirBack V3MULS t));
+				pNewEntry->loop = intersection;
+				pNewEntry->isBaseLoop = -1;
+			}
 			pNewEntry->index = -1;
 			pNewEntry->sort = pLoopBuf->buf[vertNextIndex].sort;
 			pNewEntry->baseLoop = pBaseLoop->index;
+			pNewLoopBuf->size++;
 		}
 	}
 }
 
 static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
-                                 LoopBufferWrap *pLoopBuf, int32_t *pEdgeFace) {
+                                 LoopBufferWrap *pLoopBuf, int32_t *pEdgeFace,
+								 int32_t *pHasPreservedEdge) {
 	for (int32_t i = 0; i < baseFace.size; ++i) {
 		LoopInfo baseLoop;
 		baseLoop.index = i;
+		int32_t vertIndex = pArgs->mesh.pLoops[baseFace.start + i];
+		if (vertIndex == 357) {
+			int a = 0;
+		}
+		int32_t edgeIndex = pArgs->mesh.pEdges[baseFace.start + i];
+		int8_t preserveEdge[2];
+		preserveEdge[0] = pArgs->mesh.pEdgePreserve[edgeIndex];
 		baseLoop.vert = pArgs->mesh.pUvs[i + baseFace.start];
-		int32_t uvNextIndex = ((i + 1) % baseFace.size) + baseFace.start;
+		baseLoop.vert = pArgs->mesh.pUvs[i + baseFace.start];
+		int32_t uvNextIndexLocal = ((i + 1) % baseFace.size);
+		int32_t uvNextIndex = uvNextIndexLocal + baseFace.start;
+		edgeIndex = pArgs->mesh.pEdges[uvNextIndex];
+		preserveEdge[1] = pArgs->mesh.pEdgePreserve[edgeIndex];
+		if (preserveEdge[0]) {
+			pArgs->pInVertTable[vertIndex] = 1;
+			*pHasPreservedEdge = 1;
+		}
+		if (preserveEdge[1]) {
+			int32_t nextVertIndex = pArgs->mesh.pLoops[uvNextIndex];
+			pArgs->pInVertTable[nextVertIndex] = 1;
+			*pHasPreservedEdge = 1;
+		}
 		baseLoop.vertNext = pArgs->mesh.pUvs[uvNextIndex];
+		baseLoop.indexNext = uvNextIndex;
+		baseLoop.localIndex = i;
+		baseLoop.localIndexNext = uvNextIndexLocal;
 		baseLoop.dir = _(baseLoop.vertNext V2SUB baseLoop.vert);
 		baseLoop.dirBack = _(baseLoop.vert V2SUB baseLoop.vertNext);
 		LoopBufferWrap newLoopBuf = {0};
@@ -83,11 +119,11 @@ static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf, BaseTriVer
 
 
 static void addNewLoopAndOrVert(int32_t loopBufIndex, int32_t *pVertIndex,
-                         WorkMesh *pLocalMesh, LoopBuffer *pLoopBuffer) {
+                         WorkMesh *pLocalMesh, LoopBuffer *pLoopBuffer, int32_t loopIndex) {
 		*pVertIndex = pLocalMesh->boundaryVertSize;
 		pLocalMesh->pVerts[*pVertIndex] = pLoopBuffer[loopBufIndex].loop;
 		pLocalMesh->boundaryVertSize--;
-		pLocalMesh->pUvs[pLocalMesh->boundaryLoopSize] = pLoopBuffer[loopBufIndex].uv;
+		pLocalMesh->pUvs[loopIndex] = pLoopBuffer[loopBufIndex].uv;
 }
 
 static void initVertAdjEntry(int32_t loopBufferIndex, int32_t *pVertIndex, WorkMesh *pLocalMesh,
@@ -133,7 +169,8 @@ static void addRuvmLoopAndOrVert(int32_t loopBufIndex, AddClippedFaceVars *pAcfV
 
 static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVars,
                              BoundaryVert *pEntry, int32_t ruvmFaceIndex,
-                             int32_t tile, LoopBufferWrap *pLoopBuf) {
+                             int32_t tile, LoopBufferWrap *pLoopBuf, FaceInfo baseFace,
+							 int32_t hasPreservedEdge) {
 	pEntry->face = pArgs->localMesh.boundaryFaceSize;
 	pEntry->firstVert = pAcfVars->firstRuvmVert;
 	pEntry->lastVert = pAcfVars->lastRuvmVert;
@@ -141,6 +178,18 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 	pEntry->tile = tile;
 	pEntry->job = pArgs->id;
 	pEntry->type = pAcfVars->ruvmLoops;
+	pEntry->baseLoop = baseFace.start;
+	pEntry->hasPreservedEdge = hasPreservedEdge;
+	if (pLoopBuf->size > 8) {
+		printf("----------------------   Loopbuf size exceeded 8\n");
+		abort();
+	}
+	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
+		pEntry->baseLoops[i] = pLoopBuf->buf[i].isBaseLoop;
+	}
+	if (pLoopBuf->size > pArgs->maxLoopSize) {
+		pArgs->maxLoopSize = pLoopBuf->size;
+	}
 	if (pAcfVars->firstRuvmVert < 0) {
 		int32_t *pNonRuvmSort = (int32_t *)(pEntry + 1);
 		for (int32_t i = 0; i < pLoopBuf->size; ++i) {
@@ -152,7 +201,7 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 
 static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pAcfVars,
                                  LoopBufferWrap *pLoopBuf, int32_t ruvmFaceIndex,
-								 int32_t tile) {
+								 int32_t tile, FaceInfo baseFace, int32_t hasPreservedEdge) {
 	pArgs->localMesh.pFaces[pArgs->localMesh.boundaryFaceSize] = pAcfVars->boundaryLoopStart;
 	int32_t hash = ruvmFnvHash((uint8_t *)&ruvmFaceIndex, 4, pArgs->boundaryBufferSize);
 	BoundaryDir *pEntryDir = pArgs->pBoundaryBuffer + hash;
@@ -164,7 +213,7 @@ static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pA
 	if (!pEntry) {
 		pEntry = pEntryDir->pEntry = pArgs->alloc.pCalloc(1, sizeToAllocate);
 		initBoundaryBufferEntry(pArgs, pAcfVars, pEntry, ruvmFaceIndex,
-		                        tile, pLoopBuf);
+		                        tile, pLoopBuf, baseFace, hasPreservedEdge);
 		pArgs->totalFaces++;
 	}
 	else {
@@ -175,14 +224,14 @@ static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pA
 				}
 				pEntry = pEntry->pNext = pArgs->alloc.pCalloc(1, sizeToAllocate);
 				initBoundaryBufferEntry(pArgs, pAcfVars, pEntry, ruvmFaceIndex,
-				                        tile, pLoopBuf);
+				                        tile, pLoopBuf, baseFace, hasPreservedEdge);
 				break;
 			}
 			if (!pEntryDir->pNext) {
 				pEntryDir = pEntryDir->pNext = pArgs->alloc.pCalloc(1, sizeof(BoundaryDir));
 				pEntry = pEntryDir->pEntry = pArgs->alloc.pCalloc(1, sizeToAllocate);
 				initBoundaryBufferEntry(pArgs, pAcfVars, pEntry, ruvmFaceIndex,
-				                        tile, pLoopBuf);
+				                        tile, pLoopBuf, baseFace, hasPreservedEdge);
 				pArgs->totalFaces++;
 				break;
 			}
@@ -195,7 +244,8 @@ static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pA
 
 static void addClippedFaceToLocalMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
                                LoopBufferWrap *pLoopBuf, int32_t edgeFace,
-							   FaceInfo ruvmFace, int32_t tile) {
+							   FaceInfo ruvmFace, int32_t tile, FaceInfo baseFace,
+                               int32_t hasPreservedEdge) {
 	if (pLoopBuf->size <= 2) {
 		return;
 	}
@@ -212,7 +262,7 @@ static void addClippedFaceToLocalMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 			pArgs->localMesh.boundaryLoopSize-- : pArgs->localMesh.loopCount++;
 		if (acfVars.vertIndex < 0) {
 			addNewLoopAndOrVert(i, &acfVars.vertIndex, &pArgs->localMesh,
-			                    pLoopBuf->buf);
+			                    pLoopBuf->buf, acfVars.loopIndex);
 		}
 		else {
 			acfVars.ruvmLoops++;
@@ -223,7 +273,8 @@ static void addClippedFaceToLocalMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 	}
 	if (edgeFace) {
 		addEdgeFaceToBoundaryBuffer(pArgs, &acfVars, pLoopBuf,
-		                            ruvmFace.index, tile);
+		                            ruvmFace.index, tile, baseFace,
+									hasPreservedEdge);
 	}
 	else {
 		pArgs->localMesh.pFaces[pArgs->localMesh.faceCount] = acfVars.loopStart;
@@ -247,6 +298,9 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	baseTri.pNormals = pArgs->mesh.pNormals + baseFace.start;
 	for (int32_t i = 0; i < pEcVars->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
 		////CLOCK_START;
+		if (pArgs->localMesh.boundaryFaceSize == 1135306) {
+			int a = 0;
+		}
 		FaceInfo ruvmFace;
 		ruvmFace.index = pEcVars->pCellFaces[i];
 		ruvmFace.start = pArgs->pMap->mesh.pFaces[ruvmFace.index];
@@ -268,15 +322,18 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 			loopBuf.buf[j].loop.x += fTileMin.x;
 			loopBuf.buf[j].loop.y += fTileMin.y;
 			loopBuf.buf[j].sort = j;
+			loopBuf.buf[j].isBaseLoop = -1;
 		}
 		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[0] += getTimeDiff(&start, &stop);
 		int32_t edgeFace = 0;
-		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace);
+		int32_t hasPreservedEdge = 0;
+		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace,
+		                            &hasPreservedEdge);
 		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin);
 		////CLOCK_START;
 		addClippedFaceToLocalMesh(pArgs, pMmVars, &loopBuf, edgeFace,
-		                          ruvmFace, tile);
+		                          ruvmFace, tile, baseFace, hasPreservedEdge);
 		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[2] += getTimeDiff(&start, &stop);
 	}

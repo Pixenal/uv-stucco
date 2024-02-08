@@ -27,8 +27,11 @@ typedef struct {
 	int32_t *pFaces;
 	int32_t loopCount;
 	int32_t *pLoops;
+	int32_t *pEdges;
 	RuvmVec3 *pNormals;
 	RuvmVec2 *pUvs;
+	int32_t edgeCount;
+	int8_t *pEdgePreserve;
 	int32_t vertCount;
 	RuvmVec3 *pVerts;
 } RuvmMesh;

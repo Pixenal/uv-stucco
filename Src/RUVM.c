@@ -96,6 +96,7 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	pArgs->localMesh.pVerts = pAlloc->pMalloc(sizeof(Vec3) * pArgs->bufferSize);
 	pArgs->localMesh.pUvs = pAlloc->pMalloc(sizeof(Vec2) * loopBufferSize);
 	pEcVars->pCellFaces = pAlloc->pMalloc(sizeof(int32_t) * pEcVars->cellFacesMax);
+	pArgs->pInVertTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
 	//TODO: maybe reduce further if unifaces if low,
 	//as a larger buffer seems more necessary at higher face counts.
 	//Doesn't provie much speed up at lower resolutions.
@@ -135,6 +136,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 	args.boundaryBufferSize = pSend->boundaryBufferSize;
 	args.mesh = pSend->mesh;
 	args.pMap = pSend->pMap;
+	args.maxLoopSize = 0;
 	ecVars.pFaceCellsInfo = args.alloc.pMalloc(sizeof(FaceCellsInfo) *
 	                        args.mesh.faceCount);
 	ruvmGetEnclosingCellsForAllFaces(&args, &ecVars);
@@ -175,9 +177,11 @@ static void mapToMeshJob(void *pArgsPtr) {
 		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCells);
 		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCellType);
 	}
+	printf("Max loop size: %d\n", args.maxLoopSize);
 	//printf("copy faces into single array %lu\n", copySingleTime);
 	//printf("maping %lu\n", mappingTime);
 	//CLOCK_START;
+	pSend->pInVertTable = args.pInVertTable;
 	args.averageRuvmFacesPerFace /= args.mesh.faceCount;
 	//printf("#######Boundary Buffer Size: %d\n", pArgs->localMesh.boundaryFaceSize);
 	args.localMesh.pFaces[args.localMesh.boundaryFaceSize] = 
@@ -316,6 +320,7 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 		pContext->alloc.pFree(localMesh->pUvs);
 		pContext->alloc.pFree(localMesh->pVerts);
 		pContext->alloc.pFree(pJobArgs[i].pBoundaryBuffer);
+		pContext->alloc.pFree(pJobArgs[i].pInVertTable);
 	}
 	pMeshOut->pFaces[pMeshOut->faceCount] = pMeshOut->loopCount;
 	//CLOCK_STOP("moving to work mesh");
