@@ -7,8 +7,8 @@
 #include <MapFile.h>
 
 static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWrap *pNewLoopBuf,
-                                   int32_t *pInsideBuf, LoopInfo *pBaseLoop,
-								   Vec2 baseLoopCross, int32_t *pEdgeFace) {
+                                          int32_t *pInsideBuf, LoopInfo *pBaseLoop, Vec2 baseLoopCross,
+								          int32_t *pEdgeFace) {
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		Vec2 ruvmVert = *(Vec2 *)&pLoopBuf->buf[i].loop;
 		Vec2 uvRuvmDir = _(ruvmVert V2SUB pBaseLoop->vert);
@@ -30,6 +30,8 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 					pBaseLoop->vert : pBaseLoop->vertNext;
 				pNewEntry->isBaseLoop = whichVert ?
 					pBaseLoop->localIndex : pBaseLoop->localIndexNext;
+				pNewEntry->isBaseLoop += 1;
+				pNewEntry->isBaseLoop *= -1;
 			}
 			else {
 				Vec3 *pRuvmVert = &pLoopBuf->buf[i].loop;
@@ -41,7 +43,7 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 				t /= ruvmDir.x * pBaseLoop->dirBack.y - ruvmDir.y * pBaseLoop->dirBack.x;
 				Vec3 intersection = _(*pRuvmVert V3ADD _(ruvmDirBack V3MULS t));
 				pNewEntry->loop = intersection;
-				pNewEntry->isBaseLoop = -1;
+				pNewEntry->isBaseLoop = pBaseLoop->localIndex + 1;
 			}
 			pNewEntry->index = -1;
 			pNewEntry->sort = pLoopBuf->buf[vertNextIndex].sort;
@@ -58,9 +60,6 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 		LoopInfo baseLoop;
 		baseLoop.index = i;
 		int32_t vertIndex = pArgs->mesh.pLoops[baseFace.start + i];
-		if (vertIndex == 357) {
-			int a = 0;
-		}
 		int32_t edgeIndex = pArgs->mesh.pEdges[baseFace.start + i];
 		int8_t preserveEdge[2];
 		preserveEdge[0] = pArgs->mesh.pEdgePreserve[edgeIndex];
@@ -72,12 +71,10 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 		preserveEdge[1] = pArgs->mesh.pEdgePreserve[edgeIndex];
 		if (preserveEdge[0]) {
 			pArgs->pInVertTable[vertIndex] = 1;
-			*pHasPreservedEdge = 1;
 		}
 		if (preserveEdge[1]) {
 			int32_t nextVertIndex = pArgs->mesh.pLoops[uvNextIndex];
 			pArgs->pInVertTable[nextVertIndex] = 1;
-			*pHasPreservedEdge = 1;
 		}
 		baseLoop.vertNext = pArgs->mesh.pUvs[uvNextIndex];
 		baseLoop.indexNext = uvNextIndex;
@@ -88,9 +85,13 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 		LoopBufferWrap newLoopBuf = {0};
 		int32_t insideBuf[12] = {0};
 		Vec2 baseLoopCross = vec2Cross(baseLoop.dir);
-
+		int32_t edgeFacePre = *pEdgeFace;
 		clipRuvmFaceAgainstSingleLoop(pLoopBuf, &newLoopBuf, insideBuf,
 		         				      &baseLoop, baseLoopCross, pEdgeFace);
+		int32_t intersects = edgeFacePre != *pEdgeFace;
+		if (intersects && preserveEdge[0]) {
+			*pHasPreservedEdge = 1;
+		}
 
 		if (newLoopBuf.size <= 2) {
 			pLoopBuf->size = newLoopBuf.size;
@@ -185,7 +186,8 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 		abort();
 	}
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		pEntry->baseLoops[i] = pLoopBuf->buf[i].isBaseLoop;
+		pEntry->baseLoops[i] = pLoopBuf->buf[i].sort;
+		pEntry->baseLoops[i] |= pLoopBuf->buf[i].isBaseLoop << 4;
 	}
 	if (pLoopBuf->size > pArgs->maxLoopSize) {
 		pArgs->maxLoopSize = pLoopBuf->size;
@@ -298,9 +300,6 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	baseTri.pNormals = pArgs->mesh.pNormals + baseFace.start;
 	for (int32_t i = 0; i < pEcVars->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
 		////CLOCK_START;
-		if (pArgs->localMesh.boundaryFaceSize == 1135306) {
-			int a = 0;
-		}
 		FaceInfo ruvmFace;
 		ruvmFace.index = pEcVars->pCellFaces[i];
 		ruvmFace.start = pArgs->pMap->mesh.pFaces[ruvmFace.index];
@@ -322,7 +321,6 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 			loopBuf.buf[j].loop.x += fTileMin.x;
 			loopBuf.buf[j].loop.y += fTileMin.y;
 			loopBuf.buf[j].sort = j;
-			loopBuf.buf[j].isBaseLoop = -1;
 		}
 		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[0] += getTimeDiff(&start, &stop);
