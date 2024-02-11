@@ -24,12 +24,14 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 		if (pInsideBuf[i] != pInsideBuf[vertNextIndex]) {
 			*pEdgeFace += 1;
 			LoopBuffer *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
-			if (pLoopBuf->buf[i].index < 0 && pLoopBuf->buf[vertNextIndex].index < 0) {
+			if (pLoopBuf->buf[i].index && pLoopBuf->buf[vertNextIndex].index < 0 &&
+				pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[vertNextIndex].baseLoop) {
 				int32_t whichVert = pLoopBuf->buf[i].baseLoop == pBaseLoop->index - 1;
 				*(Vec2 *)&pNewEntry->loop = whichVert ?
 					pBaseLoop->vert : pBaseLoop->vertNext;
 				pNewEntry->isBaseLoop = whichVert ?
 					pBaseLoop->localIndex : pBaseLoop->localIndexNext;
+				pNewEntry->baseLoop = pNewEntry->isBaseLoop;
 				pNewEntry->isBaseLoop += 1;
 				pNewEntry->isBaseLoop *= -1;
 			}
@@ -44,10 +46,10 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 				Vec3 intersection = _(*pRuvmVert V3ADD _(ruvmDirBack V3MULS t));
 				pNewEntry->loop = intersection;
 				pNewEntry->isBaseLoop = pBaseLoop->localIndex + 1;
+				pNewEntry->baseLoop = pBaseLoop->index;
 			}
 			pNewEntry->index = -1;
 			pNewEntry->sort = pLoopBuf->buf[vertNextIndex].sort;
-			pNewEntry->baseLoop = pBaseLoop->index;
 			pNewLoopBuf->size++;
 		}
 	}
@@ -310,6 +312,10 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		if (!checkFaceIsInBounds(bounds.fMin, bounds.fMax, ruvmFace, &pArgs->pMap->mesh)) {
 			continue;
 		}
+		if (pArgs->localMesh.boundaryFaceSize == 381944 &&
+			ruvmFace.index == 5538) {
+			int a = 0;
+		}
 		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[1] += getTimeDiff(&start, &stop);
 		LoopBufferWrap loopBuf = {0};
@@ -317,6 +323,7 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		for (int32_t j = 0; j < ruvmFace.size; ++j) {
 			int32_t vertIndex = pArgs->pMap->mesh.pLoops[ruvmFace.start + j];
 			loopBuf.buf[j].index = vertIndex;
+			loopBuf.buf [j].baseLoop = vertIndex;
 			loopBuf.buf[j].loop = pArgs->pMap->mesh.pVerts[vertIndex];
 			loopBuf.buf[j].loop.x += fTileMin.x;
 			loopBuf.buf[j].loop.y += fTileMin.y;

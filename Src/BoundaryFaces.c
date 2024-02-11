@@ -1,9 +1,17 @@
+#include <math.h>
+#include <float.h>
+#include <stdio.h>
+
 #include <RUVM.h>
 #include <MapFile.h>
 #include <Mesh.h>
 #include <Context.h>
-#include <math.h>
-#include <float.h>
+
+typedef struct {
+	int32_t edge;
+	int32_t loops[0];
+} PreserveBuf;
+
 
 static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry, Mesh *pMeshOut,
                         WorkMesh *pLocalMesh, int32_t ruvmVert, int32_t ruvmNextVert,
@@ -21,7 +29,10 @@ static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry, Mesh
 }
 
 static void getRuvmVerts(int32_t *pRuvmVerts, SendOffArgs *pJobArgs,
-                         BoundaryVert *pEntry) {
+                         BoundaryVert *pEntry, int32_t *pSeamLoopCount,
+						 int32_t *pSeamLoops, FaceInfo *ruvmFaceInfo, RuvmMap pMap,
+						 RuvmContext pContext, EdgeVerts *pEdgeVerts) {
+	EdgeTable localEdgeTable[16] = {0};
 	do {
 		WorkMesh *localMesh = &pJobArgs[pEntry->job].localMesh;
 		int32_t faceStart = localMesh->pFaces[pEntry->face];
@@ -29,19 +40,137 @@ static void getRuvmVerts(int32_t *pRuvmVerts, SendOffArgs *pJobArgs,
 		int32_t loopAmount = faceStart - faceEnd;
 		for (int32_t k = 0; k < loopAmount; ++k) {
 			int32_t vert = localMesh->pLoops[faceStart - k];
-			int32_t sort;
+			int32_t sort = pEntry->baseLoops[k] & 15; //zero last 4 bits;
 			//sort is stored in first 4 bits,
 			//and base loop is stored in the last 4
-			sort = pEntry->baseLoops[k] & 15; //zero last 4 bits;
-			if (vert < localMesh->vertCount) {
+			if (vert > localMesh->vertCount) {
+				int32_t sortNext, baseLoopLocal, baseLoopLocalAbs,
+						baseLoop, baseEdge, baseVert;
+				sortNext = sort;
+				sort -= 1;
+				if (sort < 0) {
+					sort = ruvmFaceInfo->size - 1;
+				}
+				baseLoopLocal = pEntry->baseLoops[k] >> 4;
+				baseLoopLocalAbs = baseLoopLocal < 0 ? baseLoopLocal * -1 : baseLoopLocal;
+				baseLoop = pEntry->baseLoop + baseLoopLocalAbs - 1;
+				int32_t isBaseLoop = baseLoopLocal < 0;
+				baseEdge = pJobArgs[pEntry->job].mesh.pEdges[baseLoop];
+				baseVert = isBaseLoop ? pJobArgs[pEntry->job].mesh.pLoops[baseLoop] : -1;
+
+				if (isBaseLoop) {
+					int32_t *pVerts = pEdgeVerts[baseEdge].verts;
+					if (pVerts[0] >= 0 && pVerts[1] >= 0) {
+						int32_t whichLoop = pVerts[0] == baseLoop;
+						int32_t otherLoop = pVerts[whichLoop];
+						int32_t baseLoopNext = pEntry->baseLoop + sortNext;
+						Vec2 uv = pJobArgs[0].mesh.pUvs[baseLoopNext];
+						Vec2 uvOther = pJobArgs[0].mesh.pUvs[otherLoop];
+						int32_t notSeam = _(uv V2EQL uvOther);
+						if (notSeam) {
+							continue;
+						}
+					}
+				}
+				
+				int32_t hash, ruvmVert, ruvmNextVert;
+
+				if (isBaseLoop) {
+					hash = ruvmFnvHash((uint8_t *)&baseVert, 4, 16);
+					ruvmVert = ruvmNextVert = -1;
+				}
+				else {
+					ruvmVert = pMap->mesh.pLoops[ruvmFaceInfo->start + sort];
+					ruvmNextVert = pMap->mesh.pLoops[ruvmFaceInfo->start + sortNext];
+					uint32_t ruvmEdgeId = ruvmVert + ruvmNextVert;
+					hash = ruvmFnvHash((uint8_t *)&ruvmEdgeId, 4, 16);
+				}
+				EdgeTable *pEdgeEntry = localEdgeTable + hash;
+				if (!pEdgeEntry->loops) {
+					pEdgeEntry->ruvmVert = ruvmVert;
+					pEdgeEntry->ruvmVertNext = ruvmNextVert;
+					pEdgeEntry->tile = pEntry->tile;
+					pEdgeEntry->baseEdge = baseEdge;
+					pEdgeEntry->baseVert = baseVert;
+					pEdgeEntry->loops = 1;
+					pEdgeEntry->vert = faceStart - k;
+				}
+				else {
+					do {
+						//ideally, we'd just compare the edges, but maps don't have
+						//edges currently, so I'll remove ruvmVert/ruvmVertNext,
+						//and replace them with a single edge index, one edges are
+						//added the ruvm maps.
+						int32_t	match;
+						if (isBaseLoop) {
+							match = pEdgeEntry->baseVert == baseVert;
+						}
+						else {
+							match = (pEdgeEntry->ruvmVert == ruvmVert ||
+									 pEdgeEntry->ruvmVertNext == ruvmVert) &&
+									(pEdgeEntry->ruvmVert == ruvmNextVert ||
+									 pEdgeEntry->ruvmVertNext == ruvmNextVert) &&
+									 pEdgeEntry->tile == pEntry->tile &&
+									 pEdgeEntry->baseEdge == baseEdge;
+						}
+						if (match) {
+							pEdgeEntry->loops++;
+							break;
+						}
+						if (!pEdgeEntry->pNext) {
+							pEdgeEntry = pEdgeEntry->pNext =
+								pContext->alloc.pCalloc(1, sizeof(EdgeTable));
+							pEdgeEntry->ruvmVert = ruvmVert;
+							pEdgeEntry->ruvmVertNext = ruvmNextVert;
+							pEdgeEntry->tile = pEntry->tile;
+							pEdgeEntry->baseEdge = baseEdge;
+							pEdgeEntry->baseVert = baseVert;
+							pEdgeEntry->loops = 1;
+							pEdgeEntry->vert = faceStart - k;
+							break;
+						}
+						pEdgeEntry = pEdgeEntry->pNext;
+					} while(1);
+				}
+			}
+			else {
 				vert += pJobArgs[pEntry->job].vertBase;
 				pRuvmVerts[sort] = vert;
 			}
 		}
 		pEntry = pEntry->pNext;
 	} while(pEntry);
+	
+	for (int32_t i = 0; i < 16; ++i) {
+		EdgeTable *pEdgeEntry = localEdgeTable + i;
+		int32_t depth = 0;
+		do {
+			if (pEdgeEntry->loops == 1) {
+				pSeamLoops[*pSeamLoopCount] = pEdgeEntry->vert;
+				++*pSeamLoopCount;
+			}
+			EdgeTable *pNextEdgeEntry = pEdgeEntry->pNext;
+			if (depth > 0) {
+				pContext->alloc.pFree(pEdgeEntry);
+			}
+			pEdgeEntry = pNextEdgeEntry;
+			depth++;
+		} while(pEdgeEntry);
+	}
 }
 
+static void addToPreserveBuf(int32_t *pPreserveBufCount, PreserveBuf *pPreserveBuf,
+                             int32_t loopIndex, int32_t baseEdge) {
+	for (int32_t l = 0; l < *pPreserveBufCount; ++l) {
+		if (pPreserveBuf[l].edge == baseEdge) {
+			pPreserveBuf[l].loops[1] = loopIndex;
+			return;
+		}
+	}
+	pPreserveBuf[*pPreserveBufCount].edge = baseEdge;
+	pPreserveBuf[*pPreserveBufCount].loops[0] = loopIndex;
+	++*pPreserveBufCount;
+}
 
 static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
                                          Mesh *pMeshOut, BoundaryVert **ppEntry,
@@ -49,7 +178,9 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 								         Vec2 *pUvBuffer, FaceInfo *ruvmFaceInfo, int32_t edgeTableSize,
 								         EdgeTable *pEdgeTable, int32_t *pRuvmIndicesSort,
 										 int32_t hasPreservedEdge, int32_t *pInfoBufSize,
-										 int32_t *pRuvmVerts) {
+										 int32_t *pRuvmVerts, PreserveBuf *pPreserveBuf,
+										 int32_t *pPreserveBufCount, int32_t seamLoopCount,
+										 int32_t *pSeamLoops) {
 	BoundaryVert *pEntry = *ppEntry;
 	do {
 		WorkMesh *localMesh = &pJobArgs[pEntry->job].localMesh;
@@ -68,9 +199,6 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 			sort = pEntry->baseLoops[k] & 15; //zero last 4 bits;
 
 			if (vert >= localMesh->vertCount) {
-				if (!seamFace && !hasPreservedEdge) {
-					continue;
-				}
 				int32_t baseEdge, baseLoop, baseLoopLocalAbs, baseLoopLocal,
 						isBaseLoop, baseVert, preserve, sortNext;
 				sortNext = sort;
@@ -94,7 +222,25 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 					baseEdge = 0;
 					preserve = 0;
 				}
-				if ((!preserve && hasPreservedEdge) || (isBaseLoop && seamFace && 0)) {
+				if (preserve && !isBaseLoop && 0) {
+					addToPreserveBuf(pPreserveBufCount, pPreserveBuf,
+					                 faceStart - k, baseEdge);
+					continue;
+				}
+				if (!seamFace) {
+					continue;
+				}
+				int32_t isSeamLoop = 0;
+				for (int32_t l = 0; l < seamLoopCount; ++l) {
+					if (faceStart - k == pSeamLoops[l]) {
+						isSeamLoop = 1;
+						break;
+					}
+				}
+				if (!isSeamLoop) {
+					continue;
+				}
+				if ((!preserve && hasPreservedEdge && 0) || (isBaseLoop && seamFace && 0)) {
 					int32_t closestRuvm;
 					float shortestDistance = FLT_MAX;
 					for (int32_t l = 0; l < ruvmFaceInfo->size; ++l) {
@@ -126,6 +272,7 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 					movedBuf[k] = 1;
 					pEntry->baseLoops[k] &= -16;
 					pEntry->baseLoops[k] |= closestRuvm;
+					pRuvmIndicesSort[*loopBufferSize] = closestRuvm * 10;
 				}
 				else {
 					int32_t nextVertIndex = (k + 1) % loopAmount;
@@ -167,11 +314,11 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 							}
 							else {
 								match = (pEdgeEntry->ruvmVert == ruvmVert ||
-												 pEdgeEntry->ruvmVertNext == ruvmVert) &&
-												(pEdgeEntry->ruvmVert == ruvmNextVert ||
-												 pEdgeEntry->ruvmVertNext == ruvmNextVert) &&
-												 pEdgeEntry->tile == pEntry->tile &&
-												 pEdgeEntry->baseEdge == baseEdge;
+										 pEdgeEntry->ruvmVertNext == ruvmVert) &&
+										(pEdgeEntry->ruvmVert == ruvmNextVert ||
+										 pEdgeEntry->ruvmVertNext == ruvmNextVert) &&
+										 pEdgeEntry->tile == pEntry->tile &&
+										 pEdgeEntry->baseEdge == baseEdge;
 							}
 							if (match) {
 								vert = pEdgeEntry->vert;
@@ -208,10 +355,12 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 		pPrevEntry = pEntry;
 		pEntry = pEntry->pNext;
 		pContext->alloc.pFree(pPrevEntry);
+		/*
 		if (hasPreservedEdge) {
 			*ppEntry = pEntry;
 			return pEntry != NULL;
 		}
+		*/
 	} while(pEntry);
 	return 0;
 }
@@ -264,14 +413,14 @@ static int32_t determineIfSeamFace(RuvmMap pMap, BoundaryVert *pEntry, int32_t *
 static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, SendOffArgs *pJobArgs,
 		                   int32_t edgeTableSize, EdgeTable *pEdgeTable,
 						   int32_t allBoundaryFacesSize, BoundaryVert **pAllBoundaryFaces,
-						   int8_t *pPreservedEdgeFlag) {
+						   int8_t *pPreservedEdgeFlag, EdgeVerts *pEdgeVerts) {
 	for (int32_t j = 0; j < allBoundaryFacesSize; ++j) {
 		int32_t loopBase = pMeshOut->loopCount;
 		BoundaryVert *pEntry = pAllBoundaryFaces[j];
 		int32_t entryNum;
 		int32_t seamFace = determineIfSeamFace(pMap, pEntry, &entryNum);
 		int32_t ruvmIndicesSort[64];
-		ruvmIndicesSort[0] = -1;
+		ruvmIndicesSort[0] = -10;
 		int32_t loopBufferSize;
 		int32_t loopBuffer[128];
 		Vec2 uvBuffer[128];
@@ -283,8 +432,15 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 		int32_t hasPreservedEdge = pPreservedEdgeFlag[j];
 		int32_t ruvmVerts[4] = {-1, -1, -1, -1};
 		int32_t infoBufSize = 0;
-		if (hasPreservedEdge || seamFace) {
-			getRuvmVerts(ruvmVerts, pJobArgs, pEntry);
+		//store loops of preserve verts
+		PreserveBuf preserveBuf[8];
+		int32_t preserveBufCount = 0;
+		int32_t seamLoops[8];
+		int32_t seamLoopCount = 0;
+		if (seamFace) {
+			getRuvmVerts(ruvmVerts, pJobArgs, pEntry, &seamLoopCount, seamLoops,
+			             &ruvmFaceInfo, pMap, pContext, pEdgeVerts);
+			printf("Seam loop count: %d\n", seamLoopCount);
 		}
 		do {
 			loopBufferSize = 0;
@@ -294,33 +450,54 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 										     seamFace, &loopBufferSize, loopBuffer,
 										     uvBuffer, &ruvmFaceInfo, edgeTableSize,
 										     pEdgeTable, ruvmIndicesSort + 1,
-										     hasPreservedEdge, &infoBufSize, ruvmVerts);
+										     hasPreservedEdge, &infoBufSize, ruvmVerts,
+											 preserveBuf, &preserveBufCount, seamLoopCount,
+											 seamLoops);
 			if (loopBufferSize <= 2) {
 				continue;
 			}
 			pMeshOut->loopCount += loopBufferSize;
 			pMeshOut->faceCount++;
+			/*
 			if (hasPreservedEdge) {
 				for (int32_t k = 0; k < loopBufferSize; ++k) {
 					pMeshOut->pLoops[loopBase + k] = loopBuffer[k];
 					pMeshOut->pUvs[loopBase + k] = uvBuffer[k];
 				}
 			}
-			else {
-				int32_t indexTable[13];
-				indexTable[0] = -1;
-				sortLoops(ruvmIndicesSort + 1, indexTable + 1, loopBufferSize);
-				for (int32_t k = 0; k < loopBufferSize; ++k) {
-					pMeshOut->pLoops[loopBase + k] = loopBuffer[indexTable[k + 1]];
-					pMeshOut->pUvs[loopBase + k] = uvBuffer[indexTable[k + 1]];
-				}
+			*/
+			
+			int32_t indexTable[13];
+			indexTable[0] = -1;
+			sortLoops(ruvmIndicesSort + 1, indexTable + 1, loopBufferSize);
+			for (int32_t k = 0; k < loopBufferSize; ++k) {
+				pMeshOut->pLoops[loopBase + k] = loopBuffer[indexTable[k + 1]];
+				pMeshOut->pUvs[loopBase + k] = uvBuffer[indexTable[k + 1]];
 			}
 			loopBase += loopBufferSize;
 		} while(runAgain);
+
+		/*
+		if (hasPreservedEdge) {
+			runAgain = 0;
+			do {
+				//only need a newLoopBuf, just use pMeshOut loop array
+				//for base loopBuf
+				for (int32_t k = 0; k < preserveBufCount; ++k) {
+					//make loopbuf, then clip against preserve edges,
+					//reversing preserve vert order on second run.
+					//
+					//run again/ second run occurs as long as verts
+					//have not yet been added to a face
+				}
+			} while(runAgain);
+		}
+		*/
 	}
 }
 
-void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, SendOffArgs *pJobArgs) {
+void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
+                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts) {
 	int32_t totalBoundaryFaces = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		totalBoundaryFaces += pJobArgs[i].totalBoundaryFaces;
@@ -377,7 +554,7 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, 
 	}
 	mergeAndCopyEdgeFaces(pContext, pMap, pMeshOut, pJobArgs, edgeTableSize,
 	                      pEdgeTable, allBoundaryFacesSize, pAllBoundaryFaces,
-						  pPreservedEdgeFlag);
+						  pPreservedEdgeFlag, pEdgeVerts);
 	
 	pContext->alloc.pFree(pPreservedEdgeFlag);
 	pContext->alloc.pFree(pAllBoundaryFaces);
