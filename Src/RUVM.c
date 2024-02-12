@@ -131,6 +131,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 	EnclosingCellsVars ecVars = {0};
 	SendOffArgs *pSend = pArgsPtr;
 	ThreadArg args = {0};
+	args.pEdgeVerts = pSend->pEdgeVerts;
 	args.alloc = pSend->pContext->alloc;
 	args.id = pSend->id;
 	args.boundaryBufferSize = pSend->boundaryBufferSize;
@@ -234,7 +235,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 }
 
 void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs, int32_t *pJobsCompleted,
-                 Mesh *pMesh, void *pMutex) {
+                 Mesh *pMesh, void *pMutex, EdgeVerts *pEdgeVerts) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	int32_t facesPerThread = pMesh->faceCount / pContext->threadCount;
@@ -249,6 +250,7 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs, int3
 		Mesh meshPart = *pMesh;
 		meshPart.pFaces += meshStart;
 		meshPart.faceCount = meshEnd - meshStart;
+		pJobArgs[i].pEdgeVerts = pEdgeVerts;
 		pJobArgs[i].pMap = pMap;
 		pJobArgs[i].boundaryBufferSize = boundaryBufferSize;
 		pJobArgs[i].averageVertAdjDepth = 0;
@@ -342,17 +344,23 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                    RuvmMesh *pMeshOut) {
 	struct timeval start, stop;
 	CLOCK_START;
+	EdgeVerts *pEdgeVerts;
+	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
+	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
+	CLOCK_STOP("Edge Table Time");
+
+	CLOCK_START;
 	SendOffArgs jobArgs[MAX_THREADS] = {0};
 	int32_t jobsCompleted = 0;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, pMeshIn, pMutex);
+	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, pMeshIn, pMutex,
+	            pEdgeVerts);
+	CLOCK_STOP("Send Off Time");
 
 	//might as well do this here while the other threads are busy
-	EdgeVerts *pEdgeVerts;
-	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
-	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
 
+	CLOCK_START;
 	int32_t waiting;
 	do  {
 		void (*pJob)(void *) = NULL;
@@ -366,6 +374,7 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		pContext->threadPool.pMutexUnlock(pContext->pThreadPoolHandle, pMutex);
 	} while(waiting);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
+	CLOCK_STOP("Waiting Time");
 
 	int64_t averageRuvmFacesPerFace = 0;
 	for(int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -374,9 +383,10 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	averageRuvmFacesPerFace /= pContext->threadCount;
 	printf("---- averageRuvmFacesPerFace: %lu ----\n", averageRuvmFacesPerFace);
 
+	CLOCK_START;
 	combineJobMeshesIntoSingleMesh(pContext, pMap, pMeshOut, jobArgs, pEdgeVerts);
 	pContext->alloc.pFree(pEdgeVerts);
-	CLOCK_STOP("Whole Total");
+	CLOCK_STOP("Combine time");
 }
 
 void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {

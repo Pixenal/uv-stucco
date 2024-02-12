@@ -25,7 +25,8 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 			*pEdgeFace += 1;
 			LoopBuffer *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
 			if (pLoopBuf->buf[i].index && pLoopBuf->buf[vertNextIndex].index < 0 &&
-				pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[vertNextIndex].baseLoop) {
+				(pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[vertNextIndex].baseLoop ||
+				 pLoopBuf->buf[i].isBaseLoop < 0 || pLoopBuf->buf[vertNextIndex].isBaseLoop < 0)) {
 				int32_t whichVert = pLoopBuf->buf[i].baseLoop == pBaseLoop->index - 1;
 				*(Vec2 *)&pNewEntry->loop = whichVert ?
 					pBaseLoop->vert : pBaseLoop->vertNext;
@@ -57,7 +58,7 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 
 static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
                                  LoopBufferWrap *pLoopBuf, int32_t *pEdgeFace,
-								 int32_t *pHasPreservedEdge) {
+								 int32_t *pHasPreservedEdge, int32_t *pSeam) {
 	for (int32_t i = 0; i < baseFace.size; ++i) {
 		LoopInfo baseLoop;
 		baseLoop.index = i;
@@ -93,6 +94,25 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 		int32_t intersects = edgeFacePre != *pEdgeFace;
 		if (intersects && preserveEdge[0]) {
 			*pHasPreservedEdge = 1;
+		}
+		if (intersects) {
+			edgeIndex = pArgs->mesh.pEdges[baseFace.start + i];
+			int32_t *pVerts = pArgs->pEdgeVerts[edgeIndex].verts;
+			if (pVerts[1] < 0) {
+				*pSeam = 1;
+			}
+			else {
+				int32_t whichLoop = pVerts[0] == baseFace.start + i;
+				int32_t otherLoop = pVerts[whichLoop];
+				int32_t iNext = (i + 1) % baseFace.size;
+				int32_t nextBaseLoop = baseFace.start + iNext;
+				Vec2 uv = pArgs->mesh.pUvs[nextBaseLoop];
+				Vec2 uvOther = pArgs->mesh.pUvs[otherLoop];
+				int32_t isSeam = _(uv V2NOTEQL uvOther);
+				if (isSeam) {
+					*pSeam = 1;
+				}
+			}
 		}
 
 		if (newLoopBuf.size <= 2) {
@@ -173,7 +193,7 @@ static void addRuvmLoopAndOrVert(int32_t loopBufIndex, AddClippedFaceVars *pAcfV
 static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVars,
                              BoundaryVert *pEntry, int32_t ruvmFaceIndex,
                              int32_t tile, LoopBufferWrap *pLoopBuf, FaceInfo baseFace,
-							 int32_t hasPreservedEdge) {
+							 int32_t hasPreservedEdge, int32_t seam) {
 	pEntry->face = pArgs->localMesh.boundaryFaceSize;
 	pEntry->firstVert = pAcfVars->firstRuvmVert;
 	pEntry->lastVert = pAcfVars->lastRuvmVert;
@@ -181,8 +201,9 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 	pEntry->tile = tile;
 	pEntry->job = pArgs->id;
 	pEntry->type = pAcfVars->ruvmLoops;
-	pEntry->baseLoop = baseFace.start;
+	pEntry->baseFace = baseFace.index;
 	pEntry->hasPreservedEdge = hasPreservedEdge;
+	pEntry->seam = seam;
 	if (pLoopBuf->size > 8) {
 		printf("----------------------   Loopbuf size exceeded 8\n");
 		abort();
@@ -205,7 +226,8 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 
 static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pAcfVars,
                                  LoopBufferWrap *pLoopBuf, int32_t ruvmFaceIndex,
-								 int32_t tile, FaceInfo baseFace, int32_t hasPreservedEdge) {
+								 int32_t tile, FaceInfo baseFace, int32_t hasPreservedEdge,
+								 int32_t seam) {
 	pArgs->localMesh.pFaces[pArgs->localMesh.boundaryFaceSize] = pAcfVars->boundaryLoopStart;
 	int32_t hash = ruvmFnvHash((uint8_t *)&ruvmFaceIndex, 4, pArgs->boundaryBufferSize);
 	BoundaryDir *pEntryDir = pArgs->pBoundaryBuffer + hash;
@@ -217,7 +239,7 @@ static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pA
 	if (!pEntry) {
 		pEntry = pEntryDir->pEntry = pArgs->alloc.pCalloc(1, sizeToAllocate);
 		initBoundaryBufferEntry(pArgs, pAcfVars, pEntry, ruvmFaceIndex,
-		                        tile, pLoopBuf, baseFace, hasPreservedEdge);
+		                        tile, pLoopBuf, baseFace, hasPreservedEdge, seam);
 		pArgs->totalFaces++;
 	}
 	else {
@@ -228,14 +250,14 @@ static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pA
 				}
 				pEntry = pEntry->pNext = pArgs->alloc.pCalloc(1, sizeToAllocate);
 				initBoundaryBufferEntry(pArgs, pAcfVars, pEntry, ruvmFaceIndex,
-				                        tile, pLoopBuf, baseFace, hasPreservedEdge);
+				                        tile, pLoopBuf, baseFace, hasPreservedEdge, seam);
 				break;
 			}
 			if (!pEntryDir->pNext) {
 				pEntryDir = pEntryDir->pNext = pArgs->alloc.pCalloc(1, sizeof(BoundaryDir));
 				pEntry = pEntryDir->pEntry = pArgs->alloc.pCalloc(1, sizeToAllocate);
 				initBoundaryBufferEntry(pArgs, pAcfVars, pEntry, ruvmFaceIndex,
-				                        tile, pLoopBuf, baseFace, hasPreservedEdge);
+				                        tile, pLoopBuf, baseFace, hasPreservedEdge, seam);
 				pArgs->totalFaces++;
 				break;
 			}
@@ -249,7 +271,7 @@ static void addEdgeFaceToBoundaryBuffer(ThreadArg *pArgs, AddClippedFaceVars *pA
 static void addClippedFaceToLocalMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
                                LoopBufferWrap *pLoopBuf, int32_t edgeFace,
 							   FaceInfo ruvmFace, int32_t tile, FaceInfo baseFace,
-                               int32_t hasPreservedEdge) {
+                               int32_t hasPreservedEdge, int32_t seam) {
 	if (pLoopBuf->size <= 2) {
 		return;
 	}
@@ -278,7 +300,7 @@ static void addClippedFaceToLocalMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 	if (edgeFace) {
 		addEdgeFaceToBoundaryBuffer(pArgs, &acfVars, pLoopBuf,
 		                            ruvmFace.index, tile, baseFace,
-									hasPreservedEdge);
+									hasPreservedEdge, seam);
 	}
 	else {
 		pArgs->localMesh.pFaces[pArgs->localMesh.faceCount] = acfVars.loopStart;
@@ -333,12 +355,14 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		//pDpVars->timeSpent[0] += getTimeDiff(&start, &stop);
 		int32_t edgeFace = 0;
 		int32_t hasPreservedEdge = 0;
+		int32_t seam = 0;
 		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace,
-		                            &hasPreservedEdge);
+		                            &hasPreservedEdge, &seam);
 		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin);
 		////CLOCK_START;
 		addClippedFaceToLocalMesh(pArgs, pMmVars, &loopBuf, edgeFace,
-		                          ruvmFace, tile, baseFace, hasPreservedEdge);
+		                          ruvmFace, tile, baseFace, hasPreservedEdge,
+								  seam);
 		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[2] += getTimeDiff(&start, &stop);
 	}
