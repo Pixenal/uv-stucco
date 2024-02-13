@@ -676,10 +676,10 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 				}
 				*/
 				
-				for (int32_t k = 1; k < loopBufferSize; ++k) {
+				for (int32_t k = 0; k < loopBufferSize; ++k) {
 					int32_t sameSort = -1;
 					for (int32_t m = k + 1; m < loopBufferSize; ++m) {
-						if (ruvmIndicesSort[k] == ruvmIndicesSort[m]) {
+						if (ruvmIndicesSort[k + 1] == ruvmIndicesSort[m + 1]) {
 							sameSort = m;
 							break;
 						}
@@ -687,18 +687,18 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 					if (sameSort < 0) {
 						continue;
 					}
-					int32_t ruvmLocalIndex = (ruvmIndicesSort[k] + 5) / 10;
+					int32_t ruvmLocalIndex = (ruvmIndicesSort[k + 1] + 5) / 10;
 					int32_t ruvmVertIndex = pMap->mesh.pLoops[ruvmFaceInfo.start + ruvmLocalIndex];
 					Vec2 ruvmVert = *(Vec2 *)(pMap->mesh.pVerts + ruvmVertIndex);
-					Vec2 dirA = _(uvBuffer[k - 1] V2SUB ruvmVert);
+					Vec2 dirA = _(uvBuffer[k] V2SUB ruvmVert);
 					float distanceA = dirA.x * dirA.x + dirA.y * dirA.y;
-					Vec2 dirB = _(uvBuffer[sameSort - 1] V2SUB ruvmVert);
+					Vec2 dirB = _(uvBuffer[sameSort] V2SUB ruvmVert);
 					float distanceB = dirB.x * dirB.x + dirB.y * dirB.y;
 					if (distanceA > distanceB) {
-						ruvmIndicesSort[k]--;
+						ruvmIndicesSort[k + 1]--;
 					}
 					else {
-						ruvmIndicesSort[sameSort]--;
+						ruvmIndicesSort[sameSort + 1]--;
 					}
 				}
 				int32_t indexTable[13];
