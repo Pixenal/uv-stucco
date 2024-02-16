@@ -96,7 +96,8 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	pArgs->localMesh.pVerts = pAlloc->pMalloc(sizeof(Vec3) * pArgs->bufferSize);
 	pArgs->localMesh.pUvs = pAlloc->pMalloc(sizeof(Vec2) * loopBufferSize);
 	pEcVars->pCellFaces = pAlloc->pMalloc(sizeof(int32_t) * pEcVars->cellFacesMax);
-	pArgs->pInVertTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
+	//pArgs->pInVertTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
+	//pArgs->pVertSeamTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
 	//TODO: maybe reduce further if unifaces if low,
 	//as a larger buffer seems more necessary at higher face counts.
 	//Doesn't provie much speed up at lower resolutions.
@@ -182,7 +183,6 @@ static void mapToMeshJob(void *pArgsPtr) {
 	//printf("copy faces into single array %lu\n", copySingleTime);
 	//printf("maping %lu\n", mappingTime);
 	//CLOCK_START;
-	pSend->pInVertTable = args.pInVertTable;
 	args.averageRuvmFacesPerFace /= args.mesh.faceCount;
 	//printf("#######Boundary Buffer Size: %d\n", pArgs->localMesh.boundaryFaceSize);
 	args.localMesh.pFaces[args.localMesh.boundaryFaceSize] = 
@@ -234,8 +234,9 @@ static void mapToMeshJob(void *pArgsPtr) {
 	//CLOCK_STOP("setting jobs completed");
 }
 
-void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs, int32_t *pJobsCompleted,
-                 Mesh *pMesh, void *pMutex, EdgeVerts *pEdgeVerts) {
+void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
+                 int32_t *pJobsCompleted, Mesh *pMesh, void *pMutex,
+                 EdgeVerts *pEdgeVerts, int8_t *pInVertTable, int8_t *pVertSeamTable) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	int32_t facesPerThread = pMesh->faceCount / pContext->threadCount;
@@ -250,6 +251,8 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs, int3
 		Mesh meshPart = *pMesh;
 		meshPart.pFaces += meshStart;
 		meshPart.faceCount = meshEnd - meshStart;
+		pJobArgs[i].pInVertTable = pInVertTable;
+		pJobArgs[i].pVertSeamTable = pVertSeamTable;
 		pJobArgs[i].pEdgeVerts = pEdgeVerts;
 		pJobArgs[i].pMap = pMap;
 		pJobArgs[i].boundaryBufferSize = boundaryBufferSize;
@@ -324,7 +327,6 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 		pContext->alloc.pFree(localMesh->pUvs);
 		pContext->alloc.pFree(localMesh->pVerts);
 		pContext->alloc.pFree(pJobArgs[i].pBoundaryBuffer);
-		pContext->alloc.pFree(pJobArgs[i].pInVertTable);
 	}
 	pMeshOut->pFaces[pMeshOut->faceCount] = pMeshOut->loopCount;
 	//CLOCK_STOP("moving to work mesh");
@@ -340,6 +342,36 @@ static void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts, R
 	}
 }
 
+static void buildVertTables(RuvmContext pContext, RuvmMesh *pMesh,
+                            int8_t **ppInVertTable, int8_t **ppVertSeamTable,
+							EdgeVerts *pEdgeVerts) {
+	*ppInVertTable = pContext->alloc.pCalloc(pMesh->vertCount, 1);
+	*ppVertSeamTable = pContext->alloc.pCalloc(pMesh->vertCount, 1);
+	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
+		FaceInfo face;
+		face.start = pMesh->pFaces[i];
+		face.end = pMesh->pFaces[i + 1];
+		face.size = face.end - face.start;
+		face.index = i;
+		for (int32_t j = 0; j < face.size; ++j) {
+			int32_t loopIndex = face.start + j;
+			int32_t vertIndex = pMesh->pLoops[loopIndex];
+			int32_t edgeIndex = pMesh->pEdges[loopIndex];
+			int32_t isSeam = checkIfEdgeIsSeam(edgeIndex, face, j, pMesh, pEdgeVerts);
+			if (!(*ppInVertTable)[vertIndex] &&
+			    pMesh->pEdgePreserve[edgeIndex] && !isSeam) {
+
+				(*ppInVertTable)[vertIndex] = 1;
+			}
+			//cap at 3 to avoid integer overflow
+			else if (isSeam && (*ppVertSeamTable)[vertIndex] < 3) {
+				//isSeam returns 2 if border edge, and 1 if seam
+				(*ppVertSeamTable)[vertIndex] += isSeam;
+			}
+		}
+	}
+}
+
 void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                    RuvmMesh *pMeshOut) {
 	struct timeval start, stop;
@@ -347,6 +379,9 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	EdgeVerts *pEdgeVerts;
 	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
 	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
+	int8_t *pInVertTable;
+	int8_t *pVertSeamTable;
+	buildVertTables(pContext, pMeshIn, &pInVertTable, &pVertSeamTable, pEdgeVerts);
 	CLOCK_STOP("Edge Table Time");
 
 	CLOCK_START;
@@ -355,7 +390,7 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
 	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, pMeshIn, pMutex,
-	            pEdgeVerts);
+	            pEdgeVerts, pInVertTable, pVertSeamTable);
 	CLOCK_STOP("Send Off Time");
 
 	//might as well do this here while the other threads are busy
@@ -386,6 +421,8 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_START;
 	combineJobMeshesIntoSingleMesh(pContext, pMap, pMeshOut, jobArgs, pEdgeVerts);
 	pContext->alloc.pFree(pEdgeVerts);
+	pContext->alloc.pFree(pInVertTable);
+	pContext->alloc.pFree(pVertSeamTable);
 	CLOCK_STOP("Combine time");
 }
 
