@@ -50,8 +50,8 @@ static void splitIntoPieces(RuvmContext pContext, Piece *pPieces,
 				continue;
 			}
 			int32_t baseLoopLocalAbs = baseLoopLocal < 0 ? baseLoopLocal * -1 : baseLoopLocal;
-			int32_t baseFaceStart = pJobArgs[0].mesh.pFaces[pEntry->baseFace];
-			int32_t baseFaceEnd = pJobArgs[0].mesh.pFaces[pEntry->baseFace + 1];
+			int32_t baseFaceStart = pJobArgs[pEntry->job].mesh.pFaces[pEntry->baseFace];
+			int32_t baseFaceEnd = pJobArgs[pEntry->job].mesh.pFaces[pEntry->baseFace + 1];
 			int32_t baseFaceSize = baseFaceEnd - baseFaceStart;
 			//-1 cause negative
 			int32_t baseLoop = baseFaceStart + baseLoopLocalAbs - 1;
@@ -160,6 +160,14 @@ static void splitIntoPieces(RuvmContext pContext, Piece *pPieces,
 			++*pPieceCount;
 		}
 	}
+	for (int32_t i = 0; i < tableSize; ++i) {
+		SharedEdge *pEdgeEntry = pSharedEdges[i].pNext;
+		while(pEdgeEntry) {
+			SharedEdge *pNext = pEdgeEntry->pNext;
+			pContext->alloc.pFree(pEdgeEntry);
+			pEdgeEntry = pNext;
+		}
+	}
 	pContext->alloc.pFree(pSharedEdges);
 }
 
@@ -210,8 +218,8 @@ static void getRuvmVerts(int32_t *pRuvmVerts, SendOffArgs *pJobArgs,
 				baseLoopLocalAbs = baseLoopLocal < 0 ? baseLoopLocal * -1 : baseLoopLocal;
 				FaceInfo baseFace;
 				baseFace.index = pEntry->baseFace;
-				baseFace.start = pJobArgs[0].mesh.pFaces[pEntry->baseFace];
-				baseFace.end = pJobArgs[0].mesh.pFaces[pEntry->baseFace + 1];
+				baseFace.start = pJobArgs[pEntry->job].mesh.pFaces[pEntry->baseFace];
+				baseFace.end = pJobArgs[pEntry->job].mesh.pFaces[pEntry->baseFace + 1];
 				baseFace.size = baseFace.end - baseFace.start;
 				//-1 cause negative
 				baseLoop = baseFace.start + baseLoopLocalAbs - 1;
@@ -255,6 +263,7 @@ static void getRuvmVerts(int32_t *pRuvmVerts, SendOffArgs *pJobArgs,
 					pEdgeEntry->seam = isSeam;
 					pEdgeEntry->preserve = isPreserve;
 					pEdgeEntry->isBase = isBaseLoop;
+					pEdgeEntry->job = pEntry->job;
 				}
 				else {
 					do {
@@ -399,8 +408,8 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 				FaceInfo baseFace;
 				if (baseLoopLocalAbs != 0) {
 					baseFace.index = pEntry->baseFace;
-					baseFace.start = pJobArgs[0].mesh.pFaces[pEntry->baseFace];
-					baseFace.end = pJobArgs[0].mesh.pFaces[pEntry->baseFace + 1];
+					baseFace.start = pJobArgs[pEntry->job].mesh.pFaces[pEntry->baseFace];
+					baseFace.end = pJobArgs[pEntry->job].mesh.pFaces[pEntry->baseFace + 1];
 					baseFace.size = baseFace.end - baseFace.start;
 					baseLoop = baseFace.start + baseLoopLocalAbs - 1;
 					baseLoopNext = ((baseLoopLocalAbs) % baseFace.size) + baseFace.start;
@@ -455,7 +464,7 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 				int32_t baseEdgeSign = 0;
 				if (!isBaseLoop && 
 				    checkIfEdgeIsSeam(baseEdge, baseFace, baseLoopLocalAbs - 1,
-				                      &pJobArgs[0].mesh, pEdgeVerts)) {
+				                      &pJobArgs[pEntry->job].mesh, pEdgeVerts)) {
 					int32_t *pVerts = pJobArgs[0].pEdgeVerts[baseEdge].verts;
 					baseEdgeSign = windingCompare(pJobArgs[0].mesh.pUvs[pVerts[0]],
 												  pJobArgs[0].mesh.pUvs[pVerts[1]],
@@ -525,9 +534,9 @@ static int32_t addFaceLoopsAndVertsToBuffer(RuvmContext pContext, RuvmMap pMap, 
 			(*loopBufferSize)++;
 			++*pInfoBufSize;
 		}
-		BoundaryVert *pPrevEntry;
-		pPrevEntry = pEntry;
-		pEntry = pEntry->pNext;
+		BoundaryVert *pNext = pEntry->pNext;
+		pContext->alloc.pFree(pEntry);
+		pEntry = pNext;
 	} while(pEntry);
 	return 0;
 }
@@ -610,13 +619,28 @@ static int32_t determineIfSeamFace(RuvmMap pMap, BoundaryVert *pEntry, int32_t *
 	return ruvmLoops < faceSize;
 }
 
+static void compileEntryInfo(BoundaryVert *pEntry, int32_t *pCount, int32_t *pIsSeam,
+                             int32_t *pHasPreservedEdge) {
+	*pCount = 0;
+	*pIsSeam = 0;
+	*pHasPreservedEdge = 0;
+	while (pEntry) {
+		++*pCount;
+		*pIsSeam |= pEntry->seam;
+		*pHasPreservedEdge |= pEntry->hasPreservedEdge;
+		pEntry = pEntry->pNext;
+	}
+}
+
 static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut, SendOffArgs *pJobArgs,
 		                   int32_t edgeTableSize, EdgeTable *pEdgeTable,
 						   int32_t allBoundaryFacesSize, BoundaryVert **pAllBoundaryFaces,
-						   int8_t *pPreservedEdgeFlag, EdgeVerts *pEdgeVerts, int32_t *pEntryCounts) {
+						   EdgeVerts *pEdgeVerts) {
 	for (int32_t j = 0; j < allBoundaryFacesSize; ++j) {
 		int32_t loopBase = pMeshOut->loopCount;
 		BoundaryVert *pEntry = pAllBoundaryFaces[j];
+		int32_t entryCount, isSeam, hasPreservedEdge;
+		compileEntryInfo(pEntry, &entryCount, &isSeam, &hasPreservedEdge);
 		int32_t entryNum;
 		int32_t seamFace = determineIfSeamFace(pMap, pEntry, &entryNum);
 		FaceInfo ruvmFaceInfo;
@@ -626,13 +650,12 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 		int32_t runAgain;
 		//store loops of preserve verts
 		Piece pieces[64];
-		Piece *pPieceArray;
+		Piece *pPieceArray = NULL;
 		int32_t pieceCount;
-		int32_t hasPreservedEdge = pPreservedEdgeFlag[j];
-		if (pEntry->seam || hasPreservedEdge) {
+		if (isSeam || hasPreservedEdge) {
 			pieceCount = 0;
 			splitIntoPieces(pContext, pieces, &pieceCount, pEntry, pJobArgs,
-			                &ruvmFaceInfo, pEdgeVerts, pEntryCounts[j], &pPieceArray);
+			                &ruvmFaceInfo, pEdgeVerts, entryCount, &pPieceArray);
 			if (pieceCount > 1) {
 				seamFace = 1;
 			}
@@ -643,6 +666,9 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 		}
 		for (int32_t l = 0; l < pieceCount; ++l) {
 			pEntry = pieces[l].pEntry;
+			if (!pEntry) {
+				continue;
+			}
 			int32_t ruvmIndicesSort[64];
 			ruvmIndicesSort[0] = -10;
 			int32_t loopBufferSize;
@@ -696,7 +722,7 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 				loopBase += loopBufferSize;
 			} while(runAgain);
 		}
-		if (seamFace) {
+		if (pPieceArray) {
 			pContext->alloc.pFree(pPieceArray);
 		}
 	}
@@ -709,8 +735,6 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 		totalBoundaryFaces += pJobArgs[i].totalBoundaryFaces;
 	}
 	BoundaryVert **pAllBoundaryFaces = pContext->alloc.pMalloc(sizeof(void *) * totalBoundaryFaces);
-	int32_t *pEntryCounts = pContext->alloc.pMalloc(sizeof(int32_t) * totalBoundaryFaces);
-	int8_t *pPreservedEdgeFlag = pContext->alloc.pMalloc(totalBoundaryFaces);
 	int32_t allBoundaryFacesSize = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		for (int32_t hash = 0; hash < pJobArgs[i].boundaryBufferSize; ++hash) {
@@ -718,14 +742,8 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 			int32_t depth = 0;
 			do {
 				if (pEntryDir->pEntry) {
-					int32_t seam = pEntryDir->pEntry->seam;
-					int8_t hasPreservedEdge = pEntryDir->pEntry->hasPreservedEdge;
 					BoundaryVert *pChild = pEntryDir->pEntry->pNext;
-					pEntryCounts[allBoundaryFacesSize] = 1;
 					while (pChild) {
-						pEntryCounts[allBoundaryFacesSize]++;
-						hasPreservedEdge += pChild->hasPreservedEdge;
-						seam += pChild->seam;
 						pChild = pChild->pNext;
 					}
 					int32_t faceIndex = pEntryDir->pEntry->faceIndex;
@@ -734,9 +752,6 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 						do {
 							if (pEntryDirOther->pEntry) {
 								if (faceIndex == pEntryDirOther->pEntry->faceIndex) {
-									pEntryCounts[allBoundaryFacesSize]++;
-									hasPreservedEdge += pEntryDirOther->pEntry->hasPreservedEdge;
-									seam += pEntryDirOther->pEntry->seam;
 									BoundaryVert *pEntry = pEntryDir->pEntry;
 									while(pEntry->pNext) {
 										pEntry = pEntry->pNext;
@@ -748,8 +763,6 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 							pEntryDirOther = pEntryDirOther->pNext;
 						} while (pEntryDirOther);
 					}
-					pPreservedEdgeFlag[allBoundaryFacesSize] = hasPreservedEdge;
-					pEntryDir->pEntry->seam = seam;
 					pAllBoundaryFaces[allBoundaryFacesSize] = pEntryDir->pEntry;
 					allBoundaryFacesSize++;
 				}
@@ -773,11 +786,9 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 	}
 	mergeAndCopyEdgeFaces(pContext, pMap, pMeshOut, pJobArgs, edgeTableSize,
 	                      pEdgeTable, allBoundaryFacesSize, pAllBoundaryFaces,
-						  pPreservedEdgeFlag, pEdgeVerts, pEntryCounts);
+						  pEdgeVerts);
 	
-	pContext->alloc.pFree(pPreservedEdgeFlag);
 	pContext->alloc.pFree(pAllBoundaryFaces);
-	pContext->alloc.pFree(pEntryCounts);
 	for (int32_t i = 0; i < edgeTableSize; ++i) {
 		EdgeTable *pEntry = pEdgeTable[i].pNext;
 		while (pEntry) {
