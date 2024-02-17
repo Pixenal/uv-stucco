@@ -161,16 +161,18 @@ static void addNewLoopAndOrVert(int32_t loopBufIndex, int32_t *pVertIndex,
 }
 
 static void initVertAdjEntry(int32_t loopBufferIndex, int32_t *pVertIndex, WorkMesh *pLocalMesh,
-                      LoopBuffer *pLoopBuffer, VertAdj *pVertAdj) {
+                      LoopBuffer *pLoopBuffer, VertAdj *pVertAdj, FaceInfo baseFace) {
 	pVertAdj->ruvmVert = *pVertIndex;
 	*pVertIndex = pLocalMesh->vertCount++;
 	pVertAdj->vert = *pVertIndex;
+	pVertAdj->baseFace = baseFace.index;
 	pLocalMesh->pVerts[*pVertIndex] = pLoopBuffer[loopBufferIndex].loop;
 }
 
 static void addRuvmLoopAndOrVert(int32_t loopBufIndex, AddClippedFaceVars *pAcfVars,
                           WorkMesh *pLocalMesh, LoopBuffer *pLoopBufEntry,
-						  MapToMeshVars *pMmVars, RuvmAllocator *pAlloc) {
+						  MapToMeshVars *pMmVars, RuvmAllocator *pAlloc,
+						  FaceInfo baseFace) {
 	if (pAcfVars->firstRuvmVert < 0) {
 		pAcfVars->firstRuvmVert = pLoopBufEntry[loopBufIndex].sort;
 	}
@@ -181,10 +183,12 @@ static void addRuvmLoopAndOrVert(int32_t loopBufIndex, AddClippedFaceVars *pAcfV
 	do {
 		if (!pVertAdj->loopSize) {
 			initVertAdjEntry(loopBufIndex, &pAcfVars->vertIndex, pLocalMesh,
-			                 pLoopBufEntry, pVertAdj);
+			                 pLoopBufEntry, pVertAdj, baseFace);
 			break;
 		}
-		int32_t match = pVertAdj->ruvmVert == pAcfVars->vertIndex;
+		//TODO should you be checking tile here as well?
+		int32_t match = pVertAdj->ruvmVert == pAcfVars->vertIndex &&
+		                pVertAdj->baseFace == baseFace.index;
 		if (match) {
 			pAcfVars->vertIndex = pVertAdj->vert;
 			break;
@@ -192,7 +196,7 @@ static void addRuvmLoopAndOrVert(int32_t loopBufIndex, AddClippedFaceVars *pAcfV
 		if (!pVertAdj->pNext) {
 			pVertAdj = pVertAdj->pNext = pAlloc->pCalloc(1, sizeof(VertAdj));
 			initVertAdjEntry(loopBufIndex, &pAcfVars->vertIndex, pLocalMesh,
-			                 pLoopBufEntry, pVertAdj);
+			                 pLoopBufEntry, pVertAdj, baseFace);
 			break;
 		}
 		pVertAdj = pVertAdj->pNext;
@@ -309,7 +313,7 @@ static void addClippedFaceToLocalMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 		else {
 			acfVars.ruvmLoops++;
 			addRuvmLoopAndOrVert(i, &acfVars, &pArgs->localMesh, pLoopBuf->buf,
-			                     pMmVars, &pArgs->alloc);
+			                     pMmVars, &pArgs->alloc, baseFace);
 		}
 		pArgs->localMesh.pLoops[acfVars.loopIndex] = acfVars.vertIndex;
 	}
@@ -347,7 +351,9 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		ruvmFace.size = ruvmFace.end - ruvmFace.start;
 		////CLOCK_START;
 		pArgs->averageRuvmFacesPerFace++;
-		if (!checkFaceIsInBounds(bounds.fMin, bounds.fMax, ruvmFace, &pArgs->pMap->mesh)) {
+		if (!checkFaceIsInBounds(_(bounds.fMin V2SUB fTileMin),
+			                     _(bounds.fMax V2SUB fTileMin),
+								 ruvmFace, &pArgs->pMap->mesh)) {
 			continue;
 		}
 		if (pArgs->localMesh.boundaryFaceSize == 381944 &&

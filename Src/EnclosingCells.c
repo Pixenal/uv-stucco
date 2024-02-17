@@ -194,6 +194,7 @@ void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcV
 		pFaceBounds->min = vec2FloorAssign(&pFaceBounds->fMin);
 		pFaceBounds->max = vec2FloorAssign(&pFaceBounds->fMax);
 		_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
+		pEcVars->pFaceCellsInfo[i].faceBounds = *pFaceBounds;
 		if (getCellsForSingleFace(pArgs, pEcVars, i)) {
 			Cell *rootCell = pArgs->pMap->quadTree.pRootCell;
 			pEcVars->pFaceCellsInfo[i].pCells = pArgs->alloc.pMalloc(sizeof(Cell *));

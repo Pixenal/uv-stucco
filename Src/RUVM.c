@@ -160,11 +160,11 @@ static void mapToMeshJob(void *pArgsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		copySingleTime += getTimeDiff(&start, &stop);
 		//CLOCK_START;
-		FaceBounds *pFaceBounds = &ecVars.faceBounds;
+		FaceBounds *pFaceBounds = &ecVars.pFaceCellsInfo[i].faceBounds;
 		for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
 			for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
 				Vec2 fTileMin = {k, j};
-				int32_t tile = k + (j * ecVars.faceBounds.max.x);
+				int32_t tile = k + (j * pFaceBounds->max.x);
 				FaceInfo baseFace;
 				baseFace.start = args.mesh.pFaces[i];
 				baseFace.end = args.mesh.pFaces[i + 1];
@@ -188,12 +188,12 @@ static void mapToMeshJob(void *pArgsPtr) {
 	args.localMesh.pFaces[args.localMesh.boundaryFaceSize] = 
 		args.localMesh.boundaryLoopSize;
 	args.totalBoundaryFaces = args.totalFaces;
-	args.totalFaces += args.localMesh.faceCount;
-	args.totalLoops += args.localMesh.loopCount;
-	//pArgs->totalFaces = pArgs->localMesh.faceCount +
-	//	(bufferSize - pArgs->localMesh.boundaryFaceSize);
-	//pArgs->totalLoops = pArgs->localMesh.loopCount +
-	//	(loopBufferSize - pArgs->localMesh.boundaryLoopSize);
+	//args.totalFaces += args.localMesh.faceCount;
+	//args.totalLoops += args.localMesh.loopCount;
+	args.totalFaces = args.localMesh.faceCount +
+		(args.bufferSize - args.localMesh.boundaryFaceSize);
+	args.totalLoops = args.localMesh.loopCount +
+		(args.loopBufferSize - args.localMesh.boundaryLoopSize);
 	args.totalVerts = args.localMesh.vertCount +
 		(args.bufferSize - args.localMesh.boundaryVertSize);
 	//printf("MaxDepth: %d\n", dpVars.maxDepth);

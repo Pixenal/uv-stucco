@@ -652,7 +652,7 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 		Piece pieces[64];
 		Piece *pPieceArray = NULL;
 		int32_t pieceCount;
-		if (isSeam || hasPreservedEdge) {
+		if (isSeam || hasPreservedEdge || 1) {
 			pieceCount = 0;
 			splitIntoPieces(pContext, pieces, &pieceCount, pEntry, pJobArgs,
 			                &ruvmFaceInfo, pEdgeVerts, entryCount, &pPieceArray);
