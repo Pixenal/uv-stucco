@@ -94,6 +94,7 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	pArgs->localMesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pArgs->bufferSize);
 	pArgs->localMesh.pLoops = pAlloc->pMalloc(sizeof(int32_t) * loopBufferSize);
 	pArgs->localMesh.pVerts = pAlloc->pMalloc(sizeof(Vec3) * pArgs->bufferSize);
+	pArgs->localMesh.pNormals = pAlloc->pMalloc(sizeof(Vec3) * loopBufferSize);
 	pArgs->localMesh.pUvs = pAlloc->pMalloc(sizeof(Vec2) * loopBufferSize);
 	pEcVars->pCellFaces = pAlloc->pMalloc(sizeof(int32_t) * pEcVars->cellFacesMax);
 	//pArgs->pInVertTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
@@ -286,6 +287,7 @@ void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut, SendOffArgs *pJob
 	pMeshOut->pFaces = pAlloc->pMalloc(sizeof(int32_t) * (workMeshFaces + 1));
 	pMeshOut->pLoops = pAlloc->pMalloc(sizeof(int32_t) * workMeshLoops);
 	pMeshOut->pVerts = pAlloc->pMalloc(sizeof(Vec3) * workMeshVerts);
+	pMeshOut->pNormals = pAlloc->pMalloc(sizeof(Vec3) * workMeshLoops);
 	pMeshOut->pUvs = pAlloc->pMalloc(sizeof(Vec2) * workMeshLoops);
 }
 
@@ -324,6 +326,7 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 		WorkMesh *localMesh = &pJobArgs[i].localMesh;
 		pContext->alloc.pFree(localMesh->pFaces);
 		pContext->alloc.pFree(localMesh->pLoops);
+		pContext->alloc.pFree(localMesh->pNormals);
 		pContext->alloc.pFree(localMesh->pUvs);
 		pContext->alloc.pFree(localMesh->pVerts);
 		pContext->alloc.pFree(pJobArgs[i].pBoundaryBuffer);
@@ -441,5 +444,8 @@ void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
 	}
 	if (pMesh->pVerts) {
 		pContext->alloc.pFree(pMesh->pVerts);
+	}
+	if (pMesh->pEdges) {
+		pContext->alloc.pFree(pMesh->pEdges);
 	}
 }
