@@ -66,9 +66,10 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 				pNewEntry->seam = pBaseLoop->edgeIsSeam;
 				pNewEntry->preserve = preserve;
 			}
-			pNewEntry->normal = vec3Lerp(pLoopBuf->buf[i].normal,
-			                             pLoopBuf->buf[vertNextIndex].normal,
-			                             alpha);
+			//pNewEntry->normal = vec3Lerp(pLoopBuf->buf[i].normal,
+			//                             pLoopBuf->buf[vertNextIndex].normal,
+			//                             alpha);
+			pNewEntry->normal = pLoopBuf->buf[i].normal;
 			pNewEntry->index = -1;
 			pNewEntry->fSort = ((pLoopBuf->buf[vertNextIndex].fSort - 
 			                    pLoopBuf->buf[i].fSort) / 2) +
@@ -156,10 +157,12 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 }
 
 static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf, BaseTriVerts baseTri,
-									 Vec2 tileMin) {
+									 Vec2 tileMin, Mat3x3 *pTbn) {
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
 		Vec3 vert = pLoopBuf->buf[j].loop;
+		//uv is just the vert position before transform, so set that here
 		pLoopBuf->buf[j].uv = *(Vec2 *)&vert;
+		//transform vertex
 		_((Vec2 *)&vert V2SUBEQL tileMin);
 		Vec3 vertBc = cartesianToBarycentric(baseTri.uv, &vert);
 		pLoopBuf->buf[j].loop = barycentricToCartesian(baseTri.xyz, &vertBc);
@@ -168,6 +171,8 @@ static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf, BaseTriVer
 		_(&normal V3ADDEQL _(baseTri.pNormals[2] V3MULS vertBc.z));
 		_(&normal V3DIVEQLS vertBc.x + vertBc.y + vertBc.z);
 		_(&pLoopBuf->buf[j].loop V3ADDEQL _(normal V3MULS vert.z));
+		//transform normal from tangent space to object space
+		pLoopBuf->buf[j].normal = _(pLoopBuf->buf[j].normal V3MULM3X3 pTbn);
 	}
 }
 
@@ -409,7 +414,7 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		int32_t seam = 0;
 		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace,
 		                            &hasPreservedEdge, &seam, faceWindingDir);
-		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin);
+		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin, &pMmVars->tbn);
 		////CLOCK_START;
 		addClippedFaceToLocalMesh(pArgs, pMmVars, &loopBuf, edgeFace,
 		                          ruvmFace, tile, baseFace, hasPreservedEdge,

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
+#include <math.h>
 
 #include <Io.h>
 #include <EnclosingCells.h>
@@ -127,6 +128,39 @@ void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellF
 	}
 }
 
+static Mat3x3 buildFaceTbn(FaceInfo face, RuvmMesh *pMesh) {
+	int32_t loop = face.start;
+	int32_t vertIndex = pMesh->pLoops[loop];
+	Vec2 uv = pMesh->pUvs[loop];
+	Vec3 vert = pMesh->pVerts[vertIndex];
+	int32_t vertIndexNext = pMesh->pLoops[face.start + 1];
+	Vec2 uvNext = pMesh->pUvs[face.start + 1];
+	Vec3 vertNext = pMesh->pVerts[vertIndexNext];
+	int32_t vertIndexPrev = pMesh->pLoops[face.end - 1];
+	Vec2 uvPrev = pMesh->pUvs[face.end - 1];
+	Vec3 vertPrev = pMesh->pVerts[vertIndexPrev];
+	//uv space direction vectors,
+	//forming the coefficient matrix
+	Mat2x2 coeffMat;
+	*(Vec2 *)&coeffMat.d[0] = _(uvNext V2SUB uv);
+	*(Vec2 *)&coeffMat.d[1] = _(uvPrev V2SUB uv);
+	//object space direction vectors,
+	//forming the variable matrix
+	Mat2x3 varMat;
+	Vec3 osDirA = _(vertNext V3SUB vert);
+    Vec3 osDirB = _(vertPrev V3SUB vert);
+	*(Vec3 *)&varMat.d[0] = osDirA;
+	*(Vec3 *)&varMat.d[1] = osDirB;
+	Mat2x2 coeffMatInv = mat2x2Invert(coeffMat);
+	Mat2x3 tb = mat2x2MultiplyMat2x3(coeffMatInv, varMat);
+	Mat3x3 tbn;
+	*(Vec3 *)&tbn.d[0] = vec3Normalize(*(Vec3 *)&tb.d[0]);
+	*(Vec3 *)&tbn.d[1] = vec3Normalize(*(Vec3 *)&tb.d[1]);
+	Vec3 normal = _(osDirA V3CROSS osDirB);
+	*(Vec3 *)&tbn.d[2] = vec3Normalize(normal);
+	return tbn;
+}
+
 static void mapToMeshJob(void *pArgsPtr) {
 	struct timeval start, stop;
 	//CLOCK_START;
@@ -161,16 +195,17 @@ static void mapToMeshJob(void *pArgsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		copySingleTime += getTimeDiff(&start, &stop);
 		//CLOCK_START;
+		FaceInfo baseFace;
+		baseFace.start = args.mesh.pFaces[i];
+		baseFace.end = args.mesh.pFaces[i + 1];
+		baseFace.size = baseFace.end - baseFace.start;
+		baseFace.index = i;
+		mmVars.tbn = buildFaceTbn(baseFace, &args.mesh);
 		FaceBounds *pFaceBounds = &ecVars.pFaceCellsInfo[i].faceBounds;
 		for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
 			for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
 				Vec2 fTileMin = {k, j};
 				int32_t tile = k + (j * pFaceBounds->max.x);
-				FaceInfo baseFace;
-				baseFace.start = args.mesh.pFaces[i];
-				baseFace.end = args.mesh.pFaces[i + 1];
-				baseFace.size = baseFace.end - baseFace.start;
-				baseFace.index = i;
 				ruvmMapToSingleFace(&args, &ecVars, &mmVars, &dpVars, fTileMin, tile,
 				                    baseFace);
 			}
@@ -302,10 +337,12 @@ void copyMesh(int32_t jobIndex, RuvmMesh *pMeshOut, SendOffArgs *pJobArgs) {
 	int32_t *facesStart = pMeshOut->pFaces + pMeshOut->faceCount;
 	int32_t *loopsStart = pMeshOut->pLoops + pMeshOut->loopCount;
 	Vec3 *vertsStart = pMeshOut->pVerts + pMeshOut->vertCount;
+	Vec3 *normalsStart = pMeshOut->pNormals + pMeshOut->loopCount;
 	Vec2 *uvsStart = pMeshOut->pUvs + pMeshOut->loopCount;
 	memcpy(facesStart, localMesh->pFaces, sizeof(int32_t) * localMesh->faceCount);
 	pMeshOut->faceCount += localMesh->faceCount;
 	memcpy(loopsStart, localMesh->pLoops, sizeof(int32_t) * localMesh->loopCount);
+	memcpy(normalsStart, localMesh->pNormals, sizeof(Vec3) * localMesh->loopCount);
 	memcpy(uvsStart, localMesh->pUvs, sizeof(Vec2) * localMesh->loopCount);
 	pMeshOut->loopCount += localMesh->loopCount;
 	memcpy(vertsStart, localMesh->pVerts, sizeof(Vec3) * localMesh->vertCount);

@@ -6,6 +6,7 @@
 typedef struct {
 	uint32_t vertAdjSize;
 	VertAdj *pRuvmVertAdj;
+	Mat3x3 tbn;
 } MapToMeshVars;
 
 void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
