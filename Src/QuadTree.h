@@ -16,8 +16,8 @@ typedef struct {
 
 typedef struct {
 	int32_t cellSize;
-	Cell *cells[256];
-	int32_t cellType[256];
+	Cell **ppCells;
+	int8_t *pCellType;
 	int32_t faceTotal;
 	int32_t faceTotalNoDup;
 } EnclosingCellsInfo;

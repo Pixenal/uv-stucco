@@ -12,6 +12,8 @@ typedef struct {
 	FaceBounds faceBounds;
 	int8_t *pCellTable;
 	int32_t uniqueFaces;
+	Cell **ppCells;
+	int8_t *pCellType;
 } EnclosingCellsVars;
 
 void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcVars);

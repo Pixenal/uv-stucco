@@ -24,19 +24,19 @@ static void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCe
 	pEnclosingCellsInfo->faceTotal += faceSize;
 	int32_t dupIndex = -1;
 	for (int32_t i = 0; i < pEnclosingCellsInfo->cellSize; ++i) {
-		if (pEnclosingCellsInfo->cells[i] == cell) {
+		if (pEnclosingCellsInfo->ppCells[i] == cell) {
 			dupIndex = i;
 			break;
 		}
 	}
 	if (dupIndex >= 0) {
-		if (!pEnclosingCellsInfo->cellType[dupIndex] && edge) {
-			pEnclosingCellsInfo->cellType[dupIndex] = 2;
+		if (!pEnclosingCellsInfo->pCellType[dupIndex] && edge) {
+			pEnclosingCellsInfo->pCellType[dupIndex] = 2;
 		}
 		return;
 	}
-	pEnclosingCellsInfo->cells[pEnclosingCellsInfo->cellSize] = cell;
-	pEnclosingCellsInfo->cellType[pEnclosingCellsInfo->cellSize] = edge;
+	pEnclosingCellsInfo->ppCells[pEnclosingCellsInfo->cellSize] = cell;
+	pEnclosingCellsInfo->pCellType[pEnclosingCellsInfo->cellSize] = edge;
 	pEnclosingCellsInfo->cellSize++;;
 	pEnclosingCellsInfo->faceTotalNoDup += faceSize;
 }

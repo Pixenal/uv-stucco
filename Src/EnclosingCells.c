@@ -53,12 +53,12 @@ static int32_t getCellsForFaceWithinTile(ThreadArg *pArgs, EnclosingCellsVars *p
 }
 
 static int32_t checkBranchCellIsLinked(EnclosingCellsInfo *pCellsBuffer, int32_t index) {
-	Cell *cell = pCellsBuffer->cells[index];
+	Cell *cell = pCellsBuffer->ppCells[index];
 	for (int32_t j = 0; j < pCellsBuffer->cellSize; ++j) {
-		if (pCellsBuffer->cellType[j] || index == j) {
+		if (pCellsBuffer->pCellType[j] || index == j) {
 			continue;
 		}
-		Cell *leaf = pCellsBuffer->cells[j];
+		Cell *leaf = pCellsBuffer->ppCells[j];
 		for (int32_t k = 0; k < leaf->linkEdgeSize; ++k) {
 			if (cell->cellIndex == leaf->pLinkEdges[k]) {
 				return 1;
@@ -70,7 +70,7 @@ static int32_t checkBranchCellIsLinked(EnclosingCellsInfo *pCellsBuffer, int32_t
 
 static void removeNonLinkedBranchCells(EnclosingCellsInfo *pCellsBuffer) {
 	for (int32_t i = 0; i < pCellsBuffer->cellSize;) {
-		if (!pCellsBuffer->cellType[i]) {
+		if (!pCellsBuffer->pCellType[i]) {
 			i++;
 			continue;
 		}
@@ -78,12 +78,12 @@ static void removeNonLinkedBranchCells(EnclosingCellsInfo *pCellsBuffer) {
 			i++;
 			continue;
 		}
-		Cell *pCell = pCellsBuffer->cells[i];
+		Cell *pCell = pCellsBuffer->ppCells[i];
 		pCellsBuffer->faceTotal -= pCell->edgeFaceSize;
 		pCellsBuffer->faceTotalNoDup -= pCell->edgeFaceSize;
 		for (int32_t j = i; j < pCellsBuffer->cellSize - 1; ++j) {
-			pCellsBuffer->cells[j] = pCellsBuffer->cells[j + 1];
-			pCellsBuffer->cellType[j] = pCellsBuffer->cellType[j + 1];
+			pCellsBuffer->ppCells[j] = pCellsBuffer->ppCells[j + 1];
+			pCellsBuffer->pCellType[j] = pCellsBuffer->pCellType[j + 1];
 		}
 		pCellsBuffer->cellSize--;
 	}
@@ -94,11 +94,10 @@ static void copyCellsIntoTotalList(EnclosingCellsVars *pEcVars, EnclosingCellsIn
 	FaceCellsInfo *pEntry = pEcVars->pFaceCellsInfo + faceIndex;
 	pEcVars->cellFacesTotal += pCellsBuffer->faceTotalNoDup;
 	pEntry->pCells = pAlloc->pMalloc(sizeof(Cell *) * pCellsBuffer->cellSize);
-	pEntry->pCellType = pAlloc->pMalloc(sizeof(int32_t) * pCellsBuffer->cellSize);
-	memcpy(pEntry->pCells, pCellsBuffer->cells, sizeof(Cell *) *
+	pEntry->pCellType = pAlloc->pMalloc(pCellsBuffer->cellSize);
+	memcpy(pEntry->pCells, pCellsBuffer->ppCells, sizeof(Cell *) *
 	       pCellsBuffer->cellSize);
-	memcpy(pEntry->pCellType, pCellsBuffer->cellType, sizeof(int32_t) *
-	       pCellsBuffer->cellSize);
+	memcpy(pEntry->pCellType, pCellsBuffer->pCellType, pCellsBuffer->cellSize);
 	pEntry->cellSize = pCellsBuffer->cellSize;
 	pEntry->faceSize = pCellsBuffer->faceTotalNoDup;
 	if (pCellsBuffer->faceTotalNoDup > pEcVars->cellFacesMax) {
@@ -108,12 +107,12 @@ static void copyCellsIntoTotalList(EnclosingCellsVars *pEcVars, EnclosingCellsIn
 
 static void recordCellsInTable(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *pCellsBuffer) {
 	for (int32_t i = 0; i < pCellsBuffer->cellSize; ++i) {
-		Cell *pCell = pCellsBuffer->cells[i];
+		Cell *pCell = pCellsBuffer->ppCells[i];
 		//must be != 0, not > 0, so as to catch entries set to -1
 		if (pEcVars->pCellTable[pCell->cellIndex] != 0) {
 			continue;
 		}
-		int32_t cellType = pCellsBuffer->cellType[i];
+		int32_t cellType = pCellsBuffer->pCellType[i];
 		pEcVars->pCellTable[pCell->cellIndex] = cellType + 1;
 		Cell *pStack[32] = {0};
 		int8_t childrenLeft[32] = {0};
@@ -158,8 +157,11 @@ static void recordCellsInTable(EnclosingCellsVars *pEcVars, EnclosingCellsInfo *
 	}
 }
 
-static int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars, int32_t faceIndex) {
+static int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
+                                     int32_t faceIndex) {
 	EnclosingCellsInfo cellsBuffer = {0};
+	cellsBuffer.ppCells = pEcVars->ppCells;
+	cellsBuffer.pCellType = pEcVars->pCellType;
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
 	for (int32_t i = pFaceBounds->min.y; i <= pFaceBounds->max.y; ++i) {
 		for (int32_t j = pFaceBounds->min.x; j <= pFaceBounds->max.x; ++j) {
@@ -183,6 +185,8 @@ void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcV
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
 	pEcVars->pCellInits = pArgs->alloc.pMalloc(pArgs->pMap->quadTree.cellCount);
 	pEcVars->pCellTable = pArgs->alloc.pCalloc(pArgs->pMap->quadTree.cellCount, sizeof(int8_t));
+	pEcVars->ppCells = pArgs->alloc.pMalloc(sizeof(void *) * pArgs->pMap->quadTree.cellCount);
+	pEcVars->pCellType = pArgs->alloc.pMalloc(pArgs->pMap->quadTree.cellCount);
 	for (int32_t i = 0; i < pArgs->mesh.faceCount; ++i) {
 		int32_t start, end;
 		start = pEcVars->faceInfo.start = pArgs->mesh.pFaces[i];
@@ -206,5 +210,7 @@ void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcV
 	}
 	pArgs->alloc.pFree(pEcVars->pCellTable);
 	pArgs->alloc.pFree(pEcVars->pCellInits);
+	pArgs->alloc.pFree(pEcVars->ppCells);
+	pArgs->alloc.pFree(pEcVars->pCellType);
 	pEcVars->averageRuvmFacesPerFace /= pArgs->mesh.faceCount;
 }
