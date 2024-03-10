@@ -259,7 +259,7 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	// CRC for uncompressed data, not compressed!
 	
 	void *pFile;
-	pContext->io.pOpen(&pFile, "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File.ruvm",
+	pContext->io.pOpen(&pFile, "T:/workshop_folders/RUVM/TestOutputDir/File.ruvm",
 	                   0, &pContext->alloc);
 	pContext->io.pWrite(pFile, (uint8_t *)&headerSizeInBytes, 4);
 	pContext->io.pWrite(pFile, header.pString, header.byteIndex + (header.nextBitIndex > 0));

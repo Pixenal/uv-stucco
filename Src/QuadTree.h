@@ -22,7 +22,7 @@ typedef struct {
 	int32_t faceTotalNoDup;
 } EnclosingCellsInfo;
 
-void ruvmGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
+void ruvmGetAllEnclosingCells(RuvmAllocator* pAlloc, Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
                                   int8_t *pCellInits, Mesh *pMesh, FaceInfo faceInfo,
 								  iVec2 tileMin);
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);

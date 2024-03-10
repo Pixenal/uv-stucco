@@ -1,11 +1,28 @@
-#define CLOCK_START gettimeofday(&start, NULL)
-#define CLOCK_STOP(a) gettimeofday(&stop, NULL); printf("%s - %s: %lu\n", __func__, (a), getTimeDiff(&start, &stop))
-#define CLOCK_STOP_NO_PRINT gettimeofday(&stop, NULL)
+#ifdef PLATFORM_LINUX
+	#define CLOCK_INIT struct timeval start, stop;
+	#define CLOCK_TIME_DIFF(start, stop) (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_usec - start.tv_usec)
+	#define CLOCK_START gettimeofday(&start, NULL)
+	#define CLOCK_STOP(a) gettimeofday(&stop, NULL); printf("%s - %s: %lu\n", __func__, (a), CLOCK_TIME_DIFF(start, stop))
+	#define CLOCK_STOP_NO_PRINT gettimeofday(&stop, NULL)
+#endif
+#ifdef PLATFORM_WINDOWS
+	#define CLOCK_INIT struct timespec start, stop;
+	#define CLOCK_TIME_DIFF(start, stop) (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec)
+	#define CLOCK_TIME_GET(a) if(timespec_get(&a, TIME_UTC) != TIME_UTC) printf("CLOCK_START failed\n")
+	#define CLOCK_START CLOCK_TIME_GET(start)
+	#define CLOCK_STOP(a) CLOCK_TIME_GET(stop); printf("%s - %s: %llu\n", __func__, (a), CLOCK_TIME_DIFF(start, stop))
+	#define CLOCK_STOP_NO_PRINT CLOCK_TIME_GET(stop)
+#endif
 
 #include <stdio.h>
 #include <string.h>
-#include <sys/time.h>
 #include <math.h>
+#ifdef PLATFORM_LINUX
+	#include <sys/time.h>
+#endif
+#ifdef PLATFORM_WINDOWS
+	#include <time.h>
+#endif
 
 #include <Io.h>
 #include <EnclosingCells.h>
@@ -22,10 +39,6 @@
 //   No point storing them as 32 bit if there's only like 4,000 verts
 // - Split compressed data into chunks maybe?
 // - Split whole quadtree into chunks?
-
-uint64_t getTimeDiff(struct timeval *start, struct timeval *stop) {
-	return (stop->tv_sec - start->tv_sec) * 1000000 + (stop->tv_usec - start->tv_usec);
-}
 
 void ruvmContextInit(RuvmContext *pContext, RuvmAllocator *pAllocator,
                      RuvmThreadPool *pThreadPool, RuvmIo *pIo) {
@@ -162,7 +175,7 @@ static Mat3x3 buildFaceTbn(FaceInfo face, RuvmMesh *pMesh) {
 }
 
 static void mapToMeshJob(void *pArgsPtr) {
-	struct timeval start, stop;
+	CLOCK_INIT;
 	//CLOCK_START;
 	EnclosingCellsVars ecVars = {0};
 	SendOffArgs *pSend = pArgsPtr;
@@ -193,7 +206,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 		copyCellFacesIntoSingleArray(ecVars.pFaceCellsInfo, ecVars.pCellFaces, i);
 		//iterate through tiles
 		//CLOCK_STOP_NO_PRINT;
-		copySingleTime += getTimeDiff(&start, &stop);
+		//copySingleTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
 		FaceInfo baseFace;
 		baseFace.start = args.mesh.pFaces[i];
@@ -201,6 +214,9 @@ static void mapToMeshJob(void *pArgsPtr) {
 		baseFace.size = baseFace.end - baseFace.start;
 		baseFace.index = i;
 		mmVars.tbn = buildFaceTbn(baseFace, &args.mesh);
+		if (baseFace.size > 3) {
+			mmVars.faceTriangulated = triangulateFace(args.alloc, baseFace, &args.mesh);
+		}
 		FaceBounds *pFaceBounds = &ecVars.pFaceCellsInfo[i].faceBounds;
 		for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
 			for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
@@ -211,7 +227,15 @@ static void mapToMeshJob(void *pArgsPtr) {
 			}
 		}
 		//CLOCK_STOP_NO_PRINT;
-		mappingTime += getTimeDiff(&start, &stop);
+		//mappingTime += CLOCK_TIME_DIFF(start, stop);
+		if (mmVars.faceTriangulated.pTris) {
+			args.alloc.pFree(mmVars.faceTriangulated.pTris);
+			mmVars.faceTriangulated.pTris = NULL;
+		}
+		if (mmVars.faceTriangulated.pLoops) {
+			args.alloc.pFree(mmVars.faceTriangulated.pLoops);
+			mmVars.faceTriangulated.pLoops = NULL;
+		}
 		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCells);
 		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCellType);
 	}
@@ -399,8 +423,7 @@ static void buildVertTables(RuvmContext pContext, RuvmMesh *pMesh,
 			int32_t edgeIndex = pMesh->pEdges[loopIndex];
 			int32_t isSeam = checkIfEdgeIsSeam(edgeIndex, face, j, pMesh, pEdgeVerts);
 			if (!(*ppInVertTable)[vertIndex] &&
-			    pMesh->pEdgePreserve[edgeIndex] && !isSeam) {
-
+			    checkIfEdgeIsPreserve(pMesh, edgeIndex) && !isSeam) {
 				(*ppInVertTable)[vertIndex] = 1;
 			}
 			//cap at 3 to avoid integer overflow
@@ -412,9 +435,31 @@ static void buildVertTables(RuvmContext pContext, RuvmMesh *pMesh,
 	}
 }
 
-void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
-                   RuvmMesh *pMeshOut) {
-	struct timeval start, stop;
+int32_t validateMeshIn(RuvmMesh *pMeshIn) {
+	for (int32_t i = 0; i < pMeshIn->faceCount; ++i) {
+		int32_t loopCount = pMeshIn->pFaces[i + 1] - pMeshIn->pFaces[i];
+		if (loopCount > 4) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+                      RuvmMesh *pMeshOut) {
+	CLOCK_INIT;
+	if (!pMeshIn) {
+		printf("Ruvm map to mesh failed, pMeshIn was null\n");
+		return 2;
+	}
+	if (!pMap) {
+		printf("Ruvm map to mesh failed, pMap was null\n");
+		return 3;
+	}
+	if (validateMeshIn(pMeshIn)) {
+		//return 1;
+	}
+
 	CLOCK_START;
 	EdgeVerts *pEdgeVerts;
 	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
@@ -456,7 +501,7 @@ void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		averageRuvmFacesPerFace += jobArgs[i].averageRuvmFacesPerFace;
 	}
 	averageRuvmFacesPerFace /= pContext->threadCount;
-	printf("---- averageRuvmFacesPerFace: %lu ----\n", averageRuvmFacesPerFace);
+	printf("---- averageRuvmFacesPerFace: %d ----\n", (int32_t)averageRuvmFacesPerFace);
 
 	CLOCK_START;
 	combineJobMeshesIntoSingleMesh(pContext, pMap, pMeshOut, jobArgs, pEdgeVerts);

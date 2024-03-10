@@ -41,24 +41,25 @@ static void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCe
 	pEnclosingCellsInfo->faceTotalNoDup += faceSize;
 }
 
-static int32_t findFaceQuadrantUv(int32_t loopSize, int32_t loopStart,
-                           Vec2 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
+static int32_t findFaceQuadrantUv(RuvmAllocator* pAlloc, int32_t loopSize, int32_t loopStart,
+							      Vec2 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
-	iVec2 sides[loopSize];
+	iVec2* pSides = pAlloc->pMalloc(sizeof(iVec2) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
 		int32_t loopIndex = loopStart + i;
-		sides[i].x = verts[loopIndex].x >= midPoint.x;
-		sides[i].y = verts[loopIndex].y < midPoint.y;
+		pSides[i].x = verts[loopIndex].x >= midPoint.x;
+		pSides[i].y = verts[loopIndex].y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
-			commonSides->x *= sides[i].x == sides[j].x;
-			commonSides->y *= sides[i].y == sides[j].y;
+			commonSides->x *= pSides[i].x == pSides[j].x;
+			commonSides->y *= pSides[i].y == pSides[j].y;
 		}
 	}
 	if (!commonSides->x && !commonSides->y) {
 		return 0;
 	}
-	signs->x = sides[0].x;
-	signs->y = sides[0].y;
+	signs->x = pSides[0].x;
+	signs->y = pSides[0].y;
+	pAlloc->pFree(pSides);
 	if (commonSides->x && commonSides->y) {
 		return 1;
 	}
@@ -67,26 +68,27 @@ static int32_t findFaceQuadrantUv(int32_t loopSize, int32_t loopStart,
 	}
 }
 
-static int32_t findFaceQuadrant(int32_t loopSize, int32_t faceStart,
-                         Mesh *pMesh, Vec2 midPoint,
-						 iVec2 *commonSides, iVec2 *signs) {
+static int32_t findFaceQuadrant(RuvmAllocator *pAlloc, int32_t loopSize, int32_t faceStart,
+                                Mesh *pMesh, Vec2 midPoint,
+						        iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
-	iVec2 sides[loopSize];
+	iVec2 *pSides = pAlloc->pMalloc(sizeof(iVec2) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
 		int32_t vertIndex = pMesh->pLoops[faceStart + i];
-		sides[i].x = pMesh->pVerts[vertIndex].x >= midPoint.x;
-		sides[i].y = pMesh->pVerts[vertIndex].y < midPoint.y;
+		pSides[i].x = pMesh->pVerts[vertIndex].x >= midPoint.x;
+		pSides[i].y = pMesh->pVerts[vertIndex].y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
-			commonSides->x *= sides[i].x == sides[j].x;
-			commonSides->y *= sides[i].y == sides[j].y;
+			commonSides->x *= pSides[i].x == pSides[j].x;
+			commonSides->y *= pSides[i].y == pSides[j].y;
 		}
 	}
-	signs->x = sides[0].x;
-	signs->y = sides[0].y;
+	signs->x = pSides[0].x;
+	signs->y = pSides[0].y;
+	pAlloc->pFree(pSides);
 	return commonSides->x && commonSides->y;
 }
 
-void ruvmGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
+void ruvmGetAllEnclosingCells(RuvmAllocator* pAlloc, Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
                                   int8_t *pCellInits, Mesh *pMesh, FaceInfo faceInfo,
 								  iVec2 tileMin) {
 	typedef struct {
@@ -133,7 +135,7 @@ void ruvmGetAllEnclosingCells(Cell *pRootCell, EnclosingCellsInfo *pEnclosingCel
 		iVec2 commonSides;
 		midPoint.x += (float)tileMin.x;
 		midPoint.y += (float)tileMin.y;
-		int32_t result = findFaceQuadrantUv(faceInfo.size, faceInfo.start, pMesh->pUvs, midPoint,
+		int32_t result = findFaceQuadrantUv(pAlloc, faceInfo.size, faceInfo.start, pMesh->pUvs, midPoint,
 		                                    &commonSides, &signs);
 		switch (result) {
 			case 0: {
@@ -262,7 +264,7 @@ static void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
 		int32_t faceLoopSize = faceEnd - faceStart;
 		iVec2 signs;
 		iVec2 commonSides;
-		int32_t result = findFaceQuadrant(faceLoopSize, faceStart,
+		int32_t result = findFaceQuadrant(&pContext->alloc, faceLoopSize, faceStart,
 		                                  pMesh, midPoint,
 		                                  &commonSides, &signs);
 		if (result) {

@@ -101,7 +101,7 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 		baseLoop.edgeIsSeam = checkIfEdgeIsSeam(baseLoop.edgeIndex, baseFace, i,
 			                                    &pArgs->mesh, pArgs->pEdgeVerts);
 		int8_t preserveEdge[2];
-		preserveEdge[0] = pArgs->mesh.pEdgePreserve[baseLoop.edgeIndex];
+		preserveEdge[0] = checkIfEdgeIsPreserve(&pArgs->mesh, baseLoop.edgeIndex);
 		baseLoop.vert = pArgs->mesh.pUvs[i + baseFace.start];
 		baseLoop.vert = pArgs->mesh.pUvs[i + baseFace.start];
 		int32_t uvNextIndexLocal = ((i + 1) % baseFace.size);
@@ -120,7 +120,7 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 		}
 		*/
 		/*
-		preserveEdge[1] = pArgs->mesh.pEdgePreserve[baseLoop.edgeIndexNext];
+		preserveEdge[1] = checkIfEdgeIsPreserve(&pArgs->mesh, baseLoop.edgeIndexNext);
 		if (preserveEdge[1] && !baseLoop.edgeNextIsSeam) {
 			int32_t nextVertIndex = pArgs->mesh.pLoops[uvNextIndex];
 			pArgs->pInVertTable[nextVertIndex] = 1;
@@ -156,23 +156,53 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 	}
 }
 
-static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf, BaseTriVerts baseTri,
-									 Vec2 tileMin, Mat3x3 *pTbn) {
+static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf, FaceInfo baseFace,
+                                            Vec2 *pBaseFaceUvsOffset, RuvmMesh *pMeshIn,
+                                            Vec2 tileMin, MapToMeshVars *pMmVars) {
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
 		Vec3 vert = pLoopBuf->buf[j].loop;
 		//uv is just the vert position before transform, so set that here
 		pLoopBuf->buf[j].uv = *(Vec2 *)&vert;
-		//transform vertex
+		//find enclosing triangle
 		_((Vec2 *)&vert V2SUBEQL tileMin);
-		Vec3 vertBc = cartesianToBarycentric(baseTri.uv, &vert);
-		pLoopBuf->buf[j].loop = barycentricToCartesian(baseTri.xyz, &vertBc);
-		Vec3 normal = _(baseTri.pNormals[0] V3MULS vertBc.x);
-		_(&normal V3ADDEQL _(baseTri.pNormals[1] V3MULS vertBc.y));
-		_(&normal V3ADDEQL _(baseTri.pNormals[2] V3MULS vertBc.z));
+		Vec3 vertBc;
+		FaceTriangulated *pFaceTris = &pMmVars->faceTriangulated;
+		int32_t loops[3];
+		if (pFaceTris->pTris) {
+			for (int32_t i = 0; i < pFaceTris->triCount; ++i) {
+				int32_t triStart = pFaceTris->pTris[i];
+				Vec2 triUv[3];
+				for (int32_t k = 0; k < 3; ++k) {
+					triUv[k] = pBaseFaceUvsOffset[pFaceTris->pLoops[triStart + k]];
+				}
+				vertBc = cartesianToBarycentric(triUv, &vert);
+				if (vertBc.x >= .0f && vertBc.y >= .0f && vertBc.z >= .0f) {
+					for (int32_t k = 0; k < 3; ++k) {
+						loops[k] = baseFace.start + pFaceTris->pLoops[triStart + k];
+					}
+					break;
+				}
+			}
+		}
+		else {
+			vertBc = cartesianToBarycentric(pBaseFaceUvsOffset, &vert);
+			for (int32_t k = 0; k < 3; ++k) {
+				loops[k] = baseFace.start + k;
+			}
+		}
+		Vec3 vertsXyz[3];
+		for (int32_t i = 0; i < 3; ++i) {
+			vertsXyz[i] = pMeshIn->pVerts[pMeshIn->pLoops[loops[i]]];
+		}
+		//transform vertex
+		pLoopBuf->buf[j].loop = barycentricToCartesian(vertsXyz, &vertBc);
+		Vec3 normal = _(pMeshIn->pNormals[loops[0]] V3MULS vertBc.x);
+		_(&normal V3ADDEQL _(pMeshIn->pNormals[loops[1]] V3MULS vertBc.y));
+		_(&normal V3ADDEQL _(pMeshIn->pNormals[loops[2]] V3MULS vertBc.z));
 		_(&normal V3DIVEQLS vertBc.x + vertBc.y + vertBc.z);
 		_(&pLoopBuf->buf[j].loop V3ADDEQL _(normal V3MULS vert.z));
 		//transform normal from tangent space to object space
-		pLoopBuf->buf[j].normal = _(pLoopBuf->buf[j].normal V3MULM3X3 pTbn);
+		pLoopBuf->buf[j].normal = _(pLoopBuf->buf[j].normal V3MULM3X3 &pMmVars->tbn);
 	}
 }
 
@@ -359,6 +389,10 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	//struct timeval start, stop;
 	FaceBounds bounds;
 	getFaceBounds(&bounds, pArgs->mesh.pUvs, baseFace);
+	Vec2 *pBaseFaceUvsOffset = pArgs->alloc.pMalloc(sizeof(Vec2) * baseFace.size);
+	for (int32_t i = 0; i < baseFace.size; ++i) {
+		pBaseFaceUvsOffset[i] = _(pArgs->mesh.pUvs[baseFace.start + i] V2SUB fTileMin);
+	}
 	BaseTriVerts baseTri;
 	baseTri.uv[0] = _(pArgs->mesh.pUvs[baseFace.start] V2SUB fTileMin);
 	baseTri.uv[1] = _(pArgs->mesh.pUvs[baseFace.start + 1] V2SUB fTileMin);
@@ -414,7 +448,8 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		int32_t seam = 0;
 		clipRuvmFaceAgainstBaseFace(pArgs, baseFace, &loopBuf, &edgeFace,
 		                            &hasPreservedEdge, &seam, faceWindingDir);
-		transformClippedFaceFromUvToXyz(&loopBuf, baseTri, fTileMin, &pMmVars->tbn);
+		transformClippedFaceFromUvToXyz(&loopBuf, baseFace, pBaseFaceUvsOffset,
+		                                &pArgs->mesh, fTileMin, pMmVars);
 		////CLOCK_START;
 		addClippedFaceToLocalMesh(pArgs, pMmVars, &loopBuf, edgeFace,
 		                          ruvmFace, tile, baseFace, hasPreservedEdge,

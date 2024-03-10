@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifdef PLATFORM_WIN
+#ifdef PLATFORM_WINDOWS
 	#define RUVM_EXPORT __declspec(dllexport)
 #elif PLATFORM_LINUX
 	#define RUVM_EXPORT __attribute__((visibility("default")))
@@ -67,7 +67,7 @@ RUVM_EXPORT void ruvmMapFileExport(RuvmContext context, RuvmMesh *pMesh);
 RUVM_EXPORT void ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                                   char *filePath);
 RUVM_EXPORT void ruvmMapFileUnload(RuvmContext context, RuvmMap pMap);
-RUVM_EXPORT void ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
-                               RuvmMesh *pMeshOut);
+RUVM_EXPORT int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+                                  RuvmMesh *pMeshOut);
 RUVM_EXPORT void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh);
 RUVM_EXPORT void ruvmContextDestroy(RuvmContext context);

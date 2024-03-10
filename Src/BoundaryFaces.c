@@ -65,7 +65,7 @@ static void addEntryToSharedEdgeTable(RuvmContext pContext, BoundaryVert *pEntry
 		int32_t baseLoop = baseFaceStart + baseLoopLocalAbs - 1;
 		int32_t nextBaseLoop = baseFaceStart + (baseLoopLocalAbs % baseFaceSize);
 		int32_t baseEdge = pJobArgs[pEntry->job].mesh.pEdges[baseLoop];
-		if (pJobArgs[0].mesh.pEdgePreserve[baseEdge]) {
+		if (checkIfEdgeIsPreserve(&pJobArgs[0].mesh, baseEdge)) {
 			//preserved edge
 			continue;
 		}
@@ -657,8 +657,11 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 		for (int32_t l = 0; l < pieceCount; ++l) {
 			AddFaceVars afVars = {0};
 			afVars.pEntry = pPieces[l].pEntry;
+			if (!afVars.pEntry) {
+				continue;
+			}
 			afVars.ruvmFace = ruvmFace;
-			afVars.seamFace = determineIfSeamFace(pMap, pEntry, &entryNum);
+			afVars.seamFace = determineIfSeamFace(pMap, afVars.pEntry, &entryNum);
 			afVars.ruvmIndicesSort[0] = -10;
 			if (afVars.seamFace) {
 				int32_t totalVerts = 0;
@@ -675,7 +678,7 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 			pMeshOut->loopCount += afVars.loopBufferSize;
 			pMeshOut->faceCount++;
 			
-			int32_t indexTable[9];
+			int32_t indexTable[17];
 			indexTable[0] = -1;
 			if (afVars.seamFace) {
 				//full winding sort

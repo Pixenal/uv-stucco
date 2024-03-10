@@ -47,7 +47,7 @@ static int32_t getCellsForFaceWithinTile(ThreadArg *pArgs, EnclosingCellsVars *p
 		return 0;
 	}
 	//find fully enclosing cell using clipped face
-	ruvmGetAllEnclosingCells(pArgs->pMap->quadTree.pRootCell, pCellsBuffer,
+	ruvmGetAllEnclosingCells(&pArgs->alloc, pArgs->pMap->quadTree.pRootCell, pCellsBuffer,
 	                             pEcVars->pCellInits, &pArgs->mesh, pEcVars->faceInfo, tileMin);
 	return 0;
 }
