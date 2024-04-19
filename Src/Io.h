@@ -5,7 +5,7 @@
 
 void ruvmWriteDebugImage(Cell *pRootCell);
 void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh);
-void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath, int32_t getUvs);
+void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath);
 void ruvmDestroyRuvmFile(RuvmContext pContext, RuvmMap pMapFIle);
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo);

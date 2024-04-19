@@ -10,16 +10,12 @@ typedef struct {
 } AttributeDesc;
 
 typedef struct {
-	int32_t dataSize;
-	int32_t dataSizeCompressed;
-	int32_t vertAttributeSize;
-	AttributeDesc *pVertAttributeDesc;
-	int32_t loopAttributeSize;
-	AttributeDesc *pLoopAttributeDesc;
+	int32_t version;
+	int64_t dataSize;
+	int64_t dataSizeCompressed;
 } RuvmHeader;
 
 typedef struct RuvmMapInternal {
-	RuvmHeader header;
-	RuvmMesh mesh;
+	Mesh mesh;
 	QuadTree quadTree;
 } MapFile;

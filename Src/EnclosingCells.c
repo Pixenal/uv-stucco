@@ -4,15 +4,16 @@
 #include <QuadTree.h>
 #include <MapFile.h>
 
-static void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars, int32_t *pIsInsideBuffer,
-		                     int32_t *pFaceVertInside, Mesh *pMesh, iVec2 tileMin) {
+static void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars,
+                                    int32_t *pIsInsideBuffer, int32_t *pFaceVertInside,
+                                    Mesh *pMesh, iVec2 tileMin) {
 	FaceInfo *pFaceInfo = &pEcVars->faceInfo;
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
 	for (int32_t i = 0; i < pEcVars->faceInfo.size; ++i) {
 		//check if current edge intersects tile
-		Vec2 *loop = pMesh->pUvs + pFaceInfo->start + i;
+		Vec2 *loop = attribAsV2(pMesh->pUvs, pFaceInfo->start + i);
 		int32_t nextLoopIndex = pFaceInfo->start + (i + 1) % pFaceInfo->size;
-		Vec2 *loopNext = pMesh->pUvs + nextLoopIndex;
+		Vec2 *loopNext = attribAsV2(pMesh->pUvs, nextLoopIndex);
 		Vec2 loopDir = _(*loopNext V2SUB *loop);
 		Vec2 loopCross = vec2Cross(loopDir);
 		for (int32_t j = 0; j < 4; ++j) {
@@ -34,7 +35,8 @@ static int32_t getCellsForFaceWithinTile(ThreadArg *pArgs, EnclosingCellsVars *p
                                   EnclosingCellsInfo *pCellsBuffer, iVec2 tileMin) {
 	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
 	int32_t faceVertInside = 0;
-	checkIfFaceIsInsideTile(pEcVars, isInsideBuffer, &faceVertInside, &pArgs->mesh, tileMin);
+	checkIfFaceIsInsideTile(pEcVars, isInsideBuffer, &faceVertInside,
+	                        &pArgs->mesh, tileMin);
 	int32_t isInside = isInsideBuffer[0] || isInsideBuffer[1] ||
 	                   isInsideBuffer[2] || isInsideBuffer[3];
 	int32_t isFullyEnclosed = isInsideBuffer[0] && isInsideBuffer[1] &&
@@ -187,10 +189,10 @@ void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcV
 	pEcVars->pCellTable = pArgs->alloc.pCalloc(pArgs->pMap->quadTree.cellCount, sizeof(int8_t));
 	pEcVars->ppCells = pArgs->alloc.pMalloc(sizeof(void *) * pArgs->pMap->quadTree.cellCount);
 	pEcVars->pCellType = pArgs->alloc.pMalloc(pArgs->pMap->quadTree.cellCount);
-	for (int32_t i = 0; i < pArgs->mesh.faceCount; ++i) {
+	for (int32_t i = 0; i < pArgs->mesh.mesh.faceCount; ++i) {
 		int32_t start, end;
-		start = pEcVars->faceInfo.start = pArgs->mesh.pFaces[i];
-		end = pEcVars->faceInfo.end = pArgs->mesh.pFaces[i + 1];
+		start = pEcVars->faceInfo.start = pArgs->mesh.mesh.pFaces[i];
+		end = pEcVars->faceInfo.end = pArgs->mesh.mesh.pFaces[i + 1];
 		pEcVars->faceInfo.size = end - start;
 		getFaceBounds(pFaceBounds, pArgs->mesh.pUvs, pEcVars->faceInfo);
 		pFaceBounds->fMinSmall = pFaceBounds->fMin;
@@ -212,5 +214,5 @@ void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcV
 	pArgs->alloc.pFree(pEcVars->pCellInits);
 	pArgs->alloc.pFree(pEcVars->ppCells);
 	pArgs->alloc.pFree(pEcVars->pCellType);
-	pEcVars->averageRuvmFacesPerFace /= pArgs->mesh.faceCount;
+	pEcVars->averageRuvmFacesPerFace /= pArgs->mesh.mesh.faceCount;
 }

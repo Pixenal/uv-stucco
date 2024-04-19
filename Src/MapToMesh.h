@@ -6,6 +6,8 @@
 typedef struct {
 	uint32_t vertAdjSize;
 	VertAdj *pRuvmVertAdj;
+	int32_t edgeTableSize;
+	MeshBufEdgeTable *pEdgeTable;
 	Mat3x3 tbn;
 	FaceTriangulated faceTriangulated;
 } MapToMeshVars;

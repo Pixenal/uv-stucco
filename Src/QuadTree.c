@@ -42,19 +42,20 @@ static void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCe
 }
 
 static int32_t findFaceQuadrantUv(RuvmAllocator* pAlloc, int32_t loopSize, int32_t loopStart,
-							      Vec2 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
+							      RuvmAttrib *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
 	iVec2* pSides = pAlloc->pMalloc(sizeof(iVec2) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
 		int32_t loopIndex = loopStart + i;
-		pSides[i].x = verts[loopIndex].x >= midPoint.x;
-		pSides[i].y = verts[loopIndex].y < midPoint.y;
+		pSides[i].x = attribAsV2(verts, loopIndex)->x >= midPoint.x;
+		pSides[i].y = attribAsV2(verts, loopIndex)->y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
 			commonSides->x *= pSides[i].x == pSides[j].x;
 			commonSides->y *= pSides[i].y == pSides[j].y;
 		}
 	}
 	if (!commonSides->x && !commonSides->y) {
+		pAlloc->pFree(pSides);
 		return 0;
 	}
 	signs->x = pSides[0].x;
@@ -74,9 +75,9 @@ static int32_t findFaceQuadrant(RuvmAllocator *pAlloc, int32_t loopSize, int32_t
 	commonSides->x = commonSides->y = 1;
 	iVec2 *pSides = pAlloc->pMalloc(sizeof(iVec2) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
-		int32_t vertIndex = pMesh->pLoops[faceStart + i];
-		pSides[i].x = pMesh->pVerts[vertIndex].x >= midPoint.x;
-		pSides[i].y = pMesh->pVerts[vertIndex].y < midPoint.y;
+		int32_t vertIndex = pMesh->mesh.pLoops[faceStart + i];
+		pSides[i].x = attribAsV3(pMesh->pVerts, vertIndex)->x >= midPoint.x;
+		pSides[i].y = attribAsV3(pMesh->pVerts, vertIndex)->y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
 			commonSides->x *= pSides[i].x == pSides[j].x;
 			commonSides->y *= pSides[i].y == pSides[j].y;
@@ -218,8 +219,8 @@ static int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh) {
 	for (int32_t k = 0; k < pAncestor->edgeFaceSize; ++k) {
 		int32_t faceIndex = pAncestor->pEdgeFaces[k];
 		FaceInfo face;
-		face.start = pMesh->pFaces[faceIndex];
-		face.end = pMesh->pFaces[faceIndex + 1];
+		face.start = pMesh->mesh.pFaces[faceIndex];
+		face.end = pMesh->mesh.pFaces[faceIndex + 1];
 		face.size = face.end - face.start;
 		//doesn't catch cases where edge intersect with bounds,
 		//replace with a better method
@@ -259,8 +260,8 @@ static void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
 	Vec2 midPoint = pParentCell->pChildren[1].boundsMin;
 	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
 		int32_t face = pParentCell->pFaces[i];
-		int32_t faceStart = pMesh->pFaces[face];
-		int32_t faceEnd = pMesh->pFaces[face + 1];
+		int32_t faceStart = pMesh->mesh.pFaces[face];
+		int32_t faceEnd = pMesh->mesh.pFaces[face + 1];
 		int32_t faceLoopSize = faceEnd - faceStart;
 		iVec2 signs;
 		iVec2 commonSides;
@@ -374,10 +375,10 @@ void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	cellStack[0] = rootCell;
 	rootCell->boundsMax.x = rootCell->boundsMax.y = 1.0f;
 	rootCell->initialized = 1;
-	int8_t *pFaceFlag = pContext->alloc.pCalloc(pMesh->faceCount, sizeof(int8_t));
-	rootCell->faceSize = pMesh->faceCount;
-	rootCell->pFaces = pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->faceCount);
-	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
+	int8_t *pFaceFlag = pContext->alloc.pCalloc(pMesh->mesh.faceCount, sizeof(int8_t));
+	rootCell->faceSize = pMesh->mesh.faceCount;
+	rootCell->pFaces = pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->mesh.faceCount);
+	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		rootCell->pFaces[i] = i;
 	}
 	allocateChildren(pContext, rootCell, 0, pMap);

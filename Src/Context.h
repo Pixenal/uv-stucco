@@ -7,4 +7,5 @@ typedef struct RuvmContextInternal {
 	RuvmIo io;
 	void *pThreadPoolHandle;
 	int32_t threadCount;
+	RuvmTypeDefaultConfig typeDefaults;
 } RuvmContextInternal;

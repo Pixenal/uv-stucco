@@ -39,9 +39,22 @@
 //   No point storing them as 32 bit if there's only like 4,000 verts
 // - Split compressed data into chunks maybe?
 // - Split whole quadtree into chunks?
+//
+// - Add blending options to interface, that control how MeshIn attributes blend with
+//   those from the Map. Also add an option to disable or enable interpolation.
+//   Add these to the RuvmAttrib struct.
+//
+//TODO repalce localMesh with bufMesh.
+//The old name is still present in some functions & vars
+
+static void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
+	RuvmTypeDefaultConfig config = {0};
+	pContext->typeDefaults = config;
+}
 
 void ruvmContextInit(RuvmContext *pContext, RuvmAllocator *pAllocator,
-                     RuvmThreadPool *pThreadPool, RuvmIo *pIo) {
+                     RuvmThreadPool *pThreadPool, RuvmIo *pIo,
+					 RuvmTypeDefaultConfig *pTypeDefaultConfig) {
 	RuvmAllocator alloc;
 	if (pAllocator) {
 		ruvmAllocatorSetCustom(&alloc, pAllocator);
@@ -49,7 +62,7 @@ void ruvmContextInit(RuvmContext *pContext, RuvmAllocator *pAllocator,
 	else {
 		ruvmAllocatorSetDefault(&alloc);
 	}
-	*pContext = alloc.pMalloc(sizeof(RuvmContextInternal));
+	*pContext = alloc.pCalloc(1, sizeof(RuvmContextInternal));
 	(*pContext)->alloc = alloc;
 	if (pThreadPool) {
 		ruvmThreadPoolSetCustom(*pContext, pThreadPool);
@@ -65,6 +78,12 @@ void ruvmContextInit(RuvmContext *pContext, RuvmAllocator *pAllocator,
 	}
 	(*pContext)->threadPool.pInit(&(*pContext)->pThreadPoolHandle, &(*pContext)->threadCount,
 	                              &(*pContext)->alloc);
+	if (pTypeDefaultConfig) {
+		(*pContext)->typeDefaults = *pTypeDefaultConfig;
+	}
+	else {
+		ruvmSetTypeDefaultConfig(*pContext);
+	}
 }
 
 void ruvmContextDestroy(RuvmContext pContext) {
@@ -80,7 +99,7 @@ void ruvmMapFileExport(RuvmContext pContext, RuvmMesh *pMesh) {
 void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                       char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
-	ruvmLoadRuvmFile(pContext, pMap, filePath, 0);
+	ruvmLoadRuvmFile(pContext, pMap, filePath);
 	ruvmCreateQuadTree(pContext, pMap);
 	*pMapHandle = pMap;
 	//writeDebugImage(pMap->quadTree.rootCell);
@@ -88,10 +107,180 @@ void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 
 void ruvmMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
 	ruvmDestroyQuadTree(pContext, pMap->quadTree.pRootCell);
-	ruvmMeshDestroy(pContext, &pMap->mesh);
-	pContext->alloc.pFree(pMap->header.pLoopAttributeDesc);
-	pContext->alloc.pFree(pMap->header.pVertAttributeDesc);
+	ruvmMeshDestroy(pContext, &pMap->mesh.mesh);
 	pContext->alloc.pFree(pMap);
+}
+
+static void initCommonAttrib(RuvmContext pContext, RuvmCommonAttrib *pEntry, RuvmAttrib *pAttrib) {
+	memcpy(pEntry->name, pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN);
+	RuvmTypeDefault *pDefault = 
+		getTypeDefaultConfig(&pContext->typeDefaults, pAttrib->type);
+	pEntry->blendConfig = pDefault->blendConfig;
+}
+
+static void getCommonAttribs(RuvmContext pContext,
+                                 int32_t mapAttribCount, RuvmAttrib *pMapAttribs,
+                                 int32_t meshAttribCount, RuvmAttrib *pMeshAttribs,
+                                 int32_t *pCommonAttribCount, RuvmCommonAttrib **ppCommonAttribs) {
+	if (!pMeshAttribs || !pMapAttribs) {
+		return;
+	}
+	int32_t count = 0;
+	for (int32_t i = 0; i < meshAttribCount; ++i) {
+		for (int32_t j = 0; j < mapAttribCount; ++j) {
+			if (0 == strncmp(pMeshAttribs[i].name, pMapAttribs[j].name,
+			                 RUVM_ATTRIB_NAME_MAX_LEN)) {
+				count++;
+			}
+		}
+	}
+	*ppCommonAttribs = count ?
+		pContext->alloc.pMalloc(sizeof(RuvmCommonAttrib) * count) : NULL;
+	count = 0;
+	for (int32_t i = 0; i < meshAttribCount; ++i) {
+		for (int32_t j = 0; j < mapAttribCount; ++j) {
+			if (0 == strncmp(pMeshAttribs[i].name, pMapAttribs[j].name,
+			                 RUVM_ATTRIB_NAME_MAX_LEN)) {
+				initCommonAttrib(pContext, *ppCommonAttribs + count,
+				                 pMeshAttribs + i);
+				count++;
+			}
+		}
+	}
+	*pCommonAttribCount = count;
+}
+
+//TODO handle edge case, where attribute share the same name, but have incompatible types.
+//Such as a float and a string.
+void ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
+                            RuvmCommonAttribList *pCommonAttribs) {
+	getCommonAttribs(pContext,
+	                 pMap->mesh.mesh.meshAttribCount, pMap->mesh.mesh.pMeshAttribs,
+					 pMesh->meshAttribCount, pMesh->pMeshAttribs,
+					 &pCommonAttribs->meshCount, &pCommonAttribs->pMesh);
+	getCommonAttribs(pContext,
+	                 pMap->mesh.mesh.faceAttribCount, pMap->mesh.mesh.pFaceAttribs,
+					 pMesh->faceAttribCount, pMesh->pFaceAttribs,
+					 &pCommonAttribs->faceCount, &pCommonAttribs->pFace);
+	getCommonAttribs(pContext,
+	                 pMap->mesh.mesh.loopAttribCount, pMap->mesh.mesh.pLoopAttribs,
+					 pMesh->loopAttribCount, pMesh->pLoopAttribs,
+					 &pCommonAttribs->loopCount, &pCommonAttribs->pLoop);
+	getCommonAttribs(pContext,
+	                 pMap->mesh.mesh.edgeAttribCount, pMap->mesh.mesh.pEdgeAttribs,
+					 pMesh->edgeAttribCount, pMesh->pEdgeAttribs,
+					 &pCommonAttribs->edgeCount, &pCommonAttribs->pEdge);
+	getCommonAttribs(pContext,
+	                 pMap->mesh.mesh.vertAttribCount, pMap->mesh.mesh.pVertAttribs,
+					 pMesh->vertAttribCount, pMesh->pVertAttribs,
+					 &pCommonAttribs->vertCount, &pCommonAttribs->pVert);
+}
+
+void ruvmDestroyCommonAttribs(RuvmContext pContext,
+                              RuvmCommonAttribList *pCommonAttribs) {
+	if (pCommonAttribs->pMesh) {
+		pContext->alloc.pFree(pCommonAttribs->pMesh);
+	}
+	if (pCommonAttribs->pFace) {
+		pContext->alloc.pFree(pCommonAttribs->pFace);
+	}
+	if (pCommonAttribs->pLoop) {
+		pContext->alloc.pFree(pCommonAttribs->pLoop);
+	}
+	if (pCommonAttribs->pEdge) {
+		pContext->alloc.pFree(pCommonAttribs->pEdge);
+	}
+	if (pCommonAttribs->pVert) {
+		pContext->alloc.pFree(pCommonAttribs->pVert);
+	}
+}
+
+RuvmAttrib *allocAttribs(RuvmAllocator alloc, RuvmAttrib *pAttribsA,
+                         int32_t attribCountA, RuvmAttrib *pAttribsB,
+						 int32_t attribCountB, int32_t *pAttribCount,
+						 int32_t dataLen) {
+	if (attribCountA) {
+		*pAttribCount = attribCountA;
+	}
+	if (attribCountB) {
+		for (int32_t i = 0; i < attribCountB; ++i) {
+			if (getAttrib(pAttribsB[i].name, pAttribsA, attribCountA)) {
+				//skip if attribute already exists in bufmesh
+				continue;
+			}
+			++*pAttribCount;
+		}
+	}
+	if (!*pAttribCount) {
+		return NULL;
+	}
+	RuvmAttrib *pAttribs = alloc.pMalloc(sizeof(RuvmAttrib) * *pAttribCount);
+	//reset attrib count, for use in the below loops
+	*pAttribCount = 0;
+	if (attribCountA) {
+		for (int32_t i = 0; i < attribCountA; ++i) {
+			pAttribs[i].type = pAttribsA[i].type;
+			memcpy(pAttribs[i].name, pAttribsA[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
+			pAttribs[i].origin = RUVM_ATTRIB_ORIGIN_MESH_IN;
+			pAttribs[i].interpolate = pAttribsA[i].interpolate;
+			int32_t attribSize = getAttribSize(pAttribsA[i].type);
+			pAttribs[i].pData = alloc.pMalloc(attribSize * dataLen);
+		}
+		*pAttribCount = attribCountA;
+	}
+	if (!attribCountB) {
+		return pAttribs;
+	}
+	for (int32_t i = 0; i < attribCountB; ++i) {
+		RuvmAttrib *pExisting = getAttrib(pAttribsB[i].name, pAttribs, *pAttribCount);
+		if (pExisting) {
+			pExisting->origin = RUVM_ATTRIB_ORIGIN_COMMON;
+			continue;
+		}
+		pAttribs[*pAttribCount].type = pAttribsB[i].type;
+		memcpy(pAttribs[*pAttribCount].name, pAttribsB[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
+		pAttribs[*pAttribCount].origin = RUVM_ATTRIB_ORIGIN_MAP;
+		pAttribs[*pAttribCount].interpolate = pAttribsB[i].interpolate;
+		int32_t attribSize = getAttribSize(pAttribsB[i].type);
+		pAttribs[*pAttribCount].pData = alloc.pMalloc(attribSize * dataLen);
+		++*pAttribCount;
+	}
+	return pAttribs;
+}
+
+void allocateLocalMesh(ThreadArg *pArgs, BufMesh *pLocalMesh, RuvmMesh *pMeshIn,
+                       int32_t bufferSize, int32_t loopBufferSize) {
+	RuvmAllocator alloc = pArgs->alloc;
+	pLocalMesh->mesh.pFaces = alloc.pMalloc(sizeof(int32_t) * bufferSize);
+	pLocalMesh->mesh.pFaceAttribs =
+		allocAttribs(alloc, pMeshIn->pFaceAttribs, pMeshIn->faceAttribCount,
+		             pArgs->pMap->mesh.mesh.pFaceAttribs, pArgs->pMap->mesh.mesh.faceAttribCount,
+					 &pLocalMesh->mesh.faceAttribCount, bufferSize);
+	pLocalMesh->mesh.pLoops = alloc.pMalloc(sizeof(int32_t) * loopBufferSize);
+	pLocalMesh->mesh.pLoopAttribs = 
+		allocAttribs(alloc, pMeshIn->pLoopAttribs, pMeshIn->loopAttribCount,
+		             pArgs->pMap->mesh.mesh.pLoopAttribs, pArgs->pMap->mesh.mesh.loopAttribCount,
+					 &pLocalMesh->mesh.loopAttribCount, loopBufferSize);
+	pLocalMesh->mesh.pEdges = alloc.pMalloc(sizeof(int32_t) * loopBufferSize);
+	pLocalMesh->mesh.pEdgeAttribs =
+		allocAttribs(alloc, pMeshIn->pEdgeAttribs, pMeshIn->edgeAttribCount,
+		             pArgs->pMap->mesh.mesh.pEdgeAttribs, pArgs->pMap->mesh.mesh.edgeAttribCount,
+					 &pLocalMesh->mesh.edgeAttribCount, loopBufferSize);
+	pLocalMesh->mesh.pVertAttribs =
+		allocAttribs(alloc, pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
+		             pArgs->pMap->mesh.mesh.pVertAttribs, pArgs->pMap->mesh.mesh.vertAttribCount,
+					 &pLocalMesh->mesh.vertAttribCount, bufferSize);
+	pArgs->bufMesh.pUvs = getAttrib("UVMap", pLocalMesh->mesh.pLoopAttribs,
+	                             pMeshIn->loopAttribCount);
+	pArgs->bufMesh.pNormals = getAttrib("normal", pLocalMesh->mesh.pLoopAttribs,
+	                                    pMeshIn->loopAttribCount);
+	pArgs->bufMesh.pVerts = getAttrib("position", pLocalMesh->mesh.pVertAttribs,
+	                                  pMeshIn->vertAttribCount);
+
+	pLocalMesh->boundaryVertSize = bufferSize - 1;
+	pLocalMesh->boundaryLoopSize = loopBufferSize - 1;
+	pLocalMesh->boundaryEdgeSize = loopBufferSize - 1;
+	pLocalMesh->boundaryFaceSize = bufferSize - 1;
 }
 
 void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
@@ -102,14 +291,8 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	int32_t loopBufferSize = pArgs->bufferSize * 2;
 	pArgs->loopBufferSize = loopBufferSize;
 	pArgs->pBoundaryBuffer = pAlloc->pCalloc(pArgs->boundaryBufferSize, sizeof(BoundaryDir));
-	pArgs->localMesh.boundaryVertSize = pArgs->bufferSize - 1;
-	pArgs->localMesh.boundaryLoopSize = loopBufferSize - 1;
-	pArgs->localMesh.boundaryFaceSize = pArgs->bufferSize - 1;
-	pArgs->localMesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pArgs->bufferSize);
-	pArgs->localMesh.pLoops = pAlloc->pMalloc(sizeof(int32_t) * loopBufferSize);
-	pArgs->localMesh.pVerts = pAlloc->pMalloc(sizeof(Vec3) * pArgs->bufferSize);
-	pArgs->localMesh.pNormals = pAlloc->pMalloc(sizeof(Vec3) * loopBufferSize);
-	pArgs->localMesh.pUvs = pAlloc->pMalloc(sizeof(Vec2) * loopBufferSize);
+	allocateLocalMesh(pArgs, &pArgs->bufMesh, &pArgs->mesh.mesh,
+	                  pArgs->bufferSize, loopBufferSize);
 	pEcVars->pCellFaces = pAlloc->pMalloc(sizeof(int32_t) * pEcVars->cellFacesMax);
 	//pArgs->pInVertTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
 	//pArgs->pVertSeamTable = pAlloc->pCalloc(pArgs->mesh.vertCount, 1);
@@ -121,6 +304,8 @@ void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	printf("VertAdjBufSize: %d\n", pMmVars->vertAdjSize);
 	//pMmVars->vertAdjSize = 4000;
 	pMmVars->pRuvmVertAdj = pAlloc->pCalloc(pMmVars->vertAdjSize, sizeof(VertAdj));
+	pMmVars->edgeTableSize = pEcVars->uniqueFaces / 7;
+	pMmVars->pEdgeTable = pAlloc->pCalloc(pMmVars->edgeTableSize, sizeof(MeshBufEdgeTable));
 }
 
 void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellFaces,
@@ -141,17 +326,17 @@ void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellF
 	}
 }
 
-static Mat3x3 buildFaceTbn(FaceInfo face, RuvmMesh *pMesh) {
+static Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 	int32_t loop = face.start;
-	int32_t vertIndex = pMesh->pLoops[loop];
-	Vec2 uv = pMesh->pUvs[loop];
-	Vec3 vert = pMesh->pVerts[vertIndex];
-	int32_t vertIndexNext = pMesh->pLoops[face.start + 1];
-	Vec2 uvNext = pMesh->pUvs[face.start + 1];
-	Vec3 vertNext = pMesh->pVerts[vertIndexNext];
-	int32_t vertIndexPrev = pMesh->pLoops[face.end - 1];
-	Vec2 uvPrev = pMesh->pUvs[face.end - 1];
-	Vec3 vertPrev = pMesh->pVerts[vertIndexPrev];
+	int32_t vertIndex = pMesh->mesh.pLoops[loop];
+	Vec2 uv = *attribAsV2(pMesh->pUvs, loop);
+	Vec3 vert = *attribAsV3(pMesh->pVerts, vertIndex);
+	int32_t vertIndexNext = pMesh->mesh.pLoops[face.start + 1];
+	Vec2 uvNext = *attribAsV2(pMesh->pUvs, face.start + 1);
+	Vec3 vertNext = *attribAsV3(pMesh->pVerts, vertIndexNext);
+	int32_t vertIndexPrev = pMesh->mesh.pLoops[face.end - 1];
+	Vec2 uvPrev = *attribAsV2(pMesh->pUvs, face.end - 1);
+	Vec3 vertPrev = *attribAsV3(pMesh->pVerts, vertIndexPrev);
 	//uv space direction vectors,
 	//forming the coefficient matrix
 	Mat2x2 coeffMat;
@@ -175,7 +360,7 @@ static Mat3x3 buildFaceTbn(FaceInfo face, RuvmMesh *pMesh) {
 }
 
 static void mapToMeshJob(void *pArgsPtr) {
-	CLOCK_INIT;
+	//CLOCK_INIT;
 	//CLOCK_START;
 	EnclosingCellsVars ecVars = {0};
 	SendOffArgs *pSend = pArgsPtr;
@@ -187,20 +372,21 @@ static void mapToMeshJob(void *pArgsPtr) {
 	args.mesh = pSend->mesh;
 	args.pMap = pSend->pMap;
 	args.maxLoopSize = 0;
+	args.pCommonAttribList = pSend->pCommonAttribList;
 	ecVars.pFaceCellsInfo = args.alloc.pMalloc(sizeof(FaceCellsInfo) *
-	                        args.mesh.faceCount);
+	                        args.mesh.mesh.faceCount);
 	ruvmGetEnclosingCellsForAllFaces(&args, &ecVars);
 	//CLOCK_STOP("getting enclosing cells");
 	//CLOCK_START;
 	MapToMeshVars mmVars = {0};
-	args.bufferSize = args.mesh.faceCount + ecVars.cellFacesTotal;
+	args.bufferSize = args.mesh.mesh.faceCount + ecVars.cellFacesTotal;
 	allocateStructuresForMapping(&args, &ecVars, &mmVars);
 	DebugAndPerfVars dpVars = {0};
 	//CLOCK_STOP("allocate structures for mapping");
 	uint64_t mappingTime, copySingleTime;
 	copySingleTime = 0;
 	mappingTime = 0;
-	for (int32_t i = 0; i < args.mesh.faceCount; ++i) {
+	for (int32_t i = 0; i < args.mesh.mesh.faceCount; ++i) {
 		//CLOCK_START;
 		// copy faces over to a new contiguous array
 		copyCellFacesIntoSingleArray(ecVars.pFaceCellsInfo, ecVars.pCellFaces, i);
@@ -209,8 +395,8 @@ static void mapToMeshJob(void *pArgsPtr) {
 		//copySingleTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
 		FaceInfo baseFace;
-		baseFace.start = args.mesh.pFaces[i];
-		baseFace.end = args.mesh.pFaces[i + 1];
+		baseFace.start = args.mesh.mesh.pFaces[i];
+		baseFace.end = args.mesh.mesh.pFaces[i + 1];
 		baseFace.size = baseFace.end - baseFace.start;
 		baseFace.index = i;
 		mmVars.tbn = buildFaceTbn(baseFace, &args.mesh);
@@ -243,19 +429,22 @@ static void mapToMeshJob(void *pArgsPtr) {
 	//printf("copy faces into single array %lu\n", copySingleTime);
 	//printf("maping %lu\n", mappingTime);
 	//CLOCK_START;
-	args.averageRuvmFacesPerFace /= args.mesh.faceCount;
-	//printf("#######Boundary Buffer Size: %d\n", pArgs->localMesh.boundaryFaceSize);
-	args.localMesh.pFaces[args.localMesh.boundaryFaceSize] = 
-		args.localMesh.boundaryLoopSize;
+	args.averageRuvmFacesPerFace /= args.mesh.mesh.faceCount;
+	//printf("#######Boundary Buffer Size: %d\n", pArgs->bufMesh.boundaryFaceSize);
+	args.bufMesh.mesh.pFaces[args.bufMesh.boundaryFaceSize] = 
+		args.bufMesh.boundaryLoopSize;
 	args.totalBoundaryFaces = args.totalFaces;
-	//args.totalFaces += args.localMesh.faceCount;
-	//args.totalLoops += args.localMesh.loopCount;
-	args.totalFaces = args.localMesh.faceCount +
-		(args.bufferSize - args.localMesh.boundaryFaceSize);
-	args.totalLoops = args.localMesh.loopCount +
-		(args.loopBufferSize - args.localMesh.boundaryLoopSize);
-	args.totalVerts = args.localMesh.vertCount +
-		(args.bufferSize - args.localMesh.boundaryVertSize);
+	args.totalBoundaryEdges = args.totalEdges;
+	//args.totalFaces += args.bufMesh.faceCount;
+	//args.totalLoops += args.bufMesh.loopCount;
+	args.totalFaces = args.bufMesh.mesh.faceCount +
+		(args.bufferSize - args.bufMesh.boundaryFaceSize);
+	args.totalLoops = args.bufMesh.mesh.loopCount +
+		(args.loopBufferSize - args.bufMesh.boundaryLoopSize);
+	args.totalEdges = args.bufMesh.mesh.edgeCount +
+		(args.loopBufferSize - args.bufMesh.boundaryLoopSize); //use number of boundary loops as an estimate
+	args.totalVerts = args.bufMesh.mesh.vertCount +
+		(args.bufferSize - args.bufMesh.boundaryVertSize);
 	//printf("MaxDepth: %d\n", dpVars.maxDepth);
 	////CLOCK_STOP("projecting");
 	//printf("  ^  project: %lu, move & transform: %lu, memset vert adj: %lu\n",
@@ -273,7 +462,20 @@ static void mapToMeshJob(void *pArgsPtr) {
 			pEntry = pNextEntry;
 		};
 	}
+	for (int32_t i = 0; i < mmVars.edgeTableSize; ++i) {
+		MeshBufEdgeTable *pEntry = mmVars.pEdgeTable + i;
+		if (!pEntry->loopCount) {
+			continue;
+		}
+		pEntry = pEntry->pNext;
+		while (pEntry) {
+			MeshBufEdgeTable *pNextEntry = pEntry->pNext;
+			args.alloc.pFree(pEntry);
+			pEntry = pNextEntry;
+		};
+	}
 	args.alloc.pFree(mmVars.pRuvmVertAdj);
+	args.alloc.pFree(mmVars.pEdgeTable);
 	args.alloc.pFree(ecVars.pCellFaces);
 	args.alloc.pFree(ecVars.pFaceCellsInfo);
 	//CLOCK_STOP("post mapping stuff");
@@ -282,11 +484,13 @@ static void mapToMeshJob(void *pArgsPtr) {
 	pSend->pBoundaryBuffer = args.pBoundaryBuffer;
 	pSend->averageVertAdjDepth = args.averageVertAdjDepth;
 	pSend->averageRuvmFacesPerFace = args.averageRuvmFacesPerFace;
-	pSend->localMesh = args.localMesh;
+	pSend->bufMesh = args.bufMesh;
 	pSend->vertBase = args.vertBase;
 	pSend->totalBoundaryFaces = args.totalBoundaryFaces;
+	pSend->totalBoundaryEdges = args.totalBoundaryEdges;
 	pSend->totalVerts = args.totalVerts;
 	pSend->totalLoops = args.totalLoops;
+	pSend->totalEdges = args.totalEdges;
 	pSend->totalFaces = args.totalFaces;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle, pSend->pMutex);
 	++*pSend->pJobsCompleted;
@@ -296,21 +500,22 @@ static void mapToMeshJob(void *pArgsPtr) {
 
 void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
                  int32_t *pJobsCompleted, Mesh *pMesh, void *pMutex,
-                 EdgeVerts *pEdgeVerts, int8_t *pInVertTable, int8_t *pVertSeamTable) {
+                 EdgeVerts *pEdgeVerts, int8_t *pInVertTable, int8_t *pVertSeamTable,
+				 RuvmCommonAttribList *pCommonAttribList) {
 	//struct timeval start, stop;
 	//CLOCK_START;
-	int32_t facesPerThread = pMesh->faceCount / pContext->threadCount;
+	int32_t facesPerThread = pMesh->mesh.faceCount / pContext->threadCount;
 	int32_t threadAmountMinus1 = pContext->threadCount - 1;
 	void *jobArgPtrs[MAX_THREADS];
-	int32_t boundaryBufferSize = pMap->mesh.faceCount / 5;
+	int32_t boundaryBufferSize = pMap->mesh.mesh.faceCount / 5;
 	printf("fromjobsendoff: BoundaryBufferSize: %d\n", boundaryBufferSize);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		int32_t meshStart = facesPerThread * i;
 		int32_t meshEnd = i == threadAmountMinus1 ?
-			pMesh->faceCount : meshStart + facesPerThread;
+			pMesh->mesh.faceCount : meshStart + facesPerThread;
 		Mesh meshPart = *pMesh;
-		meshPart.pFaces += meshStart;
-		meshPart.faceCount = meshEnd - meshStart;
+		meshPart.mesh.pFaces += meshStart;
+		meshPart.mesh.faceCount = meshEnd - meshStart;
 		pJobArgs[i].pInVertTable = pInVertTable;
 		pJobArgs[i].pVertSeamTable = pVertSeamTable;
 		pJobArgs[i].pEdgeVerts = pEdgeVerts;
@@ -322,6 +527,7 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 		pJobArgs[i].id = i;
 		pJobArgs[i].pContext = pContext;
 		pJobArgs[i].pMutex = pMutex;
+		pJobArgs[i].pCommonAttribList = pCommonAttribList;
 		jobArgPtrs[i] = pJobArgs + i;
 	}
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle, pContext->threadCount,
@@ -332,45 +538,77 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut, SendOffArgs *pJobArgs) {
 	RuvmAllocator *pAlloc = &pContext->alloc;
 	int32_t averageVertAdjDepth = 0;
-	int32_t workMeshFaces, workMeshLoops, workMeshVerts;
-	workMeshFaces = workMeshLoops = workMeshVerts = 0;
+	int32_t workMeshFaces, workMeshLoops, workMeshEdges, workMeshVerts;
+	workMeshFaces = workMeshLoops = workMeshEdges = workMeshVerts = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		averageVertAdjDepth += pJobArgs[i].averageVertAdjDepth;
 		workMeshFaces += pJobArgs[i].totalFaces;
 		workMeshLoops += pJobArgs[i].totalLoops;
+		workMeshEdges += pJobArgs[i].totalEdges;
 		workMeshVerts += pJobArgs[i].totalVerts;
 	}
 	averageVertAdjDepth /= pContext->threadCount;
 	printf("Average Vert Adj Depth: %d\n", averageVertAdjDepth);
 
+	//TODO figure out how to handle edges in local meshes,
+	//probably just add internal edges to local mesh,
+	//and figure out edges in boundary faces after jobs are finished?
+	//You'll need to provide functionality for interpolating and blending
+	//edge data, so keep that in mind.
+	RuvmMesh *pMeshIn = &pJobArgs[0].mesh.mesh;
 	pMeshOut->pFaces = pAlloc->pMalloc(sizeof(int32_t) * (workMeshFaces + 1));
+	pMeshOut->pFaceAttribs =
+		allocAttribs(*pAlloc, pMeshIn->pFaceAttribs, pMeshIn->faceAttribCount,
+		             NULL, 0, &pMeshOut->faceAttribCount, workMeshFaces);
 	pMeshOut->pLoops = pAlloc->pMalloc(sizeof(int32_t) * workMeshLoops);
-	pMeshOut->pVerts = pAlloc->pMalloc(sizeof(Vec3) * workMeshVerts);
-	pMeshOut->pNormals = pAlloc->pMalloc(sizeof(Vec3) * workMeshLoops);
-	pMeshOut->pUvs = pAlloc->pMalloc(sizeof(Vec2) * workMeshLoops);
+	pMeshOut->pLoopAttribs =
+		allocAttribs(*pAlloc, pMeshIn->pLoopAttribs, pMeshIn->loopAttribCount,
+		             NULL, 0, &pMeshOut->loopAttribCount, workMeshLoops);
+	pMeshOut->pEdges = pAlloc->pMalloc(sizeof(int32_t) * workMeshLoops);
+	pMeshOut->pEdgeAttribs =
+		allocAttribs(*pAlloc, pMeshIn->pEdgeAttribs, pMeshIn->edgeAttribCount,
+		             NULL, 0, &pMeshOut->edgeAttribCount, workMeshEdges);
+	pMeshOut->pVertAttribs =
+		allocAttribs(*pAlloc, pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
+		             NULL, 0, &pMeshOut->vertAttribCount, workMeshVerts);
+}
+
+static void bulkCopyAttribs(RuvmAttrib *pAttribsSrc, int32_t SrcOffset,
+                        RuvmAttrib *pAttribsDest, int32_t attribCount, int32_t dataLen) {
+	for (int32_t i = 0; i < attribCount; ++i) {
+		void *attribDestStart = attribAsVoid(pAttribsDest + i, SrcOffset);
+		int32_t attribTypeSize = getAttribSize(pAttribsSrc[i].type);
+		memcpy(attribDestStart, pAttribsSrc[i].pData, attribTypeSize * dataLen);
+	}
 }
 
 void copyMesh(int32_t jobIndex, RuvmMesh *pMeshOut, SendOffArgs *pJobArgs) {
-	WorkMesh *localMesh = &pJobArgs[jobIndex].localMesh;
-	for (int32_t j = 0; j < localMesh->faceCount; ++j) {
-		localMesh->pFaces[j] += pMeshOut->loopCount;
+	BufMesh *bufMesh = &pJobArgs[jobIndex].bufMesh;
+	for (int32_t j = 0; j < bufMesh->mesh.faceCount; ++j) {
+		bufMesh->mesh.pFaces[j] += pMeshOut->loopCount;
 	}
-	for (int32_t j = 0; j < localMesh->loopCount; ++j) {
-		localMesh->pLoops[j] += pMeshOut->vertCount;
+	for (int32_t j = 0; j < bufMesh->mesh.loopCount; ++j) {
+		bufMesh->mesh.pLoops[j] += pMeshOut->vertCount;
+		bufMesh->mesh.pEdges[j] += pMeshOut->edgeCount;
 	}
 	int32_t *facesStart = pMeshOut->pFaces + pMeshOut->faceCount;
 	int32_t *loopsStart = pMeshOut->pLoops + pMeshOut->loopCount;
-	Vec3 *vertsStart = pMeshOut->pVerts + pMeshOut->vertCount;
-	Vec3 *normalsStart = pMeshOut->pNormals + pMeshOut->loopCount;
-	Vec2 *uvsStart = pMeshOut->pUvs + pMeshOut->loopCount;
-	memcpy(facesStart, localMesh->pFaces, sizeof(int32_t) * localMesh->faceCount);
-	pMeshOut->faceCount += localMesh->faceCount;
-	memcpy(loopsStart, localMesh->pLoops, sizeof(int32_t) * localMesh->loopCount);
-	memcpy(normalsStart, localMesh->pNormals, sizeof(Vec3) * localMesh->loopCount);
-	memcpy(uvsStart, localMesh->pUvs, sizeof(Vec2) * localMesh->loopCount);
-	pMeshOut->loopCount += localMesh->loopCount;
-	memcpy(vertsStart, localMesh->pVerts, sizeof(Vec3) * localMesh->vertCount);
-	pMeshOut->vertCount += localMesh->vertCount;
+	int32_t *edgesStart = pMeshOut->pEdges + pMeshOut->loopCount;
+	memcpy(facesStart, bufMesh->mesh.pFaces, sizeof(int32_t) * bufMesh->mesh.faceCount);
+	bulkCopyAttribs(bufMesh->mesh.pFaceAttribs, pMeshOut->faceCount, pMeshOut->pFaceAttribs,
+	            pMeshOut->faceAttribCount, bufMesh->mesh.faceCount);
+	pMeshOut->faceCount += bufMesh->mesh.faceCount;
+	memcpy(loopsStart, bufMesh->mesh.pLoops, sizeof(int32_t) * bufMesh->mesh.loopCount);
+	bulkCopyAttribs(bufMesh->mesh.pLoopAttribs, pMeshOut->loopCount, pMeshOut->pLoopAttribs,
+	            pMeshOut->loopAttribCount, bufMesh->mesh.loopCount);
+	pMeshOut->loopCount += bufMesh->mesh.loopCount;
+	memcpy(edgesStart, bufMesh->mesh.pEdges, sizeof(int32_t) * bufMesh->mesh.edgeCount);
+	bulkCopyAttribs(bufMesh->mesh.pEdgeAttribs, pMeshOut->edgeCount, pMeshOut->pEdgeAttribs,
+	            pMeshOut->edgeAttribCount, bufMesh->mesh.edgeCount);
+	pMeshOut->edgeCount += bufMesh->mesh.edgeCount;
+	bulkCopyAttribs(bufMesh->mesh.pVertAttribs, pMeshOut->vertCount, pMeshOut->pVertAttribs,
+	            pMeshOut->vertAttribCount, bufMesh->mesh.vertCount);
+	pMeshOut->vertCount += bufMesh->mesh.vertCount;
 }
 
 void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOut,
@@ -380,16 +618,13 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 	allocateMeshOut(pContext, pMeshOut, pJobArgs);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		pJobArgs[i].vertBase = pMeshOut->vertCount;
+		pJobArgs[i].edgeBase = pMeshOut->edgeCount;
 		copyMesh(i, pMeshOut, pJobArgs);
 	}
 		ruvmMergeBoundaryFaces(pContext, pMap, pMeshOut, pJobArgs, pEdgeVerts);
 		for (int32_t i = 0; i < pContext->threadCount; ++i) {
-		WorkMesh *localMesh = &pJobArgs[i].localMesh;
-		pContext->alloc.pFree(localMesh->pFaces);
-		pContext->alloc.pFree(localMesh->pLoops);
-		pContext->alloc.pFree(localMesh->pNormals);
-		pContext->alloc.pFree(localMesh->pUvs);
-		pContext->alloc.pFree(localMesh->pVerts);
+		BufMesh *bufMesh = &pJobArgs[i].bufMesh;
+		ruvmMeshDestroy(pContext, &bufMesh->mesh);
 		pContext->alloc.pFree(pJobArgs[i].pBoundaryBuffer);
 	}
 	pMeshOut->pFaces[pMeshOut->faceCount] = pMeshOut->loopCount;
@@ -406,21 +641,21 @@ static void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts, R
 	}
 }
 
-static void buildVertTables(RuvmContext pContext, RuvmMesh *pMesh,
+static void buildVertTables(RuvmContext pContext, Mesh *pMesh,
                             int8_t **ppInVertTable, int8_t **ppVertSeamTable,
 							EdgeVerts *pEdgeVerts) {
-	*ppInVertTable = pContext->alloc.pCalloc(pMesh->vertCount, 1);
-	*ppVertSeamTable = pContext->alloc.pCalloc(pMesh->vertCount, 1);
-	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
+	*ppInVertTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
+	*ppVertSeamTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
+	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceInfo face;
-		face.start = pMesh->pFaces[i];
-		face.end = pMesh->pFaces[i + 1];
+		face.start = pMesh->mesh.pFaces[i];
+		face.end = pMesh->mesh.pFaces[i + 1];
 		face.size = face.end - face.start;
 		face.index = i;
 		for (int32_t j = 0; j < face.size; ++j) {
 			int32_t loopIndex = face.start + j;
-			int32_t vertIndex = pMesh->pLoops[loopIndex];
-			int32_t edgeIndex = pMesh->pEdges[loopIndex];
+			int32_t vertIndex = pMesh->mesh.pLoops[loopIndex];
+			int32_t edgeIndex = pMesh->mesh.pEdges[loopIndex];
 			int32_t isSeam = checkIfEdgeIsSeam(edgeIndex, face, j, pMesh, pEdgeVerts);
 			if (!(*ppInVertTable)[vertIndex] &&
 			    checkIfEdgeIsPreserve(pMesh, edgeIndex) && !isSeam) {
@@ -445,8 +680,15 @@ int32_t validateMeshIn(RuvmMesh *pMeshIn) {
 	return 0;
 }
 
+static void setAttribOrigins(RuvmAttrib *pAttribs, int32_t attribCount,
+                             RUVM_ATTRIB_ORIGIN origin) {
+	for (int32_t i = 0; i < attribCount; ++i) {
+		pAttribs[i].origin = origin;
+	}
+}
+
 int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
-                      RuvmMesh *pMeshOut) {
+                      RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
 	CLOCK_INIT;
 	if (!pMeshIn) {
 		printf("Ruvm map to mesh failed, pMeshIn was null\n");
@@ -460,13 +702,37 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		//return 1;
 	}
 
+	Mesh meshIn = {*pMeshIn};
+	//TODO replace hard coded names with function parameters.
+	//User can specify which attributes should be treated as vert, uv, and normal.
+	meshIn.pVerts = getAttrib("position", meshIn.mesh.pVertAttribs,
+	                          meshIn.mesh.vertAttribCount);
+	meshIn.pUvs = getAttrib("UVMap", meshIn.mesh.pLoopAttribs,
+	                        meshIn.mesh.loopAttribCount);
+	meshIn.pNormals = getAttrib("normal", meshIn.mesh.pLoopAttribs,
+	                            meshIn.mesh.loopAttribCount);
+	meshIn.pEdgePreserve = getAttrib("RuvmEdgePreserve", meshIn.mesh.pEdgeAttribs,
+	                                 meshIn.mesh.edgeAttribCount);
+	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
+	//it doesn't matter what it's set to here
+	setAttribOrigins(pMeshIn->pMeshAttribs, pMeshIn->meshAttribCount,
+	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(pMeshIn->pFaceAttribs, pMeshIn->faceAttribCount,
+	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(pMeshIn->pLoopAttribs, pMeshIn->loopAttribCount,
+	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(pMeshIn->pEdgeAttribs, pMeshIn->edgeAttribCount,
+	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
+	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
+
 	CLOCK_START;
 	EdgeVerts *pEdgeVerts;
 	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
 	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
 	int8_t *pInVertTable;
 	int8_t *pVertSeamTable;
-	buildVertTables(pContext, pMeshIn, &pInVertTable, &pVertSeamTable, pEdgeVerts);
+	buildVertTables(pContext, &meshIn, &pInVertTable, &pVertSeamTable, pEdgeVerts);
 	CLOCK_STOP("Edge Table Time");
 
 	CLOCK_START;
@@ -474,11 +740,9 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	int32_t jobsCompleted = 0;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, pMeshIn, pMutex,
-	            pEdgeVerts, pInVertTable, pVertSeamTable);
+	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, &meshIn, pMutex,
+	            pEdgeVerts, pInVertTable, pVertSeamTable, pCommonAttribList);
 	CLOCK_STOP("Send Off Time");
-
-	//might as well do this here while the other threads are busy
 
 	CLOCK_START;
 	int32_t waiting;
@@ -503,31 +767,72 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	averageRuvmFacesPerFace /= pContext->threadCount;
 	printf("---- averageRuvmFacesPerFace: %d ----\n", (int32_t)averageRuvmFacesPerFace);
 
+
 	CLOCK_START;
 	combineJobMeshesIntoSingleMesh(pContext, pMap, pMeshOut, jobArgs, pEdgeVerts);
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
 	pContext->alloc.pFree(pVertSeamTable);
 	CLOCK_STOP("Combine time");
+	return 0;
 }
 
 void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
+	for (int32_t i = 0; i < pMesh->meshAttribCount; ++i) {
+		if (pMesh->pMeshAttribs[i].pData) {
+			pContext->alloc.pFree(pMesh->pMeshAttribs[i].pData);
+		}
+	}
+	if (pMesh->meshAttribCount && pMesh->pMeshAttribs) {
+		pContext->alloc.pFree(pMesh->pMeshAttribs);
+	}
 	if(pMesh->pFaces) {
 		pContext->alloc.pFree(pMesh->pFaces);
+	}
+	for (int32_t i = 0; i < pMesh->faceAttribCount; ++i) {
+		if (pMesh->pFaceAttribs[i].pData) {
+			pContext->alloc.pFree(pMesh->pFaceAttribs[i].pData);
+		}
+	}
+	if (pMesh->faceAttribCount && pMesh->pFaceAttribs) {
+		pContext->alloc.pFree(pMesh->pFaceAttribs);
 	}
 	if (pMesh->pLoops) {
 		pContext->alloc.pFree(pMesh->pLoops);
 	}
-	if (pMesh->pNormals) {
-		pContext->alloc.pFree(pMesh->pNormals);
+	for (int32_t i = 0; i < pMesh->loopAttribCount; ++i) {
+		if (pMesh->pLoopAttribs[i].pData) {
+			pContext->alloc.pFree(pMesh->pLoopAttribs[i].pData);
+		}
 	}
-	if (pMesh->pUvs) {
-		pContext->alloc.pFree(pMesh->pUvs);
-	}
-	if (pMesh->pVerts) {
-		pContext->alloc.pFree(pMesh->pVerts);
+	if (pMesh->loopAttribCount && pMesh->pLoopAttribs) {
+		pContext->alloc.pFree(pMesh->pLoopAttribs);
 	}
 	if (pMesh->pEdges) {
 		pContext->alloc.pFree(pMesh->pEdges);
 	}
+	for (int32_t i = 0; i < pMesh->edgeAttribCount; ++i) {
+		if (pMesh->pEdgeAttribs[i].pData) {
+			pContext->alloc.pFree(pMesh->pEdgeAttribs[i].pData);
+		}
+	}
+	if (pMesh->edgeAttribCount && pMesh->pEdgeAttribs) {
+		pContext->alloc.pFree(pMesh->pEdgeAttribs);
+	}
+	for (int32_t i = 0; i < pMesh->vertAttribCount; ++i) {
+		if (pMesh->pVertAttribs[i].pData) {
+			pContext->alloc.pFree(pMesh->pVertAttribs[i].pData);
+		}
+	}
+	if (pMesh->vertAttribCount && pMesh->pVertAttribs) {
+		pContext->alloc.pFree(pMesh->pVertAttribs);
+	}
+}
+
+void ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
+	*pSize = getAttribSize(pAttrib->type);
+}
+
+RuvmAttrib *ruvmGetAttrib(char *pName, RuvmAttrib *pAttribs, int32_t attribCount) {
+	return getAttrib(pName, pAttribs, attribCount);
 }
