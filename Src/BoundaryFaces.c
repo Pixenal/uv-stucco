@@ -83,7 +83,12 @@ static void addEntryToSharedEdgeTable(RuvmContext pContext, BoundaryVert *pEntry
 		int32_t otherLoop = pVerts[whichLoop];
 		Vec2 uv = *attribAsV2(pJobArgs[0].mesh.pUvs, nextBaseLoop);
 		Vec2 uvOther = *attribAsV2(pJobArgs[0].mesh.pUvs, otherLoop);
-		int32_t seam = _(uv V2NOTEQL uvOther);
+		//need to use approximate equal comparison here,
+		//in case there are small gaps in uvs. Small enough
+		//to likely be technical error, rather than artist authored.
+		//For instance, the subdiv modifier in blender will create small
+		//splits in uvs if "Keep Boundaries" is set.
+		int32_t seam = !_(uv V2APROXEQL uvOther);
 		if (seam) {
 			continue;
 		}
@@ -350,10 +355,23 @@ static void determineLoopsToKeep(RuvmContext pContext, RuvmMap pMap,
 	addLoopsWithSingleVert(pContext, pAfVars, pJobArgs, localEdgeTable, pTotalVerts);
 }
 
+static int32_t getEdgeLocalLoop(int32_t *pEdgeLoops, FaceInfo *pBaseFace) {
+	for (int32_t i = pBaseFace->start; i < pBaseFace->end; ++i) {
+		if (i == pEdgeLoops[0] || i == pEdgeLoops[1]) {
+			return i;
+		}
+	}
+	printf("Couldn't find loop for edge (winding compare for bounding face\n)");
+	abort();
+}
+
 static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry,
                                Mesh *pMeshOut, BufMesh *pBufMesh, int32_t ruvmEdge,
 							   int32_t *pVert, int32_t baseEdge, int32_t baseVert,
-                               int32_t baseEdgeSign, int32_t loopIndex, int32_t ruvmFace) {
+                               int32_t loopIndex, int32_t ruvmFace, Vec2 *pCentre,
+							   FaceInfo baseFace, int32_t baseLoopLocalAbs,
+							   SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+							   int32_t isBaseLoop) {
 	copyAllAttribs(pMeshOut->mesh.pVertAttribs,
 				   pMeshOut->mesh.vertCount,
 				   pBufMesh->mesh.pVertAttribs,
@@ -367,7 +385,6 @@ static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry,
 	pEdgeEntry->loops = 1;
 	pEdgeEntry->baseEdge = baseEdge;
 	pEdgeEntry->baseVert = baseVert;
-	pEdgeEntry->baseEdgeSign = baseEdgeSign;
 	pEdgeEntry->loopIndex = loopIndex;
 	pEdgeEntry->ruvmFace = ruvmFace;
 }
@@ -385,16 +402,6 @@ static void initSeamEdgeTableEntry(SeamEdgeTable *pSeamEntry, Mesh *pMeshOut,
 	pSeamEntry->edge = *pEdge;
 	pSeamEntry->inEdge = inEdge;
 	pSeamEntry->mapFace = mapFace;
-}
-
-static int32_t getEdgeLocalLoop(int32_t *pEdgeLoops, FaceInfo *pBaseFace) {
-	for (int32_t i = pBaseFace->start; i < pBaseFace->end; ++i) {
-		if (i == pEdgeLoops[0] || i == pEdgeLoops[1]) {
-			return i;
-		}
-	}
-	printf("Couldn't find loop for edge (winding compare for bounding face\n)");
-	//abort();
 }
 
 static FaceInfo getBaseFace(BoundaryVert *pEntry, SendOffArgs *pJobArgs) {
@@ -434,23 +441,12 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 		ruvmEdge = pMap->mesh.mesh.pEdges[pAfVars->ruvmFace.start + sort];
 		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, edgeTableSize);
 	}
-	int32_t baseEdgeSign = 0;
-	if (!isBaseLoop && 
-		checkIfEdgeIsSeam(baseEdge, baseFace, baseLoopLocalAbs - 1,
-						  &pJobArgs[pEntry->job].mesh, pEdgeVerts)) {
-		int32_t *pEdgeLoops = pJobArgs[0].pEdgeVerts[baseEdge].verts;
-		int32_t localLoop = getEdgeLocalLoop(pEdgeLoops, &baseFace);
-		int32_t nextLoop = ((localLoop - baseFace.start) + 1) % baseFace.size;
-		nextLoop += baseFace.start;
-		baseEdgeSign = vec2WindingCompare(*attribAsV2(pJobArgs[0].mesh.pUvs, localLoop),
-										  *attribAsV2(pJobArgs[0].mesh.pUvs, nextLoop),
-										  pAfVars->centre, 1);
-	}
 	EdgeTable *pEdgeEntry = pEdgeTable + hash;
 	if (!pEdgeEntry->loops) {
 		initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh, ruvmEdge,
-		                   pVert, baseEdge, baseVert, baseEdgeSign, baseLoop,
-						   pEntry->faceIndex);
+		                   pVert, baseEdge, baseVert, baseLoop,
+						   pEntry->faceIndex, &pAfVars->centre, baseFace,
+						   baseLoopLocalAbs, pJobArgs, pEdgeVerts, isBaseLoop);
 	}
 	else {
 		do {
@@ -468,10 +464,15 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 						pMeshInUvA->y == pMeshInUvB->y;
 			}
 			else {
+				int32_t connected = 
+					//TODO set pMeshOut->pVerts, when meshout is allocated.
+					//It's currently not set
+					_(*attribAsV3(pJobArgs[pEntry->job].bufMesh.pVerts, *pVert) V3APROXEQL
+					  *attribAsV3(pMeshOut->mesh.pVertAttribs, pEdgeEntry->vert));
 				match =  pEdgeEntry->ruvmEdge == ruvmEdge &&
 						 pEdgeEntry->tile == pEntry->tile &&
 						 pEdgeEntry->baseEdge == baseEdge &&
-						 pEdgeEntry->baseEdgeSign == baseEdgeSign;
+						 connected;
 			}
 			if (match) {
 				*pVert = pEdgeEntry->vert;
@@ -480,10 +481,10 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 			if (!pEdgeEntry->pNext) {
 				pEdgeEntry = pEdgeEntry->pNext =
 					pContext->alloc.pCalloc(1, sizeof(EdgeTable));
-				initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh,
-								   ruvmEdge, pVert, baseEdge,
-								   baseVert, baseEdgeSign, baseLoop,
-								   pEntry->faceIndex);
+				initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh, ruvmEdge,
+								   pVert, baseEdge, baseVert, baseLoop,
+								   pEntry->faceIndex, &pAfVars->centre, baseFace,
+								   baseLoopLocalAbs, pJobArgs, pEdgeVerts, isBaseLoop);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
