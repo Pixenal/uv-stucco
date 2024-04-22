@@ -7,6 +7,8 @@
 #include <MapToMesh.h>
 #include <MapFile.h>
 
+#define FLOAT_BC_MARGIN .0001f
+
 static Vec3 calcIntersection(LoopBufferWrap *pLoopBuf, LoopInfo *pBaseLoop,
                              int32_t i, int32_t vertNextIndex, int32_t *pAlpha) {
 	Vec3 *pRuvmVert = &pLoopBuf->buf[i].loop;
@@ -193,7 +195,7 @@ static void clipRuvmFaceAgainstBaseFace(ThreadArg *pArgs, FaceInfo baseFace,
 }
 
 static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf, 
-											FaceInfo baseFace, Vec2 *pBaseFaceUvsOffset,
+											FaceInfo baseFace, BaseTriVerts *pBaseTri,
 											Mesh *pMeshIn, Vec2 tileMin,
 											MapToMeshVars *pMmVars) {
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
@@ -202,49 +204,49 @@ static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf,
 		pLoopBuf->buf[j].uv = *(Vec2 *)&vert;
 		//find enclosing triangle
 		_((Vec2 *)&vert V2SUBEQL tileMin);
-		Vec3 vertBc;
-		FaceTriangulated *pFaceTris = &pMmVars->faceTriangulated;
-		int32_t loops[3];
-		if (pFaceTris->pTris) {
-			for (int32_t i = 0; i < pFaceTris->triCount; ++i) {
-				int32_t triStart = pFaceTris->pTris[i];
-				Vec2 triUv[3];
-				for (int32_t k = 0; k < 3; ++k) {
-					triUv[k] = pBaseFaceUvsOffset[pFaceTris->pLoops[triStart + k]];
-				}
-				vertBc = cartesianToBarycentric(triUv, &vert);
-				if (vertBc.x >= .0f && vertBc.y >= .0f && vertBc.z >= .0f) {
-					for (int32_t k = 0; k < 3; ++k) {
-						loops[k] = baseFace.start + pFaceTris->pLoops[triStart + k];
-						pLoopBuf->buf[j].triLoops[k] = loops[k];
-					}
-					break;
-				}
-			}
+		Vec3 vertBc = cartesianToBarycentric(pBaseTri->uv, &vert);
+		if (baseFace.size == 4 && vertBc.y < 0) {
+			//base face is a quad, and vert is outside first tri,
+			//so use the second tri
+			
+			//regarding the above condition,
+			//because triangulation uses ear clipping,
+			//and ngons never hit this block of code,
+			//we only need to compare y. As it will always
+			//be the point opposite the dividing edge in the quad.
+			//This avoids us needing to worry about cases where verts
+			//are slightly outside of the quad, by a margin of error.
+			//A vert will always end up in one or the other tri.
+			Vec2 triBuf[3] =
+				{pBaseTri->uv[2], pBaseTri->uv[3], pBaseTri->uv[0]};
+			vertBc = cartesianToBarycentric(triBuf, &vert);
+			pLoopBuf->buf[j].triLoops[0] = baseFace.start + 2;
+			pLoopBuf->buf[j].triLoops[1] = baseFace.start + 3;
+			pLoopBuf->buf[j].triLoops[2] = baseFace.start;
 		}
 		else {
-			vertBc = cartesianToBarycentric(pBaseFaceUvsOffset, &vert);
 			for (int32_t k = 0; k < 3; ++k) {
-				loops[k] = baseFace.start + k;
-				pLoopBuf->buf[j].triLoops[k] = loops[k];
+				pLoopBuf->buf[j].triLoops[k] = baseFace.start + k;
 			}
 		}
-		pLoopBuf->buf[j].bc = vertBc;
+		int32_t *pTriLoops = pLoopBuf->buf[j].triLoops;
 		Vec3 vertsXyz[3];
 		for (int32_t i = 0; i < 3; ++i) {
-			vertsXyz[i] = *attribAsV3(pMeshIn->pVerts, pMeshIn->mesh.pLoops[loops[i]]);
+			int32_t vertIndex = pMeshIn->mesh.pLoops[pTriLoops[i]];
+			vertsXyz[i] = *attribAsV3(pMeshIn->pVerts, vertIndex);
 		}
 		//transform vertex
 		pLoopBuf->buf[j].loop = barycentricToCartesian(vertsXyz, &vertBc);
-		Vec3 normal = _(*attribAsV3(pMeshIn->pNormals, loops[0]) V3MULS vertBc.x);
-		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, loops[1]) V3MULS vertBc.y));
-		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, loops[2]) V3MULS vertBc.z));
+		Vec3 normal = _(*attribAsV3(pMeshIn->pNormals, pTriLoops[0]) V3MULS vertBc.x);
+		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, pTriLoops[1]) V3MULS vertBc.y));
+		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, pTriLoops[2]) V3MULS vertBc.z));
 		_(&normal V3DIVEQLS vertBc.x + vertBc.y + vertBc.z);
 		_(&pLoopBuf->buf[j].loop V3ADDEQL _(normal V3MULS vert.z * 1.0f));
 		//transform normal from tangent space to object space
 		//TODO only multiply by TBN if an option is set to use map normals,
 		//otherwise just use the above interpolated
 		pLoopBuf->buf[j].normal = _(pLoopBuf->buf[j].normal V3MULM3X3 &pMmVars->tbn);
+		pLoopBuf->buf[j].bc = vertBc;
 	}
 }
 
@@ -667,24 +669,14 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 	//struct timeval start, stop;
 	FaceBounds bounds;
 	getFaceBounds(&bounds, pArgs->mesh.pUvs, baseFace);
-	Vec2 *pBaseFaceUvsOffset = pArgs->alloc.pMalloc(sizeof(Vec2) * baseFace.size);
-	for (int32_t i = 0; i < baseFace.size; ++i) {
-		pBaseFaceUvsOffset[i] = _(*attribAsV2(pArgs->mesh.pUvs, baseFace.start + i) V2SUB fTileMin);
-	}
 	BaseTriVerts baseTri;
-	baseTri.uv[0] =
-		_(*attribAsV2(pArgs->mesh.pUvs, baseFace.start) V2SUB fTileMin);
-	baseTri.uv[1] =
-		_(*attribAsV2(pArgs->mesh.pUvs, baseFace.start + 1) V2SUB fTileMin);
-	baseTri.uv[2] =
-		_(*attribAsV2(pArgs->mesh.pUvs, baseFace.start + 2) V2SUB fTileMin);
-	baseTri.xyz[0] =
-		*attribAsV3(pArgs->mesh.pVerts, pArgs->mesh.mesh.pLoops[baseFace.start]);
-	baseTri.xyz[1] =
-		*attribAsV3(pArgs->mesh.pVerts, pArgs->mesh.mesh.pLoops[baseFace.start + 1]);
-	baseTri.xyz[2] =
-		*attribAsV3(pArgs->mesh.pVerts, pArgs->mesh.mesh.pLoops[baseFace.start + 2]);
-	baseTri.pNormals = attribAsV3(pArgs->mesh.pNormals, baseFace.start);
+	for (int32_t i = 0; i < baseFace.size; ++i) {
+		int32_t loop = baseFace.start + i;
+		baseTri.uv[i] =
+			_(*attribAsV2(pArgs->mesh.pUvs, loop) V2SUB fTileMin);
+		baseTri.xyz[i] =
+			*attribAsV3(pArgs->mesh.pVerts, pArgs->mesh.mesh.pLoops[loop]);
+	}
 	for (int32_t i = 0; i < pEcVars->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
 		////CLOCK_START;
 		FaceInfo ruvmFace;
@@ -734,7 +726,7 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		if (loopBuf.size <= 2) {
 			continue;
 		}
-		transformClippedFaceFromUvToXyz(&loopBuf, baseFace, pBaseFaceUvsOffset,
+		transformClippedFaceFromUvToXyz(&loopBuf, baseFace, &baseTri,
 		                                &pArgs->mesh, fTileMin, pMmVars);
 		////CLOCK_START;
 		addClippedFaceToBufMesh(pArgs, pMmVars, &loopBuf, edgeFace,
@@ -743,7 +735,6 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		////CLOCK_STOP_NO_PRINT;
 		//pDpVars->timeSpent[2] += getTimeDiff(&start, &stop);
 	}
-	pArgs->alloc.pFree(pBaseFaceUvsOffset);
 	//debugFaceIndex++;
 	//printf("Total vert adj: %d %d %d - depth: %d %d\n", totalEmpty, totalComputed, vertAdjSize, maxDepth, *averageDepth);
 	////CLOCK_START;

@@ -371,7 +371,7 @@ static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry,
                                int32_t loopIndex, int32_t ruvmFace, Vec2 *pCentre,
 							   FaceInfo baseFace, int32_t baseLoopLocalAbs,
 							   SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-							   int32_t isBaseLoop) {
+							   int32_t isBaseLoop, int32_t loop) {
 	copyAllAttribs(pMeshOut->mesh.pVertAttribs,
 				   pMeshOut->mesh.vertCount,
 				   pBufMesh->mesh.pVertAttribs,
@@ -387,6 +387,7 @@ static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry,
 	pEdgeEntry->baseVert = baseVert;
 	pEdgeEntry->loopIndex = loopIndex;
 	pEdgeEntry->ruvmFace = ruvmFace;
+	pEdgeEntry->loop = loop;
 }
 
 static void initSeamEdgeTableEntry(SeamEdgeTable *pSeamEntry, Mesh *pMeshOut,
@@ -419,7 +420,7 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 								   SendOffArgs *pJobArgs, EdgeTable *pEdgeTable,
 									SeamEdgeTable *pSeamEdgeTable,
 								   int32_t edgeTableSize, int32_t seamTableSize, Mesh *pMeshOut,
-								   int32_t k, int32_t sort, int32_t *pEdge) {
+								   int32_t k, int32_t sort, int32_t *pEdge, int32_t loop) {
 	FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
 	sort -= 1;
 	if (sort < 0) {
@@ -446,7 +447,7 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 		initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh, ruvmEdge,
 		                   pVert, baseEdge, baseVert, baseLoop,
 						   pEntry->faceIndex, &pAfVars->centre, baseFace,
-						   baseLoopLocalAbs, pJobArgs, pEdgeVerts, isBaseLoop);
+						   baseLoopLocalAbs, pJobArgs, pEdgeVerts, isBaseLoop, loop);
 	}
 	else {
 		do {
@@ -467,8 +468,8 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 				int32_t connected = 
 					//TODO set pMeshOut->pVerts, when meshout is allocated.
 					//It's currently not set
-					_(*attribAsV3(pJobArgs[pEntry->job].bufMesh.pVerts, *pVert) V3APROXEQL
-					  *attribAsV3(pMeshOut->mesh.pVertAttribs, pEdgeEntry->vert));
+					_(*attribAsV2(pJobArgs[pEntry->job].bufMesh.pUvs, loop) V2APROXEQL
+					  *attribAsV2(pJobArgs[pEntry->job].bufMesh.pUvs, pEdgeEntry->loop));
 				match =  pEdgeEntry->ruvmEdge == ruvmEdge &&
 						 pEdgeEntry->tile == pEntry->tile &&
 						 pEdgeEntry->baseEdge == baseEdge &&
@@ -484,7 +485,7 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 				initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh, ruvmEdge,
 								   pVert, baseEdge, baseVert, baseLoop,
 								   pEntry->faceIndex, &pAfVars->centre, baseFace,
-								   baseLoopLocalAbs, pJobArgs, pEdgeVerts, isBaseLoop);
+								   baseLoopLocalAbs, pJobArgs, pEdgeVerts, isBaseLoop, loop);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
@@ -593,7 +594,7 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 				addBoundaryLoopAndVert(pContext, pMap, pAfVars, &vert, pEdgeVerts,
 				                       pEntry, pJobArgs, pEdgeTable, pSeamEdgeTable,
 									   edgeTableSize, seamTableSize, pMeshOut, k, sort,
-									   &edge);
+									   &edge, faceStart - k);
 				vertNoOffset = vert;
 			}
 			else {
@@ -783,12 +784,55 @@ static void compileEntryInfo(BoundaryVert *pEntry, int32_t *pCount, int32_t *pIs
 	}
 }
 
+//TODO remove this funtion, it's not used
+static void flattenIntersectionPoints(Mesh *pMeshOut, int32_t loopBase,
+                                      int32_t loopCount, int32_t vertBase) {
+	for (int32_t i = 0; i < loopCount; ++i) {
+		int32_t vertIndex = pMeshOut->mesh.pLoops[loopBase + i];
+		if (vertIndex < vertBase) {
+			//ruvm vert
+			continue;
+		}
+		Vec3 *pVert = attribAsV3(pMeshOut->mesh.pVertAttribs, vertIndex);
+		//get first ruvm vert behind current vert
+		Vec3 a;
+		for (int32_t j = 0; j < loopCount; ++j) {
+			int32_t iLast = i - j;
+			if (iLast < 0) {
+				iLast = loopCount - iLast * -1;
+			}
+			int32_t vertLast = pMeshOut->mesh.pLoops[loopBase + iLast];
+			if (vertLast < vertBase) {
+				//ruvm Vert
+				a = *attribAsV3(pMeshOut->mesh.pVertAttribs, vertLast);
+				break;
+			}
+		}
+		//get first ruvm vert infront of current vert
+		Vec3 b;
+		for (int32_t j = 0; j < loopCount; ++j) {
+			int32_t iNext = (i + j) % loopCount;
+			int32_t vertNext = pMeshOut->mesh.pLoops[loopBase + iNext];
+			if (vertNext < vertBase) {
+				//ruvm vert
+				b = *attribAsV3(pMeshOut->mesh.pVertAttribs, vertNext);
+				break;
+			}
+		}
+		Vec3 ab = _(b V3SUB a);
+		Vec3 ac = _(*pVert V3SUB a);
+		Vec3 point =_(ab V3MULS _(ab V3DOT ac) / _(ab V3DOT ab));
+		*pVert = _(a V3ADD point);
+	}
+}
+
 static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                            SendOffArgs *pJobArgs, int32_t edgeTableSize, int32_t seamTableSize,
 						   EdgeTable *pEdgeTable,
 						   SeamEdgeTable *pSeamEdgeTable, int32_t allBoundaryFacesSize,
 						   BoundaryVert **pAllBoundaryFaces, EdgeVerts *pEdgeVerts,
 						   OnLineTable *pOnLineTable, int32_t onLineTableSize) {
+	int32_t vertBase = pMeshOut->mesh.vertCount;
 	for (int32_t j = 0; j < allBoundaryFacesSize; ++j) {
 		BoundaryVert *pEntry = pAllBoundaryFaces[j];
 		int32_t entryCount, isSeam, hasPreservedEdge;

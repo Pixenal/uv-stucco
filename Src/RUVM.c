@@ -359,6 +359,20 @@ static Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 	return tbn;
 }
 
+static void mapPerTile(ThreadArg *pArgs, FaceInfo *pBaseFace,
+                       EnclosingCellsVars *pEcVars, MapToMeshVars *pMmVars,
+					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
+	FaceBounds *pFaceBounds = &pEcVars->pFaceCellsInfo[rawFace].faceBounds;
+	for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
+		for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
+			Vec2 fTileMin = {k, j};
+			int32_t tile = k + (j * pFaceBounds->max.x);
+			ruvmMapToSingleFace(pArgs, pEcVars, pMmVars, pDpVars, fTileMin, tile,
+								*pBaseFace);
+		}
+	}
+}
+
 static void mapToMeshJob(void *pArgsPtr) {
 	//CLOCK_INIT;
 	//CLOCK_START;
@@ -403,13 +417,19 @@ static void mapToMeshJob(void *pArgsPtr) {
 		if (baseFace.size > 3) {
 			mmVars.faceTriangulated = triangulateFace(args.alloc, baseFace, &args.mesh);
 		}
-		FaceBounds *pFaceBounds = &ecVars.pFaceCellsInfo[i].faceBounds;
-		for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
-			for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
-				Vec2 fTileMin = {k, j};
-				int32_t tile = k + (j * pFaceBounds->max.x);
-				ruvmMapToSingleFace(&args, &ecVars, &mmVars, &dpVars, fTileMin, tile,
-				                    baseFace);
+		if (baseFace.size <= 4) {
+			//face is a quad, or a tri
+			mapPerTile(&args, &baseFace, &ecVars, &mmVars, &dpVars, i);
+		}
+		else {
+			//face is an ngon. ngons are processed per tri
+			for (int32_t j = 0; j < mmVars.faceTriangulated.triCount; ++j) {
+				int32_t triFaceStart = mmVars.faceTriangulated.pTris[j];
+				int32_t triFaceEnd = mmVars.faceTriangulated.pTris[j + 1];
+				baseFace.start = mmVars.faceTriangulated.pLoops[triFaceStart];
+				baseFace.end = mmVars.faceTriangulated.pLoops[triFaceEnd];
+				baseFace.size = baseFace.end - baseFace.start;
+				mapPerTile(&args, &baseFace, &ecVars, &mmVars, &dpVars, i);
 			}
 		}
 		//CLOCK_STOP_NO_PRINT;
@@ -621,8 +641,14 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 		pJobArgs[i].edgeBase = pMeshOut->edgeCount;
 		copyMesh(i, pMeshOut, pJobArgs);
 	}
-		ruvmMergeBoundaryFaces(pContext, pMap, pMeshOut, pJobArgs, pEdgeVerts);
-		for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	Mesh meshOutWrap = {.mesh = *pMeshOut};
+	meshOutWrap.pVerts = getAttrib("position", pMeshOut->pVertAttribs,
+	                               pMeshOut->vertAttribCount);
+	meshOutWrap.pUvs = getAttrib("UVMap", pMeshOut->pLoopAttribs,
+	                             pMeshOut->loopAttribCount);
+	ruvmMergeBoundaryFaces(pContext, pMap, &meshOutWrap, pJobArgs, pEdgeVerts);
+	*pMeshOut = meshOutWrap.mesh;
+	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		BufMesh *bufMesh = &pJobArgs[i].bufMesh;
 		ruvmMeshDestroy(pContext, &bufMesh->mesh);
 		pContext->alloc.pFree(pJobArgs[i].pBoundaryBuffer);
