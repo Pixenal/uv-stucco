@@ -46,6 +46,10 @@
 //
 //TODO repalce localMesh with bufMesh.
 //The old name is still present in some functions & vars
+//TODO a highly distorted meshIn can cause invalid geometry
+//(enough to crash blender). When meshIn is quads atleast
+//(I've not tested with tris). Find out why
+//TODO ruvmPreserve isn't working.
 
 static void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
 	RuvmTypeDefaultConfig config = {0};

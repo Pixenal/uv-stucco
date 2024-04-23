@@ -45,6 +45,7 @@ typedef struct {
 	int32_t seamLoopCount;
 	FaceInfo ruvmFace;
 	Vec2 centre;
+	Mat3x3 tbnInv;
 } AddFaceVars;
 
 static void addEntryToSharedEdgeTable(RuvmContext pContext, BoundaryVert *pEntry,
@@ -596,6 +597,7 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 									   edgeTableSize, seamTableSize, pMeshOut, k, sort,
 									   &edge, faceStart - k);
 				vertNoOffset = vert;
+				pAfVars->ruvmIndicesSort[pAfVars->loopBufferSize + 1] = -1;
 			}
 			else {
 				//is an ruvm loop (this includes ruvm loops sitting on base edges or verts)
@@ -683,10 +685,21 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 	} while(pEntry);
 }
 
-static void sortLoopsFull(int32_t *pIndexTable, AddFaceVars *pAfVars) {
+static void sortLoopsFull(int32_t *pIndexTable, AddFaceVars *pAfVars,
+                          Mesh *pMeshOut) {
 	//insertion sort
-	int32_t order = vec2WindingCompare(pAfVars->uvBuffer[0], pAfVars->uvBuffer[1],
-	                                   pAfVars->centre, 1);
+	Vec2 vertBuf[17];
+	Vec2 centre = {0};
+	for (int32_t i = 0; i < pAfVars->loopBufferSize; ++i) {
+		Vec3* pVert = attribAsV3(pMeshOut->pVerts, pAfVars->loopBuffer[i]);
+		Vec3 vertV3 = vec3MultiplyMat3x3(*pVert, &pAfVars->tbnInv);
+		vertBuf[i].x = vertV3.x;
+		vertBuf[i].y = vertV3.y;
+		_(&centre V2ADDEQL vertBuf[i]);
+	}
+	_(&centre V2DIVSEQL pAfVars->loopBufferSize);
+	int32_t order = vec2WindingCompare(vertBuf[0], vertBuf[1],
+	                                   centre, 1);
 	pIndexTable[0] = !order;
 	pIndexTable[1] = order;
 	int32_t bufferSize = 2;
@@ -695,18 +708,18 @@ static void sortLoopsFull(int32_t *pIndexTable, AddFaceVars *pAfVars) {
 		for (l = bufferSize - 1; l >= 0; --l) {
 			if (l != 0) {
 				insert =
-					vec2WindingCompare(pAfVars->uvBuffer[k],
-					                   pAfVars->uvBuffer[pIndexTable[l]],
-					                   pAfVars->centre, 1)
+					vec2WindingCompare(vertBuf[k],
+						               vertBuf[pIndexTable[l]],
+					                   centre, 1)
 					&&
-					vec2WindingCompare(pAfVars->uvBuffer[pIndexTable[l - 1]],
-					                   pAfVars->uvBuffer[k], pAfVars->centre, 1);
+					vec2WindingCompare(vertBuf[pIndexTable[l - 1]],
+						               vertBuf[k], centre, 1);
 			}
 			else {
 				insert =
-					vec2WindingCompare(pAfVars->uvBuffer[k],
-					                   pAfVars->uvBuffer[pIndexTable[l]],
-									   pAfVars->centre, 1);
+					vec2WindingCompare(vertBuf[k],
+					                   vertBuf[pIndexTable[l]],
+									   centre, 1);
 			}
 			if (insert) {
 				break;
@@ -726,10 +739,10 @@ static void sortLoopsFull(int32_t *pIndexTable, AddFaceVars *pAfVars) {
 }
 
 static void sortLoops(int32_t *pIndexTable, AddFaceVars *pAfVars) {
-	int32_t *pVertRuvmIndices = pAfVars->ruvmIndicesSort + 1;
+	int32_t *pLoopSort = pAfVars->ruvmIndicesSort + 1;
 	//insertion sort
-	int32_t a = pVertRuvmIndices[0];
-	int32_t b = pVertRuvmIndices[1];
+	int32_t a = pLoopSort[0];
+	int32_t b = pLoopSort[1];
 	int32_t order = a < b;
 	pIndexTable[0] = !order;
 	pIndexTable[1] = order;
@@ -737,8 +750,8 @@ static void sortLoops(int32_t *pIndexTable, AddFaceVars *pAfVars) {
 	for (int32_t k = bufferSize; k < pAfVars->loopBufferSize; ++k) {
 		int32_t l, insert;
 		for (l = bufferSize - 1; l >= 0; --l) {
-			insert = pVertRuvmIndices[k] < pVertRuvmIndices[pIndexTable[l]] &&
-							 pVertRuvmIndices[k] > pVertRuvmIndices[pIndexTable[l - 1]];
+			insert = pLoopSort[k] < pLoopSort[pIndexTable[l]] &&
+							 pLoopSort[k] > pLoopSort[pIndexTable[l - 1]];
 			if (insert) {
 				break;
 			}
@@ -784,46 +797,33 @@ static void compileEntryInfo(BoundaryVert *pEntry, int32_t *pCount, int32_t *pIs
 	}
 }
 
-//TODO remove this funtion, it's not used
-static void flattenIntersectionPoints(Mesh *pMeshOut, int32_t loopBase,
-                                      int32_t loopCount, int32_t vertBase) {
-	for (int32_t i = 0; i < loopCount; ++i) {
-		int32_t vertIndex = pMeshOut->mesh.pLoops[loopBase + i];
-		if (vertIndex < vertBase) {
-			//ruvm vert
-			continue;
-		}
-		Vec3 *pVert = attribAsV3(pMeshOut->mesh.pVertAttribs, vertIndex);
-		//get first ruvm vert behind current vert
-		Vec3 a;
-		for (int32_t j = 0; j < loopCount; ++j) {
-			int32_t iLast = i - j;
-			if (iLast < 0) {
-				iLast = loopCount - iLast * -1;
-			}
-			int32_t vertLast = pMeshOut->mesh.pLoops[loopBase + iLast];
-			if (vertLast < vertBase) {
-				//ruvm Vert
-				a = *attribAsV3(pMeshOut->mesh.pVertAttribs, vertLast);
-				break;
-			}
-		}
-		//get first ruvm vert infront of current vert
-		Vec3 b;
-		for (int32_t j = 0; j < loopCount; ++j) {
-			int32_t iNext = (i + j) % loopCount;
-			int32_t vertNext = pMeshOut->mesh.pLoops[loopBase + iNext];
-			if (vertNext < vertBase) {
-				//ruvm vert
-				b = *attribAsV3(pMeshOut->mesh.pVertAttribs, vertNext);
-				break;
-			}
-		}
-		Vec3 ab = _(b V3SUB a);
-		Vec3 ac = _(*pVert V3SUB a);
-		Vec3 point =_(ab V3MULS _(ab V3DOT ac) / _(ab V3DOT ab));
-		*pVert = _(a V3ADD point);
-	}
+static void buildApproximateTbnInverse(AddFaceVars *pAfVars,
+                                       SendOffArgs *pJobArgs) {
+	BoundaryVert* pEntry = pAfVars->pEntry;
+	Vec3 normal = {0};
+	int32_t entryCount = 0;
+	do {
+		BufMesh* pBufMesh = &pJobArgs[pEntry->job].bufMesh;
+		int32_t faceStart = pBufMesh->mesh.pFaces[pEntry->face];
+		int32_t* pLoops = pBufMesh->mesh.pLoops;
+		Vec3* pVertA = attribAsV3(pBufMesh->pVerts, pLoops[faceStart]);
+		Vec3* pVertB = attribAsV3(pBufMesh->pVerts, pLoops[faceStart - 1]);
+		Vec3* pVertC = attribAsV3(pBufMesh->pVerts, pLoops[faceStart - 2]);
+		Vec3 ab = _(*pVertB V3SUB *pVertA);
+		Vec3 ac = _(*pVertC V3SUB *pVertA);
+		_(&normal V3ADDEQL vec3Cross(ab, ac));
+		entryCount++;
+		pEntry = pEntry->pNext;
+	} while (pEntry);
+	_(&normal V3DIVEQLS entryCount);
+	float normalLen =
+		sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+	_(&normal V3DIVEQLS normalLen);
+	Vec3 up = {.0f, .0f, 1.0f};
+	Vec3 tangent = vec3Cross(normal, up);
+	Vec3 bitangent = vec3Cross(normal, tangent);
+	Mat3x3 tbn = mat3x3FromVec3(tangent, bitangent, normal);
+	pAfVars->tbnInv = mat3x3Invert(&tbn);
 }
 
 static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
@@ -863,6 +863,7 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 				int32_t totalVerts = 0;
 				determineLoopsToKeep(pContext, pMap, &afVars, pJobArgs, &totalVerts);
 				_(&afVars.centre V2DIVSEQL (float)totalVerts);
+				buildApproximateTbnInverse(&afVars, pJobArgs);
 			}
 			int32_t loopBase = pMeshOut->mesh.loopCount;
 			pMeshOut->mesh.pFaces[pMeshOut->mesh.faceCount] = loopBase;
@@ -878,7 +879,7 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 			indexTable[0] = -1;
 			if (afVars.seamFace) {
 				//full winding sort
-				sortLoopsFull(indexTable + 1, &afVars);
+				sortLoopsFull(indexTable + 1, &afVars, pMeshOut);
 			}
 			else {
 				sortLoops(indexTable + 1, &afVars);
