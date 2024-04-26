@@ -50,6 +50,16 @@
 //(enough to crash blender). When meshIn is quads atleast
 //(I've not tested with tris). Find out why
 //TODO ruvmPreserve isn't working.
+//TODO add option to vary z projection depth with uv stretch (for wires and such)
+//Add option to mask ruvmpreserve by map edges. Where masking is defined
+//per edge, not per face. An preserve meshin edge must pass through 2 map
+//edges which are marked preserve, for the edge to cut that map face.
+//This will cause there to be gaps in the loop, in cases of diagional meshin
+//preserve edges. Just triangulate these faces, or leave as an ngon?
+//TODO Add an option for subdivision like smoothing (for instances where
+//the map is higher res than the base mesh). So that the surface can be
+//smoothed, without needing to induce the perf cost of actually subdividing
+//the base mesh. Is this possible?
 
 static void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
 	RuvmTypeDefaultConfig config = {0};

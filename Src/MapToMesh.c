@@ -523,32 +523,36 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
                              int32_t tile, LoopBufferWrap *pLoopBuf, FaceInfo baseFace,
 							 int32_t hasPreservedEdge, int32_t seam) {
 	pEntry->face = pArgs->bufMesh.boundaryFaceSize;
-	pEntry->firstVert = pAcfVars->firstRuvmVert;
-	pEntry->lastVert = pAcfVars->lastRuvmVert;
+	//pEntry->firstVert = pAcfVars->firstRuvmVert;
+	//pEntry->lastVert = pAcfVars->lastRuvmVert;
 	pEntry->faceIndex = ruvmFaceIndex;
 	pEntry->tile = tile;
 	pEntry->job = pArgs->id;
-	pEntry->type = pAcfVars->ruvmLoops;
+	//pEntry->type = pAcfVars->ruvmLoops;
 	pEntry->baseFace = baseFace.index;
 	pEntry->hasPreservedEdge = hasPreservedEdge;
 	pEntry->seam = seam;
-	if (pLoopBuf->size > 8) {
-		printf("----------------------   Loopbuf size exceeded 8\n");
+	if (pLoopBuf->size > 11) {
+		printf("----------------------   Loopbuf size exceeded 11\n");
 		abort();
 	}
 
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		pEntry->seams |= pLoopBuf->buf[i].seam << i;;
-		pEntry->fSorts[i] =  pLoopBuf->buf[i].fSort;
+		//pEntry->seams |= pLoopBuf->buf[i].seam << i;;
+		//pEntry->fSorts[i] =  pLoopBuf->buf[i].fSort;
 		pEntry->onLine |= (pLoopBuf->buf[i].onLine != 0) << i;
 		pEntry->isRuvm |= (pLoopBuf->buf[i].index >= 0) << i;
-	}
-	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		pEntry->baseLoops[i] = pLoopBuf->buf[i].sort;
+		pEntry->sort |= pLoopBuf->buf[i].sort << i * 3;
 		if (pLoopBuf->buf[i].onLine) {
 			pLoopBuf->buf[i].isBaseLoop = pLoopBuf->buf[i].onLineBase;
 		}
-		pEntry->baseLoops[i] |= pLoopBuf->buf[i].isBaseLoop << 4;
+		else if (pLoopBuf->buf[i].isBaseLoop < .0f) {
+			pLoopBuf->buf[i].isBaseLoop *= -1.0f;
+			pEntry->onLine |= 1 << i;
+		}
+		pLoopBuf->buf[i].isBaseLoop -= 1;
+		pLoopBuf->buf[i].isBaseLoop %= baseFace.size;
+		pEntry->baseLoop |= pLoopBuf->buf[i].isBaseLoop << i * 2;
 	}
 	if (pLoopBuf->size > pArgs->maxLoopSize) {
 		pArgs->maxLoopSize = pLoopBuf->size;

@@ -295,8 +295,10 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	//TODO CRC for uncompressed data
 	
 	void *pFile;
-	pContext->io.pOpen(&pFile, "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File.ruvm",
+	pContext->io.pOpen(&pFile, "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/HardSurface.ruvm",
 	                   0, &pContext->alloc);
+	//pContext->io.pOpen(&pFile, "T:/workshop_folders/RUVM/TestOutputDir/CrownfallWall.ruvm",
+	//                   0, &pContext->alloc);
 	headerSizeInBytes = header.byteIndex + (header.nextBitIndex > 0);
 	pContext->io.pWrite(pFile, (uint8_t *)&headerSizeInBytes, 4);
 	pContext->io.pWrite(pFile, header.pString, headerSizeInBytes);
