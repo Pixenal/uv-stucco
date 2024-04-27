@@ -16,6 +16,9 @@
 #include <Context.h>
 #include <Platform.h>
 
+//TODO add info to header to identify file as an ruvm,
+//to prevent accidentally trying to load a different format
+
 typedef struct {
 	unsigned char *pString;
 	int32_t nextBitIndex;

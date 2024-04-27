@@ -226,24 +226,17 @@ static void initLocalEdgeTableEntry(EdgeTable *pEdgeEntry, int32_t ruvmEdge,
 static void addLoopToLocalEdgeTable(RuvmContext pContext, EdgeTable *localEdgeTable,
                                     AddFaceVars *pAfVars, SendOffArgs *pJobArgs,
 									BoundaryVert *pEntry, RuvmMap pMap,
-									int32_t faceStart, int32_t sort, int32_t k) {
-	int32_t sortNext, baseLoopLocal,
-			baseLoop, baseEdge, baseVert;
-	sortNext = sort;
-	sort -= 1;
-	if (sort < 0) {
-		sort = pAfVars->ruvmFace.size - 1;
-	}
-	baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
+									int32_t faceStart, int32_t ruvmLoop, int32_t k) {
+	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 	FaceInfo baseFace;
 	baseFace.index = pEntry->baseFace;
 	baseFace.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
 	baseFace.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
 	baseFace.size = baseFace.end - baseFace.start;
-	baseLoop = baseFace.start + baseLoopLocal;
+	int32_t baseLoop = baseFace.start + baseLoopLocal;
 	int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
-	baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
-	baseVert = isBaseLoop ? pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop] : -1;
+	int32_t baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
+	int32_t baseVert = isBaseLoop ? pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop] : -1;
 
 	int32_t keepBaseLoop = 0;
 	if (isBaseLoop) {
@@ -260,7 +253,7 @@ static void addLoopToLocalEdgeTable(RuvmContext pContext, EdgeTable *localEdgeTa
 		ruvmEdge = -1;
 	}
 	else {
-		ruvmEdge = pMap->mesh.mesh.pEdges[pAfVars->ruvmFace.start + sort];
+		ruvmEdge = pMap->mesh.mesh.pEdges[pAfVars->ruvmFace.start + ruvmLoop];
 		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, 16);
 	}
 	EdgeTable *pEdgeEntry = localEdgeTable + hash;
@@ -332,11 +325,11 @@ static void determineLoopsToKeep(RuvmContext pContext, RuvmMap pMap,
 		int32_t loopAmount = faceStart - faceEnd;
 		for (int32_t k = 0; k < loopAmount; ++k) {
 			int32_t vert = pBufMesh->mesh.pLoops[faceStart - k];
-			int32_t sort = pEntry->sort >> k * 3 & 7;
+			int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
 			if (vert > pBufMesh->mesh.vertCount) {
 
 				addLoopToLocalEdgeTable(pContext, localEdgeTable, pAfVars, pJobArgs,
-				                        pEntry, pMap, faceStart, sort, k);
+				                        pEntry, pMap, faceStart, ruvmLoop, k);
 			}
 			else {
 				_(&pAfVars->centre V2ADDEQL *attribAsV2(pBufMesh->pUvs, faceStart - k));
@@ -415,12 +408,8 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 								   SendOffArgs *pJobArgs, EdgeTable *pEdgeTable,
 									SeamEdgeTable *pSeamEdgeTable,
 								   int32_t edgeTableSize, int32_t seamTableSize, Mesh *pMeshOut,
-								   int32_t k, int32_t sort, int32_t *pEdge, int32_t loop) {
+								   int32_t k, int32_t ruvmLoop, int32_t *pEdge, int32_t loop) {
 	FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
-	sort -= 1;
-	if (sort < 0) {
-		sort = pAfVars->ruvmFace.size - 1;
-	}
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 	int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
 	int32_t baseLoop = baseFace.start + baseLoopLocal;
@@ -433,7 +422,7 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 		ruvmEdge = -1;
 	}
 	else {
-		ruvmEdge = pMap->mesh.mesh.pEdges[pAfVars->ruvmFace.start + sort];
+		ruvmEdge = pMap->mesh.mesh.pEdges[pAfVars->ruvmFace.start + ruvmLoop];
 		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, edgeTableSize);
 	}
 	EdgeTable *pEdgeEntry = pEdgeTable + hash;
@@ -530,9 +519,9 @@ static int32_t checkIfShouldSkip(AddFaceVars *pAfVars, int32_t faceStart,
 }
 
 static int32_t checkIfDup(AddFaceVars *pAfVars, int32_t ruvmLoopsAdded,
-                          int32_t sort) {
+                          int32_t ruvmLoop) {
 	for (int32_t i = 0; i < ruvmLoopsAdded; ++i) {
-		if (sort == pAfVars->ruvmOnlySort[i]) {
+		if (ruvmLoop == pAfVars->ruvmOnlySort[i]) {
 			return 1;
 		}
 	}
@@ -574,7 +563,7 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 		for (int32_t k = 0; k < loopAmount; ++k) {
 			int32_t vert = bufMesh->mesh.pLoops[faceStart - k];
 			int32_t edge = bufMesh->mesh.pEdges[faceStart - k];
-			int32_t sort = pEntry->sort >> k * 3 & 7;
+			int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
 
 			int32_t vertNoOffset;
 			int32_t isRuvm = pEntry->isRuvm >> k & 1;
@@ -585,7 +574,7 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 				}
 				addBoundaryLoopAndVert(pContext, pMap, pAfVars, &vert, pEdgeVerts,
 				                       pEntry, pJobArgs, pEdgeTable, pSeamEdgeTable,
-									   edgeTableSize, seamTableSize, pMeshOut, k, sort,
+									   edgeTableSize, seamTableSize, pMeshOut, k, ruvmLoop,
 									   &edge, faceStart - k);
 				vertNoOffset = vert;
 				pAfVars->ruvmIndicesSort[pAfVars->loopBufferSize + 1] = -1;
@@ -601,10 +590,10 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 				//That would probably be cleaner, and more memory concious tbh.
 				int32_t onLine = pEntry->onLine >> k & 1;
 				if (onLine) {
-					if (checkIfDup(pAfVars, totalRuvmLoopsAdded, sort)) {
+					if (checkIfDup(pAfVars, totalRuvmLoopsAdded, ruvmLoop)) {
 						continue;
 					}
-					int32_t ruvmVert = pMap->mesh.mesh.pLoops[pAfVars->ruvmFace.start + sort];
+					int32_t ruvmVert = pMap->mesh.mesh.pLoops[pAfVars->ruvmFace.start + ruvmLoop];
 					FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
 					int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 					int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
@@ -647,8 +636,8 @@ static void addLoopsToBufferAndVertsToMesh(RuvmContext pContext, RuvmMap pMap,
 				vert += pJobArgs[pEntry->job].vertBase;
 				edge += pJobArgs[pEntry->job].edgeBase;
 				
-				pAfVars->ruvmIndicesSort[pAfVars->loopBufferSize + 1] = sort * 10;
-				pAfVars->ruvmOnlySort[totalRuvmLoopsAdded] = sort;
+				pAfVars->ruvmIndicesSort[pAfVars->loopBufferSize + 1] = ruvmLoop * 10;
+				pAfVars->ruvmOnlySort[totalRuvmLoopsAdded] = ruvmLoop;
 				ruvmLoopsAdded++;
 				totalRuvmLoopsAdded++;
 			}

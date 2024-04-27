@@ -53,21 +53,21 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 					if (pLoopBuf->buf[i].loop.x == pBaseLoop->vert.x &&
 						pLoopBuf->buf[i].loop.y == pBaseLoop->vert.y) {
 						//on base vert
-						onLineBase = (pBaseLoop->localIndex + 1) * -1;
+						onLineBase = pBaseLoop->localIndex;
 					}
 					else {
 						//on next base vert
-						onLineBase = (pBaseLoop->localIndexNext + 1) * -1;
+						onLineBase = pBaseLoop->localIndexNext;
 					}
-					pNewLoopBuf->buf[pNewLoopBuf->size].onLineBase = onLineBase;
+					pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = onLineBase;
 				}
 				else {
 					//resides on base edge
-					*pOnLine = 1;
-					pNewLoopBuf->buf[pNewLoopBuf->size].onLine = 1;
-					pNewLoopBuf->buf[pNewLoopBuf->size].onLineBase =
-						pBaseLoop->localIndex + 1;
+					pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop =
+						pBaseLoop->localIndex;
 				}
+				*pOnLine = 1;
+				pNewLoopBuf->buf[pNewLoopBuf->size].onLine = 1;
 			}
 			(pNewLoopBuf->size)++;
 		}
@@ -81,25 +81,20 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 			*pEdgeFace += 1;
 			LoopBuffer *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
 			if ((pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[vertNextIndex].baseLoop ||
-				 pLoopBuf->buf[i].isBaseLoop < 0 || pLoopBuf->buf[vertNextIndex].isBaseLoop < 0)) {
+				 pLoopBuf->buf[i].isBaseLoop || pLoopBuf->buf[vertNextIndex].isBaseLoop)) {
 				int32_t whichVert = pLoopBuf->buf[i].baseLoop == pBaseLoop->index - 1;
 				pNewEntry->loop = calcIntersection(pLoopBuf, pBaseLoop,
 				                                   i, vertNextIndex, &alpha);
-				pNewEntry->isBaseLoop = whichVert ?
+				pNewEntry->baseLoop = whichVert ?
 					pBaseLoop->localIndex : pBaseLoop->localIndexNext;
-				pNewEntry->baseLoop = pNewEntry->isBaseLoop;
-				pNewEntry->isBaseLoop += 1;
-				pNewEntry->isBaseLoop *= -1;
-				pNewEntry->seam = whichVert ?
-					pBaseLoop->edgeIsSeam : pBaseLoop->edgeNextIsSeam;
 				pNewEntry->preserve = preserve;
+				pNewEntry->isBaseLoop = 1;
 			}
 			else {
 				pNewEntry->loop = calcIntersection(pLoopBuf, pBaseLoop,
 				                                   i, vertNextIndex, &alpha);
-				pNewEntry->isBaseLoop = pBaseLoop->localIndex + 1;
 				pNewEntry->baseLoop = pBaseLoop->index;
-				pNewEntry->seam = pBaseLoop->edgeIsSeam;
+				pNewEntry->isBaseLoop = 0;
 				pNewEntry->preserve = preserve;
 			}
 			//pNewEntry->normal = vec3Lerp(pLoopBuf->buf[i].normal,
@@ -107,13 +102,8 @@ static void clipRuvmFaceAgainstSingleLoop(LoopBufferWrap *pLoopBuf, LoopBufferWr
 			//                             alpha);
 			//TODO add proper lerp for normal (why was the above commented out?)
 			pNewEntry->normal = pLoopBuf->buf[i].normal;
-			pNewEntry->index = -1;
-			pNewEntry->refEdge = pBaseLoop->edgeIndex * -1; //negate, so that edge table entries are
-															//different
-			pNewEntry->fSort = ((pLoopBuf->buf[vertNextIndex].fSort - 
-			                    pLoopBuf->buf[i].fSort) / 2) +
-			                  pLoopBuf->buf[i].fSort;
-			pNewEntry->sort = pLoopBuf->buf[vertNextIndex].sort;
+			pNewEntry->isRuvm = 0;
+			pNewEntry->ruvmLoop = pLoopBuf->buf[i].ruvmLoop;
 			pNewLoopBuf->size++;
 		}
 	}
@@ -220,26 +210,25 @@ static void transformClippedFaceFromUvToXyz(LoopBufferWrap *pLoopBuf,
 			Vec2 triBuf[3] =
 				{pBaseTri->uv[2], pBaseTri->uv[3], pBaseTri->uv[0]};
 			vertBc = cartesianToBarycentric(triBuf, &vert);
-			pLoopBuf->buf[j].triLoops[0] = baseFace.start + 2;
-			pLoopBuf->buf[j].triLoops[1] = baseFace.start + 3;
-			pLoopBuf->buf[j].triLoops[2] = baseFace.start;
+			pLoopBuf->buf[j].triLoops[0] = 2;
+			pLoopBuf->buf[j].triLoops[1] = 3;
 		}
 		else {
 			for (int32_t k = 0; k < 3; ++k) {
-				pLoopBuf->buf[j].triLoops[k] = baseFace.start + k;
+				pLoopBuf->buf[j].triLoops[k] = k;
 			}
 		}
-		int32_t *pTriLoops = pLoopBuf->buf[j].triLoops;
+		int8_t *pTriLoops = pLoopBuf->buf[j].triLoops;
 		Vec3 vertsXyz[3];
 		for (int32_t i = 0; i < 3; ++i) {
-			int32_t vertIndex = pMeshIn->mesh.pLoops[pTriLoops[i]];
+			int32_t vertIndex = pMeshIn->mesh.pLoops[baseFace.start + pTriLoops[i]];
 			vertsXyz[i] = *attribAsV3(pMeshIn->pVerts, vertIndex);
 		}
 		//transform vertex
 		pLoopBuf->buf[j].loop = barycentricToCartesian(vertsXyz, &vertBc);
-		Vec3 normal = _(*attribAsV3(pMeshIn->pNormals, pTriLoops[0]) V3MULS vertBc.x);
-		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, pTriLoops[1]) V3MULS vertBc.y));
-		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, pTriLoops[2]) V3MULS vertBc.z));
+		Vec3 normal = _(*attribAsV3(pMeshIn->pNormals, baseFace.start + pTriLoops[0]) V3MULS vertBc.x);
+		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, baseFace.start + pTriLoops[1]) V3MULS vertBc.y));
+		_(&normal V3ADDEQL _(*attribAsV3(pMeshIn->pNormals, baseFace.start + pTriLoops[2]) V3MULS vertBc.z));
 		_(&normal V3DIVEQLS vertBc.x + vertBc.y + vertBc.z);
 		_(&pLoopBuf->buf[j].loop V3ADDEQL _(normal V3MULS vert.z * 1.0f));
 		//transform normal from tangent space to object space
@@ -260,7 +249,7 @@ static void blendMapAndInAttribs(BufMesh *pBufMesh, RuvmAttrib *pDestAttribs, in
 								 LoopBuffer *pLoopBuf, int32_t loopBufIndex,
 								 int32_t dataIndex, int32_t mapDataIndex, int32_t meshDataIndex,
 								 RuvmCommonAttrib *pCommonAttribs,
-								 int32_t commonAttribCount) {
+								 int32_t commonAttribCount, FaceInfo *pBaseFace) {
 	//TODO make naming for MeshIn consistent
 	for (int32_t i = 0; i < destAttribCount; ++i) {
 		if (pDestAttribs[i].origin == RUVM_ATTRIB_ORIGIN_COMMON) {
@@ -299,9 +288,9 @@ static void blendMapAndInAttribs(BufMesh *pBufMesh, RuvmAttrib *pDestAttribs, in
 				interpolateAttrib(&meshBuf,
 								  0,
 								  pMeshAttrib,
-				                  pLoopBuf[loopBufIndex].triLoops[0],
-								  pLoopBuf[loopBufIndex].triLoops[1],
-								  pLoopBuf[loopBufIndex].triLoops[2],
+				                  pBaseFace->start + pLoopBuf[loopBufIndex].triLoops[0],
+								  pBaseFace->start + pLoopBuf[loopBufIndex].triLoops[1],
+								  pBaseFace->start + pLoopBuf[loopBufIndex].triLoops[2],
 								  pLoopBuf[loopBufIndex].bc);
 			}
 			RuvmCommonAttrib *pCommon =
@@ -339,9 +328,9 @@ static void blendMapAndInAttribs(BufMesh *pBufMesh, RuvmAttrib *pDestAttribs, in
 				interpolateAttrib(pDestAttribs + i,
 								  dataIndex,
 								  pMeshAttrib,
-				                  pLoopBuf[loopBufIndex].triLoops[0],
-								  pLoopBuf[loopBufIndex].triLoops[1],
-								  pLoopBuf[loopBufIndex].triLoops[2],
+				                  pBaseFace->start + pLoopBuf[loopBufIndex].triLoops[0],
+								  pBaseFace->start + pLoopBuf[loopBufIndex].triLoops[1],
+								  pBaseFace->start + pLoopBuf[loopBufIndex].triLoops[2],
 								  pLoopBuf[loopBufIndex].bc);
 			}
 			else {
@@ -356,12 +345,9 @@ static void blendMapAndInAttribs(BufMesh *pBufMesh, RuvmAttrib *pDestAttribs, in
 static void simpleCopyAttribs(RuvmAttrib *pDestAttribs, int32_t destAttribCount,
                        RuvmAttrib *pMapAttribs, int32_t mapAttribCount,
 					   RuvmAttrib *pMeshAttribs, int32_t meshAttribCount,
-					   int32_t destDataIndex, int32_t srcDataIndex) {
+					   int32_t destDataIndex, int32_t srcDataIndex,
+					   int32_t indexOrigin) {
 	for (int32_t i = 0; i < destAttribCount; ++i) {
-		int32_t indexOrigin = srcDataIndex >= 0;
-		if (!indexOrigin) {
-			srcDataIndex *= -1;
-		}
 		switch (pDestAttribs[i].origin) {
 			case (RUVM_ATTRIB_ORIGIN_COMMON): {
 				RuvmAttrib *pSrcAttrib;
@@ -408,9 +394,8 @@ static void simpleCopyAttribs(RuvmAttrib *pDestAttribs, int32_t destAttribCount,
 static void initEdgeTableEntry(ThreadArg *pArgs, MeshBufEdgeTable *pEntry,
                                AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
 							   int32_t refEdge, int32_t refFace, LoopBuffer *pLoopBuf,
-							   int32_t loopBufIndex) {
-	if (refEdge >= 0) { //refEdge positive if a it's map edge,
-						//and is negative if it's a meshIn edge,
+							   int32_t loopBufIndex, int32_t isMapEdge) {
+	if (isMapEdge) {
 		pEntry->edge = pBufMesh->mesh.edgeCount;
 		pBufMesh->mesh.edgeCount++;
 	}
@@ -421,22 +406,39 @@ static void initEdgeTableEntry(ThreadArg *pArgs, MeshBufEdgeTable *pEntry,
 	simpleCopyAttribs(pBufMesh->mesh.pEdgeAttribs, pBufMesh->mesh.edgeAttribCount,
 	                  pArgs->pMap->mesh.mesh.pEdgeAttribs, pArgs->pMap->mesh.mesh.edgeAttribCount,
 					  pArgs->mesh.mesh.pEdgeAttribs, pArgs->mesh.mesh.edgeAttribCount,
-					  pEntry->edge, refEdge);
+					  pEntry->edge, refEdge, isMapEdge);
 	pAcfVars->edgeIndex = pEntry->edge;
 	pEntry->refEdge = refEdge;
 	pEntry->refFace = refFace;
 }
 
+static int32_t getRefEdge(ThreadArg *pArgs, FaceInfo *pRuvmFace,
+                       FaceInfo *pBaseFace, LoopBuffer *pLoopBuf,
+					   int32_t loopBufIndex) {
+	int32_t ruvmIndex = pLoopBuf[loopBufIndex].ruvmLoop;
+	if (ruvmIndex >= 0) {
+		return pArgs->pMap->mesh.mesh.pEdges[pRuvmFace->start + ruvmIndex];
+	}
+	else {
+		int32_t baseLoop = pLoopBuf[loopBufIndex].baseLoop;
+		return pArgs->mesh.mesh.pEdges[pBaseFace->start + baseLoop];
+	}
+}
+
 static void addEdge(ThreadArg *pArgs, int32_t loopBufIndex, BufMesh *pBufMesh,
                     LoopBuffer *pLoopBuf, MapToMeshVars *pMmVars, RuvmAllocator *pAlloc,
-					int32_t refFace, AddClippedFaceVars *pAcfVars) {
-	int32_t refEdge = pLoopBuf[loopBufIndex].refEdge;
-	int32_t hash = ruvmFnvHash((uint8_t *)&refEdge, 4, pMmVars->edgeTableSize);
+					int32_t refFace, AddClippedFaceVars *pAcfVars, FaceInfo *pBaseFace,
+					FaceInfo *pRuvmFace) {
+	int32_t refEdge = getRefEdge(pArgs, pRuvmFace, pBaseFace, pLoopBuf, loopBufIndex);
+	int32_t isMapEdge = pLoopBuf[loopBufIndex].isRuvm;
+	int32_t key = isMapEdge ? refEdge : (refEdge + 1) * -1;
+	int32_t hash = ruvmFnvHash((uint8_t *)&key, 4, pMmVars->edgeTableSize);
 	MeshBufEdgeTable *pEntry = pMmVars->pEdgeTable + hash;
 	pArgs->totalEdges++;
 	do {
 		if (!pEntry->loopCount) {
-			initEdgeTableEntry(pArgs, pEntry, pAcfVars, pBufMesh, refEdge, refFace, pLoopBuf, loopBufIndex);
+			initEdgeTableEntry(pArgs, pEntry, pAcfVars, pBufMesh, refEdge,
+			                   refFace, pLoopBuf, loopBufIndex, isMapEdge);
 			break;
 		}
 		int32_t match = pEntry->refEdge == refEdge &&
@@ -447,7 +449,8 @@ static void addEdge(ThreadArg *pArgs, int32_t loopBufIndex, BufMesh *pBufMesh,
 		}
 		if (!pEntry->pNext) {
 			pEntry = pEntry->pNext = pAlloc->pCalloc(1, sizeof(MeshBufEdgeTable));
-			initEdgeTableEntry(pArgs, pEntry,pAcfVars, pBufMesh, refEdge, refFace, pLoopBuf, loopBufIndex);
+			initEdgeTableEntry(pArgs, pEntry,pAcfVars, pBufMesh, refEdge,
+			                   refFace, pLoopBuf, loopBufIndex, isMapEdge);
 			break;
 		}
 		pEntry = pEntry->pNext;
@@ -456,7 +459,8 @@ static void addEdge(ThreadArg *pArgs, int32_t loopBufIndex, BufMesh *pBufMesh,
 }
 
 static void addNewLoopAndOrVert(ThreadArg *pArgs, int32_t loopBufIndex, int32_t *pVertIndex,
-                                BufMesh *pBufMesh, LoopBuffer *pLoopBuffer, int32_t loopIndex) {
+                                BufMesh *pBufMesh, LoopBuffer *pLoopBuffer, int32_t loopIndex,
+								FaceInfo *pBaseFace) {
 		*pVertIndex = pBufMesh->boundaryVertSize;
 		*attribAsV3(pArgs->bufMesh.pVerts, *pVertIndex) = pLoopBuffer[loopBufIndex].loop;
 		pBufMesh->boundaryVertSize--;
@@ -464,14 +468,16 @@ static void addNewLoopAndOrVert(ThreadArg *pArgs, int32_t loopBufIndex, int32_t 
 		blendMapAndInAttribs(pBufMesh, pBufMesh->mesh.pVertAttribs, pBufMesh->mesh.vertAttribCount,
 							 pArgs->pMap->mesh.mesh.pVertAttribs, pArgs->pMap->mesh.mesh.vertAttribCount,
 							 pArgs->mesh.mesh.pVertAttribs, pArgs->mesh.mesh.vertAttribCount,
-							 pLoopBuffer, loopBufIndex, *pVertIndex, pLoopBuffer[loopBufIndex].sort, 0,
-							 pArgs->pCommonAttribList->pVert, pArgs->pCommonAttribList->vertCount);
+							 pLoopBuffer, loopBufIndex, *pVertIndex, pLoopBuffer[loopBufIndex].ruvmLoop, 0,
+							 pArgs->pCommonAttribList->pVert, pArgs->pCommonAttribList->vertCount,
+							 pBaseFace);
 }
 
-static void initVertAdjEntry(ThreadArg *pArgs, int32_t loopBufferIndex, int32_t *pVertIndex,
-		 					 BufMesh *pBufMesh, LoopBuffer *pLoopBuffer, VertAdj *pVertAdj,
-							 FaceInfo baseFace) {
-	pVertAdj->mapVert = *pVertIndex;
+static void initVertAdjEntry(ThreadArg *pArgs, int32_t loopBufferIndex,
+                             int32_t *pVertIndex, BufMesh *pBufMesh, LoopBuffer *pLoopBuffer,
+							 VertAdj *pVertAdj, FaceInfo baseFace,
+							 int32_t ruvmVert) {
+	pVertAdj->mapVert = ruvmVert;
 	*pVertIndex = pBufMesh->mesh.vertCount++;
 	pVertAdj->vert = *pVertIndex;
 	pVertAdj->baseFace = baseFace.index;
@@ -479,29 +485,30 @@ static void initVertAdjEntry(ThreadArg *pArgs, int32_t loopBufferIndex, int32_t 
 	blendMapAndInAttribs(pBufMesh, pBufMesh->mesh.pVertAttribs, pBufMesh->mesh.vertAttribCount,
 						 pArgs->pMap->mesh.mesh.pVertAttribs, pArgs->pMap->mesh.mesh.vertAttribCount,
 						 pArgs->mesh.mesh.pVertAttribs, pArgs->mesh.mesh.vertAttribCount,
-						 pLoopBuffer, loopBufferIndex, *pVertIndex, pLoopBuffer[loopBufferIndex].sort, 0,
-						 pArgs->pCommonAttribList->pVert, pArgs->pCommonAttribList->vertCount);
+						 pLoopBuffer, loopBufferIndex, *pVertIndex, pLoopBuffer[loopBufferIndex].ruvmLoop, 0,
+						 pArgs->pCommonAttribList->pVert, pArgs->pCommonAttribList->vertCount,
+						 &baseFace);
 }
 
 static void addRuvmLoopAndOrVert(ThreadArg *pArgs, int32_t loopBufIndex, AddClippedFaceVars *pAcfVars,
                           BufMesh *pBufMesh, LoopBuffer *pLoopBufEntry,
 						  MapToMeshVars *pMmVars, RuvmAllocator *pAlloc,
-						  FaceInfo baseFace) {
+						  FaceInfo baseFace, FaceInfo *pRuvmFace) {
 	if (pAcfVars->firstRuvmVert < 0) {
-		pAcfVars->firstRuvmVert = pLoopBufEntry[loopBufIndex].sort;
+		pAcfVars->firstRuvmVert = pLoopBufEntry[loopBufIndex].ruvmLoop;
 	}
-	pAcfVars->lastRuvmVert = pLoopBufEntry[loopBufIndex].sort;
-	uint32_t uVertIndex = pAcfVars->vertIndex;
-	int32_t hash = ruvmFnvHash((uint8_t *)&uVertIndex, 4, pMmVars->vertAdjSize);
+	int32_t ruvmLoop = pRuvmFace->start + pLoopBufEntry[loopBufIndex].ruvmLoop;
+	uint32_t uRuvmVert = pArgs->pMap->mesh.mesh.pLoops[ruvmLoop];
+	int32_t hash = ruvmFnvHash((uint8_t *)&uRuvmVert, 4, pMmVars->vertAdjSize);
 	VertAdj *pVertAdj = pMmVars->pRuvmVertAdj + hash;
 	do {
 		if (!pVertAdj->loopSize) {
 			initVertAdjEntry(pArgs, loopBufIndex, &pAcfVars->vertIndex, pBufMesh,
-			                 pLoopBufEntry, pVertAdj, baseFace);
+			                 pLoopBufEntry, pVertAdj, baseFace, uRuvmVert);
 			break;
 		}
 		//TODO should you be checking tile here as well?
-		int32_t match = pVertAdj->mapVert == pAcfVars->vertIndex &&
+		int32_t match = pVertAdj->mapVert == uRuvmVert &&
 		                pVertAdj->baseFace == baseFace.index;
 		if (match) {
 			pAcfVars->vertIndex = pVertAdj->vert;
@@ -510,7 +517,7 @@ static void addRuvmLoopAndOrVert(ThreadArg *pArgs, int32_t loopBufIndex, AddClip
 		if (!pVertAdj->pNext) {
 			pVertAdj = pVertAdj->pNext = pAlloc->pCalloc(1, sizeof(VertAdj));
 			initVertAdjEntry(pArgs, loopBufIndex, &pAcfVars->vertIndex, pBufMesh,
-			                 pLoopBufEntry, pVertAdj, baseFace);
+			                 pLoopBufEntry, pVertAdj, baseFace, uRuvmVert);
 			break;
 		}
 		pVertAdj = pVertAdj->pNext;
@@ -523,12 +530,9 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
                              int32_t tile, LoopBufferWrap *pLoopBuf, FaceInfo baseFace,
 							 int32_t hasPreservedEdge, int32_t seam) {
 	pEntry->face = pArgs->bufMesh.boundaryFaceSize;
-	//pEntry->firstVert = pAcfVars->firstRuvmVert;
-	//pEntry->lastVert = pAcfVars->lastRuvmVert;
 	pEntry->faceIndex = ruvmFaceIndex;
 	pEntry->tile = tile;
 	pEntry->job = pArgs->id;
-	//pEntry->type = pAcfVars->ruvmLoops;
 	pEntry->baseFace = baseFace.index;
 	pEntry->hasPreservedEdge = hasPreservedEdge;
 	pEntry->seam = seam;
@@ -538,21 +542,18 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 	}
 
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		//pEntry->seams |= pLoopBuf->buf[i].seam << i;;
-		//pEntry->fSorts[i] =  pLoopBuf->buf[i].fSort;
 		pEntry->onLine |= (pLoopBuf->buf[i].onLine != 0) << i;
-		pEntry->isRuvm |= (pLoopBuf->buf[i].index >= 0) << i;
-		pEntry->sort |= pLoopBuf->buf[i].sort << i * 3;
-		if (pLoopBuf->buf[i].onLine) {
-			pLoopBuf->buf[i].isBaseLoop = pLoopBuf->buf[i].onLineBase;
-		}
-		else if (pLoopBuf->buf[i].isBaseLoop < .0f) {
-			pLoopBuf->buf[i].isBaseLoop *= -1.0f;
+		pEntry->isRuvm |= (pLoopBuf->buf[i].isRuvm) << i;
+		pEntry->ruvmLoop |= pLoopBuf->buf[i].ruvmLoop << i * 3;
+		if (pLoopBuf->buf[i].isBaseLoop) {
+			//online is used to indicate that a loop is a baseloop.
+			//isRuvm == 0, and onLine == 1, indicates a baseLoop
 			pEntry->onLine |= 1 << i;
 		}
-		pLoopBuf->buf[i].isBaseLoop -= 1;
-		pLoopBuf->buf[i].isBaseLoop %= baseFace.size;
-		pEntry->baseLoop |= pLoopBuf->buf[i].isBaseLoop << i * 2;
+		if (pLoopBuf->buf[i].isRuvm && !pLoopBuf->buf[i].onLine) {
+			continue;
+		}
+		pEntry->baseLoop |= pLoopBuf->buf[i].baseLoop << i * 2;
 	}
 	if (pLoopBuf->size > pArgs->maxLoopSize) {
 		pArgs->maxLoopSize = pLoopBuf->size;
@@ -560,7 +561,7 @@ static void initBoundaryBufferEntry(ThreadArg *pArgs, AddClippedFaceVars *pAcfVa
 	if (pAcfVars->firstRuvmVert < 0) {
 		int32_t *pNonRuvmSort = (int32_t *)(pEntry + 1);
 		for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-			pNonRuvmSort[i] = pLoopBuf->buf[i].sort;
+			pNonRuvmSort[i] = pLoopBuf->buf[i].ruvmLoop;
 		}
 	}
 }
@@ -617,36 +618,37 @@ static void addClippedFaceToBufMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 	AddClippedFaceVars acfVars;
 	acfVars.loopStart = pArgs->bufMesh.mesh.loopCount;
 	acfVars.boundaryLoopStart = pArgs->bufMesh.boundaryLoopSize;
-	acfVars.firstRuvmVert = -1;
-	acfVars.lastRuvmVert = -1;
 	acfVars.ruvmLoops = 0;
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		acfVars.vertIndex = pLoopBuf->buf[i].index;
 		pArgs->totalLoops++;
 		acfVars.loopIndex = edgeFace || onLine ?
 			pArgs->bufMesh.boundaryLoopSize-- : pArgs->bufMesh.mesh.loopCount++;
 		int32_t refFace;
-		if (acfVars.vertIndex >= 0) {
+		int32_t isRuvm = pLoopBuf->buf[i].isRuvm;
+		if (isRuvm) {
 			acfVars.ruvmLoops++;
 		}
-		if (acfVars.vertIndex < 0 || pLoopBuf->buf[i].onLine) {
+		if (!isRuvm || pLoopBuf->buf[i].onLine) {
 			addNewLoopAndOrVert(pArgs, i, &acfVars.vertIndex, &pArgs->bufMesh,
-			                    pLoopBuf->buf, acfVars.loopIndex);
+			                    pLoopBuf->buf, acfVars.loopIndex, &baseFace);
 			refFace = ruvmFace.index;
 		}
 		else {
 			addRuvmLoopAndOrVert(pArgs, i, &acfVars, &pArgs->bufMesh, pLoopBuf->buf,
-			                     pMmVars, &pArgs->alloc, baseFace);
+			                     pMmVars, &pArgs->alloc, baseFace, &ruvmFace);
 			refFace = baseFace.index;
 		}
 		pArgs->bufMesh.mesh.pLoops[acfVars.loopIndex] = acfVars.vertIndex;
-		blendMapAndInAttribs(&pArgs->bufMesh, pArgs->bufMesh.mesh.pLoopAttribs, pArgs->bufMesh.mesh.loopAttribCount,
+		blendMapAndInAttribs(&pArgs->bufMesh, pArgs->bufMesh.mesh.pLoopAttribs,
+		                     pArgs->bufMesh.mesh.loopAttribCount,
 							 pArgs->pMap->mesh.mesh.pLoopAttribs, pArgs->pMap->mesh.mesh.loopAttribCount,
 							 pArgs->mesh.mesh.pLoopAttribs, pArgs->mesh.mesh.loopAttribCount,
-							 pLoopBuf->buf, i, acfVars.loopIndex, ruvmFace.start + pLoopBuf->buf[i].sort, baseFace.start,
-							 pArgs->pCommonAttribList->pLoop, pArgs->pCommonAttribList->loopCount);
+							 pLoopBuf->buf, i, acfVars.loopIndex,
+							 ruvmFace.start + pLoopBuf->buf[i].ruvmLoop, baseFace.start,
+							 pArgs->pCommonAttribList->pLoop, pArgs->pCommonAttribList->loopCount,
+							 &baseFace);
 		addEdge(pArgs, i, &pArgs->bufMesh, pLoopBuf->buf, pMmVars, &pArgs->alloc,
-		        refFace, &acfVars);
+		        refFace, &acfVars, &ruvmFace, &baseFace);
 		pArgs->bufMesh.mesh.pEdges[acfVars.loopIndex] = acfVars.edgeIndex;
 		*attribAsV3(pArgs->bufMesh.pNormals, acfVars.loopIndex) = pLoopBuf->buf[i].normal;
 		*attribAsV2(pArgs->bufMesh.pUvs, acfVars.loopIndex) = pLoopBuf->buf[i].uv;
@@ -658,11 +660,13 @@ static void addClippedFaceToBufMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 	}
 	else {
 		pArgs->bufMesh.mesh.pFaces[pArgs->bufMesh.mesh.faceCount] = acfVars.loopStart;
-		blendMapAndInAttribs(&pArgs->bufMesh, pArgs->bufMesh.mesh.pFaceAttribs, pArgs->bufMesh.mesh.faceAttribCount,
+		blendMapAndInAttribs(&pArgs->bufMesh, pArgs->bufMesh.mesh.pFaceAttribs,
+		                     pArgs->bufMesh.mesh.faceAttribCount,
 							 pArgs->pMap->mesh.mesh.pFaceAttribs, pArgs->pMap->mesh.mesh.faceAttribCount,
 							 pArgs->mesh.mesh.pFaceAttribs, pArgs->mesh.mesh.faceAttribCount,
 							 pLoopBuf->buf, 0, acfVars.loopIndex, ruvmFace.index, baseFace.index,
-							 pArgs->pCommonAttribList->pFace, pArgs->pCommonAttribList->faceCount);
+							 pArgs->pCommonAttribList->pFace, pArgs->pCommonAttribList->faceCount,
+							 &baseFace);
 		pArgs->bufMesh.mesh.faceCount++;
 	}
 }
@@ -706,16 +710,13 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		loopBuf.size = ruvmFace.size;
 		for (int32_t j = 0; j < ruvmFace.size; ++j) {
 			int32_t vertIndex = pArgs->pMap->mesh.mesh.pLoops[ruvmFace.start + j];
-			loopBuf.buf[j].seam = 0;
 			loopBuf.buf[j].preserve = 0;
-			loopBuf.buf[j].refEdge = pArgs->pMap->mesh.mesh.pEdges[ruvmFace.start + j];
-			loopBuf.buf[j].index = vertIndex;
-			loopBuf.buf[j].baseLoop = vertIndex;
+			loopBuf.buf[j].isRuvm = 1;
+			loopBuf.buf[j].baseLoop = (vertIndex + 1) * -1;
 			loopBuf.buf[j].loop = *attribAsV3(pArgs->pMap->mesh.pVerts, vertIndex);
 			loopBuf.buf[j].loop.x += fTileMin.x;
 			loopBuf.buf[j].loop.y += fTileMin.y;
-			loopBuf.buf[j].sort = j;
-			loopBuf.buf[j].fSort = j * 100;
+			loopBuf.buf[j].ruvmLoop = j;
 			loopBuf.buf[j].normal =
 				*attribAsV3(pArgs->pMap->mesh.pNormals, ruvmFace.start + j);
 		}

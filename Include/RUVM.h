@@ -248,6 +248,7 @@ typedef struct {
 	void *(*pMalloc)(size_t);
 	void *(*pCalloc)(size_t, size_t);
 	void (*pFree)(void *);
+	void *(*pRealloc)(void *, size_t);
 } RuvmAllocator;
 
 typedef struct {

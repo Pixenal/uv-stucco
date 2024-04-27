@@ -727,6 +727,39 @@ static void setAttribOrigins(RuvmAttrib *pAttribs, int32_t attribCount,
 	}
 }
 
+static void reallocMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut) {
+	pMeshOut->pFaces = 
+		pContext->alloc.pRealloc(pMeshOut->pFaces, sizeof(int32_t) * (pMeshOut->faceCount + 1));
+	for (int32_t i = 0; i < pMeshOut->faceAttribCount; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->pFaceAttribs + i;
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData =
+			pContext->alloc.pRealloc(pAttrib->pData, attribSize * (pMeshOut->faceCount + 1));
+	}
+	pMeshOut->pLoops = 
+		pContext->alloc.pRealloc(pMeshOut->pLoops, sizeof(int32_t) * pMeshOut->loopCount);
+	for (int32_t i = 0; i < pMeshOut->loopAttribCount; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->pLoopAttribs + i;
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData = 
+			pContext->alloc.pRealloc(pAttrib->pData, attribSize * pMeshOut->loopCount);
+	}
+	pMeshOut->pEdges = 
+		pContext->alloc.pRealloc(pMeshOut->pEdges, sizeof(int32_t) * pMeshOut->loopCount);
+	for (int32_t i = 0; i < pMeshOut->edgeAttribCount; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->pEdgeAttribs + i;
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData = 
+			pContext->alloc.pRealloc(pAttrib->pData, attribSize * pMeshOut->edgeCount);
+	}
+	for (int32_t i = 0; i < pMeshOut->vertAttribCount; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->pVertAttribs + i;
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData = 
+			pContext->alloc.pRealloc(pAttrib->pData, attribSize * pMeshOut->vertCount);
+	}
+}
+
 int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                       RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
 	CLOCK_INIT;
@@ -810,10 +843,13 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 
 	CLOCK_START;
 	combineJobMeshesIntoSingleMesh(pContext, pMap, pMeshOut, jobArgs, pEdgeVerts);
+	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
 	pContext->alloc.pFree(pVertSeamTable);
-	CLOCK_STOP("Combine time");
+	CLOCK_START;
+	reallocMeshOut(pContext, pMeshOut);
+	CLOCK_STOP("Realloc time");
 	return 0;
 }
 
