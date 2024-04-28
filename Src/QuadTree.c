@@ -42,13 +42,13 @@ static void addCellToEnclosingCells(Cell *cell, EnclosingCellsInfo *pEnclosingCe
 }
 
 static int32_t findFaceQuadrantUv(RuvmAllocator* pAlloc, int32_t loopSize, int32_t loopStart,
-							      RuvmAttrib *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
+							      RuvmVec2 *verts, Vec2 midPoint, iVec2 *commonSides, iVec2 *signs) {
 	commonSides->x = commonSides->y = 1;
 	iVec2* pSides = pAlloc->pMalloc(sizeof(iVec2) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
 		int32_t loopIndex = loopStart + i;
-		pSides[i].x = attribAsV2(verts, loopIndex)->x >= midPoint.x;
-		pSides[i].y = attribAsV2(verts, loopIndex)->y < midPoint.y;
+		pSides[i].x = verts[loopIndex].x >= midPoint.x;
+		pSides[i].y = verts[loopIndex].y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
 			commonSides->x *= pSides[i].x == pSides[j].x;
 			commonSides->y *= pSides[i].y == pSides[j].y;
@@ -76,8 +76,8 @@ static int32_t findFaceQuadrant(RuvmAllocator *pAlloc, int32_t loopSize, int32_t
 	iVec2 *pSides = pAlloc->pMalloc(sizeof(iVec2) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
 		int32_t vertIndex = pMesh->mesh.pLoops[faceStart + i];
-		pSides[i].x = attribAsV3(pMesh->pVerts, vertIndex)->x >= midPoint.x;
-		pSides[i].y = attribAsV3(pMesh->pVerts, vertIndex)->y < midPoint.y;
+		pSides[i].x = pMesh->pVerts[vertIndex].x >= midPoint.x;
+		pSides[i].y = pMesh->pVerts[vertIndex].y < midPoint.y;
 		for (int32_t j = 0; j < i; ++j) {
 			commonSides->x *= pSides[i].x == pSides[j].x;
 			commonSides->y *= pSides[i].y == pSides[j].y;

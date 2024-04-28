@@ -1,28 +1,6 @@
-#ifdef PLATFORM_LINUX
-	#define CLOCK_INIT struct timeval start, stop;
-	#define CLOCK_TIME_DIFF(start, stop) (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_usec - start.tv_usec)
-	#define CLOCK_START gettimeofday(&start, NULL)
-	#define CLOCK_STOP(a) gettimeofday(&stop, NULL); printf("%s - %s: %lu\n", __func__, (a), CLOCK_TIME_DIFF(start, stop))
-	#define CLOCK_STOP_NO_PRINT gettimeofday(&stop, NULL)
-#endif
-#ifdef PLATFORM_WINDOWS
-	#define CLOCK_INIT struct timespec start, stop;
-	#define CLOCK_TIME_DIFF(start, stop) (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec)
-	#define CLOCK_TIME_GET(a) if(timespec_get(&a, TIME_UTC) != TIME_UTC) printf("CLOCK_START failed\n")
-	#define CLOCK_START CLOCK_TIME_GET(start)
-	#define CLOCK_STOP(a) CLOCK_TIME_GET(stop); printf("%s - %s: %llu\n", __func__, (a), CLOCK_TIME_DIFF(start, stop))
-	#define CLOCK_STOP_NO_PRINT CLOCK_TIME_GET(stop)
-#endif
-
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#ifdef PLATFORM_LINUX
-	#include <sys/time.h>
-#endif
-#ifdef PLATFORM_WINDOWS
-	#include <time.h>
-#endif
 
 #include <Io.h>
 #include <EnclosingCells.h>
@@ -33,6 +11,7 @@
 #include <Allocator.h>
 #include <ThreadPool.h>
 #include <RUVM.h>
+#include <Clock.h>
 
 // TODO
 // - Reduce the bits written to the UVGP file for vert and loop indices, based on the total amount, in order to save space.
@@ -284,12 +263,15 @@ void allocateLocalMesh(ThreadArg *pArgs, BufMesh *pLocalMesh, RuvmMesh *pMeshIn,
 		allocAttribs(alloc, pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
 		             pArgs->pMap->mesh.mesh.pVertAttribs, pArgs->pMap->mesh.mesh.vertAttribCount,
 					 &pLocalMesh->mesh.vertAttribCount, bufferSize);
-	pArgs->bufMesh.pUvs = getAttrib("UVMap", pLocalMesh->mesh.pLoopAttribs,
-	                             pMeshIn->loopAttribCount);
-	pArgs->bufMesh.pNormals = getAttrib("normal", pLocalMesh->mesh.pLoopAttribs,
-	                                    pMeshIn->loopAttribCount);
-	pArgs->bufMesh.pVerts = getAttrib("position", pLocalMesh->mesh.pVertAttribs,
-	                                  pMeshIn->vertAttribCount);
+	pArgs->bufMesh.pUvAttrib = getAttrib("UVMap", pLocalMesh->mesh.pLoopAttribs,
+	                                     pMeshIn->loopAttribCount);
+	pArgs->bufMesh.pUvs = pArgs->bufMesh.pUvAttrib->pData;
+	pArgs->bufMesh.pNormalAttrib = getAttrib("normal", pLocalMesh->mesh.pLoopAttribs,
+	                                         pMeshIn->loopAttribCount);
+	pArgs->bufMesh.pNormals = pArgs->bufMesh.pNormalAttrib->pData;
+	pArgs->bufMesh.pVertAttrib = getAttrib("position", pLocalMesh->mesh.pVertAttribs,
+	                                       pMeshIn->vertAttribCount);
+	pArgs->bufMesh.pVerts = pArgs->bufMesh.pVertAttrib->pData;
 
 	pLocalMesh->boundaryVertSize = bufferSize - 1;
 	pLocalMesh->boundaryLoopSize = loopBufferSize - 1;
@@ -343,14 +325,14 @@ void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellF
 static Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 	int32_t loop = face.start;
 	int32_t vertIndex = pMesh->mesh.pLoops[loop];
-	Vec2 uv = *attribAsV2(pMesh->pUvs, loop);
-	Vec3 vert = *attribAsV3(pMesh->pVerts, vertIndex);
+	Vec2 uv = pMesh->pUvs[loop];
+	Vec3 vert = pMesh->pVerts[vertIndex];
 	int32_t vertIndexNext = pMesh->mesh.pLoops[face.start + 1];
-	Vec2 uvNext = *attribAsV2(pMesh->pUvs, face.start + 1);
-	Vec3 vertNext = *attribAsV3(pMesh->pVerts, vertIndexNext);
+	Vec2 uvNext = pMesh->pUvs[face.start + 1];
+	Vec3 vertNext = pMesh->pVerts[vertIndexNext];
 	int32_t vertIndexPrev = pMesh->mesh.pLoops[face.end - 1];
-	Vec2 uvPrev = *attribAsV2(pMesh->pUvs, face.end - 1);
-	Vec3 vertPrev = *attribAsV3(pMesh->pVerts, vertIndexPrev);
+	Vec2 uvPrev = pMesh->pUvs[face.end - 1];
+	Vec3 vertPrev = pMesh->pVerts[vertIndexPrev];
 	//uv space direction vectors,
 	//forming the coefficient matrix
 	Mat2x2 coeffMat;
@@ -636,7 +618,7 @@ void copyMesh(int32_t jobIndex, RuvmMesh *pMeshOut, SendOffArgs *pJobArgs) {
 	bulkCopyAttribs(bufMesh->mesh.pLoopAttribs, pMeshOut->loopCount, pMeshOut->pLoopAttribs,
 	            pMeshOut->loopAttribCount, bufMesh->mesh.loopCount);
 	pMeshOut->loopCount += bufMesh->mesh.loopCount;
-	memcpy(edgesStart, bufMesh->mesh.pEdges, sizeof(int32_t) * bufMesh->mesh.edgeCount);
+	memcpy(edgesStart, bufMesh->mesh.pEdges, sizeof(int32_t) * bufMesh->mesh.loopCount);
 	bulkCopyAttribs(bufMesh->mesh.pEdgeAttribs, pMeshOut->edgeCount, pMeshOut->pEdgeAttribs,
 	            pMeshOut->edgeAttribCount, bufMesh->mesh.edgeCount);
 	pMeshOut->edgeCount += bufMesh->mesh.edgeCount;
@@ -656,10 +638,12 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 		copyMesh(i, pMeshOut, pJobArgs);
 	}
 	Mesh meshOutWrap = {.mesh = *pMeshOut};
-	meshOutWrap.pVerts = getAttrib("position", pMeshOut->pVertAttribs,
+	meshOutWrap.pVertAttrib = getAttrib("position", pMeshOut->pVertAttribs,
 	                               pMeshOut->vertAttribCount);
-	meshOutWrap.pUvs = getAttrib("UVMap", pMeshOut->pLoopAttribs,
+	meshOutWrap.pVerts = meshOutWrap.pVertAttrib->pData;
+	meshOutWrap.pUvAttrib = getAttrib("UVMap", pMeshOut->pLoopAttribs,
 	                             pMeshOut->loopAttribCount);
+	meshOutWrap.pUvs = meshOutWrap.pUvAttrib->pData;
 	ruvmMergeBoundaryFaces(pContext, pMap, &meshOutWrap, pJobArgs, pEdgeVerts);
 	*pMeshOut = meshOutWrap.mesh;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -778,14 +762,20 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	Mesh meshIn = {*pMeshIn};
 	//TODO replace hard coded names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
-	meshIn.pVerts = getAttrib("position", meshIn.mesh.pVertAttribs,
-	                          meshIn.mesh.vertAttribCount);
-	meshIn.pUvs = getAttrib("UVMap", meshIn.mesh.pLoopAttribs,
-	                        meshIn.mesh.loopAttribCount);
-	meshIn.pNormals = getAttrib("normal", meshIn.mesh.pLoopAttribs,
-	                            meshIn.mesh.loopAttribCount);
-	meshIn.pEdgePreserve = getAttrib("RuvmEdgePreserve", meshIn.mesh.pEdgeAttribs,
-	                                 meshIn.mesh.edgeAttribCount);
+	meshIn.pVertAttrib = getAttrib("position", meshIn.mesh.pVertAttribs,
+	                               meshIn.mesh.vertAttribCount);
+	meshIn.pVerts = meshIn.pVertAttrib->pData;
+	meshIn.pUvAttrib = getAttrib("UVMap", meshIn.mesh.pLoopAttribs,
+	                             meshIn.mesh.loopAttribCount);
+	meshIn.pUvs = meshIn.pUvAttrib->pData;
+	meshIn.pNormalAttrib = getAttrib("normal", meshIn.mesh.pLoopAttribs,
+	                                 meshIn.mesh.loopAttribCount);
+	meshIn.pNormals = meshIn.pNormalAttrib->pData;
+	meshIn.pEdgePreserveAttrib = getAttrib("RuvmEdgePreserve", meshIn.mesh.pEdgeAttribs,
+	                                       meshIn.mesh.edgeAttribCount);
+	if (meshIn.pEdgePreserveAttrib) {
+		meshIn.pEdgePreserve = meshIn.pEdgePreserveAttrib->pData;
+	}
 	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
 	//it doesn't matter what it's set to here
 	setAttribOrigins(pMeshIn->pMeshAttribs, pMeshIn->meshAttribCount,

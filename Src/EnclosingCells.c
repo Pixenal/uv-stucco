@@ -11,9 +11,9 @@ static void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars,
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
 	for (int32_t i = 0; i < pEcVars->faceInfo.size; ++i) {
 		//check if current edge intersects tile
-		Vec2 *loop = attribAsV2(pMesh->pUvs, pFaceInfo->start + i);
+		Vec2 *loop = pMesh->pUvs + pFaceInfo->start + i;
 		int32_t nextLoopIndex = pFaceInfo->start + (i + 1) % pFaceInfo->size;
-		Vec2 *loopNext = attribAsV2(pMesh->pUvs, nextLoopIndex);
+		Vec2 *loopNext = pMesh->pUvs + nextLoopIndex;
 		Vec2 loopDir = _(*loopNext V2SUB *loop);
 		Vec2 loopCross = vec2Cross(loopDir);
 		for (int32_t j = 0; j < 4; ++j) {
