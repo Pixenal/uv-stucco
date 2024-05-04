@@ -676,7 +676,7 @@ static void addClippedFaceToBufMesh(ThreadArg *pArgs, MapToMeshVars *pMmVars,
 	}
 }
 
-void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
+void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCells *pEc,
                      MapToMeshVars *pMmVars, DebugAndPerfVars *pDpVars,
 					 V2_F32 fTileMin, int32_t tile, FaceInfo baseFace) {
 	//struct timeval start, stop;
@@ -688,10 +688,10 @@ void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
 		baseTri.uv[i] = _(pArgs->mesh.pUvs[loop] V2SUB fTileMin);
 		baseTri.xyz[i] = pArgs->mesh.pVerts[pArgs->mesh.mesh.pLoops[loop]];
 	}
-	for (int32_t i = 0; i < pEcVars->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
+	for (int32_t i = 0; i < pEc->pFaceCellsInfo[baseFace.index].faceSize; ++i) {
 		////CLOCK_START;
 		FaceInfo ruvmFace;
-		ruvmFace.index = pEcVars->pCellFaces[i];
+		ruvmFace.index = pEc->pCellFaces[i];
 		ruvmFace.start = pArgs->pMap->mesh.mesh.pFaces[ruvmFace.index];
 		ruvmFace.end = pArgs->pMap->mesh.mesh.pFaces[ruvmFace.index + 1];
 		ruvmFace.size = ruvmFace.end - ruvmFace.start;

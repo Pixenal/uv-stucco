@@ -262,7 +262,7 @@ void allocateLocalMesh(ThreadArg *pArgs, BufMesh *pLocalMesh, RuvmMesh *pMeshIn,
 	pLocalMesh->boundaryFaceSize = bufferSize - 1;
 }
 
-void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
+void allocateStructuresForMapping(ThreadArg *pArgs, EnclosingCells *pEcVars,
                                   MapToMeshVars *pMmVars) {
 	//struct timeval start, stop;
 	RuvmAllocator *pAlloc = &pArgs->alloc;
@@ -339,7 +339,7 @@ static Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 }
 
 static void mapPerTile(ThreadArg *pArgs, FaceInfo *pBaseFace,
-                       EnclosingCellsVars *pEcVars, MapToMeshVars *pMmVars,
+                       EnclosingCells *pEcVars, MapToMeshVars *pMmVars,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
 	FaceBounds *pFaceBounds = &pEcVars->pFaceCellsInfo[rawFace].faceBounds;
 	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
@@ -355,7 +355,7 @@ static void mapPerTile(ThreadArg *pArgs, FaceInfo *pBaseFace,
 static void mapToMeshJob(void *pArgsPtr) {
 	//CLOCK_INIT;
 	//CLOCK_START;
-	EnclosingCellsVars ecVars = {0};
+	EnclosingCells ec = {0};
 	SendOffArgs *pSend = pArgsPtr;
 	ThreadArg args = {0};
 	args.pEdgeVerts = pSend->pEdgeVerts;
@@ -366,14 +366,13 @@ static void mapToMeshJob(void *pArgsPtr) {
 	args.pMap = pSend->pMap;
 	args.maxLoopSize = 0;
 	args.pCommonAttribList = pSend->pCommonAttribList;
-	ecVars.pFaceCellsInfo = args.alloc.pMalloc(sizeof(FaceCellsInfo) *
-	                        args.mesh.mesh.faceCount);
-	ruvmGetEnclosingCellsForAllFaces(&args, &ecVars);
+	ruvmGetEnclosingCellsForAllFaces(&args.alloc, args.pMap,
+	                                 &args.mesh, &ec);
 	//CLOCK_STOP("getting enclosing cells");
 	//CLOCK_START;
 	MapToMeshVars mmVars = {0};
-	args.bufferSize = args.mesh.mesh.faceCount + ecVars.cellFacesTotal;
-	allocateStructuresForMapping(&args, &ecVars, &mmVars);
+	args.bufferSize = args.mesh.mesh.faceCount + ec.cellFacesTotal;
+	allocateStructuresForMapping(&args, &ec, &mmVars);
 	DebugAndPerfVars dpVars = {0};
 	//CLOCK_STOP("allocate structures for mapping");
 	uint64_t mappingTime, copySingleTime;
@@ -382,7 +381,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 	for (int32_t i = 0; i < args.mesh.mesh.faceCount; ++i) {
 		//CLOCK_START;
 		// copy faces over to a new contiguous array
-		copyCellFacesIntoSingleArray(ecVars.pFaceCellsInfo, ecVars.pCellFaces, i);
+		copyCellFacesIntoSingleArray(ec.pFaceCellsInfo, ec.pCellFaces, i);
 		//iterate through tiles
 		//CLOCK_STOP_NO_PRINT;
 		//copySingleTime += CLOCK_TIME_DIFF(start, stop);
@@ -398,7 +397,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 		}
 		if (baseFace.size <= 4) {
 			//face is a quad, or a tri
-			mapPerTile(&args, &baseFace, &ecVars, &mmVars, &dpVars, i);
+			mapPerTile(&args, &baseFace, &ec, &mmVars, &dpVars, i);
 		}
 		else {
 			//face is an ngon. ngons are processed per tri
@@ -408,7 +407,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 				baseFace.start = mmVars.faceTriangulated.pLoops[triFaceStart];
 				baseFace.end = mmVars.faceTriangulated.pLoops[triFaceEnd];
 				baseFace.size = baseFace.end - baseFace.start;
-				mapPerTile(&args, &baseFace, &ecVars, &mmVars, &dpVars, i);
+				mapPerTile(&args, &baseFace, &ec, &mmVars, &dpVars, i);
 			}
 		}
 		//CLOCK_STOP_NO_PRINT;
@@ -421,8 +420,8 @@ static void mapToMeshJob(void *pArgsPtr) {
 			args.alloc.pFree(mmVars.faceTriangulated.pLoops);
 			mmVars.faceTriangulated.pLoops = NULL;
 		}
-		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCells);
-		args.alloc.pFree(ecVars.pFaceCellsInfo[i].pCellType);
+		args.alloc.pFree(ec.pFaceCellsInfo[i].pCells);
+		args.alloc.pFree(ec.pFaceCellsInfo[i].pCellType);
 	}
 	printf("Max loop size: %d\n", args.maxLoopSize);
 	//printf("copy faces into single array %lu\n", copySingleTime);
@@ -475,8 +474,7 @@ static void mapToMeshJob(void *pArgsPtr) {
 	}
 	args.alloc.pFree(mmVars.pRuvmVertAdj);
 	args.alloc.pFree(mmVars.pEdgeTable);
-	args.alloc.pFree(ecVars.pCellFaces);
-	args.alloc.pFree(ecVars.pFaceCellsInfo);
+	ruvmDestroyEnclosingCells(&args.alloc, &ec);
 	//CLOCK_STOP("post mapping stuff");
 	//CLOCK_START;
 	pSend->bufferSize = args.bufferSize;

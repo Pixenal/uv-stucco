@@ -12,6 +12,6 @@ typedef struct {
 	FaceTriangulated faceTriangulated;
 } MapToMeshVars;
 
-void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
+void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCells *pEcVars,
                          MapToMeshVars *pMmVars, DebugAndPerfVars *pDpVars,
                          V2_F32 fTileMin, int32_t tile, FaceInfo baseFace);
