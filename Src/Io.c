@@ -15,6 +15,8 @@
 #include <MapFile.h>
 #include <Context.h>
 #include <Platform.h>
+#include <MathUtils.h>
+#include <AttribUtils.h>
 
 //TODO add info to header to identify file as an ruvm,
 //to prevent accidentally trying to load a different format
@@ -113,7 +115,7 @@ static void ruvmWriteDebugImage(Cell *rootCell) {
 		for (int32_t j = 0; j < 512; ++j) {
 			unsigned char red, green, blue, alpha;
 			float pixelSize = 1.0 / (float)512;
-			Vec2 pixelPos = {.x = pixelSize * j, .y = pixelSize * i};
+			V2_F32 pixelPos = {.x = pixelSize * j, .y = pixelSize * i};
 			Cell *enclosingCell = findEnclosingCell(rootCell, pixelPos);
 			red = (unsigned char)(enclosingCell->cellIndex % 256);
 			green = (unsigned char)(enclosingCell->cellIndex << 3 % 256);
@@ -126,45 +128,44 @@ static void ruvmWriteDebugImage(Cell *rootCell) {
 }
 */
 
-static int32_t getTotalAttribSize(RuvmAttrib *pAttribs, int32_t attribCount) {
+static int32_t getTotalAttribSize(AttribArray *pAttribs) {
 	int32_t totalSize = 0;
-	for (int32_t i = 0; i < attribCount; ++i) {
-		totalSize += getAttribSize(pAttribs[i].type) * 8;
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		totalSize += getAttribSize(pAttribs->pArr[i].type) * 8;
 	}
 	return totalSize;
 }
 
-static int32_t getTotalAttribMetaSize(RuvmAttrib *pAttribs, int32_t attribCount) {
-	int32_t totalSize = attribCount * 16;
-	for (int32_t i = 0; i < attribCount; ++i) {
-		totalSize += (strlen(pAttribs[i].name) + 1) * 8;
+static int32_t getTotalAttribMetaSize(AttribArray *pAttribs) {
+	int32_t totalSize = pAttribs->count * 16;
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		totalSize += (strlen(pAttribs->pArr[i].name) + 1) * 8;
 	}
 	return totalSize;
 }
 
-static void encodeAttribs(ByteString *pData, RuvmAttrib *pAttribs,
-                          int32_t attribCount, int32_t dataLen) {
-	for (int32_t i = 0; i < attribCount; ++i) {
-		if (pAttribs[i].type == RUVM_ATTRIB_STRING) {
+static void encodeAttribs(ByteString *pData, AttribArray *pAttribs,
+                          int32_t dataLen) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
 			for (int32_t j = 0; j < dataLen; ++j) {
-				void *pString = attribAsVoid(pAttribs + i, j);
+				void *pString = attribAsVoid(pAttribs->pArr + i, j);
 				encodeString(pData, pString);
 			}
 		}
 		else {
-			int32_t attribSize = getAttribSize(pAttribs[i].type) * 8;
+			int32_t attribSize = getAttribSize(pAttribs->pArr[i].type) * 8;
 			for (int32_t j = 0; j < dataLen; ++j) {
-				encodeValue(pData, attribAsVoid(pAttribs + i, j), attribSize);
+				encodeValue(pData, attribAsVoid(pAttribs->pArr + i, j), attribSize);
 			}
 		}
 	}
 }
 
-static void encodeAttribMeta(ByteString *pData, RuvmAttrib *pAttribs,
-                             int32_t attribCount) {
-	for (int32_t i = 0; i < attribCount; ++i) {
-		encodeValue(pData, (uint8_t *)&pAttribs[i].type, 16);
-		encodeString(pData, (uint8_t *)pAttribs[i].name);
+static void encodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		encodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
+		encodeString(pData, (uint8_t *)pAttribs->pArr[i].name);
 	}
 }
 
@@ -173,16 +174,11 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	ByteString data;
 
 	//calculate total size of attribute header info
-	int64_t meshAttribMetaSize =
-		getTotalAttribMetaSize(pMesh->pMeshAttribs, pMesh->meshAttribCount);
-	int64_t faceAttribMetaSize =
-		getTotalAttribMetaSize(pMesh->pFaceAttribs, pMesh->faceAttribCount);
-	int64_t loopAttribMetaSize =
-		getTotalAttribMetaSize(pMesh->pLoopAttribs, pMesh->loopAttribCount);
-	int64_t edgeAttribMetaSize =
-		getTotalAttribMetaSize(pMesh->pEdgeAttribs, pMesh->edgeAttribCount);
-	int64_t vertAttribMetaSize =
-		getTotalAttribMetaSize(pMesh->pVertAttribs, pMesh->vertAttribCount);
+	int64_t meshAttribMetaSize = getTotalAttribMetaSize(&pMesh->meshAttribs);
+	int64_t faceAttribMetaSize = getTotalAttribMetaSize(&pMesh->faceAttribs);
+	int64_t loopAttribMetaSize = getTotalAttribMetaSize(&pMesh->loopAttribs);
+	int64_t edgeAttribMetaSize = getTotalAttribMetaSize(&pMesh->edgeAttribs);
+	int64_t vertAttribMetaSize = getTotalAttribMetaSize(&pMesh->vertAttribs);
 
 	int64_t headerSizeInBits = 64 + //compressed data size
 	                           64 + //uncompressed data size
@@ -202,16 +198,11 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 							   128; //reserved for future extensions
 
 	//calculate total size of attribute data
-	int64_t meshAttribSize =
-		getTotalAttribSize(pMesh->pMeshAttribs, pMesh->meshAttribCount);
-	int64_t faceAttribSize =
-		getTotalAttribSize(pMesh->pFaceAttribs, pMesh->faceAttribCount);
-	int64_t loopAttribSize =
-		getTotalAttribSize(pMesh->pLoopAttribs, pMesh->loopAttribCount);
-	int64_t edgeAttribSize =
-		getTotalAttribSize(pMesh->pEdgeAttribs, pMesh->edgeAttribCount);
-	int64_t vertAttribSize =
-		getTotalAttribSize(pMesh->pVertAttribs, pMesh->vertAttribCount);
+	int64_t meshAttribSize = getTotalAttribSize(&pMesh->meshAttribs);
+	int64_t faceAttribSize = getTotalAttribSize(&pMesh->faceAttribs);
+	int64_t loopAttribSize = getTotalAttribSize(&pMesh->loopAttribs);
+	int64_t edgeAttribSize = getTotalAttribSize(&pMesh->edgeAttribs);
+	int64_t vertAttribSize = getTotalAttribSize(&pMesh->vertAttribs);
 
 	int64_t dataSizeInBits = meshAttribSize +
 	                         32 * (int64_t)pMesh->faceCount + //faces
@@ -231,22 +222,18 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 
 	//encode data
 	data.pString = pContext->alloc.pCalloc(dataSizeInBytes, 1);
-	encodeAttribs(&data, pMesh->pMeshAttribs, pMesh->meshAttribCount, 1);
+	encodeAttribs(&data, &pMesh->meshAttribs, 1);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
-	encodeAttribs(&data, pMesh->pFaceAttribs, pMesh->faceAttribCount,
-	              pMesh->faceCount);
+	encodeAttribs(&data, &pMesh->faceAttribs, pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
 		encodeValue(&data, (uint8_t *)&pMesh->pLoops[i], 32);
 		encodeValue(&data, (uint8_t *)&pMesh->pEdges[i], 32);
 	}
-	encodeAttribs(&data, pMesh->pLoopAttribs, pMesh->loopAttribCount,
-	              pMesh->loopCount);
-	encodeAttribs(&data, pMesh->pEdgeAttribs, pMesh->edgeAttribCount,
-	              pMesh->edgeCount);
-	encodeAttribs(&data, pMesh->pVertAttribs, pMesh->vertAttribCount,
-	              pMesh->vertCount);
+	encodeAttribs(&data, &pMesh->loopAttribs, pMesh->loopCount);
+	encodeAttribs(&data, &pMesh->edgeAttribs, pMesh->edgeCount);
+	encodeAttribs(&data, &pMesh->vertAttribs, pMesh->vertCount);
 
 	//compress data
 	//TODO convert to use proper zlib inflate and deflate calls
@@ -279,16 +266,16 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	encodeValue(&header, (uint8_t *)&compressedDataSize, 64);
 	encodeValue(&header, (uint8_t *)&dataSize, 64);
 
-	encodeValue(&header, (uint8_t *)&pMesh->meshAttribCount, 32);
-	encodeAttribMeta(&header, pMesh->pMeshAttribs, pMesh->meshAttribCount);
-	encodeValue(&header, (uint8_t *)&pMesh->faceAttribCount, 32);
-	encodeAttribMeta(&header, pMesh->pFaceAttribs, pMesh->faceAttribCount);
-	encodeValue(&header, (uint8_t *)&pMesh->loopAttribCount, 32);
-	encodeAttribMeta(&header, pMesh->pLoopAttribs, pMesh->loopAttribCount);
-	encodeValue(&header, (uint8_t *)&pMesh->edgeAttribCount, 32);
-	encodeAttribMeta(&header, pMesh->pEdgeAttribs, pMesh->edgeAttribCount);
-	encodeValue(&header, (uint8_t *)&pMesh->vertAttribCount, 32);
-	encodeAttribMeta(&header, pMesh->pVertAttribs, pMesh->vertAttribCount);
+	encodeValue(&header, (uint8_t *)&pMesh->meshAttribs.count, 32);
+	encodeAttribMeta(&header, &pMesh->meshAttribs);
+	encodeValue(&header, (uint8_t *)&pMesh->faceAttribs.count, 32);
+	encodeAttribMeta(&header, &pMesh->faceAttribs);
+	encodeValue(&header, (uint8_t *)&pMesh->loopAttribs.count, 32);
+	encodeAttribMeta(&header, &pMesh->loopAttribs);
+	encodeValue(&header, (uint8_t *)&pMesh->edgeAttribs.count, 32);
+	encodeAttribMeta(&header, &pMesh->edgeAttribs);
+	encodeValue(&header, (uint8_t *)&pMesh->vertAttribs.count, 32);
+	encodeAttribMeta(&header, &pMesh->vertAttribs);
 
 	encodeValue(&header, (uint8_t *)&pMesh->faceCount, 32);
 	encodeValue(&header, (uint8_t *)&pMesh->loopCount, 32);
@@ -314,24 +301,23 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	printf("Finished RUVM export\n");
 }
 
-static void decodeAttribMeta(ByteString *pData, RuvmAttrib *pAttribs, int32_t attribCount) {
-	for (int32_t i = 0; i < attribCount; ++i) {
-		decodeValue(pData, (uint8_t *)&pAttribs[i].type, 16);
-		int32_t maxNameLen = sizeof(pAttribs[i].name);
-		decodeString(pData, (char *)&pAttribs[i].name, maxNameLen);
+static void decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
+		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
+		decodeString(pData, (char *)&pAttribs->pArr[i].name, maxNameLen);
 	}
 }
 
 static void decodeAttribs(RuvmContext pContext, ByteString *pData,
-                          RuvmAttrib *pAttribs, int32_t attribCount,
-						  int32_t dataLen) {
-	for (int32_t i = 0; i < attribCount; ++i) {
-		int32_t attribSize = getAttribSize(pAttribs[i].type) * 8;
-		pAttribs[i].pData = dataLen ?
+                          AttribArray *pAttribs, int32_t dataLen) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		int32_t attribSize = getAttribSize(pAttribs->pArr[i].type) * 8;
+		pAttribs->pArr[i].pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
 		for (int32_t j = 0; j < dataLen; ++j) {
-			void *pAttribData = attribAsVoid(pAttribs + i, j);
-			if (pAttribs[i].type == RUVM_ATTRIB_STRING) {
+			void *pAttribData = attribAsVoid(pAttribs->pArr + i, j);
+			if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
 				decodeString(pData, pAttribData, attribSize);
 			}
 			else {
@@ -349,30 +335,30 @@ static RuvmHeader decodeRuvmHeader(RuvmContext pContext, RuvmMap pMapFile, ByteS
 	decodeValue(headerByteString, (uint8_t *)&header.dataSizeCompressed, 64);
 	decodeValue(headerByteString, (uint8_t *)&header.dataSize, 64);
 
-	decodeValue(headerByteString, (uint8_t *)&pMesh->meshAttribCount, 32);
-	pMesh->pMeshAttribs = pMesh->meshAttribCount ?
-		pContext->alloc.pCalloc(pMesh->meshAttribCount, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(headerByteString, pMesh->pMeshAttribs, pMesh->meshAttribCount);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
+	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
+		pContext->alloc.pCalloc(pMesh->meshAttribs.count, sizeof(RuvmAttrib)) : NULL;
+	decodeAttribMeta(headerByteString, &pMesh->meshAttribs);
 
-	decodeValue(headerByteString, (uint8_t *)&pMesh->faceAttribCount, 32);
-	pMesh->pFaceAttribs = pMesh->faceAttribCount ?
-		pContext->alloc.pCalloc(pMesh->faceAttribCount, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(headerByteString, pMesh->pFaceAttribs, pMesh->faceAttribCount);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
+	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
+		pContext->alloc.pCalloc(pMesh->faceAttribs.count, sizeof(RuvmAttrib)) : NULL;
+	decodeAttribMeta(headerByteString, &pMesh->faceAttribs);
 
-	decodeValue(headerByteString, (uint8_t *)&pMesh->loopAttribCount, 32);
-	pMesh->pLoopAttribs = pMesh->loopAttribCount ?
-		pContext->alloc.pCalloc(pMesh->loopAttribCount, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(headerByteString, pMesh->pLoopAttribs, pMesh->loopAttribCount);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->loopAttribs.count, 32);
+	pMesh->loopAttribs.pArr = pMesh->loopAttribs.count ?
+		pContext->alloc.pCalloc(pMesh->loopAttribs.count, sizeof(RuvmAttrib)) : NULL;
+	decodeAttribMeta(headerByteString, &pMesh->loopAttribs);
 
-	decodeValue(headerByteString, (uint8_t *)&pMesh->edgeAttribCount, 32);
-	pMesh->pEdgeAttribs = pMesh->edgeAttribCount ?
-		pContext->alloc.pCalloc(pMesh->edgeAttribCount, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(headerByteString, pMesh->pEdgeAttribs, pMesh->edgeAttribCount);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
+	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
+		pContext->alloc.pCalloc(pMesh->edgeAttribs.count, sizeof(RuvmAttrib)) : NULL;
+	decodeAttribMeta(headerByteString, &pMesh->edgeAttribs);
 
-	decodeValue(headerByteString, (uint8_t *)&pMesh->vertAttribCount, 32);
-	pMesh->pVertAttribs = pMesh->vertAttribCount ?
-		pContext->alloc.pCalloc(pMesh->vertAttribCount, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(headerByteString, pMesh->pVertAttribs, pMesh->vertAttribCount);
+	decodeValue(headerByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
+	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
+		pContext->alloc.pCalloc(pMesh->vertAttribs.count, sizeof(RuvmAttrib)) : NULL;
+	decodeAttribMeta(headerByteString, &pMesh->vertAttribs);
 
 	decodeValue(headerByteString, (uint8_t *)&pMesh->faceCount, 32);
 	decodeValue(headerByteString, (uint8_t *)&pMesh->loopCount, 32);
@@ -386,14 +372,14 @@ static void decodeRuvmData(RuvmContext pContext, RuvmMap pMapFile,
                            ByteString *dataByteString) {
 	RuvmMesh *pMesh = &pMapFile->mesh.mesh;
 
-	decodeAttribs(pContext, dataByteString, pMesh->pMeshAttribs, pMesh->meshAttribCount, 1);
+	decodeAttribs(pContext, dataByteString, &pMesh->meshAttribs, 1);
 
 	pMesh->pFaces = pContext->alloc.pCalloc(pMesh->faceCount + 1, sizeof(int32_t));
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
 	pMesh->pFaces[pMesh->faceCount] = pMesh->loopCount;
-	decodeAttribs(pContext, dataByteString, pMesh->pFaceAttribs, pMesh->faceAttribCount, pMesh->faceCount);
+	decodeAttribs(pContext, dataByteString, &pMesh->faceAttribs, pMesh->faceCount);
 
 	pMesh->pLoops = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
 	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
@@ -401,10 +387,10 @@ static void decodeRuvmData(RuvmContext pContext, RuvmMap pMapFile,
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pLoops[i], 32);
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pEdges[i], 32);
 	}
-	decodeAttribs(pContext, dataByteString, pMesh->pLoopAttribs, pMesh->loopAttribCount, pMesh->loopCount);
-	decodeAttribs(pContext, dataByteString, pMesh->pEdgeAttribs, pMesh->edgeAttribCount, pMesh->edgeCount);
+	decodeAttribs(pContext, dataByteString, &pMesh->loopAttribs, pMesh->loopCount);
+	decodeAttribs(pContext, dataByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
 
-	decodeAttribs(pContext, dataByteString, pMesh->pVertAttribs, pMesh->vertAttribCount, pMesh->vertCount);
+	decodeAttribs(pContext, dataByteString, &pMesh->vertAttribs, pMesh->vertCount);
 }
 
 void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath) {
@@ -454,13 +440,13 @@ void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath) {
 	pContext->alloc.pFree(dataByteString.pString);
 	RuvmMesh *pMesh = &pMapFile->mesh.mesh;
 	pMapFile->mesh.pVertAttrib =
-		getAttrib("position", pMesh->pVertAttribs, pMesh->vertAttribCount);
+		getAttrib("position", &pMesh->vertAttribs);
 	pMapFile->mesh.pVerts = pMapFile->mesh.pVertAttrib->pData;
 	pMapFile->mesh.pUvAttrib =
-		getAttrib("UVMap", pMesh->pLoopAttribs, pMesh->loopAttribCount);
+		getAttrib("UVMap", &pMesh->loopAttribs);
 	pMapFile->mesh.pUvs = pMapFile->mesh.pUvAttrib->pData;
 	pMapFile->mesh.pNormalAttrib =
-		getAttrib("normal", pMesh->pLoopAttribs, pMesh->loopAttribCount);
+		getAttrib("normal", &pMesh->loopAttribs);
 	pMapFile->mesh.pNormals = pMapFile->mesh.pNormalAttrib->pData;
 }
 

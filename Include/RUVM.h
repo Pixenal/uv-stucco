@@ -158,7 +158,7 @@ typedef struct {
 
 typedef struct {
 	char d[RUVM_ATTRIB_STRING_MAX_LEN];
-} Ruvm_STRING;
+} Ruvm_String;
 
 
 typedef struct {
@@ -168,6 +168,11 @@ typedef struct {
 	RUVM_ATTRIB_ORIGIN origin;
 	int8_t interpolate;
 } RuvmAttrib;
+
+typedef struct {
+	RuvmAttrib *pArr;
+	int32_t count;
+} RuvmAttribArray;
 
 typedef struct {
 	RuvmBlendMode blend;
@@ -225,23 +230,18 @@ typedef struct {
 } RuvmCommonAttribList;
 
 typedef struct {
-	int32_t meshAttribCount;
-	RuvmAttrib *pMeshAttribs;
+	RuvmAttribArray meshAttribs;
 	int32_t faceCount;
 	int32_t *pFaces;
-	int32_t faceAttribCount;
-	RuvmAttrib *pFaceAttribs;
+	RuvmAttribArray faceAttribs;
 	int32_t loopCount;
 	int32_t *pLoops;
-	int32_t loopAttribCount;
-	RuvmAttrib *pLoopAttribs;
+	RuvmAttribArray loopAttribs;
 	int32_t edgeCount;
 	int32_t *pEdges;
-	int32_t edgeAttribCount;
-	RuvmAttrib *pEdgeAttribs;
+	RuvmAttribArray edgeAttribs;
 	int32_t vertCount;
-	int32_t vertAttribCount;
-	RuvmAttrib *pVertAttribs;
+	RuvmAttribArray vertAttribs;
 } RuvmMesh;
 
 typedef struct {
@@ -288,4 +288,4 @@ RUVM_EXPORT void ruvmContextDestroy(RuvmContext pContext);
 RUVM_EXPORT void ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize);
 //TODO make all functions return error codes, ie, adjust functions like below, which return data,
 //pass as param instead
-RUVM_EXPORT RuvmAttrib *ruvmGetAttrib(char *pName, RuvmAttrib *pAttribs, int32_t attribCount);
+RUVM_EXPORT RuvmAttrib *ruvmGetAttrib(char *pName, RuvmAttribArray *pAttribs);

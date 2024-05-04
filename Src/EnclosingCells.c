@@ -3,22 +3,24 @@
 #include <EnclosingCells.h>
 #include <QuadTree.h>
 #include <MapFile.h>
+#include <MathUtils.h>
+#include <Utils.h>
 
 static void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars,
                                     int32_t *pIsInsideBuffer, int32_t *pFaceVertInside,
-                                    Mesh *pMesh, iVec2 tileMin) {
+                                    Mesh *pMesh, V2_I32 tileMin) {
 	FaceInfo *pFaceInfo = &pEcVars->faceInfo;
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
 	for (int32_t i = 0; i < pEcVars->faceInfo.size; ++i) {
 		//check if current edge intersects tile
-		Vec2 *loop = pMesh->pUvs + pFaceInfo->start + i;
+		V2_F32 *loop = pMesh->pUvs + pFaceInfo->start + i;
 		int32_t nextLoopIndex = pFaceInfo->start + (i + 1) % pFaceInfo->size;
-		Vec2 *loopNext = pMesh->pUvs + nextLoopIndex;
-		Vec2 loopDir = _(*loopNext V2SUB *loop);
-		Vec2 loopCross = vec2Cross(loopDir);
+		V2_F32 *loopNext = pMesh->pUvs + nextLoopIndex;
+		V2_F32 loopDir = _(*loopNext V2SUB *loop);
+		V2_F32 loopCross = v2Cross(loopDir);
 		for (int32_t j = 0; j < 4; ++j) {
-			Vec2 cellPoint = {tileMin.x + j % 2, tileMin.y + j / 2};
-			Vec2 cellDir = _(cellPoint V2SUB *loop);
+			V2_F32 cellPoint = {tileMin.d[0] + j % 2, tileMin.d[1] + j / 2};
+			V2_F32 cellDir = _(cellPoint V2SUB *loop);
 			float dot = _(loopCross V2DOT cellDir);
 			pIsInsideBuffer[j] *= dot < .0f;
 		}
@@ -32,7 +34,7 @@ static void checkIfFaceIsInsideTile(EnclosingCellsVars *pEcVars,
 }
 
 static int32_t getCellsForFaceWithinTile(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
-                                  EnclosingCellsInfo *pCellsBuffer, iVec2 tileMin) {
+                                  EnclosingCellsInfo *pCellsBuffer, V2_I32 tileMin) {
 	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
 	int32_t faceVertInside = 0;
 	checkIfFaceIsInsideTile(pEcVars, isInsideBuffer, &faceVertInside,
@@ -165,9 +167,9 @@ static int32_t getCellsForSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVa
 	cellsBuffer.ppCells = pEcVars->ppCells;
 	cellsBuffer.pCellType = pEcVars->pCellType;
 	FaceBounds *pFaceBounds = &pEcVars->faceBounds;
-	for (int32_t i = pFaceBounds->min.y; i <= pFaceBounds->max.y; ++i) {
-		for (int32_t j = pFaceBounds->min.x; j <= pFaceBounds->max.x; ++j) {
-			iVec2 tileMin = {j, i};
+	for (int32_t i = pFaceBounds->min.d[1]; i <= pFaceBounds->max.d[1]; ++i) {
+		for (int32_t j = pFaceBounds->min.d[0]; j <= pFaceBounds->max.d[0]; ++j) {
+			V2_I32 tileMin = {j, i};
 			//continue until the smallest cell that fully encloses the face is found (result == 0).
 			//if face fully encloses the while uv tile (result == 1), then return (root cell will be used).
 			//if the face is not within the current tile, then skip tile (result == 2).
@@ -197,8 +199,8 @@ void ruvmGetEnclosingCellsForAllFaces(ThreadArg *pArgs, EnclosingCellsVars *pEcV
 		getFaceBounds(pFaceBounds, pArgs->mesh.pUvs, pEcVars->faceInfo);
 		pFaceBounds->fMinSmall = pFaceBounds->fMin;
 		pFaceBounds->fMaxSmall = pFaceBounds->fMax;
-		pFaceBounds->min = vec2FloorAssign(&pFaceBounds->fMin);
-		pFaceBounds->max = vec2FloorAssign(&pFaceBounds->fMax);
+		pFaceBounds->min = v2FloorAssign(&pFaceBounds->fMin);
+		pFaceBounds->max = v2FloorAssign(&pFaceBounds->fMax);
 		_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
 		pEcVars->pFaceCellsInfo[i].faceBounds = *pFaceBounds;
 		if (getCellsForSingleFace(pArgs, pEcVars, i)) {

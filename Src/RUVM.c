@@ -12,6 +12,9 @@
 #include <ThreadPool.h>
 #include <RUVM.h>
 #include <Clock.h>
+#include <MathUtils.h>
+#include <AttribUtils.h>
+#include <Utils.h>
 
 // TODO
 // - Reduce the bits written to the UVGP file for vert and loop indices, based on the total amount, in order to save space.
@@ -111,17 +114,17 @@ static void initCommonAttrib(RuvmContext pContext, RuvmCommonAttrib *pEntry, Ruv
 	pEntry->blendConfig = pDefault->blendConfig;
 }
 
-static void getCommonAttribs(RuvmContext pContext,
-                                 int32_t mapAttribCount, RuvmAttrib *pMapAttribs,
-                                 int32_t meshAttribCount, RuvmAttrib *pMeshAttribs,
-                                 int32_t *pCommonAttribCount, RuvmCommonAttrib **ppCommonAttribs) {
+static void getCommonAttribs(RuvmContext pContext, AttribArray *pMapAttribs,
+                             AttribArray *pMeshAttribs,
+                             int32_t *pCommonAttribCount, RuvmCommonAttrib **ppCommonAttribs) {
 	if (!pMeshAttribs || !pMapAttribs) {
 		return;
 	}
 	int32_t count = 0;
-	for (int32_t i = 0; i < meshAttribCount; ++i) {
-		for (int32_t j = 0; j < mapAttribCount; ++j) {
-			if (0 == strncmp(pMeshAttribs[i].name, pMapAttribs[j].name,
+	for (int32_t i = 0; i < pMeshAttribs->count; ++i) {
+		for (int32_t j = 0; j < pMapAttribs->count; ++j) {
+			if (0 == strncmp(pMeshAttribs->pArr[i].name,
+			                 pMapAttribs->pArr[j].name,
 			                 RUVM_ATTRIB_NAME_MAX_LEN)) {
 				count++;
 			}
@@ -130,12 +133,13 @@ static void getCommonAttribs(RuvmContext pContext,
 	*ppCommonAttribs = count ?
 		pContext->alloc.pMalloc(sizeof(RuvmCommonAttrib) * count) : NULL;
 	count = 0;
-	for (int32_t i = 0; i < meshAttribCount; ++i) {
-		for (int32_t j = 0; j < mapAttribCount; ++j) {
-			if (0 == strncmp(pMeshAttribs[i].name, pMapAttribs[j].name,
+	for (int32_t i = 0; i < pMeshAttribs->count; ++i) {
+		for (int32_t j = 0; j < pMapAttribs->count; ++j) {
+			if (0 == strncmp(pMeshAttribs->pArr[i].name,
+			                 pMapAttribs->pArr[j].name,
 			                 RUVM_ATTRIB_NAME_MAX_LEN)) {
 				initCommonAttrib(pContext, *ppCommonAttribs + count,
-				                 pMeshAttribs + i);
+				                 pMeshAttribs->pArr + i);
 				count++;
 			}
 		}
@@ -147,25 +151,15 @@ static void getCommonAttribs(RuvmContext pContext,
 //Such as a float and a string.
 void ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
                             RuvmCommonAttribList *pCommonAttribs) {
-	getCommonAttribs(pContext,
-	                 pMap->mesh.mesh.meshAttribCount, pMap->mesh.mesh.pMeshAttribs,
-					 pMesh->meshAttribCount, pMesh->pMeshAttribs,
+	getCommonAttribs(pContext, &pMap->mesh.mesh.meshAttribs, &pMesh->meshAttribs,
 					 &pCommonAttribs->meshCount, &pCommonAttribs->pMesh);
-	getCommonAttribs(pContext,
-	                 pMap->mesh.mesh.faceAttribCount, pMap->mesh.mesh.pFaceAttribs,
-					 pMesh->faceAttribCount, pMesh->pFaceAttribs,
+	getCommonAttribs(pContext, &pMap->mesh.mesh.faceAttribs, &pMesh->faceAttribs,
 					 &pCommonAttribs->faceCount, &pCommonAttribs->pFace);
-	getCommonAttribs(pContext,
-	                 pMap->mesh.mesh.loopAttribCount, pMap->mesh.mesh.pLoopAttribs,
-					 pMesh->loopAttribCount, pMesh->pLoopAttribs,
+	getCommonAttribs(pContext, &pMap->mesh.mesh.loopAttribs, &pMesh->loopAttribs,
 					 &pCommonAttribs->loopCount, &pCommonAttribs->pLoop);
-	getCommonAttribs(pContext,
-	                 pMap->mesh.mesh.edgeAttribCount, pMap->mesh.mesh.pEdgeAttribs,
-					 pMesh->edgeAttribCount, pMesh->pEdgeAttribs,
-					 &pCommonAttribs->edgeCount, &pCommonAttribs->pEdge);
-	getCommonAttribs(pContext,
-	                 pMap->mesh.mesh.vertAttribCount, pMap->mesh.mesh.pVertAttribs,
-					 pMesh->vertAttribCount, pMesh->pVertAttribs,
+	getCommonAttribs(pContext, &pMap->mesh.mesh.edgeAttribs, &pMesh->edgeAttribs,
+	                 &pCommonAttribs->edgeCount, &pCommonAttribs->pEdge);
+	getCommonAttribs(pContext, &pMap->mesh.mesh.vertAttribs, &pMesh->vertAttribs,
 					 &pCommonAttribs->vertCount, &pCommonAttribs->pVert);
 }
 
@@ -188,89 +182,78 @@ void ruvmDestroyCommonAttribs(RuvmContext pContext,
 	}
 }
 
-RuvmAttrib *allocAttribs(RuvmAllocator alloc, RuvmAttrib *pAttribsA,
-                         int32_t attribCountA, RuvmAttrib *pAttribsB,
-						 int32_t attribCountB, int32_t *pAttribCount,
-						 int32_t dataLen) {
-	if (attribCountA) {
-		*pAttribCount = attribCountA;
+void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
+                  RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
+				  int32_t dataLen) {
+	if (pSrcA && pSrcA->count) {
+		pDest->count = pSrcA->count;
 	}
-	if (attribCountB) {
-		for (int32_t i = 0; i < attribCountB; ++i) {
-			if (getAttrib(pAttribsB[i].name, pAttribsA, attribCountA)) {
+	if (pSrcB && pSrcB->count) {
+		for (int32_t i = 0; i < pSrcB->count; ++i) {
+			if (getAttrib(pSrcB->pArr[i].name, pSrcA)) {
 				//skip if attribute already exists in bufmesh
 				continue;
 			}
-			++*pAttribCount;
+			++pDest->count;
 		}
 	}
-	if (!*pAttribCount) {
-		return NULL;
+	if (!pDest->count) {
+		return;
 	}
-	RuvmAttrib *pAttribs = alloc.pMalloc(sizeof(RuvmAttrib) * *pAttribCount);
+	pDest->pArr = alloc.pMalloc(sizeof(RuvmAttrib) * pDest->count);
 	//reset attrib count, for use in the below loops
-	*pAttribCount = 0;
-	if (attribCountA) {
-		for (int32_t i = 0; i < attribCountA; ++i) {
-			pAttribs[i].type = pAttribsA[i].type;
-			memcpy(pAttribs[i].name, pAttribsA[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
-			pAttribs[i].origin = RUVM_ATTRIB_ORIGIN_MESH_IN;
-			pAttribs[i].interpolate = pAttribsA[i].interpolate;
-			int32_t attribSize = getAttribSize(pAttribsA[i].type);
-			pAttribs[i].pData = alloc.pMalloc(attribSize * dataLen);
+	pDest->count = 0;
+	if (pSrcA && pSrcA->count) {
+		for (int32_t i = 0; i < pSrcA->count; ++i) {
+			pDest->pArr[i].type = pSrcA->pArr[i].type;
+			memcpy(pDest->pArr[i].name, pSrcA->pArr[i].name,
+			       RUVM_ATTRIB_NAME_MAX_LEN);
+			pDest->pArr[i].origin = RUVM_ATTRIB_ORIGIN_MESH_IN;
+			pDest->pArr[i].interpolate = pSrcA->pArr[i].interpolate;
+			int32_t attribSize = getAttribSize(pSrcA->pArr[i].type);
+			pDest->pArr[i].pData = alloc.pMalloc(attribSize * dataLen);
 		}
-		*pAttribCount = attribCountA;
+		pDest->count = pSrcA->count;
 	}
-	if (!attribCountB) {
-		return pAttribs;
+	if (!pSrcB || !pSrcB->count) {
+		return;
 	}
-	for (int32_t i = 0; i < attribCountB; ++i) {
-		RuvmAttrib *pExisting = getAttrib(pAttribsB[i].name, pAttribs, *pAttribCount);
+	for (int32_t i = 0; i < pSrcB->count; ++i) {
+		RuvmAttrib *pExisting = getAttrib(pSrcB->pArr[i].name, pDest);
 		if (pExisting) {
 			pExisting->origin = RUVM_ATTRIB_ORIGIN_COMMON;
 			continue;
 		}
-		pAttribs[*pAttribCount].type = pAttribsB[i].type;
-		memcpy(pAttribs[*pAttribCount].name, pAttribsB[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
-		pAttribs[*pAttribCount].origin = RUVM_ATTRIB_ORIGIN_MAP;
-		pAttribs[*pAttribCount].interpolate = pAttribsB[i].interpolate;
-		int32_t attribSize = getAttribSize(pAttribsB[i].type);
-		pAttribs[*pAttribCount].pData = alloc.pMalloc(attribSize * dataLen);
-		++*pAttribCount;
+		pDest->pArr[pDest->count].type = pSrcB->pArr[i].type;
+		memcpy(pDest->pArr[pDest->count].name, pSrcB->pArr[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
+		pDest->pArr[pDest->count].origin = RUVM_ATTRIB_ORIGIN_MAP;
+		pDest->pArr[pDest->count].interpolate = pSrcB->pArr[i].interpolate;
+		int32_t attribSize = getAttribSize(pSrcB->pArr[i].type);
+		pDest->pArr[pDest->count].pData = alloc.pMalloc(attribSize * dataLen);
+		++pDest->count;
 	}
-	return pAttribs;
+	return;
 }
 
 void allocateLocalMesh(ThreadArg *pArgs, BufMesh *pLocalMesh, RuvmMesh *pMeshIn,
                        int32_t bufferSize, int32_t loopBufferSize) {
 	RuvmAllocator alloc = pArgs->alloc;
 	pLocalMesh->mesh.pFaces = alloc.pMalloc(sizeof(int32_t) * bufferSize);
-	pLocalMesh->mesh.pFaceAttribs =
-		allocAttribs(alloc, pMeshIn->pFaceAttribs, pMeshIn->faceAttribCount,
-		             pArgs->pMap->mesh.mesh.pFaceAttribs, pArgs->pMap->mesh.mesh.faceAttribCount,
-					 &pLocalMesh->mesh.faceAttribCount, bufferSize);
+	allocAttribs(alloc, &pLocalMesh->mesh.faceAttribs, &pMeshIn->faceAttribs,
+	             &pArgs->pMap->mesh.mesh.faceAttribs, bufferSize);
 	pLocalMesh->mesh.pLoops = alloc.pMalloc(sizeof(int32_t) * loopBufferSize);
-	pLocalMesh->mesh.pLoopAttribs = 
-		allocAttribs(alloc, pMeshIn->pLoopAttribs, pMeshIn->loopAttribCount,
-		             pArgs->pMap->mesh.mesh.pLoopAttribs, pArgs->pMap->mesh.mesh.loopAttribCount,
-					 &pLocalMesh->mesh.loopAttribCount, loopBufferSize);
+	allocAttribs(alloc, &pLocalMesh->mesh.loopAttribs, &pMeshIn->loopAttribs,
+	             &pArgs->pMap->mesh.mesh.loopAttribs, loopBufferSize);
 	pLocalMesh->mesh.pEdges = alloc.pMalloc(sizeof(int32_t) * loopBufferSize);
-	pLocalMesh->mesh.pEdgeAttribs =
-		allocAttribs(alloc, pMeshIn->pEdgeAttribs, pMeshIn->edgeAttribCount,
-		             pArgs->pMap->mesh.mesh.pEdgeAttribs, pArgs->pMap->mesh.mesh.edgeAttribCount,
-					 &pLocalMesh->mesh.edgeAttribCount, loopBufferSize);
-	pLocalMesh->mesh.pVertAttribs =
-		allocAttribs(alloc, pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
-		             pArgs->pMap->mesh.mesh.pVertAttribs, pArgs->pMap->mesh.mesh.vertAttribCount,
-					 &pLocalMesh->mesh.vertAttribCount, bufferSize);
-	pArgs->bufMesh.pUvAttrib = getAttrib("UVMap", pLocalMesh->mesh.pLoopAttribs,
-	                                     pMeshIn->loopAttribCount);
+	allocAttribs(alloc, &pLocalMesh->mesh.edgeAttribs, &pMeshIn->edgeAttribs,
+	             &pArgs->pMap->mesh.mesh.edgeAttribs, loopBufferSize);
+	allocAttribs(alloc, &pLocalMesh->mesh.vertAttribs, &pMeshIn->vertAttribs,
+	             &pArgs->pMap->mesh.mesh.vertAttribs, bufferSize);
+	pArgs->bufMesh.pUvAttrib = getAttrib("UVMap", &pLocalMesh->mesh.loopAttribs);
 	pArgs->bufMesh.pUvs = pArgs->bufMesh.pUvAttrib->pData;
-	pArgs->bufMesh.pNormalAttrib = getAttrib("normal", pLocalMesh->mesh.pLoopAttribs,
-	                                         pMeshIn->loopAttribCount);
+	pArgs->bufMesh.pNormalAttrib = getAttrib("normal", &pLocalMesh->mesh.loopAttribs);
 	pArgs->bufMesh.pNormals = pArgs->bufMesh.pNormalAttrib->pData;
-	pArgs->bufMesh.pVertAttrib = getAttrib("position", pLocalMesh->mesh.pVertAttribs,
-	                                       pMeshIn->vertAttribCount);
+	pArgs->bufMesh.pVertAttrib = getAttrib("position", &pLocalMesh->mesh.vertAttribs);
 	pArgs->bufMesh.pVerts = pArgs->bufMesh.pVertAttrib->pData;
 
 	pLocalMesh->boundaryVertSize = bufferSize - 1;
@@ -325,33 +308,33 @@ void copyCellFacesIntoSingleArray(FaceCellsInfo *pFaceCellsInfo, int32_t *pCellF
 static Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 	int32_t loop = face.start;
 	int32_t vertIndex = pMesh->mesh.pLoops[loop];
-	Vec2 uv = pMesh->pUvs[loop];
-	Vec3 vert = pMesh->pVerts[vertIndex];
+	V2_F32 uv = pMesh->pUvs[loop];
+	V3_F32 vert = pMesh->pVerts[vertIndex];
 	int32_t vertIndexNext = pMesh->mesh.pLoops[face.start + 1];
-	Vec2 uvNext = pMesh->pUvs[face.start + 1];
-	Vec3 vertNext = pMesh->pVerts[vertIndexNext];
+	V2_F32 uvNext = pMesh->pUvs[face.start + 1];
+	V3_F32 vertNext = pMesh->pVerts[vertIndexNext];
 	int32_t vertIndexPrev = pMesh->mesh.pLoops[face.end - 1];
-	Vec2 uvPrev = pMesh->pUvs[face.end - 1];
-	Vec3 vertPrev = pMesh->pVerts[vertIndexPrev];
+	V2_F32 uvPrev = pMesh->pUvs[face.end - 1];
+	V3_F32 vertPrev = pMesh->pVerts[vertIndexPrev];
 	//uv space direction vectors,
 	//forming the coefficient matrix
 	Mat2x2 coeffMat;
-	*(Vec2 *)&coeffMat.d[0] = _(uvNext V2SUB uv);
-	*(Vec2 *)&coeffMat.d[1] = _(uvPrev V2SUB uv);
+	*(V2_F32 *)&coeffMat.d[0] = _(uvNext V2SUB uv);
+	*(V2_F32 *)&coeffMat.d[1] = _(uvPrev V2SUB uv);
 	//object space direction vectors,
 	//forming the variable matrix
 	Mat2x3 varMat;
-	Vec3 osDirA = _(vertNext V3SUB vert);
-    Vec3 osDirB = _(vertPrev V3SUB vert);
-	*(Vec3 *)&varMat.d[0] = osDirA;
-	*(Vec3 *)&varMat.d[1] = osDirB;
+	V3_F32 osDirA = _(vertNext V3SUB vert);
+    V3_F32 osDirB = _(vertPrev V3SUB vert);
+	*(V3_F32 *)&varMat.d[0] = osDirA;
+	*(V3_F32 *)&varMat.d[1] = osDirB;
 	Mat2x2 coeffMatInv = mat2x2Invert(coeffMat);
 	Mat2x3 tb = mat2x2MultiplyMat2x3(coeffMatInv, varMat);
 	Mat3x3 tbn;
-	*(Vec3 *)&tbn.d[0] = vec3Normalize(*(Vec3 *)&tb.d[0]);
-	*(Vec3 *)&tbn.d[1] = vec3Normalize(*(Vec3 *)&tb.d[1]);
-	Vec3 normal = _(osDirA V3CROSS osDirB);
-	*(Vec3 *)&tbn.d[2] = vec3Normalize(normal);
+	*(V3_F32 *)&tbn.d[0] = v3Normalize(*(V3_F32 *)&tb.d[0]);
+	*(V3_F32 *)&tbn.d[1] = v3Normalize(*(V3_F32 *)&tb.d[1]);
+	V3_F32 normal = _(osDirA V3CROSS osDirB);
+	*(V3_F32 *)&tbn.d[2] = v3Normalize(normal);
 	return tbn;
 }
 
@@ -359,10 +342,10 @@ static void mapPerTile(ThreadArg *pArgs, FaceInfo *pBaseFace,
                        EnclosingCellsVars *pEcVars, MapToMeshVars *pMmVars,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
 	FaceBounds *pFaceBounds = &pEcVars->pFaceCellsInfo[rawFace].faceBounds;
-	for (int32_t j = pFaceBounds->min.y; j <= pFaceBounds->max.y; ++j) {
-		for (int32_t k = pFaceBounds->min.x; k <= pFaceBounds->max.x; ++k) {
-			Vec2 fTileMin = {k, j};
-			int32_t tile = k + (j * pFaceBounds->max.x);
+	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
+		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
+			V2_F32 fTileMin = {k, j};
+			int32_t tile = k + (j * pFaceBounds->max.d[0]);
 			ruvmMapToSingleFace(pArgs, pEcVars, pMmVars, pDpVars, fTileMin, tile,
 								*pBaseFace);
 		}
@@ -571,30 +554,26 @@ void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut, SendOffArgs *pJob
 	//and figure out edges in boundary faces after jobs are finished?
 	//You'll need to provide functionality for interpolating and blending
 	//edge data, so keep that in mind.
-	RuvmMesh *pMeshIn = &pJobArgs[0].mesh.mesh;
+	RuvmMesh *pBufMesh = &pJobArgs[0].bufMesh.mesh;
 	pMeshOut->pFaces = pAlloc->pMalloc(sizeof(int32_t) * (workMeshFaces + 1));
-	pMeshOut->pFaceAttribs =
-		allocAttribs(*pAlloc, pMeshIn->pFaceAttribs, pMeshIn->faceAttribCount,
-		             NULL, 0, &pMeshOut->faceAttribCount, workMeshFaces);
+	allocAttribs(*pAlloc, &pMeshOut->faceAttribs, &pBufMesh->faceAttribs,
+				 NULL, workMeshFaces);
 	pMeshOut->pLoops = pAlloc->pMalloc(sizeof(int32_t) * workMeshLoops);
-	pMeshOut->pLoopAttribs =
-		allocAttribs(*pAlloc, pMeshIn->pLoopAttribs, pMeshIn->loopAttribCount,
-		             NULL, 0, &pMeshOut->loopAttribCount, workMeshLoops);
+	allocAttribs(*pAlloc, &pMeshOut->loopAttribs, &pBufMesh->loopAttribs,
+				 NULL, workMeshLoops);
 	pMeshOut->pEdges = pAlloc->pMalloc(sizeof(int32_t) * workMeshLoops);
-	pMeshOut->pEdgeAttribs =
-		allocAttribs(*pAlloc, pMeshIn->pEdgeAttribs, pMeshIn->edgeAttribCount,
-		             NULL, 0, &pMeshOut->edgeAttribCount, workMeshEdges);
-	pMeshOut->pVertAttribs =
-		allocAttribs(*pAlloc, pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
-		             NULL, 0, &pMeshOut->vertAttribCount, workMeshVerts);
+	allocAttribs(*pAlloc, &pMeshOut->edgeAttribs, &pBufMesh->edgeAttribs,
+				 NULL, workMeshEdges);
+	allocAttribs(*pAlloc, &pMeshOut->vertAttribs, &pBufMesh->vertAttribs,
+				 NULL, workMeshVerts);
 }
 
-static void bulkCopyAttribs(RuvmAttrib *pAttribsSrc, int32_t SrcOffset,
-                        RuvmAttrib *pAttribsDest, int32_t attribCount, int32_t dataLen) {
-	for (int32_t i = 0; i < attribCount; ++i) {
-		void *attribDestStart = attribAsVoid(pAttribsDest + i, SrcOffset);
-		int32_t attribTypeSize = getAttribSize(pAttribsSrc[i].type);
-		memcpy(attribDestStart, pAttribsSrc[i].pData, attribTypeSize * dataLen);
+static void bulkCopyAttribs(AttribArray *pSrc, int32_t SrcOffset,
+                            AttribArray *pDest, int32_t dataLen) {
+	for (int32_t i = 0; i < pSrc->count; ++i) {
+		void *attribDestStart = attribAsVoid(pDest->pArr + i, SrcOffset);
+		int32_t attribTypeSize = getAttribSize(pSrc->pArr[i].type);
+		memcpy(attribDestStart, pSrc->pArr[i].pData, attribTypeSize * dataLen);
 	}
 }
 
@@ -611,19 +590,19 @@ void copyMesh(int32_t jobIndex, RuvmMesh *pMeshOut, SendOffArgs *pJobArgs) {
 	int32_t *loopsStart = pMeshOut->pLoops + pMeshOut->loopCount;
 	int32_t *edgesStart = pMeshOut->pEdges + pMeshOut->loopCount;
 	memcpy(facesStart, bufMesh->mesh.pFaces, sizeof(int32_t) * bufMesh->mesh.faceCount);
-	bulkCopyAttribs(bufMesh->mesh.pFaceAttribs, pMeshOut->faceCount, pMeshOut->pFaceAttribs,
-	            pMeshOut->faceAttribCount, bufMesh->mesh.faceCount);
+	bulkCopyAttribs(&bufMesh->mesh.faceAttribs, pMeshOut->faceCount,
+	                &pMeshOut->faceAttribs, bufMesh->mesh.faceCount);
 	pMeshOut->faceCount += bufMesh->mesh.faceCount;
 	memcpy(loopsStart, bufMesh->mesh.pLoops, sizeof(int32_t) * bufMesh->mesh.loopCount);
-	bulkCopyAttribs(bufMesh->mesh.pLoopAttribs, pMeshOut->loopCount, pMeshOut->pLoopAttribs,
-	            pMeshOut->loopAttribCount, bufMesh->mesh.loopCount);
+	bulkCopyAttribs(&bufMesh->mesh.loopAttribs, pMeshOut->loopCount,
+	                &pMeshOut->loopAttribs, bufMesh->mesh.loopCount);
 	pMeshOut->loopCount += bufMesh->mesh.loopCount;
 	memcpy(edgesStart, bufMesh->mesh.pEdges, sizeof(int32_t) * bufMesh->mesh.loopCount);
-	bulkCopyAttribs(bufMesh->mesh.pEdgeAttribs, pMeshOut->edgeCount, pMeshOut->pEdgeAttribs,
-	            pMeshOut->edgeAttribCount, bufMesh->mesh.edgeCount);
+	bulkCopyAttribs(&bufMesh->mesh.edgeAttribs, pMeshOut->edgeCount,
+	                &pMeshOut->edgeAttribs, bufMesh->mesh.edgeCount);
 	pMeshOut->edgeCount += bufMesh->mesh.edgeCount;
-	bulkCopyAttribs(bufMesh->mesh.pVertAttribs, pMeshOut->vertCount, pMeshOut->pVertAttribs,
-	            pMeshOut->vertAttribCount, bufMesh->mesh.vertCount);
+	bulkCopyAttribs(&bufMesh->mesh.vertAttribs, pMeshOut->vertCount,
+	                &pMeshOut->vertAttribs, bufMesh->mesh.vertCount);
 	pMeshOut->vertCount += bufMesh->mesh.vertCount;
 }
 
@@ -638,11 +617,9 @@ void combineJobMeshesIntoSingleMesh(RuvmContext pContext, RuvmMap pMap,  RuvmMes
 		copyMesh(i, pMeshOut, pJobArgs);
 	}
 	Mesh meshOutWrap = {.mesh = *pMeshOut};
-	meshOutWrap.pVertAttrib = getAttrib("position", pMeshOut->pVertAttribs,
-	                               pMeshOut->vertAttribCount);
+	meshOutWrap.pVertAttrib = getAttrib("position", &pMeshOut->vertAttribs);
 	meshOutWrap.pVerts = meshOutWrap.pVertAttrib->pData;
-	meshOutWrap.pUvAttrib = getAttrib("UVMap", pMeshOut->pLoopAttribs,
-	                             pMeshOut->loopAttribCount);
+	meshOutWrap.pUvAttrib = getAttrib("UVMap", &pMeshOut->loopAttribs);
 	meshOutWrap.pUvs = meshOutWrap.pUvAttrib->pData;
 	ruvmMergeBoundaryFaces(pContext, pMap, &meshOutWrap, pJobArgs, pEdgeVerts);
 	*pMeshOut = meshOutWrap.mesh;
@@ -704,43 +681,48 @@ int32_t validateMeshIn(RuvmMesh *pMeshIn) {
 	return 0;
 }
 
-static void setAttribOrigins(RuvmAttrib *pAttribs, int32_t attribCount,
-                             RUVM_ATTRIB_ORIGIN origin) {
-	for (int32_t i = 0; i < attribCount; ++i) {
-		pAttribs[i].origin = origin;
+static void setAttribOrigins(AttribArray *pAttribs, RUVM_ATTRIB_ORIGIN origin) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		pAttribs->pArr[i].origin = origin;
 	}
 }
 
 static void reallocMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut) {
 	pMeshOut->pFaces = 
-		pContext->alloc.pRealloc(pMeshOut->pFaces, sizeof(int32_t) * (pMeshOut->faceCount + 1));
-	for (int32_t i = 0; i < pMeshOut->faceAttribCount; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->pFaceAttribs + i;
+		pContext->alloc.pRealloc(pMeshOut->pFaces,
+		                         sizeof(int32_t) * (pMeshOut->faceCount + 1));
+	for (int32_t i = 0; i < pMeshOut->faceAttribs.count; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->faceAttribs.pArr + i;
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData =
-			pContext->alloc.pRealloc(pAttrib->pData, attribSize * (pMeshOut->faceCount + 1));
+			pContext->alloc.pRealloc(pAttrib->pData,
+			                         attribSize * (pMeshOut->faceCount + 1));
 	}
 	pMeshOut->pLoops = 
-		pContext->alloc.pRealloc(pMeshOut->pLoops, sizeof(int32_t) * pMeshOut->loopCount);
-	for (int32_t i = 0; i < pMeshOut->loopAttribCount; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->pLoopAttribs + i;
+		pContext->alloc.pRealloc(pMeshOut->pLoops,
+		                         sizeof(int32_t) * pMeshOut->loopCount);
+	for (int32_t i = 0; i < pMeshOut->loopAttribs.count; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->loopAttribs.pArr + i;
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData = 
-			pContext->alloc.pRealloc(pAttrib->pData, attribSize * pMeshOut->loopCount);
+			pContext->alloc.pRealloc(pAttrib->pData,
+			                         attribSize * pMeshOut->loopCount);
 	}
 	pMeshOut->pEdges = 
 		pContext->alloc.pRealloc(pMeshOut->pEdges, sizeof(int32_t) * pMeshOut->loopCount);
-	for (int32_t i = 0; i < pMeshOut->edgeAttribCount; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->pEdgeAttribs + i;
+	for (int32_t i = 0; i < pMeshOut->edgeAttribs.count; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->edgeAttribs.pArr + i;
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData = 
-			pContext->alloc.pRealloc(pAttrib->pData, attribSize * pMeshOut->edgeCount);
+			pContext->alloc.pRealloc(pAttrib->pData,
+			                         attribSize * pMeshOut->edgeCount);
 	}
-	for (int32_t i = 0; i < pMeshOut->vertAttribCount; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->pVertAttribs + i;
+	for (int32_t i = 0; i < pMeshOut->vertAttribs.count; ++i) {
+		RuvmAttrib *pAttrib = pMeshOut->vertAttribs.pArr + i;
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData = 
-			pContext->alloc.pRealloc(pAttrib->pData, attribSize * pMeshOut->vertCount);
+			pContext->alloc.pRealloc(pAttrib->pData,
+			                         attribSize * pMeshOut->vertCount);
 	}
 }
 
@@ -762,32 +744,24 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	Mesh meshIn = {*pMeshIn};
 	//TODO replace hard coded names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
-	meshIn.pVertAttrib = getAttrib("position", meshIn.mesh.pVertAttribs,
-	                               meshIn.mesh.vertAttribCount);
+	meshIn.pVertAttrib = getAttrib("position", &meshIn.mesh.vertAttribs);
 	meshIn.pVerts = meshIn.pVertAttrib->pData;
-	meshIn.pUvAttrib = getAttrib("UVMap", meshIn.mesh.pLoopAttribs,
-	                             meshIn.mesh.loopAttribCount);
+	meshIn.pUvAttrib = getAttrib("UVMap", &meshIn.mesh.loopAttribs);
 	meshIn.pUvs = meshIn.pUvAttrib->pData;
-	meshIn.pNormalAttrib = getAttrib("normal", meshIn.mesh.pLoopAttribs,
-	                                 meshIn.mesh.loopAttribCount);
+	meshIn.pNormalAttrib = getAttrib("normal", &meshIn.mesh.loopAttribs);
 	meshIn.pNormals = meshIn.pNormalAttrib->pData;
-	meshIn.pEdgePreserveAttrib = getAttrib("RuvmEdgePreserve", meshIn.mesh.pEdgeAttribs,
-	                                       meshIn.mesh.edgeAttribCount);
+	meshIn.pEdgePreserveAttrib = getAttrib("RuvmEdgePreserve",
+	                                       &meshIn.mesh.edgeAttribs);
 	if (meshIn.pEdgePreserveAttrib) {
 		meshIn.pEdgePreserve = meshIn.pEdgePreserveAttrib->pData;
 	}
 	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
 	//it doesn't matter what it's set to here
-	setAttribOrigins(pMeshIn->pMeshAttribs, pMeshIn->meshAttribCount,
-	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(pMeshIn->pFaceAttribs, pMeshIn->faceAttribCount,
-	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(pMeshIn->pLoopAttribs, pMeshIn->loopAttribCount,
-	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(pMeshIn->pEdgeAttribs, pMeshIn->edgeAttribCount,
-	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(pMeshIn->pVertAttribs, pMeshIn->vertAttribCount,
-	                 RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&pMeshIn->meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&pMeshIn->faceAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&pMeshIn->loopAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&pMeshIn->edgeAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&pMeshIn->vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
 
 	CLOCK_START;
 	EdgeVerts *pEdgeVerts;
@@ -844,54 +818,54 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 }
 
 void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
-	for (int32_t i = 0; i < pMesh->meshAttribCount; ++i) {
-		if (pMesh->pMeshAttribs[i].pData) {
-			pContext->alloc.pFree(pMesh->pMeshAttribs[i].pData);
+	for (int32_t i = 0; i < pMesh->meshAttribs.count; ++i) {
+		if (pMesh->meshAttribs.pArr[i].pData) {
+			pContext->alloc.pFree(pMesh->meshAttribs.pArr[i].pData);
 		}
 	}
-	if (pMesh->meshAttribCount && pMesh->pMeshAttribs) {
-		pContext->alloc.pFree(pMesh->pMeshAttribs);
+	if (pMesh->meshAttribs.count && pMesh->meshAttribs.pArr) {
+		pContext->alloc.pFree(pMesh->meshAttribs.pArr);
 	}
 	if(pMesh->pFaces) {
 		pContext->alloc.pFree(pMesh->pFaces);
 	}
-	for (int32_t i = 0; i < pMesh->faceAttribCount; ++i) {
-		if (pMesh->pFaceAttribs[i].pData) {
-			pContext->alloc.pFree(pMesh->pFaceAttribs[i].pData);
+	for (int32_t i = 0; i < pMesh->faceAttribs.count; ++i) {
+		if (pMesh->faceAttribs.pArr[i].pData) {
+			pContext->alloc.pFree(pMesh->faceAttribs.pArr[i].pData);
 		}
 	}
-	if (pMesh->faceAttribCount && pMesh->pFaceAttribs) {
-		pContext->alloc.pFree(pMesh->pFaceAttribs);
+	if (pMesh->faceAttribs.count && pMesh->faceAttribs.pArr) {
+		pContext->alloc.pFree(pMesh->faceAttribs.pArr);
 	}
 	if (pMesh->pLoops) {
 		pContext->alloc.pFree(pMesh->pLoops);
 	}
-	for (int32_t i = 0; i < pMesh->loopAttribCount; ++i) {
-		if (pMesh->pLoopAttribs[i].pData) {
-			pContext->alloc.pFree(pMesh->pLoopAttribs[i].pData);
+	for (int32_t i = 0; i < pMesh->loopAttribs.count; ++i) {
+		if (pMesh->loopAttribs.pArr[i].pData) {
+			pContext->alloc.pFree(pMesh->loopAttribs.pArr[i].pData);
 		}
 	}
-	if (pMesh->loopAttribCount && pMesh->pLoopAttribs) {
-		pContext->alloc.pFree(pMesh->pLoopAttribs);
+	if (pMesh->loopAttribs.count && pMesh->loopAttribs.pArr) {
+		pContext->alloc.pFree(pMesh->loopAttribs.pArr);
 	}
 	if (pMesh->pEdges) {
 		pContext->alloc.pFree(pMesh->pEdges);
 	}
-	for (int32_t i = 0; i < pMesh->edgeAttribCount; ++i) {
-		if (pMesh->pEdgeAttribs[i].pData) {
-			pContext->alloc.pFree(pMesh->pEdgeAttribs[i].pData);
+	for (int32_t i = 0; i < pMesh->edgeAttribs.count; ++i) {
+		if (pMesh->edgeAttribs.pArr[i].pData) {
+			pContext->alloc.pFree(pMesh->edgeAttribs.pArr[i].pData);
 		}
 	}
-	if (pMesh->edgeAttribCount && pMesh->pEdgeAttribs) {
-		pContext->alloc.pFree(pMesh->pEdgeAttribs);
+	if (pMesh->edgeAttribs.count && pMesh->edgeAttribs.pArr) {
+		pContext->alloc.pFree(pMesh->edgeAttribs.pArr);
 	}
-	for (int32_t i = 0; i < pMesh->vertAttribCount; ++i) {
-		if (pMesh->pVertAttribs[i].pData) {
-			pContext->alloc.pFree(pMesh->pVertAttribs[i].pData);
+	for (int32_t i = 0; i < pMesh->vertAttribs.count; ++i) {
+		if (pMesh->vertAttribs.pArr[i].pData) {
+			pContext->alloc.pFree(pMesh->vertAttribs.pArr[i].pData);
 		}
 	}
-	if (pMesh->vertAttribCount && pMesh->pVertAttribs) {
-		pContext->alloc.pFree(pMesh->pVertAttribs);
+	if (pMesh->vertAttribs.count && pMesh->vertAttribs.pArr) {
+		pContext->alloc.pFree(pMesh->vertAttribs.pArr);
 	}
 }
 
@@ -899,6 +873,6 @@ void ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
 	*pSize = getAttribSize(pAttrib->type);
 }
 
-RuvmAttrib *ruvmGetAttrib(char *pName, RuvmAttrib *pAttribs, int32_t attribCount) {
-	return getAttrib(pName, pAttribs, attribCount);
+RuvmAttrib *ruvmGetAttrib(char *pName, AttribArray *pAttribs) {
+	return getAttrib(pName, pAttribs);
 }

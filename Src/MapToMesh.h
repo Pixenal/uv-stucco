@@ -14,4 +14,4 @@ typedef struct {
 
 void ruvmMapToSingleFace(ThreadArg *pArgs, EnclosingCellsVars *pEcVars,
                          MapToMeshVars *pMmVars, DebugAndPerfVars *pDpVars,
-                         RuvmVec2 fTileMin, int32_t tile, FaceInfo baseFace);
+                         V2_F32 fTileMin, int32_t tile, FaceInfo baseFace);
