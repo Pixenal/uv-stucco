@@ -1884,3 +1884,56 @@ void blendAttribs(RuvmAttrib *pD, int32_t iD, RuvmAttrib *pA, int32_t iA,
 			break;
 	}
 }
+
+void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
+                  RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
+				  int32_t dataLen) {
+	if (pSrcA && pSrcA->count) {
+		pDest->count = pSrcA->count;
+	}
+	if (pSrcB && pSrcB->count) {
+		for (int32_t i = 0; i < pSrcB->count; ++i) {
+			if (getAttrib(pSrcB->pArr[i].name, pSrcA)) {
+				//skip if attribute already exists in bufmesh
+				continue;
+			}
+			++pDest->count;
+		}
+	}
+	if (!pDest->count) {
+		return;
+	}
+	pDest->pArr = alloc.pMalloc(sizeof(RuvmAttrib) * pDest->count);
+	//reset attrib count, for use in the below loops
+	pDest->count = 0;
+	if (pSrcA && pSrcA->count) {
+		for (int32_t i = 0; i < pSrcA->count; ++i) {
+			pDest->pArr[i].type = pSrcA->pArr[i].type;
+			memcpy(pDest->pArr[i].name, pSrcA->pArr[i].name,
+			       RUVM_ATTRIB_NAME_MAX_LEN);
+			pDest->pArr[i].origin = RUVM_ATTRIB_ORIGIN_MESH_IN;
+			pDest->pArr[i].interpolate = pSrcA->pArr[i].interpolate;
+			int32_t attribSize = getAttribSize(pSrcA->pArr[i].type);
+			pDest->pArr[i].pData = alloc.pMalloc(attribSize * dataLen);
+		}
+		pDest->count = pSrcA->count;
+	}
+	if (!pSrcB || !pSrcB->count) {
+		return;
+	}
+	for (int32_t i = 0; i < pSrcB->count; ++i) {
+		RuvmAttrib *pExisting = getAttrib(pSrcB->pArr[i].name, pDest);
+		if (pExisting) {
+			pExisting->origin = RUVM_ATTRIB_ORIGIN_COMMON;
+			continue;
+		}
+		pDest->pArr[pDest->count].type = pSrcB->pArr[i].type;
+		memcpy(pDest->pArr[pDest->count].name, pSrcB->pArr[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
+		pDest->pArr[pDest->count].origin = RUVM_ATTRIB_ORIGIN_MAP;
+		pDest->pArr[pDest->count].interpolate = pSrcB->pArr[i].interpolate;
+		int32_t attribSize = getAttribSize(pSrcB->pArr[i].type);
+		pDest->pArr[pDest->count].pData = alloc.pMalloc(attribSize * dataLen);
+		++pDest->count;
+	}
+	return;
+}

@@ -24,3 +24,6 @@ void interpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
                        int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
 void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
                   Attrib *pB, int32_t iB, RuvmBlendConfig blendConfig);
+void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
+                  RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
+				  int32_t dataLen);
