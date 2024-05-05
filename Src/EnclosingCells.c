@@ -201,8 +201,8 @@ static int32_t getCellsForSingleFace(RuvmAllocator *pAlloc, RuvmMap pMap,
 	return 0;
 }
 
-void ruvmGetEnclosingCellsForAllFaces(RuvmAllocator *pAlloc, RuvmMap pMap,
-                                      Mesh *pMeshIn, EnclosingCells *pEc) {
+void ruvmGetEnclosingCells(RuvmAllocator *pAlloc, RuvmMap pMap,
+                           Mesh *pMeshIn, EnclosingCells *pEc) {
 	Vars vars = {0};
 	pEc->pFaceCellsInfo =
 		pAlloc->pMalloc(sizeof(FaceCellsInfo) * pMeshIn->mesh.faceCount);

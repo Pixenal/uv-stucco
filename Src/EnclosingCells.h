@@ -9,7 +9,7 @@ typedef struct {
 	int32_t uniqueFaces;
 } EnclosingCells;
 
-void ruvmGetEnclosingCellsForAllFaces(RuvmAllocator *pAlloc, RuvmMap pMap,
-                                      Mesh *pMeshIn, EnclosingCells *pEc);
+void ruvmGetEnclosingCells(RuvmAllocator *pAlloc, RuvmMap pMap,
+                           Mesh *pMeshIn, EnclosingCells *pEc);
 void ruvmDestroyEnclosingCells(RuvmAllocator *pAlloc, EnclosingCells *pEc);
 

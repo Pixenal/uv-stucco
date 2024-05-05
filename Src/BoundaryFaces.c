@@ -59,6 +59,20 @@ typedef struct {
 	Mat3x3 tbnInv;
 } AddFaceVars;
 
+typedef struct {
+	EdgeTable *pEdgeTable;
+	OnLineTable *pOnLineTable;
+	SeamEdgeTable *pSeamEdgeTable;
+	int32_t edgeTableSize;
+	int32_t onLineTableSize;
+	int32_t seamTableSize;
+} CombineTables;
+
+typedef struct {
+	BoundaryVert **ppTable;
+	int32_t count;
+} CompiledBoundsTable;
+
 static void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext, BoundaryVert *pEntry,
                                       SharedEdgeWrap *pSharedEdges, Piece *pEntries,
 									  int32_t tableSize, int32_t entryIndex,
@@ -291,7 +305,7 @@ static void initLocalEdgeTableEntry(EdgeTable *pEdgeEntry, int32_t ruvmEdge,
 static void addLoopToLocalEdgeTable(RuvmContext pContext, EdgeTable *localEdgeTable,
                                     AddFaceVars *pAfVars, SendOffArgs *pJobArgs,
 									BoundaryVert *pEntry, RuvmMap pMap,
-									int32_t faceStart, int32_t k) {
+									int32_t faceStart, int32_t k, int8_t *pVertSeamTable) {
 	int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 	FaceInfo baseFace;
@@ -306,8 +320,8 @@ static void addLoopToLocalEdgeTable(RuvmContext pContext, EdgeTable *localEdgeTa
 
 	int32_t keepBaseLoop = 0;
 	if (isBaseLoop) {
-		if (pJobArgs[0].pVertSeamTable[baseVert] > 2 ||
-			(pJobArgs[0].pVertSeamTable[baseVert] && pJobArgs[0].pInVertTable[baseVert])) {
+		if (pVertSeamTable[baseVert] > 2 ||
+			(pVertSeamTable[baseVert] && pJobArgs[0].pInVertTable[baseVert])) {
 
 			keepBaseLoop = 1;
 		}
@@ -381,7 +395,8 @@ static void addLoopsWithSingleVert(RuvmContext pContext, AddFaceVars *pAfVars,
 
 static void determineLoopsToKeep(RuvmContext pContext, RuvmMap pMap,
                                  AddFaceVars *pAfVars, SendOffArgs *pJobArgs,
-                                 int32_t *pTotalVerts) {
+                                 int32_t *pTotalVerts, int8_t *pVertSeamTable,
+								 JobBases *pJobBases) {
 	BoundaryVert *pEntry = pAfVars->pEntry;
 	EdgeTable localEdgeTable[16] = {0};
 	do {
@@ -394,11 +409,11 @@ static void determineLoopsToKeep(RuvmContext pContext, RuvmMap pMap,
 			if (pEntry->isRuvm >> k & 1) {
 				_(&pAfVars->centre V2ADDEQL pBufMesh->pUvs[faceStart - k]);
 				++*pTotalVerts;
-				vert += pJobArgs[pEntry->job].vertBase;
+				vert += pJobBases[pEntry->job].vertBase;
 			}
 			else {
 				addLoopToLocalEdgeTable(pContext, localEdgeTable, pAfVars, pJobArgs,
-				                        pEntry, pMap, faceStart, k);
+				                        pEntry, pMap, faceStart, k, pVertSeamTable);
 			}
 		}
 		pEntry = pEntry->pNext;
@@ -420,10 +435,7 @@ static int32_t getEdgeLocalLoop(int32_t *pEdgeLoops, FaceInfo *pBaseFace) {
 static void initEdgeTableEntry(EdgeTable *pEdgeEntry, BoundaryVert *pEntry,
                                Mesh *pMeshOut, BufMesh *pBufMesh, int32_t ruvmEdge,
 							   int32_t *pVert, int32_t baseEdge, int32_t baseVert,
-                               int32_t loopIndex, int32_t ruvmFace, V2_F32 *pCentre,
-							   FaceInfo baseFace, int32_t baseLoopLocalAbs,
-							   SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-							   int32_t isBaseLoop, int32_t loop) {
+                               int32_t loopIndex, int32_t ruvmFace, int32_t loop) {
 	copyAllAttribs(&pMeshOut->mesh.vertAttribs, pMeshOut->mesh.vertCount,
 				   &pBufMesh->mesh.vertAttribs, *pVert);
 	*pVert = pMeshOut->mesh.vertCount;
@@ -460,13 +472,12 @@ static FaceInfo getBaseFace(BoundaryVert *pEntry, SendOffArgs *pJobArgs) {
 	return face;
 }
 
-static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
-                                   AddFaceVars *pAfVars, int32_t *pVert,
-                                   EdgeVerts *pEdgeVerts, BoundaryVert *pEntry,
-								   SendOffArgs *pJobArgs, EdgeTable *pEdgeTable,
-									SeamEdgeTable *pSeamEdgeTable,
-								   int32_t edgeTableSize, int32_t seamTableSize, Mesh *pMeshOut,
-								   int32_t k, int32_t ruvmLoop, int32_t *pEdge, int32_t loop) {
+static
+void addBoundaryLoopAndVert(RuvmContext pContext, CombineTables *pCTables,
+                            RuvmMap pMap, AddFaceVars *pAfVars, int32_t *pVert,
+                            BoundaryVert *pEntry, SendOffArgs *pJobArgs,
+							Mesh *pMeshOut, int32_t k, int32_t ruvmLoop,
+							int32_t *pEdge, int32_t loop) {
 	FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 	int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
@@ -476,19 +487,18 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 	int32_t hash, ruvmEdge;
 	BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
 	if (isBaseLoop) {
-		hash = ruvmFnvHash((uint8_t *)&baseVert, 4, edgeTableSize);
+		hash = ruvmFnvHash((uint8_t *)&baseVert, 4, pCTables->edgeTableSize);
 		ruvmEdge = -1;
 	}
 	else {
 		ruvmEdge = pMap->mesh.mesh.pEdges[pAfVars->ruvmFace.start + ruvmLoop];
-		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, edgeTableSize);
+		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, pCTables->edgeTableSize);
 	}
-	EdgeTable *pEdgeEntry = pEdgeTable + hash;
+	EdgeTable *pEdgeEntry = pCTables->pEdgeTable + hash;
 	if (!pEdgeEntry->loops) {
-		initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh, ruvmEdge,
-		                   pVert, baseEdge, baseVert, baseLoop,
-						   pEntry->faceIndex, &pAfVars->centre, baseFace,
-						   baseLoopLocal, pJobArgs, pEdgeVerts, isBaseLoop, loop);
+		initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh,
+		                   ruvmEdge, pVert, baseEdge, baseVert, baseLoop,
+						   pEntry->faceIndex, loop);
 	}
 	else {
 		do {
@@ -523,18 +533,17 @@ static void addBoundaryLoopAndVert(RuvmContext pContext, RuvmMap pMap,
 			if (!pEdgeEntry->pNext) {
 				pEdgeEntry = pEdgeEntry->pNext =
 					pContext->alloc.pCalloc(1, sizeof(EdgeTable));
-				initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh, ruvmEdge,
-								   pVert, baseEdge, baseVert, baseLoop,
-								   pEntry->faceIndex, &pAfVars->centre, baseFace,
-								   baseLoopLocal, pJobArgs, pEdgeVerts, isBaseLoop, loop);
+				initEdgeTableEntry(pEdgeEntry, pEntry, pMeshOut, pBufMesh,
+				                   ruvmEdge, pVert, baseEdge, baseVert, baseLoop,
+								   pEntry->faceIndex, loop);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
 		} while(1);
 	}
 	uint32_t valueToHash = baseEdge + pEntry->faceIndex;
-	hash = ruvmFnvHash((uint8_t *)&valueToHash, 4, seamTableSize);
-	SeamEdgeTable *pSeamEntry = pSeamEdgeTable + hash;
+	hash = ruvmFnvHash((uint8_t *)&valueToHash, 4, pCTables->seamTableSize);
+	SeamEdgeTable *pSeamEntry = pCTables->pSeamEdgeTable + hash;
 	if (!pSeamEntry->valid) {
 		initSeamEdgeTableEntry(pSeamEntry, pMeshOut, pBufMesh, pEdge, baseEdge,
 		                       pEntry->faceIndex);
@@ -600,12 +609,11 @@ static void initOnLineTableEntry(OnLineTable *pEntry, Mesh *pMeshOut,
 	pEntry->type = isBaseLoop + 1;
 }
 
-static void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext, RuvmMap pMap,
-                                           AddFaceVars *pAfVars, SendOffArgs *pJobArgs,
-                                           Mesh *pMeshOut, int32_t edgeTableSize,
-								           int32_t seamTableSize, EdgeTable *pEdgeTable,
-										   SeamEdgeTable *pSeamEdgeTable, EdgeVerts *pEdgeVerts,
-										   OnLineTable *pOnLineTable, int32_t onLineTableSize) {
+static
+void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
+                                    CombineTables *pCTables, RuvmMap pMap,
+                                    AddFaceVars *pAfVars, SendOffArgs *pJobArgs,
+                                    Mesh *pMeshOut, JobBases *pJobBases) {
 	//CLOCK_INIT;
 	BoundaryVert *pEntry = pAfVars->pEntry;
 	int32_t totalRuvmLoopsAdded = 0;
@@ -632,11 +640,9 @@ static void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pCo
 				//CLOCK_START;
 				vert = bufMesh->mesh.pLoops[faceStart - k];
 				edge = bufMesh->mesh.pEdges[faceStart - k];
-				printf("%d\n", edge);
 				int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
-				addBoundaryLoopAndVert(pContext, pMap, pAfVars, &vert, pEdgeVerts,
-				                       pEntry, pJobArgs, pEdgeTable, pSeamEdgeTable,
-									   edgeTableSize, seamTableSize, pMeshOut, k, ruvmLoop,
+				addBoundaryLoopAndVert(pContext, pCTables, pMap, pAfVars, &vert,
+				                       pEntry, pJobArgs, pMeshOut, k, ruvmLoop,
 									   &edge, faceStart - k);
 				vertNoOffset = vert;
 				pAfVars->ruvmIndicesSort[pAfVars->loopBufferSize + 1] = -1;
@@ -667,8 +673,9 @@ static void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pCo
 					int32_t baseLoop = baseFace.start + baseLoopLocal;
 					int32_t baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
 					int32_t base = isBaseLoop ? baseLoop : baseEdge;
-					int32_t hash = ruvmFnvHash((uint8_t *)&base, 4, onLineTableSize);
-					OnLineTable *pOnLineEntry = pOnLineTable + hash;
+					int32_t hash = ruvmFnvHash((uint8_t *)&base, 4,
+					                           pCTables->onLineTableSize);
+					OnLineTable *pOnLineEntry = pCTables->pOnLineTable + hash;
 					if (!pOnLineEntry->type) {
 						initOnLineTableEntry(pOnLineEntry, pMeshOut,
 						                     &pJobArgs[pEntry->job].bufMesh,
@@ -701,8 +708,8 @@ static void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pCo
 				//correct position in the out mesh. (these vars are set
 				//when the non-boundary mesh data is copied
 				vertNoOffset = vert;
-				vert += pJobArgs[pEntry->job].vertBase;
-				edge += pJobArgs[pEntry->job].edgeBase;
+				vert += pJobBases[pEntry->job].vertBase;
+				edge += pJobBases[pEntry->job].edgeBase;
 				
 				pAfVars->ruvmIndicesSort[pAfVars->loopBufferSize + 1] = ruvmLoop * 10;
 				pAfVars->ruvmOnlySort[totalRuvmLoopsAdded] = ruvmLoop;
@@ -888,17 +895,17 @@ static void buildApproximateTbnInverse(AddFaceVars *pAfVars,
 	pAfVars->tbnInv = mat3x3Invert(&tbn);
 }
 
-static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
-                           SendOffArgs *pJobArgs, int32_t edgeTableSize, int32_t seamTableSize,
-						   EdgeTable *pEdgeTable,
-						   SeamEdgeTable *pSeamEdgeTable, int32_t allBoundaryFacesSize,
-						   BoundaryVert **pAllBoundaryFaces, EdgeVerts *pEdgeVerts,
-						   OnLineTable *pOnLineTable, int32_t onLineTableSize) {
+static
+void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
+                           RuvmMap pMap, Mesh *pMeshOut, SendOffArgs *pJobArgs,
+						   CompiledBoundsTable *pBoundsTable,
+						   EdgeVerts *pEdgeVerts, JobBases *pJobBases,
+						   int8_t *pVertSeamTable) {
 	uint64_t timeSpent[7] = {0};
-	for (int32_t j = 0; j < allBoundaryFacesSize; ++j) {
+	for (int32_t j = 0; j < pBoundsTable->count; ++j) {
 		CLOCK_INIT;
 		CLOCK_START;
-		BoundaryVert *pEntry = pAllBoundaryFaces[j];
+		BoundaryVert *pEntry = pBoundsTable->ppTable[j];
 		int32_t entryCount, isSeam, hasPreservedEdge;
 		compileEntryInfo(pEntry, &entryCount, &isSeam, &hasPreservedEdge);
 		int32_t entryNum;
@@ -934,7 +941,8 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 			CLOCK_START;
 			if (afVars.seamFace) {
 				int32_t totalVerts = 0;
-				determineLoopsToKeep(pContext, pMap, &afVars, pJobArgs, &totalVerts);
+				determineLoopsToKeep(pContext, pMap, &afVars, pJobArgs, &totalVerts,
+				                     pVertSeamTable, pJobBases);
 				_(&afVars.centre V2DIVSEQL (float)totalVerts);
 				buildApproximateTbnInverse(&afVars, pJobArgs);
 			}
@@ -943,9 +951,8 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 			CLOCK_START;
 			int32_t loopBase = pMeshOut->mesh.loopCount;
 			pMeshOut->mesh.pFaces[pMeshOut->mesh.faceCount] = loopBase;
-			addLoopsToBufferAndVertsToMesh(timeSpent, pContext, pMap, &afVars, pJobArgs, pMeshOut,
-										   edgeTableSize, seamTableSize, pEdgeTable, pSeamEdgeTable,
-										   pEdgeVerts, pOnLineTable, onLineTableSize);
+			addLoopsToBufferAndVertsToMesh(timeSpent, pContext, pCTables, pMap,
+			                               &afVars, pJobArgs, pMeshOut, pJobBases);
 			if (afVars.loopBufferSize <= 2) {
 				continue;
 			}
@@ -971,7 +978,6 @@ static void mergeAndCopyEdgeFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMes
 					afVars.edgeBuffer[bufIndex];
 				int32_t bufLoop = afVars.bufLoopBuffer[bufIndex];
 				int32_t job = afVars.jobBuffer[bufIndex];
-				printf("bufloop %d\n", bufLoop);
 				copyAllAttribs(&pMeshOut->mesh.loopAttribs, loopBase + k,
 							   &pJobArgs[job].bufMesh.mesh.loopAttribs, bufLoop);
 				//*attribAsV3(pMeshOut->pNormals, loopBase + k) =
@@ -1008,7 +1014,7 @@ static void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs
                                      BoundaryDir *pEntryDir, int32_t faceIndex,
 									 int32_t hash, int32_t job) {
 	for (int32_t j = job + 1; j < pContext->threadCount; ++j) {
-		BoundaryDir *pEntryDirOther = pJobArgs[j].pBoundaryBuffer + hash;
+		BoundaryDir *pEntryDirOther = pJobArgs[j].boundsTable.pTable + hash;
 		do {
 			if (pEntryDirOther->pEntry) {
 				if (faceIndex == pEntryDirOther->pEntry->faceIndex) {
@@ -1025,20 +1031,22 @@ static void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs
 	}
 }
 
-static void compileEntriesFromJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
-                                   BoundaryVert **pAllBoundaryFaces,
-								   int32_t *pAllBoundaryFacesSize) {
+static void compileBoundsTables(RuvmContext pContext, SendOffArgs *pJobArgs,
+                                CompiledBoundsTable *pBoundsTable,
+								int32_t totalBoundsFaces) {
+	pBoundsTable->ppTable =
+		pContext->alloc.pMalloc(sizeof(void *) * totalBoundsFaces);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
-		for (int32_t hash = 0; hash < pJobArgs[i].boundaryBufferSize; ++hash) {
-			BoundaryDir *pEntryDir = pJobArgs[i].pBoundaryBuffer + hash;
+		for (int32_t hash = 0; hash < pJobArgs[i].boundsTable.size; ++hash) {
+			BoundaryDir *pEntryDir = pJobArgs[i].boundsTable.pTable + hash;
 			int32_t depth = 0;
 			do {
 				if (pEntryDir->pEntry) {
 					int32_t faceIndex = pEntryDir->pEntry->faceIndex;
 					linkEntriesFromOtherJobs(pContext, pJobArgs, pEntryDir,
 					                         faceIndex, hash, i);
-					pAllBoundaryFaces[*pAllBoundaryFacesSize] = pEntryDir->pEntry;
-					++*pAllBoundaryFacesSize;
+					pBoundsTable->ppTable[pBoundsTable->count] = pEntryDir->pEntry;
+					pBoundsTable->count++;
 				}
 				BoundaryDir *pNextEntryDir = pEntryDir->pNext;
 				if (depth != 0) {
@@ -1051,26 +1059,67 @@ static void compileEntriesFromJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
 	}
 }
 
+static
+void allocCombineTables(RuvmAllocator *pAlloc, CombineTables *pCTables,
+                        int32_t totalBoundsFaces, int32_t totalBoundsEdges) {
+	pCTables->pEdgeTable =
+		pAlloc->pCalloc(totalBoundsFaces, sizeof(EdgeTable));
+	pCTables->pOnLineTable =
+		pAlloc->pCalloc(totalBoundsFaces, sizeof(OnLineTable));
+	pCTables->pSeamEdgeTable =
+		pAlloc->pCalloc(totalBoundsEdges, sizeof(SeamEdgeTable));
+	pCTables->edgeTableSize = totalBoundsFaces;
+	pCTables->onLineTableSize = totalBoundsFaces;
+	pCTables->seamTableSize = totalBoundsEdges;
+}
+
+static
+void destroyCombineTables(RuvmAllocator *pAlloc, CombineTables *pCTables) {
+	for (int32_t i = 0; i < pCTables->edgeTableSize; ++i) {
+		EdgeTable *pEntry = pCTables->pEdgeTable[i].pNext;
+		while (pEntry) {
+			EdgeTable *pNextEntry = pEntry->pNext;
+			pAlloc->pFree(pEntry);
+			pEntry = pNextEntry;
+		}
+	}
+	pAlloc->pFree(pCTables->pEdgeTable);
+	for (int32_t i = 0; i < pCTables->onLineTableSize; ++i) {
+		OnLineTable *pEntry = pCTables->pOnLineTable[i].pNext;
+		while (pEntry) {
+			OnLineTable *pNextEntry = pEntry->pNext;
+			pAlloc->pFree(pEntry);
+			pEntry = pNextEntry;
+		}
+	}
+	pAlloc->pFree(pCTables->pOnLineTable);
+	for (int32_t i = 0; i < pCTables->seamTableSize; ++i) {
+		SeamEdgeTable *pEntry = pCTables->pSeamEdgeTable[i].pNext;
+		while (pEntry) {
+			SeamEdgeTable *pNextEntry = pEntry->pNext;
+			pAlloc->pFree(pEntry);
+			pEntry = pNextEntry;
+		}
+	}
+	pAlloc->pFree(pCTables->pSeamEdgeTable);
+}
+
 void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
-                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts) {
+                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+							JobBases *pJobBases, int8_t *pVertSeamTable) {
 	int32_t totalBoundaryFaces = 0;
 	int32_t totalBoundaryEdges = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		totalBoundaryFaces += pJobArgs[i].totalBoundaryFaces;
 		totalBoundaryEdges += pJobArgs[i].totalBoundaryEdges;
 	}
-	BoundaryVert **pAllBoundaryFaces = pContext->alloc.pMalloc(sizeof(void *) * totalBoundaryFaces);
-	int32_t allBoundaryFacesSize = 0;
-	compileEntriesFromJobs(pContext, pJobArgs, pAllBoundaryFaces, &allBoundaryFacesSize);
-	EdgeTable *pEdgeTable =
-		pContext->alloc.pCalloc(totalBoundaryFaces, sizeof(EdgeTable));
-	OnLineTable *pOnLineTable =
-		pContext->alloc.pCalloc(totalBoundaryFaces, sizeof(OnLineTable));
-	SeamEdgeTable *pSeamEdgeTable =
-		pContext->alloc.pCalloc(totalBoundaryEdges, sizeof(SeamEdgeTable));
-	int32_t edgeTableSize = totalBoundaryFaces;
-	int32_t onLineTableSize = totalBoundaryFaces;
-	int32_t seamTableSize = totalBoundaryEdges;
+	CompiledBoundsTable boundsTable = {0};
+	//compile bounds table entries from all jobs, into a single table
+	compileBoundsTables(pContext, pJobArgs, &boundsTable, totalBoundaryFaces);
+	//tables used for merging mesh mesh data correctly
+	CombineTables cTables = {0};
+	allocCombineTables(&pContext->alloc, &cTables, totalBoundaryFaces,
+	                   totalBoundaryEdges);
 	for (int32_t i = 0; i < pJobArgs[0].mesh.mesh.vertCount; ++i) {
 		int32_t preserve = pJobArgs[0].pInVertTable[i];
 		for (int32_t j = 1; j < pContext->threadCount; ++j) {
@@ -1078,36 +1127,9 @@ void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 		}
 		pJobArgs[0].pInVertTable[i] = preserve;
 	}
-	mergeAndCopyEdgeFaces(pContext, pMap, pMeshOut, pJobArgs, edgeTableSize, seamTableSize,
-	                      pEdgeTable, pSeamEdgeTable, allBoundaryFacesSize, pAllBoundaryFaces,
-						  pEdgeVerts, pOnLineTable, onLineTableSize);
+	mergeAndCopyEdgeFaces(pContext, &cTables, pMap, pMeshOut, pJobArgs,
+	                      &boundsTable, pEdgeVerts, pJobBases, pVertSeamTable);
 	
-	pContext->alloc.pFree(pAllBoundaryFaces);
-	for (int32_t i = 0; i < edgeTableSize; ++i) {
-		EdgeTable *pEntry = pEdgeTable[i].pNext;
-		while (pEntry) {
-			EdgeTable *pNextEntry = pEntry->pNext;
-			pContext->alloc.pFree(pEntry);
-			pEntry = pNextEntry;
-		}
-	}
-	pContext->alloc.pFree(pEdgeTable);
-	for (int32_t i = 0; i < onLineTableSize; ++i) {
-		OnLineTable *pEntry = pOnLineTable[i].pNext;
-		while (pEntry) {
-			OnLineTable *pNextEntry = pEntry->pNext;
-			pContext->alloc.pFree(pEntry);
-			pEntry = pNextEntry;
-		}
-	}
-	pContext->alloc.pFree(pOnLineTable);
-	for (int32_t i = 0; i < seamTableSize; ++i) {
-		SeamEdgeTable *pEntry = pSeamEdgeTable[i].pNext;
-		while (pEntry) {
-			SeamEdgeTable *pNextEntry = pEntry->pNext;
-			pContext->alloc.pFree(pEntry);
-			pEntry = pNextEntry;
-		}
-	}
-	pContext->alloc.pFree(pSeamEdgeTable);
+	pContext->alloc.pFree(boundsTable.ppTable);
+	destroyCombineTables(&pContext->alloc, &cTables);
 }
