@@ -1,5 +1,6 @@
 #pragma once
-#include "Types.h"
+#include <stdint.h>
+#include <Alloc.h>
 
 typedef struct {
 	void *file;

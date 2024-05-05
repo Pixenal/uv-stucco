@@ -5,7 +5,6 @@
 #include <CombineJobMeshes.h>
 #include <AttribUtils.h>
 
-
 static
 void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut,
                      SendOffArgs *pJobArgs) {

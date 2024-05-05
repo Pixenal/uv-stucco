@@ -1,6 +1,8 @@
 #pragma once
 #include <RUVM.h>
-#include <Types.h>
+#include <RuvmInternal.h>
+#include <Utils.h>
+#include <QuadTree.h>
 
 typedef struct Piece {
 	struct Piece *pNext;
@@ -12,6 +14,37 @@ typedef struct Piece {
 	int32_t entryIndex;
 } Piece;
 
+typedef struct RealEdgeTable {
+	struct RealEdgeTable *pNext;
+	int32_t edge;
+	int32_t inEdge;
+	int32_t mapFace;
+	int32_t valid;
+} SeamEdgeTable;
+
+typedef struct OnLineTable {
+	struct OnLineTable *pNext;
+	int32_t baseEdgeOrLoop;
+	int32_t ruvmVert;
+	int32_t outVert;
+	int32_t type;
+} OnLineTable;
+
+typedef struct EdgeTable {
+	struct EdgeTable *pNext;
+	int32_t ruvmFace;
+	int32_t ruvmEdge;
+	int32_t vert;
+	int32_t tile;
+	int32_t loops;
+	int32_t baseEdge;
+	int32_t baseVert;
+	int8_t keepBaseLoop;
+	int32_t job;
+	int32_t loopIndex;
+	int32_t loop;
+} EdgeTable;
+
 typedef struct {
 	EdgeTable *pEdgeTable;
 	OnLineTable *pOnLineTable;
@@ -20,6 +53,11 @@ typedef struct {
 	int32_t onLineTableSize;
 	int32_t seamTableSize;
 } CombineTables;
+
+typedef struct {
+	int32_t vertBase;
+	int32_t edgeBase;
+} JobBases;
 
 void ruvmMergeBoundaryFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                             SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,

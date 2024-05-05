@@ -24,6 +24,36 @@ typedef struct {
 	V2_F32 c;
 } TriUv;
 
+typedef struct {
+	int32_t index;
+	int32_t edgeIndex;
+	int32_t edgeIndexNext;
+	int8_t edgeIsSeam;
+	int8_t edgeNextIsSeam;
+	int32_t indexNext;
+	int8_t localIndex;
+	int8_t localIndexNext;
+	V2_F32 vert;
+	V2_F32 vertNext;
+	V2_F32 dir;
+	V2_F32 dirBack;
+} LoopInfo;
+
+typedef struct {
+	int32_t loopStart;
+	int32_t boundaryLoopStart;
+	int32_t firstRuvmVert, lastRuvmVert;
+	int32_t ruvmLoops;
+	int32_t vertIndex;
+	int32_t loopIndex;
+	int32_t edgeIndex;
+} AddClippedFaceVars;
+
+typedef struct {
+	V2_F32 uv[4];
+	V3_F32 xyz[4];
+} BaseTriVerts;
+
 static V3_F32 calcIntersection(LoopBufferWrap *pLoopBuf, LoopInfo *pBaseLoop,
                              int32_t i, int32_t vertNextIndex, int32_t *pAlpha) {
 	V3_F32 *pRuvmVert = &pLoopBuf->buf[i].loop;

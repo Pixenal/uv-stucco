@@ -9,7 +9,6 @@
 
 #include <zlib.h>
 
-#include <Types.h>
 #include <Io.h>
 #include <QuadTree.h>
 #include <MapFile.h>

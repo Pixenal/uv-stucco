@@ -1,7 +1,8 @@
 #pragma once
 
 #include <RUVM.h>
-#include <Types.h>
+#include <RuvmInternal.h>
+#include <MathUtils.h>
 
 typedef RuvmAttrib Attrib;
 typedef RuvmAttribType AttribType;
