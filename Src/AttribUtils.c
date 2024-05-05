@@ -12,34 +12,40 @@
 	INDEX_ATTRIB(t, pD, iD, v, c) = INDEX_ATTRIB(t, pB, iB, v, c)
 
 #define BLEND_MULTIPLY(t, pDest, iDest, pA, iA, pB, iB, v, c)\
-	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) * INDEX_ATTRIB(t,pB,iB,v,c)
+	INDEX_ATTRIB(t,pD,iD,v,c) =\
+		INDEX_ATTRIB(t,pA,iA,v,c) * INDEX_ATTRIB(t,pB,iB,v,c)
 
 #define BLEND_DIVIDE(t, pDest, iDest, pA, iA, pB, iB, v, c)\
 	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pB,iB,v,c) != (t)0 ?\
 		INDEX_ATTRIB(t,pA,iA,v,c) / INDEX_ATTRIB(t,pB,iB,v,c) : (t)0
 
 #define BLEND_ADD(t, pDest, iDest, pA, iA, pB, iB, v, c)\
-	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) + INDEX_ATTRIB(t,pB,iB,v,c)
+	INDEX_ATTRIB(t,pD,iD,v,c) =\
+		INDEX_ATTRIB(t,pA,iA,v,c) + INDEX_ATTRIB(t,pB,iB,v,c)
 
 #define BLEND_SUBTRACT(t, pDest, iDest, pA, iA, pB, iB, v, c)\
-	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) - INDEX_ATTRIB(t,pB,iB,v,c)
+	INDEX_ATTRIB(t,pD,iD,v,c) =\
+		INDEX_ATTRIB(t,pA,iA,v,c) - INDEX_ATTRIB(t,pB,iB,v,c)
 
 #define BLEND_ADD_SUB(t, pDest, iDest, pA, iA, pB, iB, v, c)\
 	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) +\
 		INDEX_ATTRIB(t,pB,iB,v,c) - ((t)1 - INDEX_ATTRIB(t,pB,iB,v,c))
 
 #define BLEND_LIGHTEN(t, pDest, iDest, pA, iA, pB, iB, v, c)\
-	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) > INDEX_ATTRIB(t,pB,iB,v,c) ?\
+	INDEX_ATTRIB(t,pD,iD,v,c) =\
+		INDEX_ATTRIB(t,pA,iA,v,c) > INDEX_ATTRIB(t,pB,iB,v,c) ?\
 		INDEX_ATTRIB(t,pA,iA,v,c) : INDEX_ATTRIB(t,pB,iB,v,c)
 
 #define BLEND_DARKEN(t, pDest, iDest, pA, iA, pB, iB, v, c)\
-	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) < INDEX_ATTRIB(t,pB,iB,v,c) ?\
+	INDEX_ATTRIB(t,pD,iD,v,c) =\
+		INDEX_ATTRIB(t,pA,iA,v,c) < INDEX_ATTRIB(t,pB,iB,v,c) ?\
 		INDEX_ATTRIB(t,pA,iA,v,c) : INDEX_ATTRIB(t,pB,iB,v,c)
 
 #define BLEND_OVERLAY(t, pDest, iDest, pA, iA, pB, iB, v, c)\
 	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c) > .5 ?\
 		2.0 * INDEX_ATTRIB(t,pA,iA,v,c) * INDEX_ATTRIB(t,pB,iB,v,c) :\
-		1.0 - 2.0 * (1.0 - INDEX_ATTRIB(t,pA,iA,v,c)) * (1.0 - INDEX_ATTRIB(t,pB,iB,v,c))
+		1.0 - 2.0 * (1.0 - INDEX_ATTRIB(t,pA,iA,v,c)) *\
+		(1.0 - INDEX_ATTRIB(t,pB,iB,v,c))
 
 #define BLEND_SOFT_LIGHT(t, pDest, iDest, pA, iA, pB, iB, v, c)\
 	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pB,iB,v,c) < .5 ?\
@@ -435,22 +441,28 @@ void interpolateAttrib(RuvmAttrib *pDest, int32_t iDest, RuvmAttrib *pSrc,
 	RuvmAttribType type = pDest->type;
 	switch (type) {
 		case RUVM_ATTRIB_I8:
-			INTERPOLATE_SCALAR(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			INTERPOLATE_SCALAR(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_I16:
-			INTERPOLATE_SCALAR(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			INTERPOLATE_SCALAR(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_I32:
-			INTERPOLATE_SCALAR(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			INTERPOLATE_SCALAR(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_I64:
-			INTERPOLATE_SCALAR(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			INTERPOLATE_SCALAR(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_F32:
-			INTERPOLATE_SCALAR(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			INTERPOLATE_SCALAR(float, pDest, iDest, pSrc, iSrcA, iSrcB,
+			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_F64:
-			INTERPOLATE_SCALAR(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			INTERPOLATE_SCALAR(double, pDest, iDest, pSrc, iSrcA, iSrcB,
+			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_I8:
 			INTERPOLATE_V2(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
@@ -518,7 +530,6 @@ static void appendOnNonString() {
 	abort();
 }
 
-//TODO replace with a callback function in blendConfig. This many switch cases is absurd
 void blendAttribs(RuvmAttrib *pD, int32_t iD, RuvmAttrib *pA, int32_t iA,
                   RuvmAttrib *pB, int32_t iB, RuvmBlendConfig blendConfig) {
 	RuvmAttribType type = pD->type;
@@ -1885,7 +1896,7 @@ void blendAttribs(RuvmAttrib *pD, int32_t iD, RuvmAttrib *pA, int32_t iA,
 	}
 }
 
-void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
+void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
                   RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
 				  int32_t dataLen) {
 	if (pSrcA && pSrcA->count) {
@@ -1903,7 +1914,7 @@ void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
 	if (!pDest->count) {
 		return;
 	}
-	pDest->pArr = alloc.pMalloc(sizeof(RuvmAttrib) * pDest->count);
+	pDest->pArr = pAlloc->pMalloc(sizeof(RuvmAttrib) * pDest->count);
 	//reset attrib count, for use in the below loops
 	pDest->count = 0;
 	if (pSrcA && pSrcA->count) {
@@ -1914,7 +1925,7 @@ void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
 			pDest->pArr[i].origin = RUVM_ATTRIB_ORIGIN_MESH_IN;
 			pDest->pArr[i].interpolate = pSrcA->pArr[i].interpolate;
 			int32_t attribSize = getAttribSize(pSrcA->pArr[i].type);
-			pDest->pArr[i].pData = alloc.pMalloc(attribSize * dataLen);
+			pDest->pArr[i].pData = pAlloc->pMalloc(attribSize * dataLen);
 		}
 		pDest->count = pSrcA->count;
 	}
@@ -1928,11 +1939,12 @@ void allocAttribs(RuvmAllocator alloc, RuvmAttribArray *pDest,
 			continue;
 		}
 		pDest->pArr[pDest->count].type = pSrcB->pArr[i].type;
-		memcpy(pDest->pArr[pDest->count].name, pSrcB->pArr[i].name, RUVM_ATTRIB_NAME_MAX_LEN);
+		memcpy(pDest->pArr[pDest->count].name, pSrcB->pArr[i].name,
+		       RUVM_ATTRIB_NAME_MAX_LEN);
 		pDest->pArr[pDest->count].origin = RUVM_ATTRIB_ORIGIN_MAP;
 		pDest->pArr[pDest->count].interpolate = pSrcB->pArr[i].interpolate;
 		int32_t attribSize = getAttribSize(pSrcB->pArr[i].type);
-		pDest->pArr[pDest->count].pData = alloc.pMalloc(attribSize * dataLen);
+		pDest->pArr[pDest->count].pData = pAlloc->pMalloc(attribSize * dataLen);
 		++pDest->count;
 	}
 	return;

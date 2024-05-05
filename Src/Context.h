@@ -3,7 +3,7 @@
 
 typedef struct RuvmContextInternal {
 	RuvmThreadPool threadPool;
-	RuvmAllocator alloc;
+	RuvmAlloc alloc;
 	RuvmIo io;
 	void *pThreadPoolHandle;
 	int32_t threadCount;

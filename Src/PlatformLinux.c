@@ -3,10 +3,10 @@
 
 typedef struct {
 	FILE *pFile;
-	RuvmAllocator alloc;
+	RuvmAlloc alloc;
 } PlatformContext;
 
-int32_t ruvmPlatformFileOpen(void **file, char *filePath, int32_t action, RuvmAllocator *pAlloc) {
+int32_t ruvmPlatformFileOpen(void **file, char *filePath, int32_t action, RuvmAlloc *pAlloc) {
 	char *mode = "   ";
 	switch (action) {
 		case 0:

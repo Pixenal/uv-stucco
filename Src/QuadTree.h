@@ -36,10 +36,11 @@ typedef struct {
 	int8_t *pCellType;
 	int32_t faceTotal;
 	int32_t faceTotalNoDup;
-} EnclosingCellsInfo;
+} EncasingCells;
 
-void ruvmGetAllEnclosingCells(RuvmAllocator* pAlloc, Cell *pRootCell, EnclosingCellsInfo *pEnclosingCellsInfo,
-                                  int8_t *pCellInits, Mesh *pMesh, FaceInfo faceInfo,
-								  V2_I32 tileMin);
+void ruvmGetAllEncasingCells(RuvmAlloc* pAlloc, Cell *pRootCell,
+                             EncasingCells *pEncasingCells, int8_t *pCellInits,
+							 Mesh *pMesh, FaceInfo faceInfo, V2_I32 tileMin);
+Cell *ruvmFindEncasingCell(Cell *rootCell, V2_F32 pos);
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
 void ruvmDestroyQuadTree(RuvmContext pContext, Cell *rootCell);

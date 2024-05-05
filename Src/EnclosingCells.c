@@ -17,9 +17,10 @@ typedef struct {
 	int8_t *pCellType;
 } Vars;
 
-static void checkIfFaceIsInsideTile(Vars *pVars, int32_t *pIsInsideBuffer,
-                                    int32_t *pFaceVertInside, Mesh *pMesh,
-									V2_I32 tileMin) {
+static
+void checkIfFaceIsInsideTile(Vars *pVars, int32_t *pIsInsideBuffer,
+                             int32_t *pFaceVertInside, Mesh *pMesh,
+							 V2_I32 tileMin) {
 	FaceInfo *pFaceInfo = &pVars->faceInfo;
 	FaceBounds *pFaceBounds = &pVars->faceBounds;
 	for (int32_t i = 0; i < pVars->faceInfo.size; ++i) {
@@ -36,18 +37,19 @@ static void checkIfFaceIsInsideTile(Vars *pVars, int32_t *pIsInsideBuffer,
 			pIsInsideBuffer[j] *= dot < .0f;
 		}
 		//in addition, test for face verts inside tile
-		//edge cases may not be cause by the above, like if a face entered the tile,
-		//and then exited the same side, with a single vert in the tile.
-		//Checking for verts will catch this:
+		//edge cases may not be cause by the above,
+		//like if a face entered the tile, and then exited the same side,
+		//with a single vert in the tile. Checking for verts will catch this:
 		*pFaceVertInside += _(*loop V2GREAT pFaceBounds->fMin) &&
 		                    _(*loop V2LESSEQL pFaceBounds->fMax);
 	}
 }
 
-static int32_t getCellsForFaceWithinTile(RuvmAllocator *pAlloc, RuvmMap pMap,
-                                         Mesh *pMeshIn, Vars *pVars,
-                                         EnclosingCellsInfo *pCellsBuffer,
-										 V2_I32 tileMin) {
+static
+int32_t getCellsForFaceWithinTile(RuvmAlloc *pAlloc, RuvmMap pMap,
+                                  Mesh *pMeshIn, Vars *pVars,
+                                  EncasingCells *pCellsBuffer,
+								  V2_I32 tileMin) {
 	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
 	int32_t faceVertInside = 0;
 	checkIfFaceIsInsideTile(pVars, isInsideBuffer, &faceVertInside,
@@ -63,13 +65,15 @@ static int32_t getCellsForFaceWithinTile(RuvmAllocator *pAlloc, RuvmMap pMap,
 		//face is not inside current tile
 		return 0;
 	}
-	//find fully enclosing cell using clipped face
-	ruvmGetAllEnclosingCells(pAlloc, pMap->quadTree.pRootCell, pCellsBuffer,
-	                             pVars->pCellInits, pMeshIn, pVars->faceInfo, tileMin);
+	//find fully encasing cell using clipped face
+	ruvmGetAllEncasingCells(pAlloc, pMap->quadTree.pRootCell, pCellsBuffer,
+	                        pVars->pCellInits, pMeshIn, pVars->faceInfo,
+							tileMin);
 	return 0;
 }
 
-static int32_t checkBranchCellIsLinked(EnclosingCellsInfo *pCellsBuffer, int32_t index) {
+static
+int32_t checkBranchCellIsLinked(EncasingCells *pCellsBuffer, int32_t index) {
 	Cell *cell = pCellsBuffer->ppCells[index];
 	for (int32_t j = 0; j < pCellsBuffer->cellSize; ++j) {
 		if (pCellsBuffer->pCellType[j] || index == j) {
@@ -85,7 +89,8 @@ static int32_t checkBranchCellIsLinked(EnclosingCellsInfo *pCellsBuffer, int32_t
 	return 0;
 }
 
-static void removeNonLinkedBranchCells(EnclosingCellsInfo *pCellsBuffer) {
+static
+void removeNonLinkedBranchCells(EncasingCells *pCellsBuffer) {
 	for (int32_t i = 0; i < pCellsBuffer->cellSize;) {
 		if (!pCellsBuffer->pCellType[i]) {
 			i++;
@@ -106,24 +111,27 @@ static void removeNonLinkedBranchCells(EnclosingCellsInfo *pCellsBuffer) {
 	}
 }
 
-static void copyCellsIntoTotalList(EnclosingCells *pEc, EnclosingCellsInfo *pCellsBuffer,
-                            int32_t faceIndex, RuvmAllocator *pAlloc) {
-	FaceCellsInfo *pEntry = pEc->pFaceCellsInfo + faceIndex;
-	pEc->cellFacesTotal += pCellsBuffer->faceTotalNoDup;
+static
+void copyCellsIntoTotalList(FaceCellsTable *pFaceCellsTable,
+                            EncasingCells *pCellsBuffer, int32_t faceIndex,
+							RuvmAlloc *pAlloc) {
+	FaceCells *pEntry = pFaceCellsTable->pFaceCells + faceIndex;
+	pFaceCellsTable->cellFacesTotal += pCellsBuffer->faceTotalNoDup;
 	pEntry->pCells = pAlloc->pMalloc(sizeof(Cell *) * pCellsBuffer->cellSize);
 	pEntry->pCellType = pAlloc->pMalloc(pCellsBuffer->cellSize);
-	memcpy(pEntry->pCells, pCellsBuffer->ppCells, sizeof(Cell *) *
-	       pCellsBuffer->cellSize);
+	memcpy(pEntry->pCells, pCellsBuffer->ppCells,
+	       sizeof(Cell *) * pCellsBuffer->cellSize);
 	memcpy(pEntry->pCellType, pCellsBuffer->pCellType, pCellsBuffer->cellSize);
 	pEntry->cellSize = pCellsBuffer->cellSize;
 	pEntry->faceSize = pCellsBuffer->faceTotalNoDup;
-	if (pCellsBuffer->faceTotalNoDup > pEc->cellFacesMax) {
-		pEc->cellFacesMax = pCellsBuffer->faceTotalNoDup;
+	if (pCellsBuffer->faceTotalNoDup > pFaceCellsTable->cellFacesMax) {
+		pFaceCellsTable->cellFacesMax = pCellsBuffer->faceTotalNoDup;
 	}
 }
 
-static void recordCellsInTable(EnclosingCells *pEc, Vars *pVars,
-                               EnclosingCellsInfo *pCellsBuffer) {
+static
+void recordCellsInTable(FaceCellsTable *pFaceCellsTable, Vars *pVars,
+                        EncasingCells *pCellsBuffer) {
 	for (int32_t i = 0; i < pCellsBuffer->cellSize; ++i) {
 		Cell *pCell = pCellsBuffer->ppCells[i];
 		//must be != 0, not > 0, so as to catch entries set to -1
@@ -136,7 +144,7 @@ static void recordCellsInTable(EnclosingCells *pEc, Vars *pVars,
 		int8_t childrenLeft[32] = {0};
 		pStack[0] = pCell;
 		int32_t stackPointer = 0;
-		pEc->uniqueFaces += cellType == 1 ?
+		pFaceCellsTable->uniqueFaces += cellType == 1 ?
 			pCell->edgeFaceSize : pCell->faceSize;
 		if (cellType != 0 || pCell->pChildren == NULL) {
 			continue;
@@ -157,7 +165,7 @@ static void recordCellsInTable(EnclosingCells *pEc, Vars *pVars,
 				//must be > 0, so that cells with an entry of -1 arn't touched,
 				// as they haven't been added to uniqueFaces
 				if (childType > 0) {
-					pEc->uniqueFaces -= childType == 2 ?
+					pFaceCellsTable->uniqueFaces -= childType == 2 ?
 						pChild->edgeFaceSize : pChild->faceSize;
 				}
 				//set to -1 so this cell isn't added to the count in future
@@ -175,19 +183,23 @@ static void recordCellsInTable(EnclosingCells *pEc, Vars *pVars,
 	}
 }
 
-static int32_t getCellsForSingleFace(RuvmAllocator *pAlloc, RuvmMap pMap,
-                                     Mesh *pMeshIn, EnclosingCells *pEc,
-                                     Vars *pVars, int32_t faceIndex) {
-	EnclosingCellsInfo cellsBuffer = {0};
+static
+int32_t getCellsForSingleFace(RuvmAlloc *pAlloc, RuvmMap pMap,
+                              Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
+                              Vars *pVars, int32_t faceIndex) {
+	EncasingCells cellsBuffer = {0};
 	cellsBuffer.ppCells = pVars->ppCells;
 	cellsBuffer.pCellType = pVars->pCellType;
 	FaceBounds *pFaceBounds = &pVars->faceBounds;
 	for (int32_t i = pFaceBounds->min.d[1]; i <= pFaceBounds->max.d[1]; ++i) {
 		for (int32_t j = pFaceBounds->min.d[0]; j <= pFaceBounds->max.d[0]; ++j) {
 			V2_I32 tileMin = {j, i};
-			//continue until the smallest cell that fully encloses the face is found (result == 0).
-			//if face fully encloses the while uv tile (result == 1), then return (root cell will be used).
-			//if the face is not within the current tile, then skip tile (result == 2).
+			//continue until the smallest cell that fully
+			//encloses the face is found (result == 0).
+			//if face fully encloses the while uv tile (result == 1),
+			//then return (root cell will be used).
+			//if the face is not within the current tile,
+			//then skip tile (result == 2).
 			if (getCellsForFaceWithinTile(pAlloc, pMap, pMeshIn, pVars,
 				                          &cellsBuffer, tileMin)) {
 				//fully enclosed
@@ -196,21 +208,22 @@ static int32_t getCellsForSingleFace(RuvmAllocator *pAlloc, RuvmMap pMap,
 		}
 	}
 	removeNonLinkedBranchCells(&cellsBuffer);
-	recordCellsInTable(pEc, pVars, &cellsBuffer);
-	copyCellsIntoTotalList(pEc, &cellsBuffer, faceIndex, pAlloc);
+	recordCellsInTable(pFaceCellsTable, pVars, &cellsBuffer);
+	copyCellsIntoTotalList(pFaceCellsTable, &cellsBuffer, faceIndex, pAlloc);
 	return 0;
 }
 
-void ruvmGetEnclosingCells(RuvmAllocator *pAlloc, RuvmMap pMap,
-                           Mesh *pMeshIn, EnclosingCells *pEc) {
+void ruvmGetEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+                          Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable) {
 	Vars vars = {0};
-	pEc->pFaceCellsInfo =
-		pAlloc->pMalloc(sizeof(FaceCellsInfo) * pMeshIn->mesh.faceCount);
+	pFaceCellsTable->pFaceCells =
+		pAlloc->pMalloc(sizeof(FaceCells) * pMeshIn->mesh.faceCount);
 	vars.pCellInits = pAlloc->pMalloc(pMap->quadTree.cellCount);
 	vars.pCellTable = pAlloc->pCalloc(pMap->quadTree.cellCount, sizeof(int8_t));
 	vars.ppCells = pAlloc->pMalloc(sizeof(void *) * pMap->quadTree.cellCount);
 	vars.pCellType = pAlloc->pMalloc(pMap->quadTree.cellCount);
 	for (int32_t i = 0; i < pMeshIn->mesh.faceCount; ++i) {
+		FaceCells *pEntry = pFaceCellsTable->pFaceCells + i;
 		int32_t start, end;
 		start = vars.faceInfo.start = pMeshIn->mesh.pFaces[i];
 		end = vars.faceInfo.end = pMeshIn->mesh.pFaces[i + 1];
@@ -221,14 +234,15 @@ void ruvmGetEnclosingCells(RuvmAllocator *pAlloc, RuvmMap pMap,
 		vars.faceBounds.min = v2FloorAssign(&vars.faceBounds.fMin);
 		vars.faceBounds.max = v2FloorAssign(&vars.faceBounds.fMax);
 		_(&vars.faceBounds.fMax V2ADDEQLS 1.0f);
-		pEc->pFaceCellsInfo[i].faceBounds = vars.faceBounds;
-		if (getCellsForSingleFace(pAlloc, pMap, pMeshIn, pEc, &vars, i)) {
+		pEntry->faceBounds = vars.faceBounds;
+		if (getCellsForSingleFace(pAlloc, pMap, pMeshIn,
+		                          pFaceCellsTable, &vars, i)) {
 			Cell *rootCell = pMap->quadTree.pRootCell;
-			pEc->pFaceCellsInfo[i].pCells = pAlloc->pMalloc(sizeof(Cell *));
-			*pEc->pFaceCellsInfo[i].pCells = rootCell;
-			pEc->cellFacesTotal += rootCell->faceSize;
+			pEntry->pCells = pAlloc->pMalloc(sizeof(Cell *));
+			*pEntry->pCells = rootCell;
+			pFaceCellsTable->cellFacesTotal += rootCell->faceSize;
 		}
-		vars.averageRuvmFacesPerFace += pEc->pFaceCellsInfo[i].faceSize;
+		vars.averageRuvmFacesPerFace += pEntry[i].faceSize;
 		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
 	}
 	pAlloc->pFree(vars.pCellTable);
@@ -238,7 +252,7 @@ void ruvmGetEnclosingCells(RuvmAllocator *pAlloc, RuvmMap pMap,
 	vars.averageRuvmFacesPerFace /= pMeshIn->mesh.faceCount;
 }
 
-void ruvmDestroyEnclosingCells(RuvmAllocator *pAlloc, EnclosingCells *pEc) {
-	pAlloc->pFree(pEc->pCellFaces);
-	pAlloc->pFree(pEc->pFaceCellsInfo);
+void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
+                               FaceCellsTable *pFaceCellsTable) {
+	pAlloc->pFree(pFaceCellsTable->pFaceCells);
 }

@@ -6,11 +6,11 @@
 
 typedef struct {
 	HANDLE *pHFile;
-	RuvmAllocator alloc;
+	RuvmAlloc alloc;
 } PlatformContext;
 
 int32_t ruvmPlatformFileOpen(void **file, char *filePath, int32_t action,
-                             RuvmAllocator *pAlloc) {
+                             RuvmAlloc *pAlloc) {
 	DWORD access;
 	DWORD disposition;
 	switch (action) {

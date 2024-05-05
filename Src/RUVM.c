@@ -46,15 +46,15 @@ void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
 	pContext->typeDefaults = config;
 }
 
-void ruvmContextInit(RuvmContext *pContext, RuvmAllocator *pAllocator,
+void ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                      RuvmThreadPool *pThreadPool, RuvmIo *pIo,
 					 RuvmTypeDefaultConfig *pTypeDefaultConfig) {
-	RuvmAllocator alloc;
-	if (pAllocator) {
-		ruvmAllocatorSetCustom(&alloc, pAllocator);
+	RuvmAlloc alloc;
+	if (pAlloc) {
+		ruvmAllocSetCustom(&alloc, pAlloc);
 	}
 	else {
-		ruvmAllocatorSetDefault(&alloc);
+		ruvmAllocSetDefault(&alloc);
 	}
 	*pContext = alloc.pCalloc(1, sizeof(RuvmContextInternal));
 	(*pContext)->alloc = alloc;
@@ -150,8 +150,8 @@ void getCommonAttribs(RuvmContext pContext, AttribArray *pMapAttribs,
 	*pCommonAttribCount = count;
 }
 
-//TODO handle edge case, where attribute share the same name, but have incompatible types.
-//Such as a float and a string.
+//TODO handle edge case, where attribute share the same name,
+//but have incompatible types. Such as a float and a string.
 void ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
                             RuvmCommonAttribList *pCommonAttribs) {
 	getCommonAttribs(pContext, &pMap->mesh.mesh.meshAttribs, &pMesh->meshAttribs,
@@ -195,8 +195,8 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 	int32_t facesPerThread = pMesh->mesh.faceCount / pContext->threadCount;
 	int32_t threadAmountMinus1 = pContext->threadCount - 1;
 	void *jobArgPtrs[MAX_THREADS];
-	int32_t boundsTableSize = pMap->mesh.mesh.faceCount / 5;
-	printf("fromjobsendoff: BoundaryBufferSize: %d\n", boundsTableSize);
+	int32_t borderTableSize = pMap->mesh.mesh.faceCount / 5;
+	printf("fromjobsendoff: BorderTableSize: %d\n", borderTableSize);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		int32_t meshStart = facesPerThread * i;
 		int32_t meshEnd = i == threadAmountMinus1 ?
@@ -207,7 +207,7 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 		pJobArgs[i].pInVertTable = pInVertTable;
 		pJobArgs[i].pEdgeVerts = pEdgeVerts;
 		pJobArgs[i].pMap = pMap;
-		pJobArgs[i].boundsTable.size = boundsTableSize;
+		pJobArgs[i].borderTable.size = borderTableSize;
 		pJobArgs[i].mesh = meshPart;
 		pJobArgs[i].pJobsCompleted = pJobsCompleted;
 		pJobArgs[i].id = i;
@@ -223,9 +223,10 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 }
 
 static
-void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts, RuvmMesh *pMesh) {
-	*ppEdgeVerts = pContext->alloc.pMalloc(sizeof(EdgeTable) * pMesh->edgeCount);
-	memset(*ppEdgeVerts, -1, sizeof(EdgeTable) * pMesh->edgeCount);
+void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts,
+                         RuvmMesh *pMesh) {
+	*ppEdgeVerts = pContext->alloc.pMalloc(sizeof(EdgeVerts) * pMesh->edgeCount);
+	memset(*ppEdgeVerts, -1, sizeof(EdgeVerts) * pMesh->edgeCount);
 	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
 		int32_t edge = pMesh->pEdges[i];
 		int32_t whichVert = (*ppEdgeVerts)[edge].verts[0] >= 0;
@@ -366,7 +367,8 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
 	int8_t *pInVertTable;
 	int8_t *pVertSeamTable;
-	buildVertTables(pContext, &meshIn, &pInVertTable, &pVertSeamTable, pEdgeVerts);
+	buildVertTables(pContext, &meshIn, &pInVertTable,
+	                &pVertSeamTable, pEdgeVerts);
 	CLOCK_STOP("Edge Table Time");
 
 	CLOCK_START;
@@ -383,7 +385,8 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	do  {
 		void (*pJob)(void *) = NULL;
 		void *pArgs = NULL;
-		pContext->threadPool.pJobStackGetJob(pContext->pThreadPoolHandle, &pJob, &pArgs);
+		pContext->threadPool.pJobStackGetJob(pContext->pThreadPoolHandle,
+		                                     &pJob, &pArgs);
 		if (pJob) {
 			pJob(pArgs);
 		}

@@ -10,15 +10,14 @@ typedef struct {
 	int32_t cellSize;
 	int32_t faceSize;
 	FaceBounds faceBounds;
-} FaceCellsInfo;
+} FaceCells;
 
 typedef struct {
 	int32_t cellFacesTotal;
 	int32_t cellFacesMax;
-	FaceCellsInfo *pFaceCellsInfo;
-	int32_t*pCellFaces;
+	FaceCells *pFaceCells;
 	int32_t uniqueFaces;
-} EnclosingCells;
+} FaceCellsTable;
 
 typedef struct {
 	V3_F32 loop;
@@ -32,56 +31,57 @@ typedef struct {
 	uint8_t preserve : 1;
 	uint8_t isRuvm : 1;
 	int8_t triLoops[3];
-} LoopBuffer;
+} LoopBuf;
 
 typedef struct {
-	LoopBuffer buf[11];
+	LoopBuf buf[11];
 	int32_t size;
-} LoopBufferWrap;
+} LoopBufWrap;
 
-typedef struct VertAdj{
-	struct VertAdj *pNext;
+typedef struct LocalVert {
+	struct LocalVert *pNext;
 	int32_t vert;
 	int32_t loopSize;
 	int32_t baseFace;
 	int32_t mapVert;
-} VertAdj;
+} LocalVert;
 
-typedef struct MeshBufEdgeTable  {
-	struct MeshBufEdgeTable *pNext;
+typedef struct LocalEdge  {
+	struct LocalEdge *pNext;
 	int32_t edge;
 	int32_t refFace;
 	int32_t refEdge;
 	int32_t loopCount;
-} MeshBufEdgeTable;
+} LocalEdge;
 
 typedef struct {
-	VertAdj *pRuvmVertAdj;
-	MeshBufEdgeTable *pEdgeTable;
-	uint32_t vertAdjSize;
+	LocalVert *pVertTable;
+	LocalEdge *pEdgeTable;
+	uint32_t vertTableSize;
 	int32_t edgeTableSize;
-} MappingTables;
+} LocalTables;
 
 typedef struct {
 	RuvmMap pMap;
 	BufMesh bufMesh;
 	Mesh mesh;
-	RuvmAllocator alloc;
-	MappingTables mTables;
+	RuvmAlloc alloc;
+	LocalTables localTables;
 	Mat3x3 tbn;
 	RuvmCommonAttribList *pCommonAttribList;
-	BoundaryTable boundsTable;
+	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
 	int8_t *pInVertTable;
 	int32_t id;
-	int32_t bufferSize;
-	int32_t loopBufferSize;
+	int32_t bufSize;
+	int32_t loopBufSize;
 } MappingJobVars;
 
 void ruvmMapToJobMesh(void *pArgsPtr);
-void ruvmMapToSingleFace(MappingJobVars *pArgs, EnclosingCells *pEcVars,
-                         DebugAndPerfVars *pDpVars, V2_F32 fTileMin, int32_t tile,
-						 FaceInfo baseFace);
-void ruvmGetEnclosingCells(RuvmAllocator *pAlloc, RuvmMap pMap,
-                           Mesh *pMeshIn, EnclosingCells *pEc);
-void ruvmDestroyEnclosingCells(RuvmAllocator *pAlloc, EnclosingCells *pEc);
+void ruvmMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
+                         int32_t *pFaceCells, DebugAndPerfVars *pDpVars,
+					     V2_F32 fTileMin, int32_t tile, FaceInfo baseFace);
+void ruvmGetEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+                           Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable);
+void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
+                               FaceCellsTable *pFaceCellsTable);

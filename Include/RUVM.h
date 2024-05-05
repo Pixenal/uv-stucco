@@ -249,10 +249,10 @@ typedef struct {
 	void *(*pCalloc)(size_t, size_t);
 	void (*pFree)(void *);
 	void *(*pRealloc)(void *, size_t);
-} RuvmAllocator;
+} RuvmAlloc;
 
 typedef struct {
-	void (*pInit)(void **, int32_t *, RuvmAllocator *);
+	void (*pInit)(void **, int32_t *, RuvmAlloc *);
 	void (*pJobStackGetJob)(void *, void (**)(void *), void **);
 	int32_t (*pJobStackPushJobs)(void *, int32_t, void(*)(void *), void **);
 	void (*pMutexGet)(void *, void **);
@@ -263,14 +263,14 @@ typedef struct {
 } RuvmThreadPool;
 
 typedef struct {
-	int32_t (*pOpen)(void **, char *, int32_t, RuvmAllocator *);
+	int32_t (*pOpen)(void **, char *, int32_t, RuvmAlloc *);
 	int32_t (*pWrite)(void *, unsigned char *, int32_t);
 	int32_t (*pRead)(void *, unsigned char *, int32_t);
 	int32_t (*pClose)(void *);
 } RuvmIo;
 
 RUVM_EXPORT void ruvmThreadPoolSetCustom(RuvmContext context, RuvmThreadPool *pThreadPool);
-RUVM_EXPORT void ruvmContextInit(RuvmContext *pContext, RuvmAllocator *pAllocator,
+RUVM_EXPORT void ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                                  RuvmThreadPool *pTheadPool, RuvmIo *pIo,
 					 		     RuvmTypeDefaultConfig *pTypeDefaultConfig);
 RUVM_EXPORT void ruvmMapFileExport(RuvmContext context, RuvmMesh *pMesh);

@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <Mesh.h>
 
-typedef struct BoundaryVert{
-	struct BoundaryVert *pNext;
+typedef struct BorderFace{
+	struct BorderFace *pNext;
 	uint64_t baseLoop : 22;
 	uint64_t ruvmLoop : 33;
 	uint64_t job : 8;
@@ -17,36 +17,36 @@ typedef struct BoundaryVert{
 	int32_t faceIndex;
 	int32_t face;
 	int32_t baseFace;
-} BoundaryVert;
+} BorderFace;
+
+typedef struct BorderBucket {
+	struct BorderBucket *pNext;
+	BorderFace *pEntry;
+} BorderBucket;
 
 typedef struct {
 	int32_t verts[2];
 } EdgeVerts;
 
-typedef struct BoundaryDir {
-	struct BoundaryDir *pNext;
-	BoundaryVert *pEntry;
-} BoundaryDir;
-
 typedef struct {
-	BoundaryDir *pTable;
+	BorderBucket *pTable;
 	int32_t size;
-} BoundaryTable;
+} BorderTable;
 
 typedef struct {
 	RuvmMap pMap;
 	Mesh mesh;
 	BufMesh bufMesh;
 	RuvmContext pContext;
-	BoundaryTable boundsTable;
+	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
 	RuvmCommonAttribList *pCommonAttribList;
 	int32_t *pJobsCompleted;
 	void *pMutex;
 	int8_t *pInVertTable;
 	int32_t id;
-	int32_t totalBoundaryFaces;
-	int32_t totalBoundaryEdges;
+	int32_t totalBorderFaces;
+	int32_t totalBorderEdges;
 	int32_t totalVerts;
 	int32_t totalLoops;
 	int32_t totalEdges;

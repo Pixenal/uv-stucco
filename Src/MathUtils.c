@@ -360,9 +360,15 @@ V2_I32 v2FloorAssign(V2_F32 *pA) {
 
 V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint) {
 	V3_F32 pointCartesian;
-	pointCartesian.d[0] = (pPoint->d[0] * pTri[0].d[0]) + (pPoint->d[1] * pTri[1].d[0]) + (pPoint->d[2] * pTri[2].d[0]);
-	pointCartesian.d[1] = (pPoint->d[0] * pTri[0].d[1]) + (pPoint->d[1] * pTri[1].d[1]) + (pPoint->d[2] * pTri[2].d[1]);
-	pointCartesian.d[2] = (pPoint->d[0] * pTri[0].d[2]) + (pPoint->d[1] * pTri[1].d[2]) + (pPoint->d[2] * pTri[2].d[2]);
+	pointCartesian.d[0] = (pPoint->d[0] * pTri[0].d[0]) +
+	                      (pPoint->d[1] * pTri[1].d[0]) +
+	                      (pPoint->d[2] * pTri[2].d[0]);
+	pointCartesian.d[1] = (pPoint->d[0] * pTri[0].d[1]) +
+	                      (pPoint->d[1] * pTri[1].d[1]) +
+						  (pPoint->d[2] * pTri[2].d[1]);
+	pointCartesian.d[2] = (pPoint->d[0] * pTri[0].d[2]) +
+	                      (pPoint->d[1] * pTri[1].d[2]) +
+						  (pPoint->d[2] * pTri[2].d[2]);
 	return pointCartesian;
 }
 
