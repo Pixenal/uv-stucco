@@ -429,14 +429,10 @@ static int32_t checkIfShouldSkip(Vars *pVars, int32_t faceStart,
 }
 
 static
-void addOnLineVert(RuvmContext pContext, Vars *pVars,
-                   int32_t totalRuvmLoopsAdded, int32_t ruvmLoop,
+void addOnLineVert(RuvmContext pContext, Vars *pVars, int32_t ruvmLoop,
                    RuvmMap pMap, SendOffArgs *pJobArgs, BorderFace *pEntry,
 				   CombineTables *pCTables, Mesh *pMeshOut, int32_t *pVert,
 				   int32_t k) {
-	if (checkIfDup(pVars, totalRuvmLoopsAdded, ruvmLoop)) {
-		return;
-	}
 	int32_t ruvmVert = pMap->mesh.mesh.pLoops[pVars->ruvmFace.start + ruvmLoop];
 	FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
@@ -528,9 +524,11 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 				vert = bufMesh->mesh.pLoops[faceStart - k];
 				edge = bufMesh->mesh.pEdges[faceStart - k];
 				if (onLine) {
-					addOnLineVert(pContext, pVars, totalRuvmLoopsAdded, ruvmLoop,
-					              pMap, pJobArgs, pEntry, pCTables, pMeshOut,
-								  &vert, k);
+					if (checkIfDup(pVars, totalRuvmLoopsAdded, ruvmLoop)) {
+						continue;
+					}
+					addOnLineVert(pContext, pVars, ruvmLoop, pMap, pJobArgs,
+					              pEntry, pCTables, pMeshOut, &vert, k);
 				}
 				//CLOCK_START;
 				//the vert and edge indices are local to the buffer mesh,
