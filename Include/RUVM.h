@@ -73,6 +73,13 @@ typedef enum {
 	RUVM_ATTRIB_ORIGIN_COMMON
 } RUVM_ATTRIB_ORIGIN;
 
+typedef enum {
+	RUVM_IMAGE_UI8,
+	RUVM_IMAGE_UI16,
+	RUVM_IMAGE_UI32,
+	RUVM_IMAGE_F32,
+} RuvmImageType;
+
 typedef struct {
 	float x;
 	float y;
@@ -269,6 +276,12 @@ typedef struct {
 	int32_t (*pClose)(void *);
 } RuvmIo;
 
+typedef struct {
+	void *pData;
+	RuvmImageType type;
+	int32_t res;
+} RuvmImage;
+
 RUVM_EXPORT void ruvmThreadPoolSetCustom(RuvmContext context, RuvmThreadPool *pThreadPool);
 RUVM_EXPORT void ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                                  RuvmThreadPool *pTheadPool, RuvmIo *pIo,
@@ -289,3 +302,4 @@ RUVM_EXPORT void ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize);
 //TODO make all functions return error codes, ie, adjust functions like below, which return data,
 //pass as param instead
 RUVM_EXPORT RuvmAttrib *ruvmGetAttrib(char *pName, RuvmAttribArray *pAttribs);
+RUVM_EXPORT void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap,  RuvmImage *pImage);

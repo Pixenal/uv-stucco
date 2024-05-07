@@ -28,3 +28,4 @@ void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
 void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
                   RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
 				  int32_t dataLen);
+void castType(void *pValue, RuvmAttribType type);

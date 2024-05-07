@@ -264,30 +264,8 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf,
 		pLoopBuf->buf[j].uv = *(V2_F32 *)&vert;
 		//find enclosing triangle
 		_((V2_F32 *)&vert V2SUBEQL tileMin);
-		V3_F32 vertBc = cartesianToBarycentric(pBaseTri->uv, &vert);
-		if (baseFace.size == 4 && vertBc.d[1] < 0) {
-			//base face is a quad, and vert is outside first tri,
-			//so use the second tri
-			
-			//regarding the above condition,
-			//because triangulation uses ear clipping,
-			//and ngons never hit this block of code,
-			//we only need to compare y. As it will always
-			//be the point opposite the dividing edge in the quad.
-			//This avoids us needing to worry about cases where verts
-			//are slightly outside of the quad, by a margin of error.
-			//A vert will always end up in one or the other tri.
-			V2_F32 triBuf[3] =
-				{pBaseTri->uv[2], pBaseTri->uv[3], pBaseTri->uv[0]};
-			vertBc = cartesianToBarycentric(triBuf, &vert);
-			pLoopBuf->buf[j].triLoops[0] = 2;
-			pLoopBuf->buf[j].triLoops[1] = 3;
-		}
-		else {
-			for (int32_t k = 0; k < 3; ++k) {
-				pLoopBuf->buf[j].triLoops[k] = k;
-			}
-		}
+		V3_F32 vertBc = getBarycentricInFace(pBaseTri->uv, pLoopBuf->buf[j].triLoops,
+		                                     baseFace.size, *(V2_F32 *)&vert);
 		int8_t *pTriLoops = pLoopBuf->buf[j].triLoops;
 		V3_F32 vertsXyz[3];
 		for (int32_t i = 0; i < 3; ++i) {

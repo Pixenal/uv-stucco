@@ -372,7 +372,7 @@ V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint) {
 	return pointCartesian;
 }
 
-V3_F32 cartesianToBarycentric(V2_F32 *pTri, V3_F32 *pPoint) {
+V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint) {
 	V3_F32 pointBc;
 	double derta = .0;
 	double dertau = .0;

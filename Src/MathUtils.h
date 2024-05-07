@@ -55,7 +55,7 @@ V3_F32 v3UnitFromPoints(V3_F32 a, V3_F32 b);
 V3_F32 v3MultiplyMat3x3(V3_F32 a, Mat3x3 *pB);
 V3_F32 v3Normalize(V3_F32 a);
 float v3Dot(V3_F32 a, V3_F32 b);
-V3_F32 cartesianToBarycentric(V2_F32 *pTri, V3_F32 *pPoint);
+V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint);
 V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint);
 
 V2_F32 v2Abs(V2_F32 a);

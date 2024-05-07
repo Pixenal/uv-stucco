@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include <Io.h>
 #include <MapToJobMesh.h>
@@ -12,6 +13,7 @@
 #include <Clock.h>
 #include <AttribUtils.h>
 #include <Utils.h>
+#include <ImageUtils.h>
 
 // TODO
 // - Reduce the bits written to the UVGP file for vert and loop indices, based on the total amount, in order to save space.
@@ -193,13 +195,12 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 	//struct timeval start, stop;
 	//CLOCK_START;
 	int32_t facesPerThread = pMesh->mesh.faceCount / pContext->threadCount;
-	int32_t threadAmountMinus1 = pContext->threadCount - 1;
 	void *jobArgPtrs[MAX_THREADS];
 	int32_t borderTableSize = pMap->mesh.mesh.faceCount / 5;
 	printf("fromjobsendoff: BorderTableSize: %d\n", borderTableSize);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		int32_t meshStart = facesPerThread * i;
-		int32_t meshEnd = i == threadAmountMinus1 ?
+		int32_t meshEnd = i == pContext->threadCount - 1 ?
 			pMesh->mesh.faceCount : meshStart + facesPerThread;
 		Mesh meshPart = *pMesh;
 		meshPart.mesh.pFaces += meshStart;
@@ -381,20 +382,7 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_STOP("Send Off Time");
 
 	CLOCK_START;
-	int32_t waiting;
-	do  {
-		void (*pJob)(void *) = NULL;
-		void *pArgs = NULL;
-		pContext->threadPool.pJobStackGetJob(pContext->pThreadPoolHandle,
-		                                     &pJob, &pArgs);
-		if (pJob) {
-			pJob(pArgs);
-		}
-		pContext->threadPool.pMutexLock(pContext->pThreadPoolHandle, pMutex);
-		waiting = jobsCompleted < pContext->threadCount;
-		pContext->threadPool.pMutexUnlock(pContext->pThreadPoolHandle, pMutex);
-	} while(waiting);
-	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
+	waitForJobs(pContext, &jobsCompleted, pMutex);
 	CLOCK_STOP("Waiting Time");
 
 	CLOCK_START;
@@ -468,4 +456,108 @@ void ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
 
 RuvmAttrib *ruvmGetAttrib(char *pName, AttribArray *pAttribs) {
 	return getAttrib(pName, pAttribs);
+}
+
+typedef struct {
+	RuvmImage imageBuf;
+	RuvmMap pMap;
+	RuvmContext pContext;
+	int32_t *pJobsCompleted;
+	void *pMutex;
+	int32_t bufOffset;
+	int32_t pixelScale;
+	int32_t pixelCount;
+	int8_t id;
+} RenderArgs;
+
+static void ruvmRenderJob(void *pArgs) {
+	RenderArgs vars = *(RenderArgs *)pArgs;
+	int32_t dataLen = vars.pixelCount * getPixelSize(vars.imageBuf.type);
+	vars.imageBuf.pData = vars.pContext->alloc.pMalloc(dataLen);
+	Mesh *pMesh = &vars.pMap->mesh;
+	for (int32_t i = 0; i < vars.pixelCount; ++i) {
+		int32_t iOffset = vars.bufOffset + i;
+		V2_F32 index = {iOffset % vars.imageBuf.res,
+		                iOffset / vars.imageBuf.res};
+		V2_F32 pos = {vars.pixelScale * index.d[0], vars.pixelScale * index.d[1]};
+		Cell *pCell =
+			ruvmFindEncasingCell(vars.pMap->quadTree.pRootCell, pos);
+		Color color = {0};
+		for (int32_t j = 0; j < pCell->faceSize; ++j) {
+			FaceBounds faceBounds = {0};
+			FaceInfo face;
+			face.index = pCell->pFaces[j];
+			face.start = pMesh->mesh.pFaces[face.index];
+			face.end = pMesh->mesh.pFaces[face.index + 1];
+			face.size = face.end - face.start;
+			getFaceBounds(&faceBounds, pMesh->pUvs, face);
+			if (_(pos V2GREAT faceBounds.fMax) || _(pos V2LESS faceBounds.fMin)) {
+				//continue;
+			}
+			/*
+			V3_F32* pVertA = pMesh->pVerts + pMesh->mesh.pLoops[face.start];
+			V3_F32* pVertB = pMesh->pVerts + pMesh->mesh.pLoops[face.start - 1];
+			V3_F32* pVertC = pMesh->pVerts + pMesh->mesh.pLoops[face.start - 2];
+			V3_F32 ab = _(*pVertB V3SUB *pVertA);
+			V3_F32 ac = _(*pVertC V3SUB *pVertA);
+			V3_F32 normal = v3Cross(ab, ac);
+			float normalLen =
+				sqrt(normal.d[0] * normal.d[0] +
+					 normal.d[1] * normal.d[1] +
+					 normal.d[2] * normal.d[2]);
+			_(&normal V3DIVEQLS normalLen);
+			color.d[0] = normal.d[0];
+			color.d[1] = normal.d[1];
+			color.d[2] = normal.d[2];
+			color.d[3] = 1.0f;
+			*/
+		}
+		color.d[0] = index.d[0] / (float)vars.imageBuf.res;
+		color.d[1] = index.d[1] / (float)vars.imageBuf.res;
+		color.d[2] = (float)vars.id / (float)vars.pContext->threadCount;
+		color.d[3] = 1.0f;
+		setPixelColor(&vars.imageBuf, i, &color);
+	}
+	*(RenderArgs *)pArgs = vars;
+	RuvmThreadPool *pThreadPool = &vars.pContext->threadPool;
+	pThreadPool->pMutexLock(vars.pContext->pThreadPoolHandle, vars.pMutex);
+	++*vars.pJobsCompleted;
+	pThreadPool->pMutexUnlock(vars.pContext->pThreadPoolHandle, vars.pMutex);
+}
+
+void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *pImage) {
+	int32_t pixelCount = pImage->res * pImage->res;
+	float pixelScale = 1.0 / (float)pImage->res;
+	int32_t pixelsPerJob = pixelCount / pContext->threadCount;
+	void *pMutex = NULL;
+	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
+	int32_t jobsCompleted = 0;
+	void *jobArgPtrs[MAX_THREADS];
+	RenderArgs args[MAX_THREADS];
+	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		args[i].bufOffset = i * pixelsPerJob;
+		args[i].imageBuf.res = pImage->res;
+		args[i].imageBuf.type = pImage->type;
+		args[i].pContext = pContext;
+		args[i].pixelCount = i == pContext->threadCount - 1 ?
+			pixelCount - args[i].bufOffset : pixelsPerJob;
+		args[i].pixelScale = pixelScale;
+		args[i].pMap = pMap;
+		args[i].pMutex = pMutex;
+		args[i].pJobsCompleted = &jobsCompleted;
+		args[i].id = i;
+		jobArgPtrs[i] = args + i;
+	}
+	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
+	                                       pContext->threadCount,
+	                                       ruvmRenderJob, jobArgPtrs);
+	waitForJobs(pContext, &jobsCompleted, pMutex);
+	int32_t pixelSize = getPixelSize(pImage->type);
+	pImage->pData = pContext->alloc.pMalloc(pixelCount * pixelSize);
+	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		void *pImageOffset = offsetImagePtr(pImage, i * pixelsPerJob);
+		int32_t bytesToCopy = pixelSize * args[i].pixelCount;
+		memcpy(pImageOffset, args[i].imageBuf.pData, bytesToCopy);
+		pContext->alloc.pFree(args[i].imageBuf.pData);
+	}
 }

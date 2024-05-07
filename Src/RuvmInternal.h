@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <Mesh.h>
 
+typedef struct {
+	float d[4];
+} Color;
+
 typedef struct BorderFace{
 	struct BorderFace *pNext;
 	uint64_t baseLoop : 22;
