@@ -38,9 +38,41 @@ typedef struct {
 	int32_t faceTotalNoDup;
 } EncasingCells;
 
-void ruvmGetAllEncasingCells(RuvmAlloc* pAlloc, Cell *pRootCell,
-                             EncasingCells *pEncasingCells, int8_t *pCellInits,
-							 Mesh *pMesh, FaceInfo faceInfo, V2_I32 tileMin);
+typedef struct {
+	Cell **pCells;
+	int8_t *pCellType;
+	int32_t cellSize;
+	int32_t faceSize;
+	FaceBounds faceBounds;
+} FaceCells;
+
+typedef struct {
+	int32_t cellFacesTotal;
+	int32_t cellFacesMax;
+	FaceCells *pFaceCells;
+	int32_t uniqueFaces;
+} FaceCellsTable;
+
+typedef struct {
+	Cell **ppCells;
+	int8_t *pCellInits;
+	int8_t *pCellTable;
+	int8_t *pCellType;
+	RuvmAlloc *pAlloc;
+	RuvmMap pMap;
+} QuadTreeSearch;
+
+void ruvmInitFaceCellsTable(RuvmAlloc *pAlloc, FaceCellsTable *pTable,
+                            int32_t faceCount);
+void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
+                               FaceCellsTable *pFaceCellsTable);
+void ruvmInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pState);
+void ruvmGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
+                               V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
+							   FaceBounds *pFaceBounds, int32_t tableOffset);
+void ruvmLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
+                            int32_t faceIndex);
+void ruvmDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *ruvmFindEncasingCell(Cell *rootCell, V2_F32 pos);
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
 void ruvmDestroyQuadTree(RuvmContext pContext, Cell *rootCell);

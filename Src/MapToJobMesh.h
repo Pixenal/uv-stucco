@@ -5,21 +5,6 @@
 #include <Utils.h>
 
 typedef struct {
-	Cell **pCells;
-	int8_t *pCellType;
-	int32_t cellSize;
-	int32_t faceSize;
-	FaceBounds faceBounds;
-} FaceCells;
-
-typedef struct {
-	int32_t cellFacesTotal;
-	int32_t cellFacesMax;
-	FaceCells *pFaceCells;
-	int32_t uniqueFaces;
-} FaceCellsTable;
-
-typedef struct {
 	V3_F32 loop;
 	V3_F32 normal;
 	V3_F32 bc; //barycentric coords
@@ -81,7 +66,5 @@ void ruvmMapToJobMesh(void *pArgsPtr);
 void ruvmMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
                          int32_t *pFaceCells, DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, int32_t tile, FaceInfo baseFace);
-void ruvmGetEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
-                           Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable);
 void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
                                FaceCellsTable *pFaceCellsTable);

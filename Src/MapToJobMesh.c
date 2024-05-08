@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 
 #include <RUVM.h>
 #include <MapToJobMesh.h>
@@ -7,6 +8,40 @@
 #include <Clock.h>
 #include <AttribUtils.h>
 #include <Utils.h>
+
+static
+void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+                      Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
+					  int32_t *pAverageMapFacesPerFace) {
+	*pAverageMapFacesPerFace = 0;
+	ruvmInitFaceCellsTable(pAlloc, pFaceCellsTable, pMeshIn->mesh.faceCount);
+	QuadTreeSearch searchState;
+	ruvmInitQuadTreeSearch(pAlloc, pMap, &searchState);
+	for (int32_t i = 0; i < pMeshIn->mesh.faceCount; ++i) {
+		FaceInfo faceInfo;
+		faceInfo.start = pMeshIn->mesh.pFaces[i];
+		faceInfo.end = pMeshIn->mesh.pFaces[i + 1];
+		faceInfo.size = faceInfo.end - faceInfo.start;
+		FaceBounds faceBounds;
+		getFaceBounds(&faceBounds, pMeshIn->pUvs, faceInfo);
+		faceBounds.fMinSmall = faceBounds.fMin;
+		faceBounds.fMaxSmall = faceBounds.fMax;
+		faceBounds.min = v2FloorAssign(&faceBounds.fMin);
+		faceBounds.max = v2FloorAssign(&faceBounds.fMax);
+		_(&faceBounds.fMax V2ADDEQLS 1.0f);
+		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
+		for (int32_t j = 0; j < faceInfo.size; ++j) {
+			pVertBuf[j] = pMeshIn->pUvs[faceInfo.start + j];
+		}
+		ruvmGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
+			                      pFaceCellsTable, &faceBounds, i);
+		pAlloc->pFree(pVertBuf);
+		*pAverageMapFacesPerFace += pFaceCellsTable->pFaceCells[i].faceSize;
+		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
+	}
+	*pAverageMapFacesPerFace /= pMeshIn->mesh.faceCount;
+	ruvmDestroyQuadTreeSearch(&searchState);
+}
 
 static
 void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
@@ -58,25 +93,6 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 		pAlloc->pCalloc(pVars->localTables.vertTableSize, sizeof(LocalVert));
 	pVars->localTables.pEdgeTable =
 		pAlloc->pCalloc(pVars->localTables.edgeTableSize, sizeof(LocalEdge));
-}
-
-static
-void linearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
-                        int32_t faceIndex) {
-	int32_t facesNextIndex = 0;
-	for (int32_t j = 0; j < pFaceCells[faceIndex].cellSize; ++j) {
-		Cell *cell = pFaceCells[faceIndex].pCells[j];
-		if (pFaceCells[faceIndex].pCellType[j]) {
-			memcpy(pCellFaces + facesNextIndex, cell->pEdgeFaces,
-					sizeof(int32_t) * cell->edgeFaceSize);
-			facesNextIndex += cell->edgeFaceSize;
-		}
-		if (pFaceCells[faceIndex].pCellType[j] != 1) {
-			memcpy(pCellFaces + facesNextIndex, cell->pFaces,
-					sizeof(int32_t) * cell->faceSize);
-			facesNextIndex += cell->faceSize;
-		}
-	}
 }
 
 static
@@ -169,7 +185,9 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	vars.mesh = pSend->mesh;
 	vars.pMap = pSend->pMap;
 	vars.pCommonAttribList = pSend->pCommonAttribList;
-	ruvmGetEncasingCells(&vars.alloc, vars.pMap, &vars.mesh, &faceCellsTable);
+	int32_t averageMapFacesPerFace = 0;
+	getEncasingCells(&vars.alloc, vars.pMap, &vars.mesh, &faceCellsTable,
+	                 &averageMapFacesPerFace);
 	vars.bufSize = vars.mesh.mesh.faceCount + faceCellsTable.cellFacesTotal;
 	allocBufMeshAndTables(&vars, &faceCellsTable);
 	DebugAndPerfVars dpVars = {0};
@@ -180,7 +198,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		vars.alloc.pMalloc(sizeof(int32_t) * faceCellsTable.cellFacesMax);
 	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
 		// copy faces over to a new contiguous array
-		linearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
+		ruvmLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
 		FaceInfo baseFace;
 		baseFace.start = vars.mesh.mesh.pFaces[i];
 		baseFace.end = vars.mesh.mesh.pFaces[i + 1];
@@ -238,6 +256,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	pSend->bufMesh = vars.bufMesh;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
+	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
 	++*pSend->pJobsCompleted;
 	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,
 	                                         pSend->pMutex);
