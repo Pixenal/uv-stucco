@@ -114,8 +114,8 @@ void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 static
 void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
                           int32_t i, int32_t *pEdgeFace, LoopInfo *pBaseLoop,
-						  int32_t vertNextIndex, int32_t preserve,
-						  int32_t alpha) {
+						  int32_t vertNextIndex, int32_t preserve) {
+	int32_t alpha = 0;
 	*pEdgeFace += 1;
 	LoopBuf *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
 	if ((pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[vertNextIndex].baseLoop ||
@@ -164,7 +164,6 @@ void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopB
 			addInsideLoopToBuf(pNewLoopBuf, pLoopBuf, pInsideBuf, i, pBaseLoop,
 			                   pOnLine);
 		}
-		int32_t alpha;
 		if (pInsideBuf[i] != 0 ^ pInsideBuf[vertNextIndex] != 0 &&
 		    pInsideBuf[i] >= 0 && pInsideBuf[vertNextIndex] >= 0) {
 			//the current point is inside, but the next is not (or visa versa),
@@ -172,7 +171,7 @@ void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopB
 			//fact that insideBuf can be negative if the point is on the line.
 			//The != converts the value to absolute, thus ignoring this.
 			addIntersectionToBuf(pNewLoopBuf, pLoopBuf, i, pEdgeFace, pBaseLoop,
-			                     vertNextIndex, preserve, alpha);
+			                     vertNextIndex, preserve);
 		}
 	}
 }
@@ -736,62 +735,83 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 }
 
 void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
-                         int32_t *pFaceCells, DebugAndPerfVars *pDpVars,
+                         DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, int32_t tile, FaceInfo baseFace) {
 	FaceBounds bounds;
 	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri;
+	pDpVars->facesNotSkipped++;
 	for (int32_t i = 0; i < baseFace.size; ++i) {
 		int32_t loop = baseFace.start + i;
 		baseTri.uv[i] = _(pVars->mesh.pUvs[loop] V2SUB fTileMin);
 		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[loop]];
 	}
-	int32_t cellFaces = pFaceCellsTable->pFaceCells[baseFace.index].faceSize;
-	for (int32_t i = 0; i < cellFaces; ++i) {
-		FaceInfo ruvmFace;
-		ruvmFace.index = pFaceCells[i];
-		ruvmFace.start = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index];
-		ruvmFace.end = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index + 1];
-		ruvmFace.size = ruvmFace.end - ruvmFace.start;
-		if (!checkFaceIsInBounds(_(bounds.fMin V2SUB fTileMin),
-			                     _(bounds.fMax V2SUB fTileMin),
-								 ruvmFace, &pVars->pMap->mesh)) {
+	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.index].cellSize; ++i) {
+		Cell* pCell = pFaceCellsTable->pFaceCells[baseFace.index].pCells[i];
+		int32_t* pCellFaces;
+		Range range;
+		if (pFaceCellsTable->pFaceCells[baseFace.index].pCellType[i]) {
+			pCellFaces = pCell->pEdgeFaces;
+			range = pFaceCellsTable->pFaceCells[baseFace.index].pRanges[i];
+			//range.start = 0;
+			//range.end = pCell->edgeFaceSize;
+		}
+		else if (pFaceCellsTable->pFaceCells[baseFace.index].pCellType[i] != 1) {
+			pCellFaces = pCell->pFaces;
+			range.start = 0;
+			range.end = pCell->faceSize;
+		}
+		else {
 			continue;
 		}
-		int32_t faceWindingDir =
-			calcFaceWindingDirection(baseFace, pVars->mesh.pUvs);
-		if (faceWindingDir == 2) {
-			//face is degenerate
-			continue;
+		for (int32_t j = range.start; j < range.end; ++j) {
+			pDpVars->totalFacesComp++;
+			FaceInfo ruvmFace;
+			ruvmFace.index = pCellFaces[j];
+			ruvmFace.start = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index];
+			ruvmFace.end = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index + 1];
+			ruvmFace.size = ruvmFace.end - ruvmFace.start;
+			if (!checkFaceIsInBounds(_(bounds.fMin V2SUB fTileMin),
+									 _(bounds.fMax V2SUB fTileMin),
+									 ruvmFace, &pVars->pMap->mesh)) {
+				continue;
+			}
+			pDpVars->facesNotSkipped++;
+			int32_t faceWindingDir =
+				calcFaceWindingDirection(baseFace, pVars->mesh.pUvs);
+			if (faceWindingDir == 2) {
+				//face is degenerate
+				continue;
+			}
+			LoopBufWrap loopBuf = {0};
+			loopBuf.size = ruvmFace.size;
+			for (int32_t k = 0; k < ruvmFace.size; ++k) {
+				int32_t vertIndex = pVars->pMap->mesh.mesh.pLoops[ruvmFace.start + k];
+				loopBuf.buf[k].preserve = 0;
+				loopBuf.buf[k].isRuvm = 1;
+				loopBuf.buf[k].baseLoop = (vertIndex + 1) * -1;
+				loopBuf.buf[k].loop = pVars->pMap->mesh.pVerts[vertIndex];
+				loopBuf.buf[k].loop.d[0] += fTileMin.d[0];
+				loopBuf.buf[k].loop.d[1] += fTileMin.d[1];
+				loopBuf.buf[k].ruvmLoop = k;
+				loopBuf.buf[k].normal =
+					pVars->pMap->mesh.pNormals[ruvmFace.start + k];
+			}
+			int32_t edgeFace = 0;
+			int32_t onLine = 0;
+			int32_t hasPreservedEdge = 0;
+			int32_t seam = 0;
+			clipRuvmFaceAgainstBaseFace(pVars, baseFace, &loopBuf, &edgeFace,
+										&hasPreservedEdge, &seam, faceWindingDir,
+										&onLine);
+			if (loopBuf.size <= 2) {
+				continue;
+			}
+			transformClippedFaceFromUvToXyz(&loopBuf, baseFace, &baseTri,
+											pVars, fTileMin);
+			addClippedFaceToBufMesh(pVars, &loopBuf, edgeFace,
+									  ruvmFace, tile, baseFace, hasPreservedEdge,
+									  seam, onLine);
 		}
-		LoopBufWrap loopBuf = {0};
-		loopBuf.size = ruvmFace.size;
-		for (int32_t j = 0; j < ruvmFace.size; ++j) {
-			int32_t vertIndex = pVars->pMap->mesh.mesh.pLoops[ruvmFace.start + j];
-			loopBuf.buf[j].preserve = 0;
-			loopBuf.buf[j].isRuvm = 1;
-			loopBuf.buf[j].baseLoop = (vertIndex + 1) * -1;
-			loopBuf.buf[j].loop = pVars->pMap->mesh.pVerts[vertIndex];
-			loopBuf.buf[j].loop.d[0] += fTileMin.d[0];
-			loopBuf.buf[j].loop.d[1] += fTileMin.d[1];
-			loopBuf.buf[j].ruvmLoop = j;
-			loopBuf.buf[j].normal =
-				pVars->pMap->mesh.pNormals[ruvmFace.start + j];
-		}
-		int32_t edgeFace = 0;
-		int32_t onLine = 0;
-		int32_t hasPreservedEdge = 0;
-		int32_t seam = 0;
-		clipRuvmFaceAgainstBaseFace(pVars, baseFace, &loopBuf, &edgeFace,
-		                            &hasPreservedEdge, &seam, faceWindingDir,
-									&onLine);
-		if (loopBuf.size <= 2) {
-			continue;
-		}
-		transformClippedFaceFromUvToXyz(&loopBuf, baseFace, &baseTri,
-		                                pVars, fTileMin);
-		addClippedFaceToBufMesh(pVars, &loopBuf, edgeFace,
-		                          ruvmFace, tile, baseFace, hasPreservedEdge,
-								  seam, onLine);
 	}
 }

@@ -55,18 +55,15 @@ static void removeEdgeEntryFromList(RuvmContext pContext, SharedEdge *pEntry,
 */
 
 static
-int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry,
-                            int32_t *pEntryNum) {
+int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry) {
 	int32_t faceIndex = pEntry->faceIndex;
 	int32_t ruvmLoops = 0;
-	*pEntryNum = 0;
 	do {
 		int32_t isRuvm = pEntry->isRuvm;
 		for (int32_t i = 0; i < 11; ++i) {
 			ruvmLoops += isRuvm >> i & 1;
 		}
 		pEntry = pEntry->pNext;
-		++*pEntryNum;
 	} while(pEntry);
 	int32_t faceStart = pMap->mesh.mesh.pFaces[faceIndex];
 	int32_t faceEnd = pMap->mesh.mesh.pFaces[faceIndex + 1];
@@ -657,8 +654,7 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
                                RuvmMap pMap, Mesh *pMeshOut,
 							   SendOffArgs *pJobArgs, Piece *pPiece,
 							   CombineTables *pCTables, JobBases *pJobBases,
-							   int8_t *pVertSeamTable, int32_t entryNum,
-							   FaceInfo *pRuvmFace) {
+							   int8_t *pVertSeamTable, FaceInfo *pRuvmFace) {
 	CLOCK_INIT
 	CLOCK_START;
 	Vars vars = {0};
@@ -667,7 +663,7 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 		return;
 	}
 	vars.ruvmFace = *pRuvmFace;
-	vars.seamFace = determineIfSeamFace(pMap, vars.pEntry, &entryNum);
+	vars.seamFace = determineIfSeamFace(pMap, vars.pEntry);
 	vars.ruvmIndicesSort[0] = -10;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);

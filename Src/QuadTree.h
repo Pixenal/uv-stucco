@@ -17,6 +17,7 @@ typedef struct Cell {
 	V2_F32 boundsMax;
 	int32_t linkEdgeSize;
 	int32_t *pLinkEdges;
+	Range* pLinkEdgeRanges;
 } Cell;
 
 typedef struct {
@@ -36,11 +37,13 @@ typedef struct {
 	int8_t *pCellType;
 	int32_t faceTotal;
 	int32_t faceTotalNoDup;
+	Range *pRangeBuf;
 } EncasingCells;
 
 typedef struct {
 	Cell **pCells;
 	int8_t *pCellType;
+	Range* pRanges;
 	int32_t cellSize;
 	int32_t faceSize;
 	FaceBounds faceBounds;

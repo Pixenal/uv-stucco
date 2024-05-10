@@ -77,11 +77,11 @@ int32_t findFaceQuadrantUv(RuvmAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
 }
 
 static
-int32_t findFaceQuadrant(RuvmAlloc *pAlloc, int32_t loopSize,
-                         int32_t faceStart, Mesh *pMesh, V2_F32 midPoint,
-						 V2_I32 *commonSides, V2_I32 *signs) {
+int32_t findFaceQuadrant(RuvmAlloc* pAlloc, int32_t loopSize,
+	int32_t faceStart, Mesh* pMesh, V2_F32 midPoint,
+	V2_I32* commonSides, V2_I32* signs) {
 	commonSides->d[0] = commonSides->d[1] = 1;
-	V2_I32 *pSides = pAlloc->pMalloc(sizeof(V2_I32) * loopSize);
+	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * loopSize);
 	for (int32_t i = 0; i < loopSize; ++i) {
 		int32_t vertIndex = pMesh->mesh.pLoops[faceStart + i];
 		pSides[i].d[0] = pMesh->pVerts[vertIndex].d[0] >= midPoint.d[0];
@@ -91,10 +91,57 @@ int32_t findFaceQuadrant(RuvmAlloc *pAlloc, int32_t loopSize,
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
 	}
+	if (!commonSides->d[0] && !commonSides->d[1]) {
+		pAlloc->pFree(pSides);
+		return 0;
+	}
 	signs->d[0] = pSides[0].d[0];
 	signs->d[1] = pSides[0].d[1];
 	pAlloc->pFree(pSides);
-	return commonSides->d[0] && commonSides->d[1];
+	if (commonSides->d[0] && commonSides->d[1]) {
+		return 1;
+	}
+	else {
+		return 2;
+	}
+}
+
+static
+void getChildrenFromResult(int32_t result, Children* pChildren,
+	V2_I32* pCommonSides, V2_I32* pSigns) {
+	switch (result) {
+		case 0: {
+			//addCellToEncasingCells(cell, pEncasingCells, 0);
+			//*pCellStackPtr--;
+			//pCellInits[cell->cellIndex] = 1;
+			//continue;
+			pChildren->d[0] = 1;
+			pChildren->d[1] = 1;
+			pChildren->d[2] = 1;
+			pChildren->d[3] = 1;
+			break;
+		}
+		case 1: {
+			pChildren->d[0] = !pSigns->d[0] && !pSigns->d[1];
+			pChildren->d[1] = pSigns->d[0] && !pSigns->d[1];
+			pChildren->d[2] = !pSigns->d[0] && pSigns->d[1];
+			pChildren->d[3] = pSigns->d[0] && pSigns->d[1];
+			break;
+		}
+		case 2: {
+			int32_t top, bottom = top = pCommonSides->d[1];
+			int32_t left, right = left = pCommonSides->d[0];
+			top *= !pSigns->d[1];
+			bottom *= pSigns->d[1];
+			left *= !pSigns->d[0];
+			right *= pSigns->d[0];
+			pChildren->d[0] = top || left;
+			pChildren->d[1] = top || right;
+			pChildren->d[2] = bottom || left;
+			pChildren->d[3] = bottom || right;
+			break;
+		}
+	}
 }
 
 static
@@ -110,39 +157,7 @@ void findEncasingChildCells(RuvmAlloc *pAlloc, Cell *pCell, Children *pChildren,
 	int32_t result =
 		findFaceQuadrantUv(pAlloc, vertCount, pVerts, midPoint,
 						   &commonSides, &signs);
-	switch (result) {
-		case 0: {
-			//addCellToEncasingCells(cell, pEncasingCells, 0);
-			//*pCellStackPtr--;
-			//pCellInits[cell->cellIndex] = 1;
-			//continue;
-			pChildren[*pCellStackPtr].d[0] = 1;
-			pChildren[*pCellStackPtr].d[1] = 1;
-			pChildren[*pCellStackPtr].d[2] = 1;
-			pChildren[*pCellStackPtr].d[3] = 1;
-			break;
-		}
-		case 1: {
-			pChildren[*pCellStackPtr].d[0] = !signs.d[0] && !signs.d[1];
-			pChildren[*pCellStackPtr].d[1] = signs.d[0] && !signs.d[1];
-			pChildren[*pCellStackPtr].d[2] = !signs.d[0] && signs.d[1];
-			pChildren[*pCellStackPtr].d[3] = signs.d[0] && signs.d[1];
-			break;
-		}
-		case 2: {
-			int32_t top, bottom = top = commonSides.d[1];
-			int32_t left, right = left = commonSides.d[0];
-			top *= !signs.d[1];
-			bottom *= signs.d[1];
-			left *= !signs.d[0];
-			right *= signs.d[0];
-			pChildren[*pCellStackPtr].d[0] = top || left;
-			pChildren[*pCellStackPtr].d[1] = top || right;
-			pChildren[*pCellStackPtr].d[2] = bottom || left;
-			pChildren[*pCellStackPtr].d[3] = bottom || right;
-			break;
-		}
-	}
+	getChildrenFromResult(result, pChildren + *pCellStackPtr, &commonSides, &signs);
 }
 
 void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCells,
@@ -229,20 +244,23 @@ static
 int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
                                   V2_F32 *pVerts, FaceBounds *pFaceBounds,
 								  EncasingCells *pCellsBuffer, V2_I32 tileMin) {
-	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
-	int32_t faceVertInside = 0;
-	checkIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, isInsideBuffer,
-	                        &faceVertInside, tileMin);
-	int32_t isInside = isInsideBuffer[0] || isInsideBuffer[1] ||
-	                   isInsideBuffer[2] || isInsideBuffer[3];
-	int32_t isFullyEnclosed = isInsideBuffer[0] && isInsideBuffer[1] &&
-	                          isInsideBuffer[2] && isInsideBuffer[3];
-	if (isFullyEnclosed) {
-		return 1;
-	}
-	if (!faceVertInside && !isInside) {
-		//face is not inside current tile
-		return 0;
+	//Don't check if in tile, if pFaceBounds is NULL
+	if (pFaceBounds) {
+		int32_t isInsideBuffer[4] = {1, 1, 1, 1};
+		int32_t faceVertInside = 0;
+		checkIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, isInsideBuffer,
+								&faceVertInside, tileMin);
+		int32_t isInside = isInsideBuffer[0] || isInsideBuffer[1] ||
+						   isInsideBuffer[2] || isInsideBuffer[3];
+		int32_t isFullyEnclosed = isInsideBuffer[0] && isInsideBuffer[1] &&
+								  isInsideBuffer[2] && isInsideBuffer[3];
+		if (isFullyEnclosed) {
+			return 1;
+		}
+		if (!faceVertInside && !isInside) {
+			//face is not inside current tile
+			return 0;
+		}
 	}
 	//find fully encasing cell using clipped face
 	ruvmGetAllEncasingCells(pState, pCellsBuffer, vertCount, pVerts, tileMin);
@@ -250,7 +268,9 @@ int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
 }
 
 static
-int32_t checkBranchCellIsLinked(EncasingCells *pCellsBuffer, int32_t index) {
+int32_t checkBranchCellIsLinked(EncasingCells *pCellsBuffer, int32_t index,
+                                Range *pRange) {
+	int32_t linked = 0;
 	Cell *cell = pCellsBuffer->ppCells[index];
 	for (int32_t j = 0; j < pCellsBuffer->cellSize; ++j) {
 		if (pCellsBuffer->pCellType[j] || index == j) {
@@ -259,11 +279,20 @@ int32_t checkBranchCellIsLinked(EncasingCells *pCellsBuffer, int32_t index) {
 		Cell *leaf = pCellsBuffer->ppCells[j];
 		for (int32_t k = 0; k < leaf->linkEdgeSize; ++k) {
 			if (cell->cellIndex == leaf->pLinkEdges[k]) {
-				return 1;
+				if (!linked) {
+					linked = 1;
+				}
+				if (leaf->pLinkEdgeRanges[k].start < pRange->start) {
+					pRange->start = leaf->pLinkEdgeRanges[k].start;
+				}
+				if (leaf->pLinkEdgeRanges[k].end > pRange->end) {
+					pRange->end = leaf->pLinkEdgeRanges[k].end;
+				}
+				break;
 			}
 		}
 	}
-	return 0;
+	return linked;
 }
 
 static
@@ -273,7 +302,9 @@ void removeNonLinkedBranchCells(EncasingCells *pCellsBuffer) {
 			i++;
 			continue;
 		}
-		if (checkBranchCellIsLinked(pCellsBuffer, i)) {
+		Range range = {.start = INT32_MAX, .end = INT32_MIN};
+		if (checkBranchCellIsLinked(pCellsBuffer, i, &range)) {
+			pCellsBuffer->pRangeBuf[i] = range;
 			i++;
 			continue;
 		}
@@ -300,6 +331,8 @@ void copyCellsIntoTotalList(RuvmAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
 	memcpy(pEntry->pCellType, pCellsBuffer->pCellType, pCellsBuffer->cellSize);
 	pEntry->cellSize = pCellsBuffer->cellSize;
 	pEntry->faceSize = pCellsBuffer->faceTotalNoDup;
+	pEntry->pRanges = pCellsBuffer->pRangeBuf;
+	pCellsBuffer->pRangeBuf = NULL;
 	if (pCellsBuffer->faceTotalNoDup > pFaceCellsTable->cellFacesMax) {
 		pFaceCellsTable->cellFacesMax = pCellsBuffer->faceTotalNoDup;
 	}
@@ -392,9 +425,15 @@ void ruvmGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 	cellsBuffer.ppCells = pState->ppCells;
 	cellsBuffer.pCellType = pState->pCellType;
 	FaceCells *pEntry = pFaceCellsTable->pFaceCells + faceIndex;
-	pEntry->faceBounds = *pFaceBounds;
-	for (int32_t i = pFaceBounds->min.d[1]; i <= pFaceBounds->max.d[1]; ++i) {
-		for (int32_t j = pFaceBounds->min.d[0]; j <= pFaceBounds->max.d[0]; ++j) {
+	V2_I32 minTile = {0};
+	V2_I32 maxTile = {0};
+	if (pFaceBounds) {
+		pEntry->faceBounds = *pFaceBounds;
+		minTile = pFaceBounds->min;
+		maxTile = pFaceBounds->max;
+	}
+	for (int32_t i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
+		for (int32_t j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
 			V2_I32 tileMin = {j, i};
 			//continue until the smallest cell that fully
 			//encloses the face is found (result == 0).
@@ -414,6 +453,8 @@ void ruvmGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 			}
 		}
 	}
+	cellsBuffer.pRangeBuf =
+		pState->pAlloc->pMalloc(sizeof(Range) * cellsBuffer.cellSize);
 	removeNonLinkedBranchCells(&cellsBuffer);
 	recordCellsInTable(pState, pFaceCellsTable, &cellsBuffer);
 	copyCellsIntoTotalList(pState->pAlloc, pFaceCellsTable, &cellsBuffer,
@@ -469,7 +510,8 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPtr) {
 }
 
 static
-int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh) {
+int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRange) {
+	int32_t linked = 0;
 	for (int32_t k = 0; k < pAncestor->edgeFaceSize; ++k) {
 		int32_t faceIndex = pAncestor->pEdgeFaces[k];
 		FaceInfo face;
@@ -480,35 +522,108 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh) {
 		//replace with a better method
 		if (checkFaceIsInBounds(pChild->boundsMin, pChild->boundsMax,
 			                    face, pMesh)) {
-			return 1;
+			if (!linked) {
+				linked = 1;
+				pRange->start = k;
+			}
+			pRange->end = k;
 		}
 	}
-	return 0;
+	pRange->end++;
+	return linked;
 }
 
 static
 void addLinkEdgesToCells(RuvmContext pContext, Cell* pParentCell, Mesh *pMesh,
                          Cell **pCellStack, int32_t cellStackPtr) {
 	int32_t buf[32];
+	Range rangeBuf[32];
 	int32_t bufSize;
 	for (int32_t i = 0; i < 4; ++i) {
 		bufSize = 0;
 		Cell *pChild = pParentCell->pChildren + i;
-		for (int32_t j = cellStackPtr; j >= 0; --j) {
+		for (int32_t j = 0; j <= cellStackPtr; ++j) {
 			Cell *pAncestor = pCellStack[j];
-			if (checkIfLinkedEdge(pChild, pAncestor, pMesh)) {
+			Range range;
+			if (checkIfLinkedEdge(pChild, pAncestor, pMesh, &range)) {
 				buf[bufSize] = pAncestor->cellIndex;
+				rangeBuf[bufSize] = range;
 				bufSize++;
 			}
 		}
 		if (bufSize) {
 			pChild->pLinkEdges =
 				pContext->alloc.pMalloc(sizeof(int32_t) * bufSize);
+			pChild->pLinkEdgeRanges =
+				pContext->alloc.pMalloc(sizeof(Range) * bufSize);
 			pChild->linkEdgeSize = bufSize;
 			memcpy(pChild->pLinkEdges, buf, sizeof(int32_t) * bufSize);
+			memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
 		}
 	}
 }
+
+/*
+static
+void getDupEdgeFaces(RuvmContext pContext, Cell **pCellStack,
+                     int32_t cellStackPtr, Mesh *pMesh, int8_t *pFaceFlag) {
+	Cell* pCell = pCellStack[cellStackPtr];
+	int32_t ancestors[256];
+	int32_t ancestorCount = 0;
+	for (int32_t i = 0; i < cellStackPtr; ++i) {
+		Cell* pAncestor = pCellStack[i];
+		int32_t linked = 0;
+		for (int32_t j = 0; j < pCell->linkEdgeSize; ++j) {
+			if (pAncestor->cellIndex == pCell->pLinkEdges[j]) {
+				linked = 1;
+				break;
+			}
+		}
+		if (!linked) {
+			continue;
+		}
+		ancestors[ancestorCount] = i;
+		ancestorCount++;
+		for (int32_t j = 0; j < pAncestor->edgeFaceSize; ++j) {
+			int32_t face = pAncestor->pEdgeFaces[j];
+			int32_t faceStart = pMesh->mesh.pFaces[face];
+			int32_t faceEnd = pMesh->mesh.pFaces[face + 1];
+			int32_t faceLoopSize = faceEnd - faceStart;
+			for (int32_t k = 0; k < faceLoopSize; ++k) {
+				V2_F32* pVert = pMesh->pVerts + pMesh->mesh.pLoops[faceStart + k];
+				if (_(*pVert V2GREAT pCell->boundsMin) &&
+					_(*pVert V2LESS pCell->boundsMax)) {
+					//offset index per cell
+					int32_t index = pAncestor->edgeFaceSize + j;
+					pFaceFlag[index] = 1;
+					pCell->dupEdgeFaceCount++;
+					break;
+				}
+			}
+		}
+	}
+	if (pCell->dupEdgeFaceCount) {
+		pCell->pDupEdgeFaces =
+			pContext->alloc.pMalloc(sizeof(int32_t) * pCell->dupEdgeFaceCount);
+	}
+	else {
+		return;
+	}
+	pCell->dupEdgeFaceCount = 0;
+	for (int32_t i = 0; i < ancestorCount; ++i) {
+		Cell* pAncestor = pCellStack[ancestors[i]];
+		for (int32_t j = 0; j < pAncestor->edgeFaceSize; ++j) {
+			int32_t index = pAncestor->edgeFaceSize + j;
+			if (pFaceFlag[index]) {
+				pCell->pDupEdgeFaces[pCell->dupEdgeFaceCount] =
+					pAncestor->pEdgeFaces[j];
+				pCell->dupEdgeFaceCount++;
+				pFaceFlag[index] = 0;
+			}
+		}
+	}
+}
+*/
 
 static
 void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
@@ -526,7 +641,7 @@ void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
 		int32_t result =
 			findFaceQuadrant(&pContext->alloc, faceLoopSize, faceStart, pMesh,
 			                 midPoint, &commonSides, &signs);
-		if (result) {
+		if (result == 1) {
 			int32_t child = signs.d[0] + signs.d[1] * 2;
 			pFaceFlag[i] = child + 1;
 			pParentCell->pChildren[child].faceSize++;

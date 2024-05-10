@@ -18,4 +18,5 @@ typedef struct {
 typedef struct RuvmMapInternal {
 	Mesh mesh;
 	QuadTree quadTree;
+	V2_F32 zBounds;
 } MapFile;

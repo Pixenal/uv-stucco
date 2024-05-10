@@ -131,14 +131,14 @@ Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 
 static
 void mapPerTile(MappingJobVars *pMVars, FaceInfo *pBaseFace,
-                       FaceCellsTable *pFaceCellsTable, int32_t *pCellFaces,
+                       FaceCellsTable *pFaceCellsTable,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
 	FaceBounds *pFaceBounds = &pFaceCellsTable->pFaceCells[rawFace].faceBounds;
 	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
 			V2_F32 fTileMin = {k, j};
 			int32_t tile = k + (j * pFaceBounds->max.d[0]);
-			ruvmMapToSingleFace(pMVars, pFaceCellsTable, pCellFaces, pDpVars,
+			ruvmMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
 			                    fTileMin, tile, *pBaseFace);
 		}
 	}
@@ -175,6 +175,7 @@ void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 }
 
 void ruvmMapToJobMesh(void *pVarsPtr) {
+	//CLOCK_INIT;
 	FaceCellsTable faceCellsTable = {0};
 	SendOffArgs *pSend = pVarsPtr;
 	MappingJobVars vars = {0};
@@ -186,19 +187,30 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	vars.pMap = pSend->pMap;
 	vars.pCommonAttribList = pSend->pCommonAttribList;
 	int32_t averageMapFacesPerFace = 0;
+	//CLOCK_START;
 	getEncasingCells(&vars.alloc, vars.pMap, &vars.mesh, &faceCellsTable,
 	                 &averageMapFacesPerFace);
+	//CLOCK_STOP("Get Encasing Cells Time");
+	//CLOCK_START;
 	vars.bufSize = vars.mesh.mesh.faceCount + faceCellsTable.cellFacesTotal;
 	allocBufMeshAndTables(&vars, &faceCellsTable);
+	//CLOCK_STOP("Alloc buffers and tables time");
 	DebugAndPerfVars dpVars = {0};
 	uint64_t mappingTime, copySingleTime;
 	copySingleTime = 0;
 	mappingTime = 0;
-	int32_t *pCellFaces = 
-		vars.alloc.pMalloc(sizeof(int32_t) * faceCellsTable.cellFacesMax);
+	//CLOCK_START;
+	//int32_t *pCellFaces = 
+	//	vars.alloc.pMalloc(sizeof(int32_t) * faceCellsTable.cellFacesMax);
+	//CLOCK_STOP("Alloc cell faces");
+	//int64_t linearizeTime = 0;
 	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
 		// copy faces over to a new contiguous array
-		ruvmLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
+		//CLOCK_START;
+		//ruvmLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
+		//CLOCK_STOP_NO_PRINT;
+		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
+		//CLOCK_START;
 		FaceInfo baseFace;
 		baseFace.start = vars.mesh.mesh.pFaces[i];
 		baseFace.end = vars.mesh.mesh.pFaces[i + 1];
@@ -207,27 +219,24 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		vars.tbn = buildFaceTbn(baseFace, &vars.mesh);
 		FaceTriangulated faceTris = {0};
 		if (baseFace.size > 3) {
-			faceTris = triangulateFace(vars.alloc, baseFace, &vars.mesh);
+			faceTris = triangulateFace(vars.alloc, baseFace, &vars.mesh, 1);
 		}
 		if (baseFace.size <= 4) {
 			//face is a quad, or a tri
-			mapPerTile(&vars, &baseFace, &faceCellsTable, pCellFaces,
+			mapPerTile(&vars, &baseFace, &faceCellsTable,
 			           &dpVars, i);
 		}
 		else {
 			//face is an ngon. ngons are processed per tri
 			for (int32_t j = 0; j < faceTris.triCount; ++j) {
 				int32_t triFaceStart = faceTris.pTris[j];
-				int32_t triFaceEnd = faceTris.pTris[j + 1];
 				baseFace.start = faceTris.pLoops[triFaceStart];
-				baseFace.end = faceTris.pLoops[triFaceEnd];
+				baseFace.end = faceTris.pLoops[triFaceStart + 2];
 				baseFace.size = baseFace.end - baseFace.start;
-				mapPerTile(&vars, &baseFace, &faceCellsTable, pCellFaces,
+				mapPerTile(&vars, &baseFace, &faceCellsTable,
 				           &dpVars, i);
 			}
 		}
-		//CLOCK_STOP_NO_PRINT;
-		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		if (faceTris.pTris) {
 			vars.alloc.pFree(faceTris.pTris);
 			faceTris.pTris = NULL;
@@ -236,10 +245,17 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 			vars.alloc.pFree(faceTris.pLoops);
 			faceTris.pLoops = NULL;
 		}
+		//CLOCK_STOP_NO_PRINT;
+		//mappingTime += CLOCK_TIME_DIFF(start, stop);
+		//CLOCK_START;
 		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pCells);
 		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pCellType);
+		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pRanges);
+		//CLOCK_STOP_NO_PRINT;
+		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 	}
-	vars.alloc.pFree(pCellFaces);
+	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
+	//vars.alloc.pFree(pCellFaces);
 	vars.bufMesh.mesh.pFaces[vars.bufMesh.borderFaceCount] = 
 		vars.bufMesh.borderLoopCount;
 	pSend->totalBorderFaces = vars.bufSize - vars.bufMesh.borderFaceCount;
@@ -256,6 +272,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	pSend->bufMesh = vars.bufMesh;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
+	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
+	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
 	++*pSend->pJobsCompleted;
 	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,

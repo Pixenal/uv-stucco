@@ -64,7 +64,7 @@ typedef struct {
 
 void ruvmMapToJobMesh(void *pArgsPtr);
 void ruvmMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
-                         int32_t *pFaceCells, DebugAndPerfVars *pDpVars,
+                         DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, int32_t tile, FaceInfo baseFace);
 void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
                                FaceCellsTable *pFaceCellsTable);

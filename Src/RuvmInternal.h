@@ -3,6 +3,11 @@
 #include <Mesh.h>
 
 typedef struct {
+	int32_t start;
+	int32_t end;
+} Range;
+
+typedef struct {
 	float d[4];
 } Color;
 
@@ -60,4 +65,6 @@ typedef struct {
 typedef struct {
 	uint64_t timeSpent[3];
 	int32_t maxDepth;
+	int32_t facesNotSkipped;
+	int32_t totalFacesComp;
 } DebugAndPerfVars;

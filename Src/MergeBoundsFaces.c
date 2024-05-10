@@ -277,7 +277,6 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		BorderFace *pEntry = pBorderTable->ppTable[i];
 		int32_t entryCount, isSeam, hasPreservedEdge;
 		compileEntryInfo(pEntry, &entryCount, &isSeam, &hasPreservedEdge);
-		int32_t entryNum;
 		//int32_t seamFace = ;
 		FaceInfo ruvmFace;
 		ruvmFace.index = pEntry->faceIndex;
@@ -298,7 +297,7 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		for (int32_t j = 0; j < pieceCount; ++j) {
 			ruvmMergeSingleBorderFace(timeSpent, pContext, pMap, pMeshOut,
 			                          pJobArgs, pPieces + j, pCTables, pJobBases,
-									  pVertSeamTable, entryNum, &ruvmFace);
+									  pVertSeamTable, &ruvmFace);
 		}
 		CLOCK_START;
 		if (pPieces) {

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 
 #include <Io.h>
 #include <MapToJobMesh.h>
@@ -465,59 +466,122 @@ typedef struct {
 	int32_t *pJobsCompleted;
 	void *pMutex;
 	int32_t bufOffset;
-	int32_t pixelScale;
 	int32_t pixelCount;
 	int8_t id;
+	V2_F32 zBounds;
 } RenderArgs;
+
+static void testPixelAgainstFace(RenderArgs *pVars, V2_F32 *pPos, FaceInfo *pFace, Color *pColor) {
+	Mesh* pMesh = &pVars->pMap->mesh;
+	V2_F32 verts[4];
+	for (int32_t i = 0; i < pFace->size; ++i) {
+		verts[i] = *(V2_F32 *)(pMesh->pVerts + pMesh->mesh.pLoops[pFace->start + i]);
+	}
+	int8_t triLoops[4] = {0};
+	V3_F32 bc = getBarycentricInFace(verts, triLoops, pFace->size, *pPos);
+	if (bc.d[0] < -.0001f || bc.d[1] < -.0001f || bc.d[2] < -.0001f ||
+		isnan(bc.d[0]) || isnan(bc.d[1]) || isnan(bc.d[1])) {
+		return;
+	}
+	V3_F32 vertsXyz[3];
+	for (int32_t i = 0; i < 3; ++i) {
+		int32_t vertIndex = pMesh->mesh.pLoops[pFace->start + triLoops[i]];
+		vertsXyz[i] = pMesh->pVerts[vertIndex];
+	}
+	V3_F32 wsPos = barycentricToCartesian(vertsXyz, &bc);
+	//the alpha channel is used as a depth buffer
+	if (wsPos.d[2] <= pColor->d[3]) {
+		return;
+	}
+	V3_F32 ab = _(vertsXyz[1] V3SUB vertsXyz[0]);
+	V3_F32 ac = _(vertsXyz[2] V3SUB vertsXyz[0]);
+	V3_F32 normal = v3Cross(ab, ac);
+	float normalLen =
+		sqrt(normal.d[0] * normal.d[0] +
+		     normal.d[1] * normal.d[1] +
+		     normal.d[2] * normal.d[2]);
+	_(&normal V3DIVEQLS normalLen);
+	V3_F32 up = { .0f, .0f, 1.0f };
+	float dotUp = _(normal V3DOT up);
+	if (dotUp < .0f) {
+		return;
+	}
+	float depth = (wsPos.d[2] - pVars->zBounds.d[0]) / pVars->zBounds.d[1];
+	float value = dotUp;
+	value *= 1.0f - (1.0f - depth) * .5f;
+	value *= .75;
+	pColor->d[0] = value;
+	pColor->d[1] = value;
+	pColor->d[2] = value;
+	pColor->d[3] = wsPos.d[2];
+}
 
 static void ruvmRenderJob(void *pArgs) {
 	RenderArgs vars = *(RenderArgs *)pArgs;
 	int32_t dataLen = vars.pixelCount * getPixelSize(vars.imageBuf.type);
 	vars.imageBuf.pData = vars.pContext->alloc.pMalloc(dataLen);
 	Mesh *pMesh = &vars.pMap->mesh;
+	float pixelScale = 1.0 / (float)vars.imageBuf.res;
+	float pixelHalfScale = pixelScale / 2.0f;
+	FaceCells faceCells = {0};
+	FaceCellsTable faceCellsTable = {.pFaceCells = &faceCells};
+	QuadTreeSearch searchState = {0};
+	ruvmInitQuadTreeSearch(&vars.pContext->alloc, vars.pMap, &searchState);
 	for (int32_t i = 0; i < vars.pixelCount; ++i) {
 		int32_t iOffset = vars.bufOffset + i;
 		V2_F32 index = {iOffset % vars.imageBuf.res,
 		                iOffset / vars.imageBuf.res};
-		V2_F32 pos = {vars.pixelScale * index.d[0], vars.pixelScale * index.d[1]};
-		Cell *pCell =
-			ruvmFindEncasingCell(vars.pMap->quadTree.pRootCell, pos);
-		Color color = {0};
-		for (int32_t j = 0; j < pCell->faceSize; ++j) {
-			FaceBounds faceBounds = {0};
-			FaceInfo face;
-			face.index = pCell->pFaces[j];
-			face.start = pMesh->mesh.pFaces[face.index];
-			face.end = pMesh->mesh.pFaces[face.index + 1];
-			face.size = face.end - face.start;
-			getFaceBounds(&faceBounds, pMesh->pUvs, face);
-			if (_(pos V2GREAT faceBounds.fMax) || _(pos V2LESS faceBounds.fMin)) {
-				//continue;
+		V2_F32 pos = {pixelScale * index.d[0] + pixelHalfScale,
+		              pixelScale * index.d[1] + pixelHalfScale};
+		Color color = { 0 };
+		color.d[3] = FLT_MAX * -1.0f;
+		ruvmGetCellsForSingleFace(&searchState, 1, &pos, &faceCellsTable, NULL, 0);
+		Cell *pLeaf = faceCells.pCells[faceCells.cellSize - 1];
+		for (int32_t j = 0; j < faceCells.cellSize; ++j) {
+			Cell* pCell = faceCells.pCells[j];
+			int32_t* pCellFaces;
+			Range cellFaceRange;
+			if (faceCells.pCellType[j]) {
+				pCellFaces = pCell->pEdgeFaces;
+				cellFaceRange = pLeaf->pLinkEdgeRanges[j];
 			}
-			/*
-			V3_F32* pVertA = pMesh->pVerts + pMesh->mesh.pLoops[face.start];
-			V3_F32* pVertB = pMesh->pVerts + pMesh->mesh.pLoops[face.start - 1];
-			V3_F32* pVertC = pMesh->pVerts + pMesh->mesh.pLoops[face.start - 2];
-			V3_F32 ab = _(*pVertB V3SUB *pVertA);
-			V3_F32 ac = _(*pVertC V3SUB *pVertA);
-			V3_F32 normal = v3Cross(ab, ac);
-			float normalLen =
-				sqrt(normal.d[0] * normal.d[0] +
-					 normal.d[1] * normal.d[1] +
-					 normal.d[2] * normal.d[2]);
-			_(&normal V3DIVEQLS normalLen);
-			color.d[0] = normal.d[0];
-			color.d[1] = normal.d[1];
-			color.d[2] = normal.d[2];
-			color.d[3] = 1.0f;
-			*/
+			else if (faceCells.pCellType[j] != 1) {
+				pCellFaces = pCell->pFaces;
+				cellFaceRange.start = 0;
+				cellFaceRange.end = pCell->faceSize;
+			}
+			else {
+				continue;
+			}
+			for (int32_t k = cellFaceRange.start; k < cellFaceRange.end; ++k) {
+				FaceInfo face;
+				face.index = pCellFaces[k];
+				face.start = pMesh->mesh.pFaces[face.index];
+				face.end = pMesh->mesh.pFaces[face.index + 1];
+				face.size = face.end - face.start;
+				FaceTriangulated faceTris = { 0 };
+				if (face.size > 4) {
+					faceTris = triangulateFace(vars.pContext->alloc, face, pMesh, 0);
+					for (int32_t l = 0; l < faceTris.triCount; ++l) {
+						FaceInfo tri;
+						tri.index = face.index;
+						tri.start = l * 3;
+						tri.end = tri.start + 3;
+						tri.size = tri.end - tri.start;
+						tri.start += face.start;
+						tri.end += face.start;
+						testPixelAgainstFace(&vars, &pos, &tri, &color);
+					}
+				}
+				else {
+					testPixelAgainstFace(&vars, &pos, &face, &color);
+				}
+			}
 		}
-		color.d[0] = index.d[0] / (float)vars.imageBuf.res;
-		color.d[1] = index.d[1] / (float)vars.imageBuf.res;
-		color.d[2] = (float)vars.id / (float)vars.pContext->threadCount;
-		color.d[3] = 1.0f;
+		color.d[3] = color.d[3] != FLT_MAX * -1.0f;
 		setPixelColor(&vars.imageBuf, i, &color);
 	}
+	ruvmDestroyQuadTreeSearch(&searchState);
 	*(RenderArgs *)pArgs = vars;
 	RuvmThreadPool *pThreadPool = &vars.pContext->threadPool;
 	pThreadPool->pMutexLock(vars.pContext->pThreadPoolHandle, vars.pMutex);
@@ -525,9 +589,24 @@ static void ruvmRenderJob(void *pArgs) {
 	pThreadPool->pMutexUnlock(vars.pContext->pThreadPoolHandle, vars.pMutex);
 }
 
+static
+V2_F32 getZBounds(RuvmMap pMap) {
+	Mesh* pMesh = &pMap->mesh;
+	V2_F32 zBounds = {.d = {FLT_MAX, FLT_MIN}};
+	for (int32_t i = 0; i < pMesh->mesh.vertCount; ++i) {
+		if (pMesh->pVerts[i].d[2] < zBounds.d[0]) {
+			zBounds.d[0] = pMesh->pVerts[i].d[2];
+		}
+		if (pMesh->pVerts[i].d[2] > zBounds.d[1]) {
+			zBounds.d[1] = pMesh->pVerts[i].d[2];
+		}
+	}
+	return zBounds;
+}
+
 void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *pImage) {
+	V2_F32 zBounds = getZBounds(pMap);
 	int32_t pixelCount = pImage->res * pImage->res;
-	float pixelScale = 1.0 / (float)pImage->res;
 	int32_t pixelsPerJob = pixelCount / pContext->threadCount;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
@@ -541,8 +620,8 @@ void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *p
 		args[i].pContext = pContext;
 		args[i].pixelCount = i == pContext->threadCount - 1 ?
 			pixelCount - args[i].bufOffset : pixelsPerJob;
-		args[i].pixelScale = pixelScale;
 		args[i].pMap = pMap;
+		args[i].zBounds = zBounds;
 		args[i].pMutex = pMutex;
 		args[i].pJobsCompleted = &jobsCompleted;
 		args[i].id = i;
@@ -551,7 +630,10 @@ void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *p
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
 	                                       pContext->threadCount,
 	                                       ruvmRenderJob, jobArgPtrs);
+	CLOCK_INIT;
+	CLOCK_START;
 	waitForJobs(pContext, &jobsCompleted, pMutex);
+	CLOCK_STOP("CREATE_IMAGE");
 	int32_t pixelSize = getPixelSize(pImage->type);
 	pImage->pData = pContext->alloc.pMalloc(pixelCount * pixelSize);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
