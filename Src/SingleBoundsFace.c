@@ -132,6 +132,8 @@ void addLoopToLocalEdgeTable(RuvmContext pContext, BorderVert *localEdgeTable,
 	int32_t keepBaseLoop = 0;
 	if (isBaseLoop) {
 		if (pVertSeamTable[baseVert] > 2 ||
+			//TODO can you replace pInVertTable with the vert
+			//preserve intersection table in split edges?
 			(pVertSeamTable[baseVert] && pJobArgs[0].pInVertTable[baseVert])) {
 
 			keepBaseLoop = 1;
@@ -273,6 +275,7 @@ static void initVertTableEntry(BorderVert *pVertEntry, BorderFace *pEntry,
 	pVertEntry->loopIndex = loopIndex;
 	pVertEntry->ruvmFace = ruvmFace;
 	pVertEntry->loop = loop;
+	pVertEntry->job = pEntry->job;
 }
 
 static void initEdgeTableEntry(BorderEdge *pSeamEntry, Mesh *pMeshOut,
@@ -336,7 +339,7 @@ void addBorderLoopAndVert(RuvmContext pContext, CombineTables *pCTables,
 					//TODO set pMeshOut->pVerts, when meshout is allocated.
 					//It's currently not set
 					_(pJobArgs[pEntry->job].bufMesh.pUvs[loop] V2APROXEQL
-					  pJobArgs[pEntry->job].bufMesh.pUvs[pVertEntry->loop]);
+					  pJobArgs[pVertEntry->job].bufMesh.pUvs[pVertEntry->loop]);
 				match =  pVertEntry->ruvmEdge == ruvmEdge &&
 						 pVertEntry->tile == pEntry->tile &&
 						 pVertEntry->baseEdge == baseEdge &&

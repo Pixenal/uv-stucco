@@ -98,6 +98,11 @@ void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                       char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
 	ruvmLoadRuvmFile(pContext, pMap, filePath);
+	pMap->mesh.pEdgeReceiveAttrib = getAttrib("RuvmPreserveReceive",
+	                                       &pMap->mesh.mesh.edgeAttribs);
+	if (pMap->mesh.pEdgeReceiveAttrib) {
+		pMap->mesh.pEdgeReceive = pMap->mesh.pEdgeReceiveAttrib->pData;
+	}
 	ruvmCreateQuadTree(pContext, pMap);
 	*pMapHandle = pMap;
 	//writeDebugImage(pMap->quadTree.rootCell);
@@ -350,7 +355,7 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	meshIn.pUvs = meshIn.pUvAttrib->pData;
 	meshIn.pNormalAttrib = getAttrib("normal", &meshIn.mesh.loopAttribs);
 	meshIn.pNormals = meshIn.pNormalAttrib->pData;
-	meshIn.pEdgePreserveAttrib = getAttrib("RuvmEdgePreserve",
+	meshIn.pEdgePreserveAttrib = getAttrib("RuvmPreserve",
 	                                       &meshIn.mesh.edgeAttribs);
 	if (meshIn.pEdgePreserveAttrib) {
 		meshIn.pEdgePreserve = meshIn.pEdgePreserveAttrib->pData;

@@ -39,10 +39,10 @@ typedef struct BorderVert {
 	int32_t loops;
 	int32_t baseEdge;
 	int32_t baseVert;
-	int8_t keepBaseLoop;
-	int32_t job;
 	int32_t loopIndex;
 	int32_t loop;
+	int8_t job;
+	int8_t keepBaseLoop;
 } BorderVert;
 
 typedef struct {
