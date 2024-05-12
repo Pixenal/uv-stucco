@@ -8,10 +8,11 @@ typedef struct Piece {
 	struct Piece *pNext;
 	BorderFace *pEntry;
 	BorderFace *pTail;
-	int32_t listed;
 	int32_t edgeCount;
 	int32_t edges[11];
 	int32_t entryIndex;
+	int16_t pKeep;
+	int8_t listed;
 } Piece;
 
 typedef struct BorderEdge {

@@ -32,6 +32,9 @@ typedef struct {
 	FaceInfo ruvmFace;
 	V2_F32 centre;
 	Mat3x3 tbnInv;
+	Piece *pPiece;
+	int8_t fullSort;
+	int8_t triangulate;
 } Vars;
 
 /*
@@ -410,10 +413,11 @@ static void initOnLineTableEntry(OnLine *pEntry, Mesh *pMeshOut,
 	pEntry->type = isBaseLoop + 1;
 }
 
-static int32_t checkIfShouldSkip(Vars *pVars, int32_t faceStart,
+static int32_t checkIfShouldSkip(Vars *pVars, Piece *pPiece, int32_t faceStart,
                                  int32_t k) {
+	int32_t skip = 0;
 	if (!pVars->seamFace) {
-		return 1;
+		skip = 1;
 	}
 	int32_t isSeamLoop = 0;
 	for (int32_t l = 0; l < pVars->seamLoopCount; ++l) {
@@ -423,9 +427,14 @@ static int32_t checkIfShouldSkip(Vars *pVars, int32_t faceStart,
 		}
 	}
 	if (!isSeamLoop) {
-		return 1;
+		skip = 1;
 	}
-	return 0;
+	//override if keep is set to 1
+	if (skip && pPiece->pKeep >> k & 1) {
+		skip = 0;
+		pVars->triangulate = 1;
+	}
+	return skip;
 }
 
 static
@@ -476,9 +485,11 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
                                     Vars *pVars, SendOffArgs *pJobArgs,
                                     Mesh *pMeshOut, JobBases *pJobBases) {
 	//CLOCK_INIT;
-	BorderFace *pEntry = pVars->pEntry;
+	//pieces should be called sub pieces here
+	Piece *pPiece = pVars->pPiece;
 	int32_t totalRuvmLoopsAdded = 0;
 	do {
+		BorderFace *pEntry = pPiece->pEntry;
 		BufMesh *bufMesh = &pJobArgs[pEntry->job].bufMesh;
 		int32_t ruvmLoopsAdded = 0;
 		int32_t faceStart = bufMesh->mesh.pFaces[pEntry->face];
@@ -493,7 +504,7 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 			int32_t isRuvm = pEntry->isRuvm >> k & 1;
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
-				if (checkIfShouldSkip(pVars, faceStart, k)) {
+				if (checkIfShouldSkip(pVars, pPiece, faceStart, k)) {
 					continue;
 				}
 				//CLOCK_STOP_NO_PRINT;
@@ -557,16 +568,16 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 			pVars->bufFaceBuffer[pVars->loopBufferSize] = pEntry->face;
 			pVars->loopBuffer[pVars->loopBufferSize] = vert;
 			pVars->edgeBuffer[pVars->loopBufferSize] = edge;
+			pVars->uvBuffer[pVars->loopBufferSize] = bufMesh->pUvs[faceStart - k];
 			//CLOCK_START;
 			//CLOCK_STOP_NO_PRINT;
 			//pTimeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 			pVars->loopBufferSize++;
 			pVars->infoBufSize++;
 		}
-		BorderFace *pNext = pEntry->pNext;
 		pContext->alloc.pFree(pEntry);
-		pEntry = pNext;
-	} while(pEntry);
+		pPiece = pPiece->pNext;
+	} while(pPiece);
 }
 
 static
@@ -653,6 +664,66 @@ static void sortLoops(int32_t *pIndexTable, Vars *pVars) {
 	}
 }
 
+static
+void getCentroid(Vars *pVars, SendOffArgs *pJobArgs) {
+	BorderFace *pEntry = pVars->pEntry;
+	int32_t totalVerts = 0;
+	do {
+		BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
+		int32_t faceStart = pBufMesh->mesh.pFaces[pEntry->face];
+		int32_t faceEnd = pBufMesh->mesh.pFaces[pEntry->face - 1];
+		int32_t loopAmount = faceStart - faceEnd;
+		for (int32_t i = 0; i < loopAmount; ++i) {
+			_(&pVars->centre V2ADDEQL pBufMesh->pUvs[faceStart - i]);
+			totalVerts++;
+		}
+		pEntry = pEntry->pNext;
+	} while(pEntry);
+	_(&pVars->centre V2DIVSEQL (float)totalVerts);
+}
+
+static
+void determineIfFullSort(Vars *pVars) {
+	if (pVars->seamFace) {
+		pVars->fullSort = 1;
+		return;
+	}
+	Piece *pPiece = pVars->pPiece;
+	do {
+		if (pPiece->pKeep) {
+			pVars->fullSort = 1;
+			return;
+		}
+		pPiece = pPiece->pNext;
+	} while (pPiece);
+}
+
+static
+void addFaceToOutMesh(Vars *pVars, Mesh *pMeshOut, int32_t *pIndices,
+                      int32_t count, int32_t *pIndexTable, SendOffArgs *pJobArgs) {
+	int32_t loopBase = pMeshOut->mesh.loopCount;
+	for (int32_t k = 0; k < count; ++k) {
+		int32_t bufIndex = pIndexTable[pIndices[k] + 1];
+		pMeshOut->mesh.pLoops[loopBase + k] = pVars->loopBuffer[bufIndex];
+		pMeshOut->mesh.pEdges[loopBase + k] = pVars->edgeBuffer[bufIndex];
+		int32_t bufLoop = pVars->bufLoopBuffer[bufIndex];
+		int32_t job = pVars->jobBuffer[bufIndex];
+		copyAllAttribs(&pMeshOut->mesh.loopAttribs, loopBase + k,
+					   &pJobArgs[job].bufMesh.mesh.loopAttribs, bufLoop);
+		//*attribAsV3(pMeshOut->pNormals, loopBase + k) =
+		//	pVars->normalBuffer[indexTable[k + 1]];
+		//*attribAsV2(pMeshOut->pUvs, loopBase + k) =
+		//	pVars->uvBuffer[indexTable[k + 1]];
+	}
+	copyAllAttribs(&pMeshOut->mesh.faceAttribs,
+				   pMeshOut->mesh.faceCount,
+				   &pJobArgs[pVars->jobBuffer[0]].bufMesh.mesh.faceAttribs,
+				   pVars->bufFaceBuffer[0]);
+	pMeshOut->mesh.pFaces[pMeshOut->mesh.faceCount] = loopBase;
+	pMeshOut->mesh.loopCount += count;
+	pMeshOut->mesh.faceCount++;
+}
+
 void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
                                RuvmMap pMap, Mesh *pMeshOut,
 							   SendOffArgs *pJobArgs, Piece *pPiece,
@@ -661,12 +732,15 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 	CLOCK_INIT
 	CLOCK_START;
 	Vars vars = {0};
+	vars.pPiece = pPiece;
 	vars.pEntry = pPiece->pEntry;
 	if (!vars.pEntry) {
 		return;
 	}
 	vars.ruvmFace = *pRuvmFace;
 	vars.seamFace = determineIfSeamFace(pMap, vars.pEntry);
+	determineIfFullSort(&vars);
+	//determineIfTriangulate(&vars);
 	vars.ruvmIndicesSort[0] = -10;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
@@ -676,52 +750,79 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 		determineLoopsToKeep(pContext, pMap, &vars, pJobArgs, &totalVerts,
 							 pVertSeamTable, pJobBases);
 		_(&vars.centre V2DIVSEQL (float)totalVerts);
+	}
+	else if (vars.fullSort) {
+		getCentroid(&vars, pJobArgs);
+	}
+	if (vars.fullSort) {
 		buildApproximateTbnInverse(&vars, pJobArgs);
 	}
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
-	int32_t loopBase = pMeshOut->mesh.loopCount;
-	pMeshOut->mesh.pFaces[pMeshOut->mesh.faceCount] = loopBase;
+	pMeshOut->mesh.pFaces[pMeshOut->mesh.faceCount] = pMeshOut->mesh.loopCount;
 	addLoopsToBufferAndVertsToMesh(pTimeSpent, pContext, pCTables, pMap,
 								   &vars, pJobArgs, pMeshOut, pJobBases);
 	if (vars.loopBufferSize <= 2) {
 		return;
 	}
-	pMeshOut->mesh.loopCount += vars.loopBufferSize;
-	
 	int32_t indexTable[17];
 	indexTable[0] = -1;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
-	if (vars.seamFace) {
+	if (vars.fullSort) {
 		//full winding sort
 		sortLoopsFull(indexTable + 1, &vars, pMeshOut);
 	}
 	else {
 		sortLoops(indexTable + 1, &vars);
 	}
-	for (int32_t k = 0; k < vars.loopBufferSize; ++k) {
-		int32_t bufIndex = indexTable[k + 1];
-		pMeshOut->mesh.pLoops[loopBase + k] =
-			vars.loopBuffer[bufIndex];
-		pMeshOut->mesh.pEdges[loopBase + k] = 
-			vars.edgeBuffer[bufIndex];
-		int32_t bufLoop = vars.bufLoopBuffer[bufIndex];
-		int32_t job = vars.jobBuffer[bufIndex];
-		copyAllAttribs(&pMeshOut->mesh.loopAttribs, loopBase + k,
-					   &pJobArgs[job].bufMesh.mesh.loopAttribs, bufLoop);
-		//*attribAsV3(pMeshOut->pNormals, loopBase + k) =
-		//	vars.normalBuffer[indexTable[k + 1]];
-		//*attribAsV2(pMeshOut->pUvs, loopBase + k) =
-		//	vars.uvBuffer[indexTable[k + 1]];
+	if (vars.triangulate) {
+		FaceInfo tempFace = {0};
+		tempFace.end = tempFace.size = vars.loopBufferSize;
+		V2_F32 uvBuf[11];
+		for (int32_t i = 0; i < vars.loopBufferSize; ++i) {
+			uvBuf[i] = vars.uvBuffer[indexTable[i + 1]];
+		}
+		FaceTriangulated tris;
+		tris = triangulateFace(pContext->alloc, tempFace, uvBuf, NULL, 1);
+		for (int32_t i = 0; i < tris.triCount; ++i) {
+			addFaceToOutMesh(&vars, pMeshOut, tris.pLoops + (i * 3), 3,
+			                 indexTable, pJobArgs);
+		}
 	}
-	copyAllAttribs(&pMeshOut->mesh.faceAttribs,
-				   pMeshOut->mesh.faceCount,
-				   &pJobArgs[vars.jobBuffer[0]].bufMesh.mesh.faceAttribs,
-				   vars.bufFaceBuffer[0]);
-	pMeshOut->mesh.faceCount++;
+	else {
+		int32_t indices[11];
+		for (int32_t i = 0; i < vars.loopBufferSize; ++i) {
+			indices[i] = i;
+		}
+		addFaceToOutMesh(&vars, pMeshOut, indices, vars.loopBufferSize,
+		                 indexTable, pJobArgs);
+
+		//int32_t loopBase = pMeshOut->mesh.loopCount;
+		//for (int32_t k = 0; k < vars.loopBufferSize; ++k) {
+		//int32_t bufIndex = indexTable[k + 1];
+		//pMeshOut->mesh.pLoops[loopBase + k] =
+		//	vars.loopBuffer[bufIndex];
+		//pMeshOut->mesh.pEdges[loopBase + k] = 
+		//	vars.edgeBuffer[bufIndex];
+		//int32_t bufLoop = vars.bufLoopBuffer[bufIndex];
+		//int32_t job = vars.jobBuffer[bufIndex];
+		//copyAllAttribs(&pMeshOut->mesh.loopAttribs, loopBase + k,
+		//			   &pJobArgs[job].bufMesh.mesh.loopAttribs, bufLoop);
+		////*attribAsV3(pMeshOut->pNormals, loopBase + k) =
+		////	vars.normalBuffer[indexTable[k + 1]];
+		////*attribAsV2(pMeshOut->pUvs, loopBase + k) =
+		////	vars.uvBuffer[indexTable[k + 1]];
+		//}
+		//copyAllAttribs(&pMeshOut->mesh.faceAttribs,
+		//			   pMeshOut->mesh.faceCount,
+		//			   &pJobArgs[vars.jobBuffer[0]].bufMesh.mesh.faceAttribs,
+		//			   vars.bufFaceBuffer[0]);
+		//pMeshOut->mesh.loopCount += vars.loopBufferSize;
+		//pMeshOut->mesh.faceCount++;
+	}
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[5] += CLOCK_TIME_DIFF(start, stop);
 }

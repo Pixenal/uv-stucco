@@ -219,7 +219,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		vars.tbn = buildFaceTbn(baseFace, &vars.mesh);
 		FaceTriangulated faceTris = {0};
 		if (baseFace.size > 3) {
-			faceTris = triangulateFace(vars.alloc, baseFace, &vars.mesh, 1);
+			faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pUvs,
+			                           NULL, 1);
 		}
 		if (baseFace.size <= 4) {
 			//face is a quad, or a tri

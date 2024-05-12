@@ -247,8 +247,11 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 					 EdgeVerts *pEdgeVerts) {
 	*ppInVertTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
 	*ppVertSeamTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
-	int32_t *pEdgeCache =
-		pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(int32_t));
+	//TODO do we need to list number of unique preserve edges per vert?
+	//I'm not doing so currently (hence why pEdgeCache is commented out),
+	//and it seems to be working. (talking about split to pieces)
+	//int32_t *pEdgeCache =
+	//	pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(int32_t));
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceInfo face;
 		face.start = pMesh->mesh.pFaces[i];
@@ -278,7 +281,7 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 			}
 		}
 	}
-	pContext->alloc.pFree(pEdgeCache);
+	//pContext->alloc.pFree(pEdgeCache);
 }
 
 static
@@ -575,7 +578,9 @@ static void ruvmRenderJob(void *pArgs) {
 				face.size = face.end - face.start;
 				FaceTriangulated faceTris = { 0 };
 				if (face.size > 4) {
-					faceTris = triangulateFace(vars.pContext->alloc, face, pMesh, 0);
+					faceTris = triangulateFace(vars.pContext->alloc, face,
+					                           pMesh->pVerts,
+					                           pMesh->mesh.pLoops, 0);
 					for (int32_t l = 0; l < faceTris.triCount; ++l) {
 						FaceInfo tri;
 						tri.index = face.index;
