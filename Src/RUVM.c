@@ -247,6 +247,8 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 					 EdgeVerts *pEdgeVerts) {
 	*ppInVertTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
 	*ppVertSeamTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
+	int32_t *pEdgeCache =
+		pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(int32_t));
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceInfo face;
 		face.start = pMesh->mesh.pFaces[i];
@@ -259,6 +261,12 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 			int32_t edgeIndex = pMesh->mesh.pEdges[loopIndex];
 			int32_t isSeam = checkIfEdgeIsSeam(edgeIndex, face, j, pMesh,
 			                                   pEdgeVerts);
+			//if ((*ppInVertTable)[vertIndex] < 2 &&
+			//	pEdgeCache[vertIndex] != edgeIndex + 1 &&
+			//    checkIfEdgeIsPreserve(pMesh, edgeIndex) && !isSeam) {
+			//	(*ppInVertTable)[vertIndex]++;
+			//	pEdgeCache[vertIndex] = edgeIndex + 1;
+			//}
 			if (!(*ppInVertTable)[vertIndex] &&
 			    checkIfEdgeIsPreserve(pMesh, edgeIndex) && !isSeam) {
 				(*ppInVertTable)[vertIndex] = 1;
@@ -270,6 +278,7 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 			}
 		}
 	}
+	pContext->alloc.pFree(pEdgeCache);
 }
 
 static

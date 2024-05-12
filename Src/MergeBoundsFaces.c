@@ -22,13 +22,13 @@ typedef struct SharedEdge {
 	struct SharedEdge *pNext;
 	void *pLast;
 	int32_t entries[2];
-	int32_t mapEdges[2];
+	int32_t refIndex[2];
 	int32_t edge;
-	int32_t verts[2];
-	int8_t checked;
 	int8_t receive[2];
-	int8_t preserve;
-	int8_t index;
+	uint8_t checked : 1;
+	uint8_t preserve : 1;
+	uint8_t index : 1;
+	uint8_t altIndex : 1;
 } SharedEdge;
 
 typedef struct {
@@ -79,16 +79,14 @@ void addToPreserveVertTable(RuvmContext pContext, PreserveVert **ppPreserveVerts
 }
 
 static
-void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t baseVert,
-                         int32_t entryIndex, int32_t ruvmEdge, int32_t isPreserve,
-						 int32_t isReceive) {
+void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryIndex,
+                         int32_t refIndex, int32_t isPreserve, int32_t isReceive) {
 	//TODO do you need to add one to baseEdge?
 	pEntry->edge = baseEdge + 1;
-	pEntry->verts[0] = baseVert;
 	pEntry->entries[0] = entryIndex;
-	pEntry->mapEdges[0] = ruvmEdge;
-	pEntry->preserve = isPreserve;
+	pEntry->refIndex[0] = refIndex;
 	pEntry->receive[0] = isReceive;
+	pEntry->preserve = isPreserve;
 }
 
 static
@@ -148,20 +146,24 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 
 		int8_t isPreserve = checkIfEdgeIsPreserve(&pJobArgs[0].mesh, baseEdge);
 		int8_t isReceive = 0;
-		int32_t ruvmEdge = -1;
-		int32_t baseVert = -1;
+		//If 1, then map edge, otherwise base vert
+		int32_t refIndex = 0; 
 		if (isPreserve) {
 			int32_t isBaseLoop = (pEntry->onLine >> i & 1) && !isRuvm;
 			if (!isBaseLoop) {
 				int32_t ruvmLoop = pEntry->ruvmLoop >> i * 3 & 7;
 				int32_t ruvmFaceStart = pMap->mesh.mesh.pFaces[pEntry->faceIndex];
-				ruvmEdge = pMap->mesh.mesh.pEdges[ruvmFaceStart + ruvmLoop];
+				int32_t ruvmEdge = pMap->mesh.mesh.pEdges[ruvmFaceStart + ruvmLoop];
 				isReceive = checkIfEdgeIsReceive(&pMap->mesh, ruvmEdge);
+				refIndex = ruvmEdge;
 			}
 			else {
-				baseVert = pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop];
-				addToPreserveVertTable(pContext, ppPreserveVerts, baseVert,
-				                       baseEdge, tableSize);
+				int32_t baseVert = pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop];
+				//addToPreserveVertTable(pContext, ppPreserveVerts, baseVert,
+				//                       baseEdge, tableSize);
+				isReceive = pJobArgs[0].pInVertTable[baseVert] == 1;
+				//negate if base loop
+				refIndex = (baseVert + 1) * -1;
 			}
 		}
 
@@ -175,8 +177,8 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 			pEdgeEntry = pEdgeEntryWrap->pEntry =
 				pContext->alloc.pCalloc(1, sizeof(SharedEdge));
 			pEdgeEntry->pLast = pEdgeEntryWrap;
-			initSharedEdgeEntry(pEdgeEntry, baseEdge, baseVert, entryIndex,
-			                    ruvmEdge, isPreserve, isReceive);
+			initSharedEdgeEntry(pEdgeEntry, baseEdge, entryIndex, refIndex,
+			                    isPreserve, isReceive);
 			continue;
 		}
 		do {
@@ -184,19 +186,12 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 				if (pEdgeEntry->entries[pEdgeEntry->index] != entryIndex) {
 					//other side of the edge
 					pEdgeEntry->entries[1] = entryIndex;
-					pEdgeEntry->mapEdges[1] = ruvmEdge;
-					pEdgeEntry->receive[1] = isReceive;
-					pEdgeEntry->verts[1] = baseVert;
 					pEdgeEntry->index = 1;
 				}
-				else if (baseVert >= 0) {
-					//previous loop was not a base loop, but the current one is,
-					//so add base vert
-					pEdgeEntry->verts[pEdgeEntry->index] = baseVert;
-				}
-				else if (pEdgeEntry->mapEdges[0] == pEdgeEntry->mapEdges[1]) {
-					//both map edges are the same. Add the other map edge
-					pEdgeEntry->mapEdges[1] = ruvmEdge;
+				if (isPreserve && pEdgeEntry->refIndex[pEdgeEntry->altIndex] != refIndex) {
+					pEdgeEntry->refIndex[1] = refIndex;
+					pEdgeEntry->receive[1] = isReceive;
+					pEdgeEntry->altIndex = 1;
 				}
 				break;
 			}
@@ -205,8 +200,8 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 					pContext->alloc.pCalloc(1, sizeof(SharedEdge));
 				pEdgeEntry->pNext->pLast = pEdgeEntry;
 				pEdgeEntry = pEdgeEntry->pNext;
-				initSharedEdgeEntry(pEdgeEntry, baseEdge, baseVert, entryIndex,
-				                    ruvmEdge, isPreserve, isReceive);
+				initSharedEdgeEntry(pEdgeEntry, baseEdge, entryIndex, refIndex,
+				                    isPreserve, isReceive);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
@@ -223,11 +218,11 @@ void addToEdgeCacheIfReceive(int32_t *pEdgeCache, SharedEdge *pEntry, int32_t in
 	if (!pEntry->receive[index]) {
 		return;
 	}
-	if (pEdgeCache[0] == pEntry->mapEdges[index]) {
+	if (pEdgeCache[0] == pEntry->refIndex[index]) {
 		return;
 	}
 	if (pEdgeCache[1] < 0) {
-		pEdgeCache[1] = pEntry->mapEdges[index];
+		pEdgeCache[1] = pEntry->refIndex[index];
 		return;
 	}
 	printf("more than 2 edges! -------------------------------------------\n");
@@ -260,50 +255,20 @@ void validatePreserveEdges(RuvmContext pContext, SharedEdgeWrap *pBucket,
 			pEntry = pEntry->pNext;
 			continue;
 		}
-		int32_t edgeCache[2] = {-1, -1};
-		if (pEntry->receive[0]) {
-			edgeCache[0] = pEntry->mapEdges[0];
-		}
-		addToEdgeCacheIfReceive(edgeCache, pEntry, 1);
-		int32_t preserveVerts = 0;
-		preserveVerts =
-			checkEntryVert(ppPreserveVerts, pEntry->verts[0], tableSize);
-		preserveVerts +=
-			checkEntryVert(ppPreserveVerts, pEntry->verts[1], tableSize);
-		SharedEdge *pEntryOther = pEntry->pNext;
-		while (pEntryOther) {
-			if (pEntry->edge == pEntryOther->edge) {
-				addToEdgeCacheIfReceive(edgeCache, pEntryOther, 0);
-				addToEdgeCacheIfReceive(edgeCache, pEntryOther, 1);
-				preserveVerts +=
-					checkEntryVert(ppPreserveVerts, pEntryOther->verts[0], tableSize);
-				preserveVerts +=
-					checkEntryVert(ppPreserveVerts, pEntryOther->verts[1], tableSize);
-			}
-			pEntryOther->checked = 1;
-			pEntryOther = pEntryOther->pNext;
-		}
-		if (edgeCache[1] < 0 && !preserveVerts) {
-			//edge intersects 1 or no map receive edges, and has no baseloop verts
+		int32_t receivers = pEntry->receive[0] + pEntry->receive[1];
+		if (receivers <= 1) {
+			//edge intersects 1 or no map receive edges or base verts
 			//on preserve junctions, so keep it in the list
 			pEntry->checked = 1;
 			pEntry = pEntry->pNext;
 			continue;
 		}
 		//remove edge from list
-		pEntryOther = pEntry->pNext;
-		while (pEntryOther) {
-			if (pEntry->edge != pEntryOther->edge) {
-				pEntryOther = pEntryOther->pNext;
-				continue;
-			}
-			SharedEdge *pNext = pEntryOther->pNext;
-			((SharedEdge *)pEntryOther->pLast)->pNext = pNext;
-			pContext->alloc.pFree(pEntryOther);
-			pEntryOther = pNext;
-		}
 		SharedEdge *pNext = pEntry->pNext;
 		((SharedEdge *)pEntry->pLast)->pNext = pNext;
+		if (pNext) {
+			pNext->pLast = pEntry->pLast;
+		}
 		pContext->alloc.pFree(pEntry);
 		pEntry = pNext;
 	}
