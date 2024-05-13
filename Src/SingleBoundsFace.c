@@ -500,7 +500,6 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 			//CLOCK_START;
 			int32_t vert;
 			int32_t edge;
-			int32_t vertNoOffset;
 			int32_t isRuvm = pEntry->isRuvm >> k & 1;
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
@@ -516,7 +515,6 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 				addBorderLoopAndVert(pContext, pCTables, pMap, pVars, &vert,
 				                     pEntry, pJobArgs, pMeshOut, k, ruvmLoop,
 									 &edge, faceStart - k);
-				vertNoOffset = vert;
 				pVars->ruvmIndicesSort[pVars->loopBufferSize + 1] = -1;
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
@@ -541,13 +539,14 @@ void addLoopsToBufferAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 					addOnLineVert(pContext, pVars, ruvmLoop, pMap, pJobArgs,
 					              pEntry, pCTables, pMeshOut, &vert, k);
 				}
+				else {
+					vert += pJobBases[pEntry->job].vertBase;
+				}
 				//CLOCK_START;
 				//the vert and edge indices are local to the buffer mesh,
 				//so we need to offset them, so that they point to the
 				//correct position in the out mesh. (these vars are set
 				//when the non-border mesh data is copied
-				vertNoOffset = vert;
-				vert += pJobBases[pEntry->job].vertBase;
 				edge += pJobBases[pEntry->job].edgeBase;
 				
 				pVars->ruvmIndicesSort[pVars->loopBufferSize + 1] = ruvmLoop * 10;

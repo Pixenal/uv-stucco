@@ -554,11 +554,14 @@ void addLinkEdgesToCells(RuvmContext pContext, Cell* pParentCell, Mesh *pMesh,
 		if (bufSize) {
 			pChild->pLinkEdges =
 				pContext->alloc.pMalloc(sizeof(int32_t) * bufSize);
-			pChild->pLinkEdgeRanges =
-				pContext->alloc.pMalloc(sizeof(Range) * bufSize);
-			pChild->linkEdgeSize = bufSize;
 			memcpy(pChild->pLinkEdges, buf, sizeof(int32_t) * bufSize);
-			memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
+			if (pChild->faceSize <= CELL_MAX_VERTS) {
+				//If cell is a leaf, then add link edge ranges
+				pChild->pLinkEdgeRanges =
+					pContext->alloc.pMalloc(sizeof(Range) * bufSize);
+					memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
+			}
+			pChild->linkEdgeSize = bufSize;
 		}
 	}
 }
@@ -799,6 +802,9 @@ void ruvmDestroyQuadTree(RuvmContext pContext, Cell *rootCell) {
 		}
 		if (cell->pLinkEdges) {
 			pContext->alloc.pFree(cell->pLinkEdges);
+		}
+		if (cell->pLinkEdgeRanges) {
+			pContext->alloc.pFree(cell->pLinkEdgeRanges);
 		}
 		if (cell->pFaces) {
 			pContext->alloc.pFree(cell->pFaces);

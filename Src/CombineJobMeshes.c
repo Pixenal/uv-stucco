@@ -110,6 +110,7 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOu
 		ruvmMeshDestroy(pContext, &bufMesh->mesh);
 		pContext->alloc.pFree(pJobArgs[i].borderTable.pTable);
 	}
+	pContext->alloc.pFree(pJobBases);
 	pMeshOut->pFaces[pMeshOut->faceCount] = pMeshOut->loopCount;
 	//CLOCK_STOP("moving to work mesh");
 }
