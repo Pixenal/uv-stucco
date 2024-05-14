@@ -252,6 +252,13 @@ int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack) {
 	}
 }
 
+int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 centre, float threshold) {
+	V2_F32 aDiff = _(a V2SUB centre);
+	V2_F32 bDiff = _(b V2SUB centre);
+	float cross = aDiff.d[0] * bDiff.d[1] - bDiff.d[0] * aDiff.d[1];
+	return cross < threshold && cross > -threshold;
+}
+
 Mat2x2 mat2x2Adjugate(Mat2x2 a) {
 	Mat2x2 c;
 	c.d[0][0] = a.d[1][1];

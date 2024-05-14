@@ -86,6 +86,7 @@ int32_t v2NotEqual(V2_F32 a, V2_F32 b);
 int32_t v2Equal(V2_F32 a, V2_F32 b);
 int32_t v2AproxEqual(V2_F32 a, V2_F32 b);
 int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack);
+int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 centre, float threshold);
 
 Mat2x2 mat2x2Adjugate(Mat2x2 a);
 float mat2x2Determinate(Mat2x2 a);

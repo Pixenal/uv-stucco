@@ -43,6 +43,9 @@ typedef struct {
 	LoopBuf loopBuf;
 	SeamBuf seamBuf;
 	MapLoopBuf mapLoopBuf;
+	int32_t *pIndexTable;
+	int32_t *pIndices;
+	V2_F32 *pSortedUvBuf;
 	int32_t size;
 } MergeBufs;
 
@@ -53,6 +56,8 @@ typedef struct {
 	LoopBuf loopBuf;
 	SeamBuf seamBuf;
 	MapLoopBuf mapLoopBuf;
+	int32_t *pIndexTable;
+	V2_F32 *pSortedUvBuf;
 	Piece *pPiece;
 	V2_F32 centre;
 	int32_t seamFace;
@@ -86,6 +91,8 @@ void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle) {
 		pContext->alloc.pFree(pHandle->pLoopBuf);
 		pContext->alloc.pFree(pHandle->pSeamBuf);
 		pContext->alloc.pFree(pHandle->pMapLoopBuf);
+		pContext->alloc.pFree(pHandle->pIndexTable);
+		pContext->alloc.pFree(pHandle->pSortedUvs);
 	}
 }
 
@@ -96,11 +103,15 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 			ruvmDestroyMergeBufs(pContext, pHandle);
 		}
 		pHandle->pLoopBuf =
-			pContext->alloc.pMalloc(sizeof(LoopBuf) * totalVerts);
+			pContext->alloc.pMalloc(sizeof(LoopBufEntry) * totalVerts);
 		pHandle->pSeamBuf =
-			pContext->alloc.pMalloc(sizeof(SeamBuf) * totalVerts);
+			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pMapLoopBuf =
-			pContext->alloc.pMalloc(sizeof(SeamBuf) * totalVerts);
+			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
+		pHandle->pIndexTable =
+			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
+		pHandle->pSortedUvs =
+			pContext->alloc.pMalloc(sizeof(V2_F32) * totalVerts);
 		pHandle->size = totalVerts;
 	}
 }
@@ -773,6 +784,8 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 	vars.loopBuf.pBuf = pMergeBufHandles->pLoopBuf;
 	vars.seamBuf.pBuf = pMergeBufHandles->pSeamBuf;
 	vars.mapLoopBuf.pBuf = pMergeBufHandles->pMapLoopBuf;
+	vars.pIndexTable = pMergeBufHandles->pIndexTable;
+	vars.pSortedUvBuf = pMergeBufHandles->pSortedUvs;
 	if (!vars.pEntry) {
 		return;
 	}
@@ -805,39 +818,35 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 	if (vars.loopBuf.count <= 2) {
 		return;
 	}
-	int32_t indexTable[32];
-	indexTable[0] = -1;
+	vars.pIndexTable[0] = -1;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
 	if (vars.fullSort) {
 		//full winding sort
-		sortLoopsFull(indexTable + 1, &vars, pMeshOut);
+		sortLoopsFull(vars.pIndexTable + 1, &vars, pMeshOut);
 	}
 	else {
-		sortLoops(indexTable + 1, &vars);
+		sortLoops(vars.pIndexTable + 1, &vars);
 	}
 	if (vars.triangulate) {
 		FaceInfo tempFace = {0};
 		tempFace.end = tempFace.size = vars.loopBuf.count;
-		V2_F32 uvBuf[32];
 		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
-			uvBuf[i] = vars.loopBuf.pBuf[indexTable[i + 1]].uv;
+			vars.pSortedUvBuf[i] = vars.loopBuf.pBuf[vars.pIndexTable[i + 1]].uv;
 		}
 		FaceTriangulated tris;
-		tris = triangulateFace(pContext->alloc, tempFace, uvBuf, NULL, 1);
+		tris = triangulateFace(pContext->alloc, tempFace, vars.pSortedUvBuf,
+		                       NULL, 1);
 		for (int32_t i = 0; i < tris.triCount; ++i) {
 			addFaceToOutMesh(&vars, pMeshOut, tris.pLoops + (i * 3), 3,
-			                 indexTable, pJobArgs);
+			                 vars.pIndexTable, pJobArgs);
 		}
 	}
 	else {
-		int32_t indices[32];
-		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
-			indices[i] = i;
-		}
+		int32_t indices[11] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 		addFaceToOutMesh(&vars, pMeshOut, indices, vars.loopBuf.count,
-		                 indexTable, pJobArgs);
+		                 vars.pIndexTable, pJobArgs);
 
 		//int32_t loopBase = pMeshOut->mesh.loopCount;
 		//for (int32_t k = 0; k < vars.loopBufSize; ++k) {

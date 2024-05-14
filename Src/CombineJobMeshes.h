@@ -8,6 +8,8 @@ typedef struct {
 	void *pLoopBuf;
 	void *pSeamBuf;
 	void *pMapLoopBuf;
+	void *pIndexTable;
+	void *pSortedUvs;
 	int32_t size;
 } MergeBufHandles;
 
