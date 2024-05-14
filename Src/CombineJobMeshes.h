@@ -4,6 +4,13 @@
 #include <Utils.h>
 #include <QuadTree.h>
 
+typedef struct {
+	void *pLoopBuf;
+	void *pSeamBuf;
+	void *pMapLoopBuf;
+	int32_t size;
+} MergeBufHandles;
+
 typedef struct Piece {
 	struct Piece *pNext;
 	BorderFace *pEntry;
@@ -12,6 +19,7 @@ typedef struct Piece {
 	int32_t edges[11];
 	int32_t entryIndex;
 	int16_t pKeep;
+	int16_t pBaseKeep;
 	int8_t listed;
 } Piece;
 
@@ -64,11 +72,14 @@ void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  JobBases *pJobBases, int8_t *pVertSeamTable);
 
+void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
+                        int32_t totalVerts);
 void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
                                RuvmMap pMap, Mesh *pMeshOut,
 							   SendOffArgs *pJobArgs, Piece *pPiece,
 							   CombineTables *pCTables, JobBases *pJobBases,
-							   int8_t *pVertSeamTable, FaceInfo *pRuvmFace);
+							   FaceInfo *pRuvmFace, MergeBufHandles *pMergeBufHandles);
+void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable);

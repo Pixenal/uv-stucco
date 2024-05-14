@@ -13,11 +13,6 @@
 #include <Utils.h>
 #include <AttribUtils.h>
 
-typedef struct {
-	int32_t edge;
-	int32_t loops[0];
-} PreserveBuf;
-
 typedef struct SharedEdge {
 	struct SharedEdge *pNext;
 	void *pLast;
@@ -67,7 +62,8 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
                                BorderFace *pEntry, SharedEdgeWrap *pSharedEdges,
 							   Piece *pEntries, int32_t tableSize,
 							   int32_t entryIndex, SendOffArgs *pJobArgs,
-							   EdgeVerts *pEdgeVerts, RuvmMap pMap) {
+							   EdgeVerts *pEdgeVerts, RuvmMap pMap,
+							   int8_t *pVertSeamTable, int32_t *pTotalVerts) {
 	//CLOCK_INIT;
 	Piece *pPiece = pEntries + entryIndex;
 	BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
@@ -75,6 +71,7 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 	int32_t faceEnd = pBufMesh->mesh.pFaces[pEntry->face - 1];
 	int32_t loopAmount = faceStart - faceEnd;
 	for (int32_t i = 0; i < loopAmount; ++i) {
+		++*pTotalVerts;
 		//CLOCK_START;
 		//int32_t vert = pBufMesh->mesh.pLoops[faceStart - i];
 		int32_t isRuvm = pEntry->isRuvm >> i & 1;
@@ -93,6 +90,14 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 		if (pVerts[1] < 0) {
 			//no adjacent vert
 			continue;
+		}
+		int32_t isBaseLoop = (pEntry->onLine >> i & 1) && !isRuvm;
+		int32_t baseVert;
+		int8_t baseKeep;
+		if (isBaseLoop) {
+			baseVert = pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop];
+			baseKeep = pJobArgs[0].pInVertTable[baseVert] > 2;
+			pPiece->pBaseKeep |= baseKeep << i;
 		}
 		//CLOCK_START;
 		int32_t whichLoop = pVerts[0] == baseLoop;
@@ -117,26 +122,22 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 		pEntries[entryIndex].edges[pEntries[entryIndex].edgeCount] = baseEdge;
 		pEntries[entryIndex].edgeCount++;
 
+
 		int8_t isPreserve = checkIfEdgeIsPreserve(&pJobArgs[0].mesh, baseEdge);
 		int8_t isReceive = 0;
-		//If 1, then map edge, otherwise base vert
 		int32_t refIndex = 0; 
 		if (isPreserve) {
-			int32_t isBaseLoop = (pEntry->onLine >> i & 1) && !isRuvm;
-			if (!isBaseLoop) {
+			if (isBaseLoop) {
+				isReceive = baseKeep;
+				//negate if base loop
+				refIndex = (baseVert + 1) * -1;
+			}
+			else {
 				int32_t ruvmLoop = pEntry->ruvmLoop >> i * 3 & 7;
 				int32_t ruvmFaceStart = pMap->mesh.mesh.pFaces[pEntry->faceIndex];
 				int32_t ruvmEdge = pMap->mesh.mesh.pEdges[ruvmFaceStart + ruvmLoop];
 				isReceive = checkIfEdgeIsReceive(&pMap->mesh, ruvmEdge);
 				refIndex = ruvmEdge;
-			}
-			else {
-				int32_t baseVert = pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop];
-				//addToPreserveVertTable(pContext, ppPreserveVerts, baseVert,
-				//                       baseEdge, tableSize);
-				isReceive = pJobArgs[0].pInVertTable[baseVert] == 1;
-				//negate if base loop
-				refIndex = (baseVert + 1) * -1;
 			}
 		}
 
@@ -165,7 +166,7 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 					isPreserve && pEdgeEntry->refIndex[0] != refIndex) {
 					pEdgeEntry->refIndex[1] = refIndex;
 					pEdgeEntry->receive += isReceive;
-					if (isReceive && refIndex >= 0) {
+					if ((isReceive) && refIndex >= 0) {
 						//this is done here (as well as in initSharedEdgeEntry),
 						//in order to avoid duplicate loops being added later on.
 						//Ie, only one loop should be marked keep per vert
@@ -282,7 +283,8 @@ static
 void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, Piece **ppPieces,
                      int32_t *pPieceCount, BorderFace *pEntry,
                      SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-					 const int32_t entryCount, Piece **ppPieceArray, RuvmMap pMap) {
+					 const int32_t entryCount, Piece **ppPieceArray, RuvmMap pMap,
+					 int8_t *pVertSeamTable, int32_t *pTotalVerts) {
 	//CLOCK_INIT;
 	//CLOCK_START;
 	int32_t tableSize = entryCount;
@@ -299,7 +301,7 @@ void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, Piece **ppPiece
 	do {
 		addEntryToSharedEdgeTable(pTimeSpent, pContext, pEntry, pSharedEdges,
 		                          pEntries, tableSize, entryIndex, pJobArgs,
-								  pEdgeVerts, pMap);
+								  pEdgeVerts, pMap, pVertSeamTable, pTotalVerts);
 		entryIndex++;
 		BorderFace *pNextEntry = pEntry->pNext;
 		pEntry->pNext = NULL;
@@ -381,6 +383,7 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 						   EdgeVerts *pEdgeVerts, JobBases *pJobBases,
 						   int8_t *pVertSeamTable) {
 	uint64_t timeSpent[7] = {0};
+	MergeBufHandles mergeBufHandles = {0};
 	for (int32_t i = 0; i < pBorderTable->count; ++i) {
 		CLOCK_INIT;
 		CLOCK_START;
@@ -400,14 +403,17 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		CLOCK_STOP_NO_PRINT;
 		timeSpent[0] += CLOCK_TIME_DIFF(start, stop);
 		CLOCK_START;
+		int32_t totalVerts = 0;
 		splitIntoPieces(timeSpent, pContext, ppPieces, &pieceCount, pEntry,
-		                pJobArgs, pEdgeVerts, entryCount, &pPieceArray, pMap);
+		                pJobArgs, pEdgeVerts, entryCount, &pPieceArray, pMap,
+						pVertSeamTable, &totalVerts);
+		ruvmAllocMergeBufs(pContext, &mergeBufHandles, totalVerts);
 		CLOCK_STOP_NO_PRINT;
 		timeSpent[1] += CLOCK_TIME_DIFF(start, stop);
 		for (int32_t j = 0; j < pieceCount; ++j) {
 			ruvmMergeSingleBorderFace(timeSpent, pContext, pMap, pMeshOut,
 			                          pJobArgs, ppPieces[j], pCTables, pJobBases,
-									  pVertSeamTable, &ruvmFace);
+									  &ruvmFace, &mergeBufHandles);
 		}
 		CLOCK_START;
 		if (ppPieces) {
@@ -419,6 +425,7 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		CLOCK_STOP_NO_PRINT;
 		timeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 	}
+	ruvmDestroyMergeBufs(pContext, &mergeBufHandles);
 	printf("Combine time breakdown: \n");
 	for(int32_t i = 0; i < 7; ++i) {
 		printf("	%lu\n", timeSpent[i]);

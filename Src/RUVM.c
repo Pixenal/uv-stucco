@@ -241,6 +241,33 @@ void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts,
 	}
 }
 
+typedef struct {
+	int32_t d[2];
+	int32_t index;
+} EdgeCache;
+
+static
+void addVertToTableEntry(Mesh *pMesh, FaceInfo face, int32_t localLoop,
+                         int32_t vert, int32_t edge, EdgeVerts *pEdgeVerts,
+						 int8_t **ppVertSeamTable, int8_t **ppInVertTable,
+						 EdgeCache *pEdgeCache) {
+	//isSeam returns 2 if mesh border, and 1 if uv seam
+	int32_t isSeam = checkIfEdgeIsSeam(edge, face, localLoop, pMesh,
+									   pEdgeVerts);
+	if (isSeam) {
+		(*ppVertSeamTable)[vert] = isSeam;
+	}
+	if ((*ppInVertTable)[vert] < 3 &&
+		checkIfEdgeIsPreserve(pMesh, edge) &&
+		pEdgeCache[vert].d[0] != edge + 1 &&
+		pEdgeCache[vert].d[1] != edge + 1) {
+		(*ppInVertTable)[vert]++;
+		int32_t *pEdgeCacheIndex = &pEdgeCache[vert].index;
+		pEdgeCache[vert].d[*pEdgeCacheIndex] = edge + 1;
+		++*pEdgeCacheIndex;
+	}
+}
+
 static
 void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 					 int8_t **ppInVertTable, int8_t **ppVertSeamTable,
@@ -250,8 +277,8 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 	//TODO do we need to list number of unique preserve edges per vert?
 	//I'm not doing so currently (hence why pEdgeCache is commented out),
 	//and it seems to be working. (talking about split to pieces)
-	//int32_t *pEdgeCache =
-	//	pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(int32_t));
+	EdgeCache *pEdgeCache =
+		pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(EdgeCache));
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceInfo face;
 		face.start = pMesh->mesh.pFaces[i];
@@ -259,29 +286,18 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 		face.size = face.end - face.start;
 		face.index = i;
 		for (int32_t j = 0; j < face.size; ++j) {
-			int32_t loopIndex = face.start + j;
-			int32_t vertIndex = pMesh->mesh.pLoops[loopIndex];
-			int32_t edgeIndex = pMesh->mesh.pEdges[loopIndex];
-			int32_t isSeam = checkIfEdgeIsSeam(edgeIndex, face, j, pMesh,
-			                                   pEdgeVerts);
-			//if ((*ppInVertTable)[vertIndex] < 2 &&
-			//	pEdgeCache[vertIndex] != edgeIndex + 1 &&
-			//    checkIfEdgeIsPreserve(pMesh, edgeIndex) && !isSeam) {
-			//	(*ppInVertTable)[vertIndex]++;
-			//	pEdgeCache[vertIndex] = edgeIndex + 1;
-			//}
-			if (!(*ppInVertTable)[vertIndex] &&
-			    checkIfEdgeIsPreserve(pMesh, edgeIndex) && !isSeam) {
-				(*ppInVertTable)[vertIndex] = 1;
-			}
-			//cap at 3 to avoid integer overflow
-			else if (isSeam && (*ppVertSeamTable)[vertIndex] < 3) {
-				//isSeam returns 2 if border edge, and 1 if seam
-				(*ppVertSeamTable)[vertIndex] += isSeam;
-			}
+			int32_t loop = face.start + j;
+			int32_t vert = pMesh->mesh.pLoops[loop];
+			int32_t edge = pMesh->mesh.pEdges[loop];
+			addVertToTableEntry(pMesh, face, j, vert, edge, pEdgeVerts,
+			                    ppVertSeamTable, ppInVertTable, pEdgeCache);
+			int32_t prevj = j == 0 ? face.size - 1 : j - 1;
+			int32_t prevEdge = pMesh->mesh.pEdges[face.start + prevj];
+			addVertToTableEntry(pMesh, face, prevj, vert, prevEdge, pEdgeVerts,
+			                    ppVertSeamTable, ppInVertTable, pEdgeCache);
 		}
 	}
-	//pContext->alloc.pFree(pEdgeCache);
+	pContext->alloc.pFree(pEdgeCache);
 }
 
 static
