@@ -95,6 +95,10 @@ V3_F32 v3Normalize(V3_F32 a) {
 	return _(a V3DIVS magnitude);
 }
 
+int32_t v3IsFinite(V3_F32 a) {
+	return isfinite(a.d[0]) && isfinite(a.d[1]) && isfinite(a.d[2]);
+}
+
 float v3Dot(V3_F32 a, V3_F32 b) {
 	return a.d[0] * b.d[0] + a.d[1] * b.d[1] + a.d[2] * b.d[2];
 }
@@ -259,6 +263,10 @@ int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 centre, float threshold) {
 	return cross < threshold && cross > -threshold;
 }
 
+int32_t v2IsFinite(V2_F32 a) {
+	return isfinite(a.d[0]) && isfinite(a.d[1]);
+}
+
 Mat2x2 mat2x2Adjugate(Mat2x2 a) {
 	Mat2x2 c;
 	c.d[0][0] = a.d[1][1];
@@ -284,6 +292,11 @@ Mat2x2 mat2x2Invert(Mat2x2 a) {
 	Mat2x2 inverse = mat2x2Adjugate(a);
 	mat2x2MultiplyEqualScalar(&inverse, 1.0f / determinate);
 	return inverse;
+}
+
+int32_t mat2x2IsFinite(Mat2x2 *pA) {
+	return isfinite(pA->d[0][0]) && isfinite(pA->d[0][1]) &&
+	       isfinite(pA->d[1][0]) && isfinite(pA->d[1][1]);
 }
 
 float mat3x3Determinate(Mat3x3 *pA) {
@@ -338,6 +351,14 @@ Mat3x3 mat3x3Invert(Mat3x3 *pA) {
 	Mat3x3 inverse = mat3x3Adjugate(pA);
 	mat3x3MultiplyEqualScalar(&inverse, 1.0f / determinate);
 	return inverse;
+}
+
+int32_t mat3x3IsFinite(Mat3x3 *pA) {
+	int32_t isFinite = 0;
+	isFinite += isfinite(pA->d[0][0]) && isfinite(pA->d[0][1]) && isfinite(pA->d[0][2]);
+	isFinite += isfinite(pA->d[1][0]) && isfinite(pA->d[1][1]) && isfinite(pA->d[1][2]);
+	isFinite += isfinite(pA->d[2][0]) && isfinite(pA->d[2][1]) && isfinite(pA->d[2][2]);
+	return isFinite;
 }
 
 Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b) {

@@ -80,7 +80,8 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
                                RuvmMap pMap, Mesh *pMeshOut,
 							   SendOffArgs *pJobArgs, Piece *pPiece,
 							   CombineTables *pCTables, JobBases *pJobBases,
-							   FaceInfo *pRuvmFace, MergeBufHandles *pMergeBufHandles);
+							   FaceInfo *pRuvmFace, MergeBufHandles *pMergeBufHandles,
+							   int32_t approxVertsPerPiece);
 void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,

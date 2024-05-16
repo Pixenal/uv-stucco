@@ -2,6 +2,7 @@
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <RUVM.h>
 #include <CombineJobMeshes.h>
@@ -53,13 +54,13 @@ typedef struct {
 	Mat3x3 tbnInv;
 	FaceInfo ruvmFace;
 	BorderFace *pEntry;
+	int32_t bufSize;
 	LoopBuf loopBuf;
 	SeamBuf seamBuf;
 	MapLoopBuf mapLoopBuf;
 	int32_t *pIndexTable;
 	V2_F32 *pSortedUvBuf;
 	Piece *pPiece;
-	V2_F32 centre;
 	int32_t seamFace;
 	int32_t infoBufSize;
 	int8_t fullSort;
@@ -98,6 +99,7 @@ void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle) {
 
 void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts) {
+	assert(totalVerts >= 0 && totalVerts < 100000);
 	if (totalVerts > pHandle->size) {
 		if (pHandle->size) {
 			ruvmDestroyMergeBufs(pContext, pHandle);
@@ -127,23 +129,21 @@ int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry) {
 		}
 		pEntry = pEntry->pNext;
 	} while(pEntry);
-	int32_t faceStart = pMap->mesh.mesh.pFaces[faceIndex];
-	int32_t faceEnd = pMap->mesh.mesh.pFaces[faceIndex + 1];
-	int32_t faceSize = faceEnd - faceStart;
-	return ruvmLoops < faceSize;
+	FaceInfo face = getFaceRange(&pMap->mesh.mesh, faceIndex, 1);
+	return ruvmLoops < face.size;
 }
 
 static
-void addLoopsWithSingleVert(RuvmContext pContext, Vars *pVars, SendOffArgs *pJobArgs,
-                            BorderVert *localEdgeTable, int32_t *pTotalVerts) {
-	for (int32_t i = 0; i < 16; ++i) {
+void addLoopsWithSingleVert(RuvmContext pContext, Vars *pVars,
+                            int32_t tableSize, BorderVert *localEdgeTable) {
+	assert(tableSize >= 0 && tableSize < 10000);
+	for (int32_t i = 0; i < tableSize; ++i) {
 		BorderVert *pEdgeEntry = localEdgeTable + i;
 		int32_t depth = 0;
 		do {
 			if (pEdgeEntry->loops == 1 || pEdgeEntry->keepBaseLoop) {
-				BufMesh *pBufMesh = &pJobArgs[pEdgeEntry->job].bufMesh;
-				_(&pVars->centre V2ADDEQL pBufMesh->pUvs[pEdgeEntry->vert]);
-				++*pTotalVerts;
+				assert(pVars->seamBuf.count >= 0);
+				assert(pVars->seamBuf.count < pVars->bufSize);
 				pVars->seamBuf.pBuf[pVars->seamBuf.count] = pEdgeEntry->vert;
 				pVars->seamBuf.count++;
 			}
@@ -151,9 +151,10 @@ void addLoopsWithSingleVert(RuvmContext pContext, Vars *pVars, SendOffArgs *pJob
 			if (depth > 0) {
 				pContext->alloc.pFree(pEdgeEntry);
 			}
-			pEdgeEntry = pNextEdgeEntry;
 			depth++;
+			pEdgeEntry = pNextEdgeEntry;
 		} while(pEdgeEntry);
+		assert(i >= 0 && i < tableSize);
 	}
 }
 
@@ -173,37 +174,35 @@ void initLocalEdgeTableEntry(BorderVert *pEdgeEntry, int32_t ruvmEdge,
 }
 
 static
-void addLoopToLocalEdgeTable(RuvmContext pContext, BorderVert *localEdgeTable,
-                             Vars *pVars, SendOffArgs *pJobArgs,
-							 BorderFace *pEntry, RuvmMap pMap,
-							 int32_t faceStart, int32_t k, Piece *pPiece) {
+void addLoopToLocalEdgeTable(RuvmContext pContext, int32_t tableSize,
+                             BorderVert *localEdgeTable, Vars *pVars,
+							 SendOffArgs *pJobArgs, BorderFace *pEntry,
+							 RuvmMap pMap, int32_t faceStart,
+							 int32_t k, Piece *pPiece) {
 	int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
-	FaceInfo baseFace;
-	baseFace.index = pEntry->baseFace;
-	baseFace.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
-	baseFace.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
-	baseFace.size = baseFace.end - baseFace.start;
-	int32_t baseLoop = baseFace.start + baseLoopLocal;
+	Mesh *pInMesh = &pJobArgs[pEntry->job].mesh;
+	FaceInfo inFace = getFaceRange(&pInMesh->mesh, pEntry->baseFace, 1);
+	assert(baseLoopLocal < inFace.size);
+	int32_t baseLoop = inFace.start + baseLoopLocal;
+	assert(baseLoop < pInMesh->mesh.loopCount);
 	int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
-	int32_t baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
-	int32_t baseVert = isBaseLoop ?
-		pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop] : -1;
+	int32_t baseEdge = pInMesh->mesh.pEdges[baseLoop];
+	assert(baseEdge >= 0 && baseEdge < pInMesh->mesh.edgeCount);
+	int32_t baseVert = isBaseLoop ? pInMesh->mesh.pLoops[baseLoop] : -1;
+	assert(baseVert >= -1 && baseVert < pInMesh->mesh.vertCount);
 
 	int32_t keepBaseLoop = 0;
 	if (isBaseLoop && pPiece->pBaseKeep >> k & 1) {
 		keepBaseLoop = 1;
 	}
-
-	int32_t hash, ruvmEdge;
-	if (isBaseLoop) {
-		hash = ruvmFnvHash((uint8_t *)&baseVert, 4, 16);
-		ruvmEdge = -1;
-	}
-	else {
+	int32_t ruvmEdge = -1;
+	if (!isBaseLoop) {
 		ruvmEdge = pMap->mesh.mesh.pEdges[pVars->ruvmFace.start + ruvmLoop];
-		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, 16);
+		assert(ruvmEdge >= 0 && ruvmEdge < pMap->mesh.mesh.edgeCount);
 	}
+	int32_t indexToHash = isBaseLoop ? baseVert : ruvmEdge;
+	int32_t hash = ruvmFnvHash((uint8_t *)&indexToHash, 4, tableSize);
 	BorderVert *pEdgeEntry = localEdgeTable + hash;
 	if (!pEdgeEntry->loops) {
 		initLocalEdgeTableEntry(pEdgeEntry, ruvmEdge, pEntry, baseEdge,
@@ -211,6 +210,9 @@ void addLoopToLocalEdgeTable(RuvmContext pContext, BorderVert *localEdgeTable,
 	}
 	else {
 		do {
+			//Check entry is valid
+			assert(pEdgeEntry->baseVert >= -1);
+			assert(pEdgeEntry->baseVert < pInMesh->mesh.vertCount);
 			int32_t	match;
 			if (isBaseLoop) {
 				match = pEdgeEntry->baseVert == baseVert;
@@ -221,6 +223,7 @@ void addLoopToLocalEdgeTable(RuvmContext pContext, BorderVert *localEdgeTable,
 						 pEdgeEntry->baseEdge == baseEdge;
 			}
 			if (match) {
+				assert(pEdgeEntry->loops > 0); //Check entry is valid
 				pEdgeEntry->loops++;
 				pEdgeEntry->keepBaseLoop |= keepBaseLoop;
 				break;
@@ -240,36 +243,38 @@ void addLoopToLocalEdgeTable(RuvmContext pContext, BorderVert *localEdgeTable,
 static
 void determineLoopsToKeep(RuvmContext pContext, RuvmMap pMap,
                           Vars *pVars, SendOffArgs *pJobArgs,
-                          int32_t *pTotalVerts, JobBases *pJobBases,
-						  Piece *pPiece) {
-	BorderVert localEdgeTable[16] = {0};
+                          int32_t aproxVertsPerPiece,
+						  JobBases *pJobBases, Piece *pPiece) {
+	int32_t tableSize = aproxVertsPerPiece;
+	assert(tableSize >= 0 && tableSize < 10000);
+	BorderVert *pLocalEdgeTable =
+		pContext->alloc.pCalloc(tableSize, sizeof(BorderVert));
 	do {
 		BorderFace *pEntry = pPiece->pEntry;
 		BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
-		int32_t faceStart = pBufMesh->mesh.pFaces[pEntry->face];
-		int32_t faceEnd = pBufMesh->mesh.pFaces[pEntry->face - 1];
-		int32_t loopAmount = faceStart - faceEnd;
-		for (int32_t k = 0; k < loopAmount; ++k) {
-			int32_t vert = pBufMesh->mesh.pLoops[faceStart - k];
+		FaceInfo face = getFaceRange(&pBufMesh->mesh, pEntry->face, -1);
+		for (int32_t k = 0; k < face.size; ++k) {
+			int32_t vert = pBufMesh->mesh.pLoops[face.start - k];
 			if (pEntry->isRuvm >> k & 1) {
-				_(&pVars->centre V2ADDEQL pBufMesh->pUvs[faceStart - k]);
-				++*pTotalVerts;
 				vert += pJobBases[pEntry->job].vertBase;
 			}
 			else {
-				addLoopToLocalEdgeTable(pContext, localEdgeTable, pVars, pJobArgs,
-				                        pEntry, pMap, faceStart, k, pPiece);
+				addLoopToLocalEdgeTable(pContext, tableSize, pLocalEdgeTable,
+				                        pVars, pJobArgs, pEntry, pMap, face.start,
+										k, pPiece);
 			}
+			assert(k >= 0 && k < face.size);
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
-	
-	addLoopsWithSingleVert(pContext, pVars, pJobArgs, localEdgeTable, pTotalVerts);
+	addLoopsWithSingleVert(pContext, pVars, tableSize, pLocalEdgeTable);
+	pContext->alloc.pFree(pLocalEdgeTable);
 }
 
-static void buildApproximateTbnInverse(Vars *pVars,
-                                       SendOffArgs *pJobArgs) {
+static
+void buildApproximateTbnInverse(Vars *pVars, SendOffArgs *pJobArgs) {
 	BorderFace *pEntry = pVars->pEntry;
+	assert(pEntry->baseLoop != 0 || pEntry->ruvmLoop != 0); //check entry is valid
 	V3_F32 normal = {0};
 	int32_t entryCount = 0;
 	do {
@@ -302,15 +307,6 @@ static void buildApproximateTbnInverse(Vars *pVars,
 	V3_F32 bitangent = v3Cross(normal, tangent);
 	Mat3x3 tbn = mat3x3FromV3_F32(tangent, bitangent, normal);
 	pVars->tbnInv = mat3x3Invert(&tbn);
-}
-
-static FaceInfo getBaseFace(BorderFace *pEntry, SendOffArgs *pJobArgs) {
-	FaceInfo face;
-	face.index = pEntry->baseFace;
-	face.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
-	face.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
-	face.size = face.end - face.start;
-	return face;
 }
 
 static void initVertTableEntry(BorderVert *pVertEntry, BorderFace *pEntry,
@@ -351,10 +347,11 @@ void addBorderLoopAndVert(RuvmContext pContext, CombineTables *pCTables,
                           BorderFace *pEntry, SendOffArgs *pJobArgs,
 						  Mesh *pMeshOut, int32_t k, int32_t ruvmLoop,
 						  int32_t *pEdge, int32_t loop) {
-	FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
+	Mesh *pInMesh = &pJobArgs[pEntry->job].mesh;
+	FaceInfo inFace = getFaceRange(&pInMesh->mesh, pEntry->baseFace, 1);
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 	int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
-	int32_t baseLoop = baseFace.start + baseLoopLocal;
+	int32_t baseLoop = inFace.start + baseLoopLocal;
 	int32_t baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
 	int32_t baseVert = isBaseLoop ?
 		pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop] : -1;
@@ -493,15 +490,17 @@ void addOnLineVert(RuvmContext pContext, Vars *pVars, int32_t ruvmLoop,
                    RuvmMap pMap, SendOffArgs *pJobArgs, BorderFace *pEntry,
 				   CombineTables *pCTables, Mesh *pMeshOut, int32_t *pVert,
 				   int32_t k) {
-	int32_t ruvmVert = pMap->mesh.mesh.pLoops[pVars->ruvmFace.start + ruvmLoop];
-	FaceInfo baseFace = getBaseFace(pEntry, pJobArgs);
+	Mesh *pInMesh = &pJobArgs[pEntry->job].mesh;
+	FaceInfo inFace = getFaceRange(&pInMesh->mesh, pEntry->baseFace, 1);
 	int32_t baseLoopLocal = pEntry->baseLoop >> k * 2 & 3;
 	int32_t isBaseLoop = (pEntry->onLine >> k & 1) && !(pEntry->isRuvm >> k & 1);
-	int32_t baseLoop = baseFace.start + baseLoopLocal;
+	int32_t baseLoop = inFace.start + baseLoopLocal;
 	int32_t baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
+
+	int32_t ruvmVert = pMap->mesh.mesh.pLoops[pVars->ruvmFace.start + ruvmLoop];
+
 	int32_t base = isBaseLoop ? baseLoop : baseEdge;
-	int32_t hash = ruvmFnvHash((uint8_t *)&base, 4,
-							   pCTables->onLineTableSize);
+	int32_t hash = ruvmFnvHash((uint8_t *)&base, 4, pCTables->onLineTableSize);
 	OnLine *pOnLineEntry = pCTables->pOnLineTable + hash;
 	if (!pOnLineEntry->type) {
 		initOnLineTableEntry(pOnLineEntry, pMeshOut,
@@ -540,30 +539,27 @@ void addLoopsToBufAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 	Piece *pPiece = pVars->pPiece;
 	do {
 		BorderFace *pEntry = pPiece->pEntry;
-		BufMesh *bufMesh = &pJobArgs[pEntry->job].bufMesh;
-		int32_t faceStart = bufMesh->mesh.pFaces[pEntry->face];
-		int32_t faceEnd = bufMesh->mesh.pFaces[pEntry->face - 1];
-		//int32_t faceSize = faceStart - faceEnd;
-		int32_t loopAmount = faceStart - faceEnd;
-		for (int32_t k = 0; k < loopAmount; ++k) {
+		BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
+		FaceInfo face = getFaceRange(&pBufMesh->mesh, pEntry->face, -1);
+		for (int32_t k = 0; k < face.size; ++k) {
 			//CLOCK_START;
 			int32_t vert;
 			int32_t edge;
 			int32_t isRuvm = pEntry->isRuvm >> k & 1;
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
-				if (checkIfShouldSkip(pVars, pPiece, faceStart, k)) {
+				if (checkIfShouldSkip(pVars, pPiece, face.start, k)) {
 					continue;
 				}
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
 				//CLOCK_START;
-				vert = bufMesh->mesh.pLoops[faceStart - k];
-				edge = bufMesh->mesh.pEdges[faceStart - k];
+				vert = pBufMesh->mesh.pLoops[face.start - k];
+				edge = pBufMesh->mesh.pEdges[face.start - k];
 				int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
 				addBorderLoopAndVert(pContext, pCTables, pMap, pVars, &vert,
 				                     pEntry, pJobArgs, pMeshOut, k, ruvmLoop,
-									 &edge, faceStart - k);
+									 &edge, face.start - k);
 				pVars->loopBuf.pBuf[pVars->loopBuf.count + 1].sort = -1;
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
@@ -579,8 +575,8 @@ void addLoopsToBufAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 				//That would probably be cleaner, and more memory concious tbh.
 				int32_t onLine = pEntry->onLine >> k & 1;
 				int32_t ruvmLoop = pEntry->ruvmLoop >> k * 3 & 7;
-				vert = bufMesh->mesh.pLoops[faceStart - k];
-				edge = bufMesh->mesh.pEdges[faceStart - k];
+				vert = pBufMesh->mesh.pLoops[face.start - k];
+				edge = pBufMesh->mesh.pEdges[face.start - k];
 				if (onLine) {
 					if (checkIfDup(pVars, ruvmLoop)) {
 						continue;
@@ -607,15 +603,16 @@ void addLoopsToBufAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 			//if border loop, or if loop edge has been intersected,
 			//add new edge to mesh
 			//int32_t kNext = (k + 1) % faceSize;
-			//int32_t vertNext = bufMesh->mesh.pLoops[faceStart - kNext];
+			//int32_t vertNext = bufMesh->mesh.pLoops[face.start - kNext];
 			//if (borderLoop || vertNext >= bufMesh->mesh.vertCount) {
 			//}
-			pVars->loopBuf.pBuf[pVars->loopBuf.count].job = pEntry->job;
-			pVars->loopBuf.pBuf[pVars->loopBuf.count].bufLoop = faceStart - k;
-			pVars->loopBuf.pBuf[pVars->loopBuf.count].bufFace = pEntry->face;
-			pVars->loopBuf.pBuf[pVars->loopBuf.count].loop = vert;
-			pVars->loopBuf.pBuf[pVars->loopBuf.count].edge = edge;
-			pVars->loopBuf.pBuf[pVars->loopBuf.count].uv = bufMesh->pUvs[faceStart - k];
+			LoopBuf *pLoopBuf = &pVars->loopBuf;
+			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
+			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
+			pLoopBuf->pBuf[pLoopBuf->count].bufFace = pEntry->face;
+			pLoopBuf->pBuf[pLoopBuf->count].loop = vert;
+			pLoopBuf->pBuf[pLoopBuf->count].edge = edge;
+			pLoopBuf->pBuf[pLoopBuf->count].uv = pBufMesh->pUvs[face.start - k];
 			//CLOCK_START;
 			//CLOCK_STOP_NO_PRINT;
 			//pTimeSpent[6] += CLOCK_TIME_DIFF(start, stop);
@@ -712,24 +709,6 @@ static void sortLoops(int32_t *pIndexTable, Vars *pVars) {
 }
 
 static
-void getCentroid(Vars *pVars, SendOffArgs *pJobArgs) {
-	BorderFace *pEntry = pVars->pEntry;
-	int32_t totalVerts = 0;
-	do {
-		BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
-		int32_t faceStart = pBufMesh->mesh.pFaces[pEntry->face];
-		int32_t faceEnd = pBufMesh->mesh.pFaces[pEntry->face - 1];
-		int32_t loopAmount = faceStart - faceEnd;
-		for (int32_t i = 0; i < loopAmount; ++i) {
-			_(&pVars->centre V2ADDEQL pBufMesh->pUvs[faceStart - i]);
-			totalVerts++;
-		}
-		pEntry = pEntry->pNext;
-	} while(pEntry);
-	_(&pVars->centre V2DIVSEQL (float)totalVerts);
-}
-
-static
 void determineIfFullSort(Vars *pVars) {
 	if (pVars->seamFace) {
 		pVars->fullSort = 1;
@@ -775,12 +754,14 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
                                RuvmMap pMap, Mesh *pMeshOut,
 							   SendOffArgs *pJobArgs, Piece *pPiece,
 							   CombineTables *pCTables, JobBases *pJobBases,
-							   FaceInfo *pRuvmFace, MergeBufHandles *pMergeBufHandles) {
+							   FaceInfo *pRuvmFace, MergeBufHandles *pMergeBufHandles,
+							   int32_t approxVertsPerPiece) {
 	CLOCK_INIT
 	CLOCK_START;
 	Vars vars = {0};
 	vars.pPiece = pPiece;
 	vars.pEntry = pPiece->pEntry;
+	vars.bufSize = pMergeBufHandles->size;
 	vars.loopBuf.pBuf = pMergeBufHandles->pLoopBuf;
 	vars.seamBuf.pBuf = pMergeBufHandles->pSeamBuf;
 	vars.mapLoopBuf.pBuf = pMergeBufHandles->pMapLoopBuf;
@@ -798,13 +779,8 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 	pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
 	if (vars.seamFace) {
-		int32_t totalVerts = 0;
-		determineLoopsToKeep(pContext, pMap, &vars, pJobArgs, &totalVerts,
-		                     pJobBases, pPiece);
-		_(&vars.centre V2DIVSEQL (float)totalVerts);
-	}
-	else if (vars.fullSort) {
-		getCentroid(&vars, pJobArgs);
+		determineLoopsToKeep(pContext, pMap, &vars, pJobArgs,
+		                     approxVertsPerPiece, pJobBases, pPiece);
 	}
 	if (vars.fullSort) {
 		buildApproximateTbnInverse(&vars, pJobArgs);

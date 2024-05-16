@@ -55,6 +55,7 @@ V3_F32 v3UnitFromPoints(V3_F32 a, V3_F32 b);
 V3_F32 v3MultiplyMat3x3(V3_F32 a, Mat3x3 *pB);
 V3_F32 v3Normalize(V3_F32 a);
 float v3Dot(V3_F32 a, V3_F32 b);
+int32_t v3IsFinite(V3_F32);
 V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint);
 V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint);
 
@@ -87,14 +88,17 @@ int32_t v2Equal(V2_F32 a, V2_F32 b);
 int32_t v2AproxEqual(V2_F32 a, V2_F32 b);
 int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack);
 int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 centre, float threshold);
+int32_t v2IsFinite(V2_F32);
 
 Mat2x2 mat2x2Adjugate(Mat2x2 a);
 float mat2x2Determinate(Mat2x2 a);
 void mat2x2MultiplyEqualScalar(Mat2x2 *pA, float b);
 Mat2x2 mat2x2Invert(Mat2x2 a);
 Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b);
+int32_t mat2x2IsFinite(Mat2x2 *pA);
 Mat3x3 mat3x3FromV3_F32(V3_F32 a, V3_F32 b, V3_F32 c);
 Mat3x3 mat3x3Invert(Mat3x3 *pA);
+int32_t mat3x3IsFinite(Mat3x3 *pA);
 
 float customFloor(float a);
 
