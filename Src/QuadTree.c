@@ -514,7 +514,7 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRa
 	int32_t linked = 0;
 	for (int32_t k = 0; k < pAncestor->edgeFaceSize; ++k) {
 		int32_t faceIndex = pAncestor->pEdgeFaces[k];
-		FaceInfo face;
+		FaceRange face;
 		face.start = pMesh->mesh.pFaces[faceIndex];
 		face.end = pMesh->mesh.pFaces[faceIndex + 1];
 		face.size = face.end - face.start;

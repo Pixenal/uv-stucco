@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef PLATFORM_WINDOWS
 	#define RUVM_EXPORT __declspec(dllexport)
@@ -173,7 +174,7 @@ typedef struct {
 	char name[RUVM_ATTRIB_NAME_MAX_LEN];
 	RuvmAttribType type;
 	RUVM_ATTRIB_ORIGIN origin;
-	int8_t interpolate;
+	_Bool interpolate;
 } RuvmAttrib;
 
 typedef struct {

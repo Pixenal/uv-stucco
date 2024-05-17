@@ -247,7 +247,7 @@ typedef struct {
 } EdgeCache;
 
 static
-void addVertToTableEntry(Mesh *pMesh, FaceInfo face, int32_t localLoop,
+void addVertToTableEntry(Mesh *pMesh, FaceRange face, int32_t localLoop,
                          int32_t vert, int32_t edge, EdgeVerts *pEdgeVerts,
 						 int8_t **ppVertSeamTable, int8_t **ppInVertTable,
 						 EdgeCache *pEdgeCache) {
@@ -280,7 +280,7 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 	EdgeCache *pEdgeCache =
 		pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(EdgeCache));
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
-		FaceInfo face;
+		FaceRange face;
 		face.start = pMesh->mesh.pFaces[i];
 		face.end = pMesh->mesh.pFaces[i + 1];
 		face.size = face.end - face.start;
@@ -504,7 +504,7 @@ typedef struct {
 	V2_F32 zBounds;
 } RenderArgs;
 
-static void testPixelAgainstFace(RenderArgs *pVars, V2_F32 *pPos, FaceInfo *pFace, Color *pColor) {
+static void testPixelAgainstFace(RenderArgs *pVars, V2_F32 *pPos, FaceRange *pFace, Color *pColor) {
 	Mesh* pMesh = &pVars->pMap->mesh;
 	V2_F32 verts[4];
 	for (int32_t i = 0; i < pFace->size; ++i) {
@@ -587,7 +587,7 @@ static void ruvmRenderJob(void *pArgs) {
 				continue;
 			}
 			for (int32_t k = cellFaceRange.start; k < cellFaceRange.end; ++k) {
-				FaceInfo face;
+				FaceRange face;
 				face.index = pCellFaces[k];
 				face.start = pMesh->mesh.pFaces[face.index];
 				face.end = pMesh->mesh.pFaces[face.index + 1];
@@ -598,7 +598,7 @@ static void ruvmRenderJob(void *pArgs) {
 					                           pMesh->pVerts,
 					                           pMesh->mesh.pLoops, 0);
 					for (int32_t l = 0; l < faceTris.triCount; ++l) {
-						FaceInfo tri;
+						FaceRange tri;
 						tri.index = face.index;
 						tri.start = l * 3;
 						tri.end = tri.start + 3;

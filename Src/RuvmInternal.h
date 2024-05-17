@@ -1,6 +1,12 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include <Mesh.h>
+
+typedef uint64_t UBitField64;
+typedef uint32_t UBitField32;
+typedef uint16_t UBitField16;
+typedef uint8_t UBitField8;
 
 typedef struct {
 	int32_t start;
@@ -13,14 +19,15 @@ typedef struct {
 
 typedef struct BorderFace{
 	struct BorderFace *pNext;
-	uint64_t baseLoop : 22;
-	uint64_t ruvmLoop : 33;
-	uint64_t job : 8;
+	UBitField64 baseLoop : 22;
+	UBitField64 ruvmLoop : 33;
+	UBitField64 job : 8;
 	uint64_t seam : 1;
 
 	uint64_t tile : 24;
-	uint64_t isRuvm : 11;
-	uint64_t onLine : 11;
+	UBitField64 isRuvm : 11;
+	UBitField64 onLine : 11;
+	UBitField64 onInVert : 11;
 	uint64_t hasPreservedEdge : 1;
 
 	int32_t faceIndex;

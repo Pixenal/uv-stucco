@@ -20,11 +20,13 @@ typedef struct SharedEdge {
 	int32_t entries[2];
 	int32_t refIndex[2];
 	int32_t edge;
+	int16_t loop[2];
 	int8_t receive;
-	uint8_t checked : 1;
-	uint8_t preserve : 1;
-	uint8_t index : 1;
-	uint8_t altIndex : 1;
+	_Bool checked : 1;
+	_Bool preserve : 1;
+	_Bool index : 1;
+	_Bool altIndex : 1;
+	_Bool seam : 1;
 } SharedEdge;
 
 typedef struct {
@@ -45,8 +47,8 @@ typedef struct {
 
 static
 void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryIndex,
-                         int32_t refIndex, int32_t isPreserve, int32_t isReceive,
-						 Piece *pPiece, int32_t i) {
+                         int32_t refIndex, _Bool isPreserve, _Bool isReceive,
+						 Piece *pPiece, int32_t i, _Bool seam) {
 	assert(baseEdge >= 0 && entryIndex >= 0 && i >= 0);
 	assert(isPreserve % 2 == isPreserve); //range 0 .. 1
 	assert(isReceive % 2 == isReceive);
@@ -56,8 +58,10 @@ void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryInde
 	pEntry->refIndex[0] = refIndex;
 	pEntry->receive = isReceive;
 	pEntry->preserve = isPreserve;
-	if (isReceive && refIndex >= 0) {
-		pPiece->pKeep |= 1 << i;
+	pEntry->seam = seam;
+	pEntry->loop[0] = i;
+	if (refIndex >= 0 && isReceive) {
+		pPiece->keepPreserve |= 1 << i;
 	}
 }
 
@@ -67,59 +71,60 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 							   Piece *pEntries, int32_t tableSize,
 							   int32_t entryIndex, SendOffArgs *pJobArgs,
 							   EdgeVerts *pEdgeVerts, RuvmMap pMap,
-							   int32_t *pTotalVerts) {
+							   int32_t *pTotalVerts, int8_t *pVertSeamTable) {
 	//CLOCK_INIT;
-	assert(tableSize > 0 && entryIndex >= 0);
+	assert((tableSize > 0 && entryIndex >= 0) || entryIndex == 0);
 	Piece *pPiece = pEntries + entryIndex;
 	BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
-	FaceInfo face = getFaceRange(&pBufMesh->mesh, pEntry->face, -1);
+	FaceRange face = getFaceRange(&pBufMesh->mesh, pEntry->face, -1);
+	pPiece->bufFace = face;
 	for (int32_t i = 0; i < face.size; ++i) {
 		assert(pTotalVerts && *pTotalVerts >= 0 && *pTotalVerts < 10000);
 		++*pTotalVerts;
 		//CLOCK_START;
 		//int32_t vert = pBufMesh->mesh.pLoops[face.start - i];
-		int32_t isRuvm = pEntry->isRuvm >> i & 1;
+		_Bool isRuvm = getIfRuvm(pEntry, i);
 		if (isRuvm) {
 			//ruvm loop - skip
 			continue;
 		}
 		//CLOCK_STOP_NO_PRINT;
 		//pTimeSpent[1] += //CLOCK_TIME_DIFF(start, stop);
-		int32_t baseLoopLocal = pEntry->baseLoop >> i * 2 & 3;
-		assert(pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
-		int32_t baseFaceStart =
-			pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
-		int32_t baseLoop = baseFaceStart + baseLoopLocal;
-		assert(baseLoop < pJobArgs[0].mesh.mesh.loopCount);
-		int32_t baseEdge = pJobArgs[pEntry->job].mesh.mesh.pEdges[baseLoop];
-		assert(baseEdge < pJobArgs[0].mesh.mesh.edgeCount);
-		int32_t *pVerts = pEdgeVerts[baseEdge].verts;
-		assert(pVerts && (pVerts[0] == baseLoop || pVerts[1] == baseLoop));
+		//Get in mesh details for current buf loop
+		BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pJobArgs, i);
+		int32_t *pVerts = pEdgeVerts[inInfo.edge].verts;
+		assert(pVerts && (pVerts[0] == inInfo.loop || pVerts[1] == inInfo.loop));
 		if (pVerts[1] < 0) {
 			//no adjacent vert
 			continue;
 		}
-		int32_t isBaseLoop = (pEntry->onLine >> i & 1) && !isRuvm;
-		int32_t baseVert;
-		int8_t baseKeep;
-		if (isBaseLoop) {
-			baseVert = pJobArgs[pEntry->job].mesh.mesh.pLoops[baseLoop];
-			assert(baseVert < pJobArgs[0].mesh.mesh.vertCount);
-			assert(pJobArgs[0].pInVertTable[baseVert] >= 0); //pInVertTable is 0 .. 3
-			assert(pJobArgs[0].pInVertTable[baseVert] <= 3); 
-			baseKeep = pJobArgs[0].pInVertTable[baseVert] > 2;
-			pPiece->pBaseKeep |= baseKeep << i;
+		_Bool isOnInVert = getIfOnInVert(pEntry, i);
+		_Bool baseKeep;
+		if (isOnInVert) {
+			assert(pJobArgs[0].pInVertTable[inInfo.vert] >= 0); //pInVertTable is 0 .. 3
+			assert(pJobArgs[0].pInVertTable[inInfo.vert] <= 3); 
+			baseKeep = pJobArgs[0].pInVertTable[inInfo.vert] > 2;
+			pPiece->keepOnInVert |= baseKeep << i;
+		}
+		else {
+			//seamVert = pVertSeamTable[inInfo.vert] == 1;
+		}
+		if (!pSharedEdges) {
+			//If shared edges if NULL, then there's only 1 border face entry.
+			//So no need for a shared edge table
+			assert(entryIndex == 0);
+			continue;
 		}
 		//CLOCK_START;
-		int32_t whichLoop = pVerts[0] == baseLoop;
+		int32_t whichLoop = pVerts[0] == inInfo.loop;
 		int32_t otherLoop = pVerts[whichLoop];
 		int32_t baseFaceEnd =
 			pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
-		int32_t baseFaceSize = baseFaceEnd - baseFaceStart;
+		int32_t baseFaceSize = baseFaceEnd - inInfo.start;
 		assert(baseFaceSize > 1 && baseFaceSize < 10000);
-		assert(baseFaceStart + baseFaceSize <= pJobArgs[0].mesh.mesh.loopCount);
+		assert(inInfo.start + baseFaceSize <= pJobArgs[0].mesh.mesh.loopCount);
 		int32_t nextBaseLoop =
-			baseFaceStart + ((baseLoopLocal + 1) % baseFaceSize);
+			inInfo.start + ((inInfo.loopLocal + 1) % baseFaceSize);
 		V2_F32 uv = pJobArgs[0].mesh.pUvs[nextBaseLoop];
 		V2_F32 uvOther = pJobArgs[0].mesh.pUvs[otherLoop];
 		assert(v2IsFinite(uv) && v2IsFinite(uvOther));
@@ -128,30 +133,32 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 		//to likely be technical error, rather than artist authored.
 		//For instance, the subdiv modifier in blender will create small
 		//splits in uvs if "Keep Boundaries" is set.
-		int32_t seam = !_(uv V2APROXEQL uvOther);
+		_Bool seam = !_(uv V2APROXEQL uvOther);
 		if (seam) {
-			continue;
+			//continue;
 		}
 		//face is connected
-		pEntries[entryIndex].edges[pEntries[entryIndex].edgeCount] = baseEdge;
+		pEntries[entryIndex].edges[pEntries[entryIndex].edgeCount] = inInfo.edge;
 		pEntries[entryIndex].edgeCount++;
 
-		int8_t isPreserve = checkIfEdgeIsPreserve(&pJobArgs[0].mesh, baseEdge);
-		int8_t isReceive = 0;
+		_Bool isPreserve = checkIfEdgeIsPreserve(&pJobArgs[0].mesh, inInfo.edge);
+		_Bool isReceive = false;
 		int32_t refIndex = 0; 
-		if (isPreserve) {
-			if (isBaseLoop) {
+		if (seam) {
+			refIndex = isOnInVert ? -1 : 1;
+		}
+		else if (isPreserve) {
+			if (isOnInVert) {
 				isReceive = baseKeep;
 				//negate if base loop
-				refIndex = (baseVert + 1) * -1;
+				refIndex = (inInfo.vert + 1) * -1;
 			}
 			else {
-				int32_t ruvmLoop = pEntry->ruvmLoop >> i * 3 & 7;
-				assert(ruvmLoop < pMap->mesh.mesh.loopCount);
+				int32_t mapLoop = getMapLoop(pEntry, pMap, i);
 				assert(pEntry->faceIndex < pMap->mesh.mesh.faceCount);
 				int32_t ruvmFaceStart = pMap->mesh.mesh.pFaces[pEntry->faceIndex];
 				assert(ruvmFaceStart < pMap->mesh.mesh.loopCount);
-				int32_t ruvmEdge = pMap->mesh.mesh.pEdges[ruvmFaceStart + ruvmLoop];
+				int32_t ruvmEdge = pMap->mesh.mesh.pEdges[ruvmFaceStart + mapLoop];
 				assert(ruvmEdge < pMap->mesh.mesh.edgeCount);
 				isReceive = checkIfEdgeIsReceive(&pMap->mesh, ruvmEdge);
 				refIndex = ruvmEdge;
@@ -161,36 +168,38 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 		//CLOCK_STOP_NO_PRINT;
 		//pTimeSpent[2] += //CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		int32_t hash = ruvmFnvHash((uint8_t *)&baseEdge, 4, tableSize);
+		int32_t hash = ruvmFnvHash((uint8_t *)&inInfo.edge, 4, tableSize);
 		SharedEdgeWrap *pEdgeEntryWrap = pSharedEdges + hash;
 		SharedEdge *pEdgeEntry = pEdgeEntryWrap->pEntry;
 		if (!pEdgeEntry) {
 			pEdgeEntry = pEdgeEntryWrap->pEntry =
 				pContext->alloc.pCalloc(1, sizeof(SharedEdge));
 			pEdgeEntry->pLast = pEdgeEntryWrap;
-			initSharedEdgeEntry(pEdgeEntry, baseEdge, entryIndex, refIndex,
-			                    isPreserve, isReceive, pPiece, i);
+			initSharedEdgeEntry(pEdgeEntry, inInfo.edge, entryIndex, refIndex,
+			                    isPreserve, isReceive, pPiece, i, seam);
 			continue;
 		}
 		do {
 			assert(pEdgeEntry->edge - 1 >= 0);
 			assert(pEdgeEntry->edge - 1 < pJobArgs[0].mesh.mesh.edgeCount);
 			assert(pEdgeEntry->index % 2 == pEdgeEntry->index); // range 0 .. 1
-			if (pEdgeEntry->edge == baseEdge + 1) {
+			if (pEdgeEntry->edge == inInfo.edge + 1) {
 				if (pEdgeEntry->entries[pEdgeEntry->index] != entryIndex) {
 					//other side of the edge
 					pEdgeEntry->entries[1] = entryIndex;
+					pEdgeEntry->loop[1] = i;
 					pEdgeEntry->index = 1;
 				}
-				if (!pEdgeEntry->altIndex &&
+				if (!pEdgeEntry->seam &&
+					!pEdgeEntry->altIndex &&
 					isPreserve && pEdgeEntry->refIndex[0] != refIndex) {
 					pEdgeEntry->refIndex[1] = refIndex;
 					pEdgeEntry->receive += isReceive;
-					if ((isReceive) && refIndex >= 0) {
+					if (refIndex >= 0 && isReceive) {
 						//this is done here (as well as in initSharedEdgeEntry),
 						//in order to avoid duplicate loops being added later on.
 						//Ie, only one loop should be marked keep per vert
-						pPiece->pKeep |= 1 << i;
+						pPiece->keepPreserve |= 1 << i;
 					}
 					pEdgeEntry->altIndex = 1;
 				}
@@ -201,8 +210,8 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 					pContext->alloc.pCalloc(1, sizeof(SharedEdge));
 				pEdgeEntry->pNext->pLast = pEdgeEntry;
 				pEdgeEntry = pEdgeEntry->pNext;
-				initSharedEdgeEntry(pEdgeEntry, baseEdge, entryIndex, refIndex,
-				                    isPreserve, isReceive, pPiece, i);
+				initSharedEdgeEntry(pEdgeEntry, inInfo.edge, entryIndex, refIndex,
+				                    isPreserve, isReceive, pPiece, i, seam);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
@@ -226,7 +235,7 @@ void validatePreserveEdges(RuvmContext pContext, SharedEdgeWrap *pBucket) {
 		if (pEntry->receive <= 1) {
 			//edge intersects 1 or no map receive edges or base verts
 			//on preserve junctions, so keep it in the list
-			pEntry->checked = 1;
+			pEntry->checked = true;
 			pEntry = pEntry->pNext;
 			continue;
 		}
@@ -247,18 +256,35 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 	Piece *pPiece = pEntries + i;
 	Piece *pPieceTail = pPiece;
 	BorderFace *pTail = pPiece->pEntry;
-	pPiece->listed = 1;
+	pPiece->listed = true;
 	int32_t depth = 0;
 	do {
+		assert(pPiece->edgeCount <= 11);
 		for (int32_t j = 0; j < pPiece->edgeCount; ++j) {
 			int32_t edge = pPiece->edges[j];
 			int32_t hash = ruvmFnvHash((uint8_t *)&edge, 4, tableSize);
 			SharedEdgeWrap *pSharedEdgeWrap = pSharedEdges + hash;
 			SharedEdge *pEdgeEntry = pSharedEdgeWrap->pEntry;
 			void *pLastEdgeEntry = pSharedEdgeWrap;
-			//TODO why is this a do-while loop, not a while-do?
 			while (pEdgeEntry) {
-				if (pEdgeEntry->edge - 1 == pPiece->edges[j]) {
+				if (pEdgeEntry->seam) {
+					_Bool aIsOnInVert = pEdgeEntry->refIndex[0] < 0;
+					_Bool bIsOnInVert = pEdgeEntry->refIndex[1] < 0;
+					if (aIsOnInVert ^ bIsOnInVert) {
+						_Bool whichLoop = aIsOnInVert;
+
+						int32_t loopA = pEdgeEntry->loop[whichLoop];
+						Piece *pPieceA = pEntries + pEdgeEntry->entries[whichLoop];
+						pPieceA->keepSeam |= 1 << loopA;
+
+						int32_t loopB = pEdgeEntry->loop[!whichLoop];
+						Piece *pPieceB = pEntries + pEdgeEntry->entries[!whichLoop];
+						//Also set adjacent loop
+						int32_t adjLoop = (loopB + 1) % pPieceB->bufFace.size;
+						pPieceB->keepSeam |= 1 << adjLoop;
+					}
+				}
+				else if (pEdgeEntry->edge - 1 == pPiece->edges[j]) {
 					assert(pEdgeEntry->entries[0] == pPiece->entryIndex ||
 					       pEdgeEntry->entries[1] == pPiece->entryIndex);
 					int32_t whichEntry =
@@ -287,24 +313,32 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 }
 
 static
-void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, Piece **ppPieces,
+void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, int32_t **ppPieceRoots,
                      int32_t *pPieceCount, BorderFace *pEntry,
                      SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-					 const int32_t entryCount, Piece **ppPieceArray, RuvmMap pMap,
+					 PieceArr *pPieceArr, RuvmMap pMap,
 					 int8_t *pVertSeamTable, int32_t *pTotalVerts) {
 	//CLOCK_INIT;
 	//CLOCK_START;
-	int32_t tableSize = entryCount;
-	SharedEdgeWrap *pSharedEdges =
-		pContext->alloc.pCalloc(tableSize, sizeof(SharedEdgeWrap));
+	int32_t tableSize = 0;
+	int32_t entryCount = pPieceArr->count;
+	SharedEdgeWrap *pSharedEdges = NULL;
+	if (entryCount > 1) {
+		tableSize = entryCount;
+		pSharedEdges =
+			pContext->alloc.pCalloc(tableSize, sizeof(SharedEdgeWrap));
+	}
 	Piece *pEntries = pContext->alloc.pCalloc(entryCount, sizeof(Piece));
-	*ppPieceArray = pEntries;
+	*ppPieceRoots = pContext->alloc.pMalloc(sizeof(int32_t) * entryCount);
+	pPieceArr->pArr = pEntries;
 	int32_t entryIndex = 0;
 	//CLOCK_START;
 	do {
+		//If there's only 1 border face entry, then this function will just
+		//initialize the Piece.
 		addEntryToSharedEdgeTable(pTimeSpent, pContext, pEntry, pSharedEdges,
 		                          pEntries, tableSize, entryIndex, pJobArgs,
-								  pEdgeVerts, pMap, pTotalVerts);
+								  pEdgeVerts, pMap, pTotalVerts, pVertSeamTable);
 		assert(entryIndex < entryCount);
 		entryIndex++;
 		BorderFace *pNextEntry = pEntry->pNext;
@@ -317,7 +351,7 @@ void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, Piece **ppPiece
 	////pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
 	//CLOCK_START;
 	if (entryCount == 1) {
-		ppPieces[0] = pEntries;
+		(*ppPieceRoots)[0] = 0;
 		*pPieceCount = 1;
 	}
 	else {
@@ -335,7 +369,7 @@ void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, Piece **ppPiece
 			}
 			combineConnectedIntoPiece(pEntries, pSharedEdges, tableSize, i);
 			if (pEntries[i].pEntry) {
-				ppPieces[*pPieceCount] = pEntries + i;
+				(*ppPieceRoots)[*pPieceCount] = i;
 				++*pPieceCount;
 			}
 			assert(i < entryCount);
@@ -356,11 +390,11 @@ void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, Piece **ppPiece
 }
 
 static
-void compileEntryInfo(BorderFace *pEntry, int32_t *pCount, int32_t *pIsSeam,
-                      int32_t *pHasPreservedEdge) {
+void compileEntryInfo(BorderFace *pEntry, int32_t *pCount, _Bool *pIsSeam,
+                      _Bool *pHasPreservedEdge) {
 	*pCount = 0;
-	*pIsSeam = 0;
-	*pHasPreservedEdge = 0;
+	*pIsSeam = false;
+	*pHasPreservedEdge = false;
 	while (pEntry) {
 		++*pCount;
 		*pIsSeam |= pEntry->seam;
@@ -382,22 +416,23 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		CLOCK_START;
 		BorderFace *pEntry = pBorderTable->ppTable[i];
 		int32_t entryCount;
-		int32_t isSeam;
-		int32_t hasPreservedEdge;
+		_Bool isSeam;
+		_Bool hasPreservedEdge;
 		compileEntryInfo(pEntry, &entryCount, &isSeam, &hasPreservedEdge);
 		//int32_t seamFace = ;
-		FaceInfo ruvmFace = getFaceRange(&pMap->mesh.mesh, pEntry->faceIndex, 1);
+		FaceRange ruvmFace = getFaceRange(&pMap->mesh.mesh, pEntry->faceIndex, 1);
 		assert(ruvmFace.size <= 6);
-		Piece **ppPieces = pContext->alloc.pMalloc(sizeof(Piece) * entryCount);
-		Piece *pPieceArray = NULL;
+		int32_t *pPieceRoots = NULL;
+		PieceArr pieceArr = {0};
+		pieceArr.count = entryCount;
 		CLOCK_STOP_NO_PRINT;
 		timeSpent[0] += CLOCK_TIME_DIFF(start, stop);
 		CLOCK_START;
 		int32_t pieceCount = 0;
 		int32_t totalVerts = 0;
-		splitIntoPieces(timeSpent, pContext, ppPieces, &pieceCount, pEntry,
-		                pJobArgs, pEdgeVerts, entryCount, &pPieceArray, pMap,
-						pVertSeamTable, &totalVerts);
+		splitIntoPieces(timeSpent, pContext, &pPieceRoots, &pieceCount, pEntry,
+		                pJobArgs, pEdgeVerts, &pieceArr, pMap, pVertSeamTable,
+						&totalVerts);
 		int32_t aproxVertsPerPiece = totalVerts / pieceCount;
 		assert(aproxVertsPerPiece != 0);
 		ruvmAllocMergeBufs(pContext, &mergeBufHandles, totalVerts);
@@ -405,17 +440,17 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		timeSpent[1] += CLOCK_TIME_DIFF(start, stop);
 		for (int32_t j = 0; j < pieceCount; ++j) {
 			ruvmMergeSingleBorderFace(timeSpent, pContext, pMap, pMeshOut,
-			                          pJobArgs, ppPieces[j], pCTables, pJobBases,
-									  &ruvmFace, &mergeBufHandles,
+			                          pJobArgs, pPieceRoots[j], &pieceArr, pCTables,
+									  pJobBases, &ruvmFace, &mergeBufHandles,
 									  aproxVertsPerPiece);
 			assert(j >= 0 && j < pieceCount);
 		}
 		CLOCK_START;
-		if (ppPieces) {
-			pContext->alloc.pFree(ppPieces);
+		if (pPieceRoots) {
+			pContext->alloc.pFree(pPieceRoots);
 		}
-		if (pPieceArray) {
-			pContext->alloc.pFree(pPieceArray);
+		if (pieceArr.pArr) {
+			pContext->alloc.pFree(pieceArr.pArr);
 		}
 		CLOCK_STOP_NO_PRINT;
 		timeSpent[6] += CLOCK_TIME_DIFF(start, stop);

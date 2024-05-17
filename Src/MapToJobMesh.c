@@ -18,7 +18,7 @@ void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
 	QuadTreeSearch searchState;
 	ruvmInitQuadTreeSearch(pAlloc, pMap, &searchState);
 	for (int32_t i = 0; i < pMeshIn->mesh.faceCount; ++i) {
-		FaceInfo faceInfo;
+		FaceRange faceInfo;
 		faceInfo.start = pMeshIn->mesh.pFaces[i];
 		faceInfo.end = pMeshIn->mesh.pFaces[i + 1];
 		faceInfo.size = faceInfo.end - faceInfo.start;
@@ -96,7 +96,7 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 }
 
 static
-Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
+Mat3x3 buildFaceTbn(FaceRange face, Mesh *pMesh) {
 	int32_t loop = face.start;
 	int32_t vertIndex = pMesh->mesh.pLoops[loop];
 	V2_F32 uv = pMesh->pUvs[loop];
@@ -130,7 +130,7 @@ Mat3x3 buildFaceTbn(FaceInfo face, Mesh *pMesh) {
 }
 
 static
-void mapPerTile(MappingJobVars *pMVars, FaceInfo *pBaseFace,
+void mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
                        FaceCellsTable *pFaceCellsTable,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
 	FaceBounds *pFaceBounds = &pFaceCellsTable->pFaceCells[rawFace].faceBounds;
@@ -211,7 +211,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		FaceInfo baseFace;
+		FaceRange baseFace;
 		baseFace.start = vars.mesh.mesh.pFaces[i];
 		baseFace.end = vars.mesh.mesh.pFaces[i + 1];
 		baseFace.size = baseFace.end - baseFace.start;

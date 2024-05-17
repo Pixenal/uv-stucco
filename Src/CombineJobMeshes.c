@@ -1,9 +1,11 @@
 #include <string.h>
+#include <assert.h>
 
 #include <RUVM.h>
 #include <Context.h>
 #include <CombineJobMeshes.h>
 #include <AttribUtils.h>
+#include <MapFile.h>
 
 static
 void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut,
@@ -113,4 +115,52 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOu
 	pContext->alloc.pFree(pJobBases);
 	pMeshOut->pFaces[pMeshOut->faceCount] = pMeshOut->loopCount;
 	//CLOCK_STOP("moving to work mesh");
+}
+
+//Returns struct containing inMesh loop, edge, vert, and local loop,
+//for the current buf loop in the given border face entry.
+//The start loop of the face is also given.
+//Though for face end, and size, call getFaceRange
+BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
+                                  const SendOffArgs *pJobArgs,
+								  const int32_t loopIndex) {
+	BorderInInfo inInfo;
+	assert(pEntry->baseFace >= 0);
+	assert(pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
+	inInfo.loopLocal = pEntry->baseLoop >> loopIndex * 2 & 3;
+	assert(inInfo.loopLocal >= 0);
+	inInfo.start =
+		pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
+	assert(inInfo.start >= 0);
+	assert(inInfo.start < pJobArgs[pEntry->job].mesh.mesh.loopCount);
+	//Check local loop is less than face size
+	assert(inInfo.loopLocal <
+	       pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1] -
+		   inInfo.start);
+	inInfo.loop = inInfo.start + inInfo.loopLocal;
+	assert(inInfo.loop < pJobArgs[pEntry->job].mesh.mesh.loopCount);
+	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.loop];
+	assert(inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
+	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pLoops[inInfo.loop];
+	assert(inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
+	return inInfo;
+}
+
+_Bool getIfRuvm(const BorderFace *pEntry, const int32_t loopIndex) {
+	return pEntry->isRuvm >> loopIndex & 1;
+}
+
+_Bool getIfOnInVert(const BorderFace *pEntry, const int32_t loopIndex) {
+	return pEntry->onInVert >> loopIndex & 1;
+}
+
+_Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex) {
+	return pEntry->onLine >> loopIndex & 1;
+}
+
+int32_t getMapLoop(const BorderFace *pEntry,
+                   const RuvmMap pMap, const int32_t loopIndex) {
+	int32_t mapLoop = pEntry->ruvmLoop >> loopIndex * 3 & 7;
+	assert(mapLoop >= 0 && mapLoop < pMap->mesh.mesh.loopCount);
+	return mapLoop;
 }

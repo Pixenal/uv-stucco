@@ -32,12 +32,12 @@ typedef struct {
 } QuadTree;
 
 typedef struct {
-	int32_t cellSize;
 	Cell **ppCells;
 	int8_t *pCellType;
+	Range *pRangeBuf;
+	int32_t cellSize;
 	int32_t faceTotal;
 	int32_t faceTotalNoDup;
-	Range *pRangeBuf;
 } EncasingCells;
 
 typedef struct {

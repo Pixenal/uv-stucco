@@ -5,8 +5,15 @@
 #include <QuadTree.h>
 
 typedef struct {
+	int32_t start;
+	int32_t loopLocal;
+	int32_t loop;
+	int32_t edge;
+	int32_t vert;
+} BorderInInfo;
+
+typedef struct {
 	void *pLoopBuf;
-	void *pSeamBuf;
 	void *pMapLoopBuf;
 	void *pIndexTable;
 	void *pSortedUvs;
@@ -17,12 +24,15 @@ typedef struct Piece {
 	struct Piece *pNext;
 	BorderFace *pEntry;
 	BorderFace *pTail;
+	FaceRange bufFace;
 	int32_t edgeCount;
 	int32_t edges[11];
 	int32_t entryIndex;
-	int16_t pKeep;
-	int16_t pBaseKeep;
-	int8_t listed;
+	UBitField16 keepSingle;
+	UBitField16 keepSeam;
+	UBitField16 keepPreserve;
+	UBitField16 keepOnInVert;
+	_Bool listed;
 } Piece;
 
 typedef struct BorderEdge {
@@ -30,8 +40,13 @@ typedef struct BorderEdge {
 	int32_t edge;
 	int32_t inEdge;
 	int32_t mapFace;
-	int32_t valid;
+	_Bool valid;
 } BorderEdge;
+
+typedef struct {
+	Piece *pArr;
+	int32_t count;
+} PieceArr;
 
 typedef struct OnLine {
 	struct OnLine *pNext;
@@ -43,6 +58,7 @@ typedef struct OnLine {
 
 typedef struct BorderVert {
 	struct BorderVert *pNext;
+	int32_t entryIndex;
 	int32_t ruvmFace;
 	int32_t ruvmEdge;
 	int32_t vert;
@@ -53,7 +69,7 @@ typedef struct BorderVert {
 	int32_t loopIndex;
 	int32_t loop;
 	int8_t job;
-	int8_t keepBaseLoop;
+	_Bool keepBaseLoop;
 } BorderVert;
 
 typedef struct {
@@ -78,11 +94,19 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
 void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
                                RuvmMap pMap, Mesh *pMeshOut,
-							   SendOffArgs *pJobArgs, Piece *pPiece,
+							   SendOffArgs *pJobArgs, int32_t entryCount,
+							   PieceArr *pPieceArr,
 							   CombineTables *pCTables, JobBases *pJobBases,
-							   FaceInfo *pRuvmFace, MergeBufHandles *pMergeBufHandles,
+							   FaceRange *pRuvmFace, MergeBufHandles *pMergeBufHandles,
 							   int32_t approxVertsPerPiece);
 void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable);
+BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
+                                  const SendOffArgs *pJobArgs, int32_t loopIndex);
+_Bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);
+_Bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
+_Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
+int32_t getMapLoop(const BorderFace *pEntry,
+                   const RuvmMap pMap, int32_t loopIndex);
