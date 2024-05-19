@@ -1,5 +1,6 @@
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include <RUVM.h>
 #include <Context.h>
@@ -94,11 +95,18 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOu
 	allocateMeshOut(pContext, pMeshOut, pJobArgs);
 	JobBases *pJobBases =
 		pContext->alloc.pMalloc(sizeof(JobBases) * pContext->threadCount);
+	uint64_t reallocTime = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		reallocTime += pJobArgs[i].reallocTime;
+		printf("realloc time %lu\n", pJobArgs[i].reallocTime);
+		printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
+		printf("bufSize: %d | ", pJobArgs[i].bufSize);
+		printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
 		pJobBases[i].vertBase = pMeshOut->vertCount;
 		pJobBases[i].edgeBase = pMeshOut->edgeCount;
 		copyMesh(i, pMeshOut, pJobArgs);
 	}
+	printf("realloc time total %lu\n", reallocTime);
 	Mesh meshOutWrap = {.mesh = *pMeshOut};
 	meshOutWrap.pVertAttrib = getAttrib("position", &pMeshOut->vertAttribs);
 	meshOutWrap.pVerts = meshOutWrap.pVertAttrib->pData;
@@ -163,4 +171,26 @@ int32_t getMapLoop(const BorderFace *pEntry,
 	int32_t mapLoop = pEntry->ruvmLoop >> loopIndex * 3 & 7;
 	assert(mapLoop >= 0 && mapLoop < pMap->mesh.mesh.loopCount);
 	return mapLoop;
+}
+
+int32_t bufMeshGetVertIndex(const Piece *pPiece,
+                            const BufMesh *pBufMesh, const int32_t localLoop) {
+	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
+	_Bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
+	int32_t vert = pBufMesh->mesh.pLoops[pPiece->bufFace.start - localLoop];
+	if (!isRuvm || isOnLine) {
+		vert = convertBorderVertIndex(pBufMesh, vert).realIndex;
+	}
+	return vert;
+}
+
+int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
+                            const BufMesh *pBufMesh, const int32_t localLoop) {
+	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
+	_Bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
+	int32_t edge = pBufMesh->mesh.pEdges[pPiece->bufFace.start - localLoop];
+	if (!isRuvm || isOnLine) {
+		edge = convertBorderEdgeIndex(pBufMesh, edge).realIndex;
+	}
+	return edge;
 }

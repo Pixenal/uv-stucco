@@ -19,6 +19,7 @@ void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
 	ruvmInitQuadTreeSearch(pAlloc, pMap, &searchState);
 	for (int32_t i = 0; i < pMeshIn->mesh.faceCount; ++i) {
 		FaceRange faceInfo;
+		faceInfo.index = i;
 		faceInfo.start = pMeshIn->mesh.pFaces[i];
 		faceInfo.end = pMeshIn->mesh.pFaces[i + 1];
 		faceInfo.size = faceInfo.end - faceInfo.start;
@@ -44,33 +45,33 @@ void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
 }
 
 static
-void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
+void allocBufMesh(MappingJobVars *pVars, int32_t bufSize, int32_t loopBufSize) {
 	BufMesh *pBufMesh = &pVars->bufMesh;
 	RuvmMap pMap = pVars->pMap;
 	RuvmMesh *pMeshIn = &pVars->mesh.mesh;
 	RuvmAlloc *pAlloc = &pVars->alloc;
-	pBufMesh->mesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pVars->bufSize);
+	pBufMesh->faceBufSize = pVars->bufSize;
+	pBufMesh->loopBufSize = pVars->loopBufSize;
+	pBufMesh->edgeBufSize = pVars->loopBufSize;
+	pBufMesh->vertBufSize = pVars->bufSize;
+	pBufMesh->mesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pBufMesh->faceBufSize);
 	allocAttribs(pAlloc, &pBufMesh->mesh.faceAttribs, &pMeshIn->faceAttribs,
-	             &pMap->mesh.mesh.faceAttribs, pVars->bufSize);
-	pBufMesh->mesh.pLoops = pAlloc->pMalloc(sizeof(int32_t) * loopBufSize);
+	             &pMap->mesh.mesh.faceAttribs, pBufMesh->faceBufSize);
+	pBufMesh->mesh.pLoops = pAlloc->pMalloc(sizeof(int32_t) * pBufMesh->loopBufSize);
 	allocAttribs(pAlloc, &pBufMesh->mesh.loopAttribs, &pMeshIn->loopAttribs,
-	             &pMap->mesh.mesh.loopAttribs, loopBufSize);
-	pBufMesh->mesh.pEdges = pAlloc->pMalloc(sizeof(int32_t) * loopBufSize);
+	             &pMap->mesh.mesh.loopAttribs, pBufMesh->loopBufSize);
+	pBufMesh->mesh.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pBufMesh->edgeBufSize);
 	allocAttribs(pAlloc, &pBufMesh->mesh.edgeAttribs, &pMeshIn->edgeAttribs,
-	             &pMap->mesh.mesh.edgeAttribs, loopBufSize);
+	             &pMap->mesh.mesh.edgeAttribs, pBufMesh->edgeBufSize);
 	allocAttribs(pAlloc, &pBufMesh->mesh.vertAttribs, &pMeshIn->vertAttribs,
-	             &pMap->mesh.mesh.vertAttribs, pVars->bufSize);
+	             &pMap->mesh.mesh.vertAttribs, pBufMesh->vertBufSize);
 	pBufMesh->pUvAttrib = getAttrib("UVMap", &pBufMesh->mesh.loopAttribs);
 	pBufMesh->pUvs = pBufMesh->pUvAttrib->pData;
 	pBufMesh->pNormalAttrib = getAttrib("normal", &pBufMesh->mesh.loopAttribs);
 	pBufMesh->pNormals = pBufMesh->pNormalAttrib->pData;
 	pBufMesh->pVertAttrib = getAttrib("position", &pBufMesh->mesh.vertAttribs);
 	pBufMesh->pVerts = pBufMesh->pVertAttrib->pData;
-
-	pBufMesh->borderVertCount = pVars->bufSize - 1;
-	pBufMesh->borderLoopCount = loopBufSize - 1;
-	pBufMesh->borderEdgeCount = loopBufSize - 1;
-	pBufMesh->borderFaceCount = pVars->bufSize - 1;
+	pBufMesh->loopBufSize = loopBufSize;
 }
 
 static
@@ -78,11 +79,13 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
                            FaceCellsTable *pFaceCellsTable) {
 	//struct timeval start, stop;
 	RuvmAlloc *pAlloc = &pVars->alloc;
+	pVars->rawBufSize = pVars->bufSize;
+	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
 	int32_t loopBufSize = pVars->bufSize * 2;
 	pVars->loopBufSize = loopBufSize;
 	pVars->borderTable.pTable =
 		pAlloc->pCalloc(pVars->borderTable.size, sizeof(BorderBucket));
-	allocBufMesh(pVars, loopBufSize);
+	allocBufMesh(pVars, pVars->bufSize, loopBufSize);
 	//pVars->pInVertTable = pAlloc->pCalloc(pVars->mesh.vertCount, 1);
 	//TODO: maybe reduce further if unifaces if low,
 	//as a larger buf seems more necessary at higher face counts.
@@ -196,6 +199,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	allocBufMeshAndTables(&vars, &faceCellsTable);
 	//CLOCK_STOP("Alloc buffers and tables time");
 	DebugAndPerfVars dpVars = {0};
+	vars.pDpVars = &dpVars;
 	uint64_t mappingTime, copySingleTime;
 	copySingleTime = 0;
 	mappingTime = 0;
@@ -257,12 +261,16 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	}
 	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
 	//vars.alloc.pFree(pCellFaces);
-	vars.bufMesh.mesh.pFaces[vars.bufMesh.borderFaceCount] = 
-		vars.bufMesh.borderLoopCount;
-	pSend->totalBorderFaces = vars.bufSize - vars.bufMesh.borderFaceCount;
-	int32_t totalBorderLoops =  vars.loopBufSize - vars.bufMesh.borderLoopCount;
-	pSend->totalBorderEdges = vars.loopBufSize - vars.bufMesh.borderEdgeCount;
-	int32_t totalBorderVerts = vars.bufSize - vars.bufMesh.borderVertCount;
+	BufMeshIndex lastFace = bufMeshAddFace(&vars.alloc, &vars.bufMesh, true, &dpVars);
+	vars.bufMesh.mesh.pFaces[lastFace.realIndex] = vars.bufMesh.borderLoopCount;
+	pSend->reallocTime = dpVars.reallocTime;
+	pSend->bufSize = vars.bufSize;
+	pSend->rawBufSize = vars.rawBufSize;
+	pSend->finalBufSize = vars.bufMesh.faceBufSize;
+	pSend->totalBorderFaces = vars.bufMesh.borderFaceCount;
+	int32_t totalBorderLoops =  vars.bufMesh.borderLoopCount;
+	pSend->totalBorderEdges = vars.bufMesh.borderEdgeCount;
+	int32_t totalBorderVerts = vars.bufMesh.borderVertCount;
 	pSend->totalFaces = vars.bufMesh.mesh.faceCount + pSend->totalBorderFaces;
 	pSend->totalLoops = vars.bufMesh.mesh.loopCount + totalBorderLoops;
 	pSend->totalEdges = vars.bufMesh.mesh.edgeCount + pSend->totalBorderEdges;

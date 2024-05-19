@@ -21,7 +21,13 @@ typedef struct Cell {
 } Cell;
 
 typedef struct {
+	Cell *pArr;
+	int32_t size;
+} CellTable;
+
+typedef struct {
 	Cell *pRootCell;
+	CellTable cellTable;
 	int32_t edgeSize;
 	int32_t *pEdges;
 	int32_t edgeFaceSize;
@@ -78,4 +84,4 @@ void ruvmLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
 void ruvmDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *ruvmFindEncasingCell(Cell *rootCell, V2_F32 pos);
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
-void ruvmDestroyQuadTree(RuvmContext pContext, Cell *rootCell);
+void ruvmDestroyQuadTree(RuvmContext pContext, QuadTree *pTree);

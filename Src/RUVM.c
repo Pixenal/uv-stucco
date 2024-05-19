@@ -109,7 +109,7 @@ void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 }
 
 void ruvmMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
-	ruvmDestroyQuadTree(pContext, pMap->quadTree.pRootCell);
+	ruvmDestroyQuadTree(pContext, &pMap->quadTree);
 	ruvmMeshDestroy(pContext, &pMap->mesh.mesh);
 	pContext->alloc.pFree(pMap);
 }

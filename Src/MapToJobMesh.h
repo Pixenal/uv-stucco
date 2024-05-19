@@ -59,7 +59,10 @@ typedef struct {
 	int8_t *pInVertTable;
 	int32_t id;
 	int32_t bufSize;
+	int32_t rawBufSize;
+	int32_t finalBufSize;
 	int32_t loopBufSize;
+	DebugAndPerfVars *pDpVars;
 } MappingJobVars;
 
 void ruvmMapToJobMesh(void *pArgsPtr);

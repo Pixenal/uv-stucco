@@ -17,6 +17,11 @@ typedef struct {
 	float d[4];
 } Color;
 
+typedef struct {
+	int32_t index;
+	int32_t realIndex;
+} BufMeshIndex;
+
 typedef struct BorderFace{
 	struct BorderFace *pNext;
 	UBitField64 baseLoop : 22;
@@ -59,6 +64,9 @@ typedef struct {
 	RuvmCommonAttribList *pCommonAttribList;
 	int32_t *pJobsCompleted;
 	void *pMutex;
+	int32_t bufSize;
+	int32_t rawBufSize;
+	int32_t finalBufSize;
 	int8_t *pInVertTable;
 	int32_t id;
 	int32_t totalBorderFaces;
@@ -67,6 +75,7 @@ typedef struct {
 	int32_t totalLoops;
 	int32_t totalEdges;
 	int32_t totalFaces;
+	uint64_t reallocTime;
 } SendOffArgs;
 
 typedef struct {
@@ -74,4 +83,5 @@ typedef struct {
 	int32_t maxDepth;
 	int32_t facesNotSkipped;
 	int32_t totalFacesComp;
+	uint64_t reallocTime;
 } DebugAndPerfVars;

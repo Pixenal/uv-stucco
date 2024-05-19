@@ -119,7 +119,7 @@ int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry) {
 		}
 		pEntry = pEntry->pNext;
 	} while(pEntry);
-	FaceRange face = getFaceRange(&pMap->mesh.mesh, faceIndex, 1);
+	FaceRange face = getFaceRange(&pMap->mesh.mesh, faceIndex, false);
 	return ruvmLoops < face.size;
 }
 
@@ -252,29 +252,26 @@ void determineLoopsToKeep(RuvmContext pContext, RuvmMap pMap,
 
 static
 void buildApproximateTbnInverse(Vars *pVars, SendOffArgs *pJobArgs) {
-	BorderFace *pEntry = pVars->pPieceRoot->pEntry;
 	V3_F32 normal = {0};
 	int32_t entryCount = 0;
+	Piece *pPiece = pVars->pPieceRoot;
 	do {
+		BorderFace *pEntry = pPiece->pEntry;
 		BufMesh* pBufMesh = &pJobArgs[pEntry->job].bufMesh;
-		int32_t faceStart = pBufMesh->mesh.pFaces[pEntry->face];
-		assert(faceStart > pBufMesh->borderLoopCount);
-		assert(faceStart < 100000000); //Probably invalid if greater
-		//Check face size is at least 3
-		assert(faceStart - pBufMesh->mesh.pFaces[pEntry->face - 1] >= 3);
-		int32_t* pLoops = pBufMesh->mesh.pLoops;
-		V3_F32* pVertA = pBufMesh->pVerts + pLoops[faceStart];
-		V3_F32* pVertB = pBufMesh->pVerts + pLoops[faceStart - 1];
-		V3_F32* pVertC = pBufMesh->pVerts + pLoops[faceStart - 2];
-		assert(v3IsFinite(*pVertA) && v3IsFinite(*pVertB) && v3IsFinite(*pVertC));
-		V3_F32 ab = _(*pVertB V3SUB *pVertA);
-		V3_F32 ac = _(*pVertC V3SUB *pVertA);
+		FaceRange face = pPiece->bufFace;
+		assert(face.size >= 3);
+		V3_F32 vertA = pBufMesh->pVerts[bufMeshGetVertIndex(pPiece, pBufMesh, 0)];
+		V3_F32 vertB = pBufMesh->pVerts[bufMeshGetVertIndex(pPiece, pBufMesh, 1)];
+		V3_F32 vertC = pBufMesh->pVerts[bufMeshGetVertIndex(pPiece, pBufMesh, 2)];
+		assert(v3IsFinite(vertA) && v3IsFinite(vertB) && v3IsFinite(vertC));
+		V3_F32 ab = _(vertB V3SUB vertA);
+		V3_F32 ac = _(vertC V3SUB vertA);
 		_(&normal V3ADDEQL v3Cross(ab, ac));
 		assert(v3IsFinite(normal));
 		assert(entryCount >= 0 && entryCount < 100000);
 		entryCount++;
-		pEntry = pEntry->pNext;
-	} while (pEntry);
+		pPiece = pPiece->pNext;
+	} while (pPiece);
 	assert(entryCount > 0 && entryCount < 100000);
 	_(&normal V3DIVEQLS entryCount);
 	float normalLen =
@@ -535,10 +532,14 @@ void addLoopsToBufAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
 				//CLOCK_START;
-				vert = pBufMesh->mesh.pLoops[face.start - k];
-				assert(vert > pBufMesh->borderVertCount && vert < 100000000);
-				edge = pBufMesh->mesh.pEdges[face.start - k];
-				assert(edge > pBufMesh->borderEdgeCount && edge < 100000000);
+				vert = bufMeshGetVertIndex(pPiece, pBufMesh, k);
+				assert(vert > pBufMesh->vertBufSize - 1 -
+				       pBufMesh->borderVertCount);
+				assert(vert < pBufMesh->vertBufSize);
+				edge = bufMeshGetEdgeIndex(pPiece, pBufMesh, k);
+				assert(edge > pBufMesh->edgeBufSize - 1 -
+				       pBufMesh->borderEdgeCount);
+				assert(edge < pBufMesh->edgeBufSize);
 				int32_t mapLoop = getMapLoop(pEntry, pMap, k);
 				assert(mapLoop >= 0 && mapLoop < pMap->mesh.mesh.loopCount);
 				addBorderLoopAndVert(pContext, pCTables, pMap, pVars, &vert,
@@ -559,9 +560,12 @@ void addLoopsToBufAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 				//That would probably be cleaner, and more memory concious tbh.
 				_Bool onLine = getIfOnLine(pEntry, k);
 				int32_t mapLoop = getMapLoop(pEntry, pMap, k);
-				vert = pBufMesh->mesh.pLoops[face.start - k];
 				edge = pBufMesh->mesh.pEdges[face.start - k];
 				if (onLine) {
+					vert = bufMeshGetVertIndex(pPiece, pBufMesh, k);
+					assert(vert > pBufMesh->vertBufSize - 1 -
+						   pBufMesh->borderVertCount);
+					assert(vert < pBufMesh->vertBufSize);
 					if (checkIfDup(pVars, mapLoop)) {
 						continue;
 					}
@@ -573,6 +577,7 @@ void addLoopsToBufAndVertsToMesh(uint64_t *pTimeSpent, RuvmContext pContext,
 				//correct position in the out mesh. (these vars are set
 				//when the non-border mesh data is copied
 				else {
+					vert = pBufMesh->mesh.pLoops[face.start - k];
 					vert += pJobBases[pEntry->job].vertBase;
 				}
 				edge += pJobBases[pEntry->job].edgeBase;
@@ -724,7 +729,11 @@ void addFaceToOutMesh(Vars *pVars, Mesh *pMeshOut, int32_t *pIndices,
 	int32_t loopBase = pMeshOut->mesh.loopCount;
 	for (int32_t i = 0; i < count; ++i) {
 		int32_t bufIndex = pIndexTable[pIndices[i] + 1];
+		assert(pVars->loopBuf.pBuf[bufIndex].loop >= 0);
+		assert(pVars->loopBuf.pBuf[bufIndex].loop < pMeshOut->mesh.vertCount);
 		pMeshOut->mesh.pLoops[loopBase + i] = pVars->loopBuf.pBuf[bufIndex].loop;
+		assert(pVars->loopBuf.pBuf[bufIndex].edge >= 0);
+		assert(pVars->loopBuf.pBuf[bufIndex].edge < pMeshOut->mesh.edgeCount);
 		pMeshOut->mesh.pEdges[loopBase + i] = pVars->loopBuf.pBuf[bufIndex].edge;
 		int32_t bufLoop = pVars->loopBuf.pBuf[bufIndex].bufLoop;
 		int32_t job = pVars->loopBuf.pBuf[bufIndex].job;
@@ -811,6 +820,8 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 			                 vars.pIndexTable, pJobArgs);
 			assert(i >= 0 && i < tris.triCount);
 		}
+		pContext->alloc.pFree(tris.pTris);
+		pContext->alloc.pFree(tris.pLoops);
 	}
 	else {
 		assert(vars.loopBuf.count <= 11);

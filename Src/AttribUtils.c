@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <assert.h>
 
 #include <AttribUtils.h>
 #include <MathUtils.h>
+#include <Context.h>
 
 #define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->pData)[i][c]
 
@@ -1948,4 +1950,55 @@ void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
 		++pDest->count;
 	}
 	return;
+}
+
+void reallocAttribs(const RuvmAlloc *pAlloc,
+                    AttribArray *pAttribArr, const int32_t newLen) {
+	assert(newLen >= 0 && newLen < 100000000);
+	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+		Attrib *pAttrib = pAttribArr->pArr + i;
+		//Check entry is valid
+		assert(pAttrib->interpolate % 2 == pAttrib->interpolate);
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData =
+			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
+		assert(i >= 0 && i < pAttribArr->count);
+	}
+}
+void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
+                           AttribArray *pAttribArr, const int32_t start,
+						   const int32_t offset, const int32_t lenToCopy,
+						   const int32_t newLen) {
+	assert(newLen >= 0 && newLen < 100000000);
+	assert(start >= 0 && start < newLen);
+	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+		Attrib *pAttrib = pAttribArr->pArr + i;
+		//Check entry is valid
+		assert(pAttrib->interpolate % 2 == pAttrib->interpolate);
+		int8_t oldFirstElement =
+			*(int8_t *)attribAsVoid(pAttrib, start);
+		int8_t oldLastElement =
+			*(int8_t *)attribAsVoid(pAttrib, start + lenToCopy - 1);
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData =
+			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
+		memmove(attribAsVoid(pAttrib, start + offset),
+				attribAsVoid(pAttrib, start), attribSize * lenToCopy);
+		int8_t newFirstElement =
+			*(int8_t *)attribAsVoid(pAttrib, start + offset);
+		int8_t newLastElement =
+			*(int8_t *)attribAsVoid(pAttrib, start + offset + lenToCopy - 1);
+		assert(newFirstElement == oldFirstElement);
+		assert(newLastElement == oldLastElement);
+		if (0 == strncmp("position", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
+			pMesh->pVerts = pAttrib->pData;
+		}
+		else if (0 == strncmp("UVMap", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
+			pMesh->pUvs = pAttrib->pData;
+		}
+		else if (0 == strncmp("normal", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
+			pMesh->pNormals = pAttrib->pData;
+		}
+		assert(i >= 0 && i < pAttribArr->count);
+	}
 }

@@ -29,3 +29,8 @@ void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
                   RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
 				  int32_t dataLen);
 void castType(void *pValue, RuvmAttribType type);
+void reallocAttribs(const RuvmAlloc *pAlloc, AttribArray *pAttribArr,
+                    int32_t newLen);
+void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
+                           AttribArray *pAttribArr, int32_t start,
+						   int32_t offset, int32_t lenToCopy, int32_t newLen);

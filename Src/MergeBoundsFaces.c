@@ -76,7 +76,7 @@ void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
 	assert((tableSize > 0 && entryIndex >= 0) || entryIndex == 0);
 	Piece *pPiece = pEntries + entryIndex;
 	BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
-	FaceRange face = getFaceRange(&pBufMesh->mesh, pEntry->face, -1);
+	FaceRange face = getFaceRange(&pBufMesh->mesh, pEntry->face, true);
 	pPiece->bufFace = face;
 	for (int32_t i = 0; i < face.size; ++i) {
 		assert(pTotalVerts && *pTotalVerts >= 0 && *pTotalVerts < 10000);
@@ -420,7 +420,7 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		_Bool hasPreservedEdge;
 		compileEntryInfo(pEntry, &entryCount, &isSeam, &hasPreservedEdge);
 		//int32_t seamFace = ;
-		FaceRange ruvmFace = getFaceRange(&pMap->mesh.mesh, pEntry->faceIndex, 1);
+		FaceRange ruvmFace = getFaceRange(&pMap->mesh.mesh, pEntry->faceIndex, false);
 		assert(ruvmFace.size <= 6);
 		int32_t *pPieceRoots = NULL;
 		PieceArr pieceArr = {0};

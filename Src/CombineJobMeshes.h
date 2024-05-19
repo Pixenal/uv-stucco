@@ -110,3 +110,7 @@ _Bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
 _Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
 int32_t getMapLoop(const BorderFace *pEntry,
                    const RuvmMap pMap, int32_t loopIndex);
+int32_t bufMeshGetVertIndex(const Piece *pPiece,
+                            const BufMesh *pBufMesh, int32_t localLoop);
+int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
+                            const BufMesh *pBufMesh, int32_t localLoop);
