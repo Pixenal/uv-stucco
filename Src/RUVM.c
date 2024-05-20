@@ -362,6 +362,7 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 
 	CLOCK_START;
 	waitForJobs(pContext, &jobsCompleted, pMutex);
+	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	CLOCK_STOP("Waiting Time");
 
 	CLOCK_START;
@@ -615,6 +616,7 @@ void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *p
 	CLOCK_INIT;
 	CLOCK_START;
 	waitForJobs(pContext, &jobsCompleted, pMutex);
+	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	CLOCK_STOP("CREATE_IMAGE");
 	int32_t pixelSize = getPixelSize(pImage->type);
 	pImage->pData = pContext->alloc.pMalloc(pixelCount * pixelSize);

@@ -28,11 +28,11 @@ typedef struct Piece {
 	FaceRange bufFace;
 	int32_t edgeCount;
 	int32_t edges[11];
-	int32_t entryIndex;
 	UBitField16 keepSingle;
 	UBitField16 keepSeam;
 	UBitField16 keepPreserve;
 	UBitField16 keepOnInVert;
+	int32_t entryIndex;
 	_Bool listed;
 } Piece;
 
@@ -48,6 +48,11 @@ typedef struct {
 	Piece *pArr;
 	int32_t count;
 } PieceArr;
+
+typedef struct {
+	int32_t *pArr;
+	int32_t count;
+} PieceRootsArr;
 
 typedef struct OnLine {
 	struct OnLine *pNext;
@@ -87,19 +92,41 @@ typedef struct {
 	int32_t edgeBase;
 } JobBases;
 
+typedef struct {
+	BorderFace **ppTable;
+	int32_t count;
+} CompiledBorderTable;
+
+typedef struct {
+	RuvmContext pContext;
+	RuvmMap pMap;
+	Mesh *pMeshOut;
+	SendOffArgs *pJobArgs;
+	EdgeVerts *pEdgeVerts;
+	int8_t *pVertSeamTable;
+	void *pMutex;
+	CompiledBorderTable *pBorderTable;
+	JobBases *pJobBases;
+	CombineTables *pCTables;
+	int32_t *pJobsCompleted;
+	PieceArr *pPieceArrTable;
+	PieceRootsArr *pPieceRootTable;
+	int32_t *pTotalVertTable;
+	int32_t entriesStart;
+	int32_t entriesEnd;
+	int32_t job;
+} MergeSendOffArgs;
+
 void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  JobBases *pJobBases, int8_t *pVertSeamTable);
 
 void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
-void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
-                               RuvmMap pMap, Mesh *pMeshOut,
-							   SendOffArgs *pJobArgs, int32_t entryCount,
-							   PieceArr *pPieceArr,
-							   CombineTables *pCTables, JobBases *pJobBases,
-							   FaceRange *pRuvmFace, MergeBufHandles *pMergeBufHandles,
-							   int32_t approxVertsPerPiece);
+void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
+                               int32_t entryIndex, PieceArr *pPieceArr,
+							   FaceRange *pRuvmFace,
+							   MergeBufHandles *pMergeBufHandles);
 void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
@@ -115,3 +142,4 @@ int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, int32_t localLoop);
 int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, int32_t localLoop);
+int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry);
