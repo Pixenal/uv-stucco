@@ -2,6 +2,7 @@
 #include <RUVM.h>
 #include <RuvmInternal.h>
 #include <Utils.h>
+#include <Mesh.h>
 #include <QuadTree.h>
 
 typedef struct {
@@ -100,7 +101,7 @@ void ruvmMergeSingleBorderFace(uint64_t *pTimeSpent, RuvmContext pContext,
 							   FaceRange *pRuvmFace, MergeBufHandles *pMergeBufHandles,
 							   int32_t approxVertsPerPiece);
 void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
-void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOut,
+void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,

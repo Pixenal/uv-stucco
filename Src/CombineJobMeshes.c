@@ -9,7 +9,7 @@
 #include <MapFile.h>
 
 static
-void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut,
+void allocateMeshOut(RuvmContext pContext, Mesh *pMeshOut,
                      SendOffArgs *pJobArgs) {
 	RuvmAlloc *pAlloc = &pContext->alloc;
 	typedef struct {
@@ -30,18 +30,26 @@ void allocateMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut,
 	//and figure out edges in border faces after jobs are finished?
 	//You'll need to provide functionality for interpolating and blending
 	//edge data, so keep that in mind.
-	RuvmMesh *pBufMesh = &pJobArgs[0].bufMesh.mesh;
-	pMeshOut->pFaces = pAlloc->pMalloc(sizeof(int32_t) * (totalCount.faces + 1));
-	allocAttribs(pAlloc, &pMeshOut->faceAttribs, &pBufMesh->faceAttribs,
-				 NULL, totalCount.faces);
-	pMeshOut->pLoops = pAlloc->pMalloc(sizeof(int32_t) * totalCount.loops);
-	allocAttribs(pAlloc, &pMeshOut->loopAttribs, &pBufMesh->loopAttribs,
-				 NULL, totalCount.loops);
-	pMeshOut->pEdges = pAlloc->pMalloc(sizeof(int32_t) * totalCount.loops);
-	allocAttribs(pAlloc, &pMeshOut->edgeAttribs, &pBufMesh->edgeAttribs,
-				 NULL, totalCount.edges);
-	allocAttribs(pAlloc, &pMeshOut->vertAttribs, &pBufMesh->vertAttribs,
-				 NULL, totalCount.verts);
+	RuvmMesh *pBufCore = &asMesh(&pJobArgs[0].bufMesh)->mesh;
+	pMeshOut->faceBufSize = totalCount.faces;
+	pMeshOut->loopBufSize = totalCount.loops;
+	pMeshOut->edgeBufSize = totalCount.edges;
+	pMeshOut->vertBufSize = totalCount.verts;
+	pMeshOut->mesh.pFaces =
+		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->faceBufSize);
+	pMeshOut->mesh.pLoops =
+		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
+	pMeshOut->mesh.pEdges =
+		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
+	allocAttribs(pAlloc, &pMeshOut->mesh.faceAttribs, &pBufCore->faceAttribs,
+				 NULL, pMeshOut->faceBufSize);
+	allocAttribs(pAlloc, &pMeshOut->mesh.loopAttribs, &pBufCore->loopAttribs,
+				 NULL, pMeshOut->loopBufSize);
+	allocAttribs(pAlloc, &pMeshOut->mesh.edgeAttribs, &pBufCore->edgeAttribs,
+				 NULL, pMeshOut->edgeBufSize);
+	allocAttribs(pAlloc, &pMeshOut->mesh.vertAttribs, &pBufCore->vertAttribs,
+				 NULL, pMeshOut->vertBufSize);
+	setSpecialAttribs(pMeshOut, 0xe); //1110 - set only verts, uvs, & normals
 }
 
 static
@@ -55,39 +63,40 @@ void bulkCopyAttribs(AttribArray *pSrc, int32_t SrcOffset,
 }
 
 static
-void copyMesh(int32_t jobIndex, RuvmMesh *pMeshOut, SendOffArgs *pJobArgs) {
-	BufMesh *bufMesh = &pJobArgs[jobIndex].bufMesh;
-	for (int32_t j = 0; j < bufMesh->mesh.faceCount; ++j) {
-		bufMesh->mesh.pFaces[j] += pMeshOut->loopCount;
+void copyMesh(int32_t jobIndex, Mesh *pMeshOut, SendOffArgs *pJobArgs) {
+	BufMesh *pBufMesh = &pJobArgs[jobIndex].bufMesh;
+	RuvmMesh *pOutCore = &pMeshOut->mesh;
+	for (int32_t j = 0; j < asMesh(pBufMesh)->mesh.faceCount; ++j) {
+		asMesh(pBufMesh)->mesh.pFaces[j] += pOutCore->loopCount;
 	}
-	for (int32_t j = 0; j < bufMesh->mesh.loopCount; ++j) {
-		bufMesh->mesh.pLoops[j] += pMeshOut->vertCount;
-		bufMesh->mesh.pEdges[j] += pMeshOut->edgeCount;
+	for (int32_t j = 0; j < asMesh(pBufMesh)->mesh.loopCount; ++j) {
+		asMesh(pBufMesh)->mesh.pLoops[j] += pOutCore->vertCount;
+		asMesh(pBufMesh)->mesh.pEdges[j] += pOutCore->edgeCount;
 	}
-	int32_t *facesStart = pMeshOut->pFaces + pMeshOut->faceCount;
-	int32_t *loopsStart = pMeshOut->pLoops + pMeshOut->loopCount;
-	int32_t *edgesStart = pMeshOut->pEdges + pMeshOut->loopCount;
-	memcpy(facesStart, bufMesh->mesh.pFaces,
-	       sizeof(int32_t) * bufMesh->mesh.faceCount);
-	bulkCopyAttribs(&bufMesh->mesh.faceAttribs, pMeshOut->faceCount,
-	                &pMeshOut->faceAttribs, bufMesh->mesh.faceCount);
-	pMeshOut->faceCount += bufMesh->mesh.faceCount;
-	memcpy(loopsStart, bufMesh->mesh.pLoops,
-	       sizeof(int32_t) * bufMesh->mesh.loopCount);
-	bulkCopyAttribs(&bufMesh->mesh.loopAttribs, pMeshOut->loopCount,
-	                &pMeshOut->loopAttribs, bufMesh->mesh.loopCount);
-	pMeshOut->loopCount += bufMesh->mesh.loopCount;
-	memcpy(edgesStart, bufMesh->mesh.pEdges,
-	       sizeof(int32_t) * bufMesh->mesh.loopCount);
-	bulkCopyAttribs(&bufMesh->mesh.edgeAttribs, pMeshOut->edgeCount,
-	                &pMeshOut->edgeAttribs, bufMesh->mesh.edgeCount);
-	pMeshOut->edgeCount += bufMesh->mesh.edgeCount;
-	bulkCopyAttribs(&bufMesh->mesh.vertAttribs, pMeshOut->vertCount,
-	                &pMeshOut->vertAttribs, bufMesh->mesh.vertCount);
-	pMeshOut->vertCount += bufMesh->mesh.vertCount;
+	int32_t *facesStart = pOutCore->pFaces + pOutCore->faceCount;
+	int32_t *loopsStart = pOutCore->pLoops + pOutCore->loopCount;
+	int32_t *edgesStart = pOutCore->pEdges + pOutCore->loopCount;
+	memcpy(facesStart, asMesh(pBufMesh)->mesh.pFaces,
+	       sizeof(int32_t) * asMesh(pBufMesh)->mesh.faceCount);
+	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.faceAttribs, pOutCore->faceCount,
+	                &pOutCore->faceAttribs, asMesh(pBufMesh)->mesh.faceCount);
+	pOutCore->faceCount += asMesh(pBufMesh)->mesh.faceCount;
+	memcpy(loopsStart, asMesh(pBufMesh)->mesh.pLoops,
+	       sizeof(int32_t) * asMesh(pBufMesh)->mesh.loopCount);
+	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.loopAttribs, pOutCore->loopCount,
+	                &pOutCore->loopAttribs, asMesh(pBufMesh)->mesh.loopCount);
+	pOutCore->loopCount += asMesh(pBufMesh)->mesh.loopCount;
+	memcpy(edgesStart, asMesh(pBufMesh)->mesh.pEdges,
+	       sizeof(int32_t) * asMesh(pBufMesh)->mesh.loopCount);
+	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.edgeAttribs, pOutCore->edgeCount,
+	                &pOutCore->edgeAttribs, asMesh(pBufMesh)->mesh.edgeCount);
+	pOutCore->edgeCount += asMesh(pBufMesh)->mesh.edgeCount;
+	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.vertAttribs, pOutCore->vertCount,
+	                &pOutCore->vertAttribs, asMesh(pBufMesh)->mesh.vertCount);
+	pOutCore->vertCount += asMesh(pBufMesh)->mesh.vertCount;
 }
 
-void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOut,
+void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable) {
 	//struct timeval start, stop;
@@ -102,26 +111,20 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOu
 		printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
 		printf("bufSize: %d | ", pJobArgs[i].bufSize);
 		printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
-		pJobBases[i].vertBase = pMeshOut->vertCount;
-		pJobBases[i].edgeBase = pMeshOut->edgeCount;
+		pJobBases[i].vertBase = pMeshOut->mesh.vertCount;
+		pJobBases[i].edgeBase = pMeshOut->mesh.edgeCount;
 		copyMesh(i, pMeshOut, pJobArgs);
 	}
 	printf("realloc time total %lu\n", reallocTime);
-	Mesh meshOutWrap = {.mesh = *pMeshOut};
-	meshOutWrap.pVertAttrib = getAttrib("position", &pMeshOut->vertAttribs);
-	meshOutWrap.pVerts = meshOutWrap.pVertAttrib->pData;
-	meshOutWrap.pUvAttrib = getAttrib("UVMap", &pMeshOut->loopAttribs);
-	meshOutWrap.pUvs = meshOutWrap.pUvAttrib->pData;
-	ruvmMergeBorderFaces(pContext, pMap, &meshOutWrap, pJobArgs,
+	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                       pEdgeVerts, pJobBases, pVertSeamTable);
-	*pMeshOut = meshOutWrap.mesh;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
-		BufMesh *bufMesh = &pJobArgs[i].bufMesh;
-		ruvmMeshDestroy(pContext, &bufMesh->mesh);
+		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
+		ruvmMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);
 		pContext->alloc.pFree(pJobArgs[i].borderTable.pTable);
 	}
 	pContext->alloc.pFree(pJobBases);
-	pMeshOut->pFaces[pMeshOut->faceCount] = pMeshOut->loopCount;
+	meshSetLastFace(&pContext->alloc, pMeshOut);
 	//CLOCK_STOP("moving to work mesh");
 }
 
@@ -132,7 +135,7 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  RuvmMesh *pMeshOu
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs,
 								  const int32_t loopIndex) {
-	BorderInInfo inInfo;
+	BorderInInfo inInfo = {0};
 	assert(pEntry->baseFace >= 0);
 	assert(pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
 	inInfo.loopLocal = pEntry->baseLoop >> loopIndex * 2 & 3;
@@ -177,7 +180,7 @@ int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localLoop) {
 	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
 	_Bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
-	int32_t vert = pBufMesh->mesh.pLoops[pPiece->bufFace.start - localLoop];
+	int32_t vert = pBufMesh->mesh.mesh.pLoops[pPiece->bufFace.start - localLoop];
 	if (!isRuvm || isOnLine) {
 		vert = convertBorderVertIndex(pBufMesh, vert).realIndex;
 	}
@@ -188,7 +191,7 @@ int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localLoop) {
 	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
 	_Bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
-	int32_t edge = pBufMesh->mesh.pEdges[pPiece->bufFace.start - localLoop];
+	int32_t edge = pBufMesh->mesh.mesh.pEdges[pPiece->bufFace.start - localLoop];
 	if (!isRuvm || isOnLine) {
 		edge = convertBorderEdgeIndex(pBufMesh, edge).realIndex;
 	}

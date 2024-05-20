@@ -7,6 +7,7 @@
 #include <AttribUtils.h>
 #include <MathUtils.h>
 #include <Context.h>
+#include <Mesh.h>
 
 #define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->pData)[i][c]
 
@@ -1952,19 +1953,76 @@ void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
 	return;
 }
 
-void reallocAttribs(const RuvmAlloc *pAlloc,
+static
+SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
+		if (pAttrib->pData == pMesh->pVerts) {
+			return ATTRIB_SPECIAL_VERTS;
+		}
+		else if (pAttrib->pData == pMesh->pUvs) {
+			return ATTRIB_SPECIAL_UVS;
+		}
+		else if (pAttrib->pData == pMesh->pNormals) {
+			return ATTRIB_SPECIAL_NORMALS;
+		}
+		else if (pAttrib->pData == pMesh->pEdgePreserve) {
+			return ATTRIB_SPECIAL_PRESERVE;
+		}
+		else if (pAttrib->pData == pMesh->pEdgeReceive) {
+			return ATTRIB_SPECIAL_RECEIVE;
+		}
+		return ATTRIB_SPECIAL_NONE;
+}
+
+static
+void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
+	_Bool valid = false;
+	switch (special) {
+		case (ATTRIB_SPECIAL_NONE):
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_VERTS):
+			pMesh->pVerts = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_UVS):
+			pMesh->pUvs = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_NORMALS):
+			pMesh->pNormals = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_PRESERVE):
+			pMesh->pEdgePreserve = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_RECEIVE):
+			pMesh->pEdgeReceive = pAttrib->pData;
+			valid = true;
+			break;
+	}
+	assert(valid);
+}
+
+void reallocAttribs(const RuvmAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, const int32_t newLen) {
 	assert(newLen >= 0 && newLen < 100000000);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
+		SpecialAttrib special = getIfSpecialAttrib(pMesh, pAttrib);
 		//Check entry is valid
 		assert(pAttrib->interpolate % 2 == pAttrib->interpolate);
+		int8_t oldFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData =
 			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
+		int8_t newFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
+		assert(newFirstElement == oldFirstElement);
+		reassignIfSpecial((Mesh *)pMesh, pAttrib, special);
 		assert(i >= 0 && i < pAttribArr->count);
 	}
 }
+
 void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, const int32_t start,
 						   const int32_t offset, const int32_t lenToCopy,
@@ -1973,6 +2031,7 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 	assert(start >= 0 && start < newLen);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
+		SpecialAttrib special = getIfSpecialAttrib(asMesh(pMesh), pAttrib);
 		//Check entry is valid
 		assert(pAttrib->interpolate % 2 == pAttrib->interpolate);
 		int8_t oldFirstElement =
@@ -1990,15 +2049,38 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 			*(int8_t *)attribAsVoid(pAttrib, start + offset + lenToCopy - 1);
 		assert(newFirstElement == oldFirstElement);
 		assert(newLastElement == oldLastElement);
-		if (0 == strncmp("position", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
-			pMesh->pVerts = pAttrib->pData;
-		}
-		else if (0 == strncmp("UVMap", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
-			pMesh->pUvs = pAttrib->pData;
-		}
-		else if (0 == strncmp("normal", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
-			pMesh->pNormals = pAttrib->pData;
-		}
+		reassignIfSpecial((Mesh *)pMesh, pAttrib, special);
 		assert(i >= 0 && i < pAttribArr->count);
+	}
+}
+
+void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
+	RuvmMesh *pCore = &pMesh->mesh;
+	if (flags >> ATTRIB_SPECIAL_VERTS & 0x01) {
+		pMesh->pVertAttrib = getAttrib("position", &pCore->vertAttribs);
+		assert(pMesh->pVertAttrib);
+		pMesh->pVerts = pMesh->pVertAttrib->pData;
+	}
+	if (flags >> ATTRIB_SPECIAL_UVS & 0x01) {
+		pMesh->pUvAttrib = getAttrib("UVMap", &pCore->loopAttribs);
+		assert(pMesh->pUvAttrib);
+		pMesh->pUvs = pMesh->pUvAttrib->pData;
+	}
+	if (flags >> ATTRIB_SPECIAL_NORMALS & 0x01) {
+		pMesh->pNormalAttrib = getAttrib("normal", &pCore->loopAttribs);
+		assert(pMesh->pNormalAttrib);
+		pMesh->pNormals = pMesh->pNormalAttrib->pData;
+	}
+	if (flags >> ATTRIB_SPECIAL_PRESERVE & 0x01) {
+		pMesh->pEdgePreserveAttrib = getAttrib("RuvmPreserve", &pCore->edgeAttribs);
+		if (pMesh->pEdgePreserveAttrib) {
+			pMesh->pEdgePreserve = pMesh->pEdgePreserveAttrib->pData;
+		}
+	}
+	if (flags >> ATTRIB_SPECIAL_RECEIVE & 0x01) {
+		pMesh->pEdgeReceiveAttrib = getAttrib("RuvmPreserveReceive", &pCore->edgeAttribs);
+		if (pMesh->pEdgeReceiveAttrib) {
+			pMesh->pEdgeReceive = pMesh->pEdgeReceiveAttrib->pData;
+		}
 	}
 }

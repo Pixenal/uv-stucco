@@ -66,17 +66,16 @@ void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryInde
 }
 
 static
-void addEntryToSharedEdgeTable(uint64_t *pTimeSpent, RuvmContext pContext,
-                               BorderFace *pEntry, SharedEdgeWrap *pSharedEdges,
-							   Piece *pEntries, int32_t tableSize,
-							   int32_t entryIndex, SendOffArgs *pJobArgs,
-							   EdgeVerts *pEdgeVerts, RuvmMap pMap,
-							   int32_t *pTotalVerts, int8_t *pVertSeamTable) {
+void addEntryToSharedEdgeTable(RuvmContext pContext, BorderFace *pEntry,
+                               SharedEdgeWrap *pSharedEdges, Piece *pEntries,
+							   int32_t tableSize, int32_t entryIndex,
+							   SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+							   RuvmMap pMap, int32_t *pTotalVerts) {
 	//CLOCK_INIT;
 	assert((tableSize > 0 && entryIndex >= 0) || entryIndex == 0);
 	Piece *pPiece = pEntries + entryIndex;
 	BufMesh *pBufMesh = &pJobArgs[pEntry->job].bufMesh;
-	FaceRange face = getFaceRange(&pBufMesh->mesh, pEntry->face, true);
+	FaceRange face = getFaceRange(&asMesh(pBufMesh)->mesh, pEntry->face, true);
 	pPiece->bufFace = face;
 	for (int32_t i = 0; i < face.size; ++i) {
 		assert(pTotalVerts && *pTotalVerts >= 0 && *pTotalVerts < 10000);
@@ -265,7 +264,6 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 			int32_t hash = ruvmFnvHash((uint8_t *)&edge, 4, tableSize);
 			SharedEdgeWrap *pSharedEdgeWrap = pSharedEdges + hash;
 			SharedEdge *pEdgeEntry = pSharedEdgeWrap->pEntry;
-			void *pLastEdgeEntry = pSharedEdgeWrap;
 			while (pEdgeEntry) {
 				if (pEdgeEntry->seam) {
 					_Bool aIsOnInVert = pEdgeEntry->refIndex[0] < 0;
@@ -302,7 +300,6 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 					pEntries[otherEntryIndex].listed = 1;
 					break;
 				}
-				pLastEdgeEntry = pEdgeEntry;
 				pEdgeEntry = pEdgeEntry->pNext;
 			};
 			assert(j < pPiece->edgeCount);
@@ -313,7 +310,7 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 }
 
 static
-void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, int32_t **ppPieceRoots,
+void splitIntoPieces(RuvmContext pContext, int32_t **ppPieceRoots,
                      int32_t *pPieceCount, BorderFace *pEntry,
                      SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					 PieceArr *pPieceArr, RuvmMap pMap,
@@ -336,9 +333,9 @@ void splitIntoPieces(uint64_t *pTimeSpent, RuvmContext pContext, int32_t **ppPie
 	do {
 		//If there's only 1 border face entry, then this function will just
 		//initialize the Piece.
-		addEntryToSharedEdgeTable(pTimeSpent, pContext, pEntry, pSharedEdges,
+		addEntryToSharedEdgeTable(pContext, pEntry, pSharedEdges,
 		                          pEntries, tableSize, entryIndex, pJobArgs,
-								  pEdgeVerts, pMap, pTotalVerts, pVertSeamTable);
+								  pEdgeVerts, pMap, pTotalVerts);
 		assert(entryIndex < entryCount);
 		entryIndex++;
 		BorderFace *pNextEntry = pEntry->pNext;
@@ -430,7 +427,7 @@ void mergeAndCopyEdgeFaces(RuvmContext pContext, CombineTables *pCTables,
 		CLOCK_START;
 		int32_t pieceCount = 0;
 		int32_t totalVerts = 0;
-		splitIntoPieces(timeSpent, pContext, &pPieceRoots, &pieceCount, pEntry,
+		splitIntoPieces(pContext, &pPieceRoots, &pieceCount, pEntry,
 		                pJobArgs, pEdgeVerts, &pieceArr, pMap, pVertSeamTable,
 						&totalVerts);
 		int32_t aproxVertsPerPiece = totalVerts / pieceCount;

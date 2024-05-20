@@ -98,11 +98,6 @@ void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                       char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
 	ruvmLoadRuvmFile(pContext, pMap, filePath);
-	pMap->mesh.pEdgeReceiveAttrib = getAttrib("RuvmPreserveReceive",
-	                                       &pMap->mesh.mesh.edgeAttribs);
-	if (pMap->mesh.pEdgeReceiveAttrib) {
-		pMap->mesh.pEdgeReceive = pMap->mesh.pEdgeReceiveAttrib->pData;
-	}
 	ruvmCreateQuadTree(pContext, pMap);
 	*pMapHandle = pMap;
 	//writeDebugImage(pMap->quadTree.rootCell);
@@ -280,7 +275,7 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 	EdgeCache *pEdgeCache =
 		pContext->alloc.pCalloc(pMesh->mesh.vertCount, sizeof(EdgeCache));
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
-		FaceRange face;
+		FaceRange face = {0};
 		face.start = pMesh->mesh.pFaces[i];
 		face.end = pMesh->mesh.pFaces[i + 1];
 		face.size = face.end - face.start;
@@ -318,47 +313,6 @@ void setAttribOrigins(AttribArray *pAttribs, RUVM_ATTRIB_ORIGIN origin) {
 	}
 }
 
-static
-void reallocMeshOut(RuvmContext pContext, RuvmMesh *pMeshOut) {
-	pMeshOut->pFaces = 
-		pContext->alloc.pRealloc(pMeshOut->pFaces,
-		                         sizeof(int32_t) * (pMeshOut->faceCount + 1));
-	for (int32_t i = 0; i < pMeshOut->faceAttribs.count; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->faceAttribs.pArr + i;
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData =
-			pContext->alloc.pRealloc(pAttrib->pData,
-			                         attribSize * (pMeshOut->faceCount + 1));
-	}
-	pMeshOut->pLoops = 
-		pContext->alloc.pRealloc(pMeshOut->pLoops,
-		                         sizeof(int32_t) * pMeshOut->loopCount);
-	for (int32_t i = 0; i < pMeshOut->loopAttribs.count; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->loopAttribs.pArr + i;
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData = 
-			pContext->alloc.pRealloc(pAttrib->pData,
-			                         attribSize * pMeshOut->loopCount);
-	}
-	pMeshOut->pEdges = 
-		pContext->alloc.pRealloc(pMeshOut->pEdges,
-		                         sizeof(int32_t) * pMeshOut->loopCount);
-	for (int32_t i = 0; i < pMeshOut->edgeAttribs.count; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->edgeAttribs.pArr + i;
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData = 
-			pContext->alloc.pRealloc(pAttrib->pData,
-			                         attribSize * pMeshOut->edgeCount);
-	}
-	for (int32_t i = 0; i < pMeshOut->vertAttribs.count; ++i) {
-		RuvmAttrib *pAttrib = pMeshOut->vertAttribs.pArr + i;
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData = 
-			pContext->alloc.pRealloc(pAttrib->pData,
-			                         attribSize * pMeshOut->vertCount);
-	}
-}
-
 int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                       RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
 	CLOCK_INIT;
@@ -374,20 +328,11 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		//return 1;
 	}
 
-	Mesh meshIn = {*pMeshIn};
+	Mesh meshInWrap = {.mesh = *pMeshIn};
 	//TODO replace hard coded names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
-	meshIn.pVertAttrib = getAttrib("position", &meshIn.mesh.vertAttribs);
-	meshIn.pVerts = meshIn.pVertAttrib->pData;
-	meshIn.pUvAttrib = getAttrib("UVMap", &meshIn.mesh.loopAttribs);
-	meshIn.pUvs = meshIn.pUvAttrib->pData;
-	meshIn.pNormalAttrib = getAttrib("normal", &meshIn.mesh.loopAttribs);
-	meshIn.pNormals = meshIn.pNormalAttrib->pData;
-	meshIn.pEdgePreserveAttrib = getAttrib("RuvmPreserve",
-	                                       &meshIn.mesh.edgeAttribs);
-	if (meshIn.pEdgePreserveAttrib) {
-		meshIn.pEdgePreserve = meshIn.pEdgePreserveAttrib->pData;
-	}
+	setSpecialAttribs(&meshInWrap, 0x1e); //011110 - set all except for receive
+
 	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
 	//it doesn't matter what it's set to here
 	setAttribOrigins(&pMeshIn->meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
@@ -397,12 +342,12 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	setAttribOrigins(&pMeshIn->vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
 
 	CLOCK_START;
-	EdgeVerts *pEdgeVerts;
+	EdgeVerts *pEdgeVerts = {0};
 	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
 	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
 	int8_t *pInVertTable;
 	int8_t *pVertSeamTable;
-	buildVertTables(pContext, &meshIn, &pInVertTable,
+	buildVertTables(pContext, &meshInWrap, &pInVertTable,
 	                &pVertSeamTable, pEdgeVerts);
 	CLOCK_STOP("Edge Table Time");
 
@@ -411,7 +356,7 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	int32_t jobsCompleted = 0;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, &meshIn, pMutex,
+	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, &meshInWrap, pMutex,
 	            pEdgeVerts, pInVertTable, pCommonAttribList);
 	CLOCK_STOP("Send Off Time");
 
@@ -420,14 +365,16 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_STOP("Waiting Time");
 
 	CLOCK_START;
-	ruvmCombineJobMeshes(pContext, pMap, pMeshOut, jobArgs, pEdgeVerts,
+	Mesh meshOutWrap = {0};
+	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
 	                     pVertSeamTable);
 	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
 	pContext->alloc.pFree(pVertSeamTable);
 	CLOCK_START;
-	reallocMeshOut(pContext, pMeshOut);
+	reallocMeshToFit(&pContext->alloc, &meshOutWrap);
+	*pMeshOut = meshOutWrap.mesh;
 	CLOCK_STOP("Realloc time");
 	return 0;
 }
@@ -573,7 +520,7 @@ static void ruvmRenderJob(void *pArgs) {
 		for (int32_t j = 0; j < faceCells.cellSize; ++j) {
 			Cell* pCell = faceCells.pCells[j];
 			int32_t* pCellFaces;
-			Range cellFaceRange;
+			Range cellFaceRange = {0};
 			if (faceCells.pCellType[j]) {
 				pCellFaces = pCell->pEdgeFaces;
 				cellFaceRange = pLeaf->pLinkEdgeRanges[j];
@@ -587,18 +534,18 @@ static void ruvmRenderJob(void *pArgs) {
 				continue;
 			}
 			for (int32_t k = cellFaceRange.start; k < cellFaceRange.end; ++k) {
-				FaceRange face;
+				FaceRange face = {0};
 				face.index = pCellFaces[k];
 				face.start = pMesh->mesh.pFaces[face.index];
 				face.end = pMesh->mesh.pFaces[face.index + 1];
 				face.size = face.end - face.start;
-				FaceTriangulated faceTris = { 0 };
+				FaceTriangulated faceTris = {0};
 				if (face.size > 4) {
 					faceTris = triangulateFace(vars.pContext->alloc, face,
 					                           pMesh->pVerts,
 					                           pMesh->mesh.pLoops, 0);
 					for (int32_t l = 0; l < faceTris.triCount; ++l) {
-						FaceRange tri;
+						FaceRange tri = {0};
 						tri.index = face.index;
 						tri.start = l * 3;
 						tri.end = tri.start + 3;

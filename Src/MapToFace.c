@@ -306,9 +306,9 @@ void blendMapAndInAttribs(BufMesh *pBufMesh, AttribArray *pDestAttribs,
 	//TODO make naming for MeshIn consistent
 	for (int32_t i = 0; i < pDestAttribs->count; ++i) {
 		if (pDestAttribs->pArr[i].origin == RUVM_ATTRIB_ORIGIN_COMMON) {
-			if (pDestAttribs->pArr + i == pBufMesh->pVertAttrib ||
-			    pDestAttribs->pArr + i == pBufMesh->pUvAttrib ||
-				pDestAttribs->pArr + i == pBufMesh->pNormalAttrib) {
+			if (pDestAttribs->pArr + i == asMesh(pBufMesh)->pVertAttrib ||
+			    pDestAttribs->pArr + i == asMesh(pBufMesh)->pUvAttrib ||
+				pDestAttribs->pArr + i == asMesh(pBufMesh)->pNormalAttrib) {
 
 				continue;
 			}
@@ -448,7 +448,7 @@ void initEdgeTableEntry(MappingJobVars *pVars, LocalEdge *pEntry,
 	BufMeshIndex edge = bufMeshAddEdge(&pVars->alloc, pBufMesh, !isMapEdge, pVars->pDpVars);
 	pAcfVars->edge = edge.index;
 	pEntry->edge = edge.index;
-	simpleCopyAttribs(&pBufMesh->mesh.edgeAttribs,
+	simpleCopyAttribs(&asMesh(pBufMesh)->mesh.edgeAttribs,
 	                  &pVars->pMap->mesh.mesh.edgeAttribs,
 					  &pVars->mesh.mesh.edgeAttribs,
 					  edge.realIndex, refEdge, isMapEdge);
@@ -482,6 +482,7 @@ void addEdge(MappingJobVars *pVars, int32_t loopBufIndex, BufMesh *pBufMesh,
 	int32_t hash =
 		ruvmFnvHash((uint8_t *)&key, 4, pVars->localTables.edgeTableSize);
 	LocalEdge *pEntry = pVars->localTables.pEdgeTable + hash;
+	int32_t depth = 0;
 	do {
 		if (!pEntry->loopCount) {
 			initEdgeTableEntry(pVars, pEntry, pAcfVars, pBufMesh, refEdge,
@@ -500,7 +501,10 @@ void addEdge(MappingJobVars *pVars, int32_t loopBufIndex, BufMesh *pBufMesh,
 			                   refFace, isMapEdge);
 			break;
 		}
+		assert(pEntry->pNext && pEntry->pNext->pNext <= (LocalEdge *)1000000000000000);
 		pEntry = pEntry->pNext;
+		assert(depth >= 0 && depth < 1000);
+		depth++;
 	} while(1);
 	pEntry->loopCount++;
 }
@@ -511,10 +515,10 @@ void addNewLoopAndOrVert(MappingJobVars *pVars, int32_t loopBufIndex,
 						 LoopBuf *pLoopBuf, FaceRange *pBaseFace) {
 		BufMeshIndex vert = bufMeshAddVert(&pVars->alloc, pBufMesh, true, pVars->pDpVars);
 		pAcfVars->vert = vert.index;
-		pBufMesh->pVerts[vert.realIndex] = pLoopBuf[loopBufIndex].loop;
+		asMesh(pBufMesh)->pVerts[vert.realIndex] = pLoopBuf[loopBufIndex].loop;
 		//temporarily setting mesh data index to 0, as it's only needed if interpolation is disabled
 		blendMapAndInAttribs(
-			pBufMesh, &pBufMesh->mesh.vertAttribs,
+			pBufMesh, &asMesh(pBufMesh)->mesh.vertAttribs,
 			&pVars->pMap->mesh.mesh.vertAttribs,
 			&pVars->mesh.mesh.vertAttribs,
 			pLoopBuf, loopBufIndex, vert.realIndex,
@@ -532,11 +536,11 @@ void initMapVertTableEntry(MappingJobVars *pVars, int32_t loopBufIndex,
 						   FaceRange baseFace, int32_t ruvmVert) {
 	BufMeshIndex vert = bufMeshAddVert(&pVars->alloc, pBufMesh, false, pVars->pDpVars);
 	pAcfVars->vert = vert.index;
-	pBufMesh->pVerts[vert.realIndex] = pLoopBuf[loopBufIndex].loop;
+	asMesh(pBufMesh)->pVerts[vert.realIndex] = pLoopBuf[loopBufIndex].loop;
 	pEntry->vert = vert.index;
 	pEntry->mapVert = ruvmVert;
 	pEntry->baseFace = baseFace.index;
-	blendMapAndInAttribs(pBufMesh, &pBufMesh->mesh.vertAttribs,
+	blendMapAndInAttribs(pBufMesh, &asMesh(pBufMesh)->mesh.vertAttribs,
 						 &pVars->pMap->mesh.mesh.vertAttribs,
 						 &pVars->mesh.mesh.vertAttribs,
 						 pLoopBuf, loopBufIndex, vert.realIndex,
@@ -676,10 +680,10 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 		if (!i) {
 			acfVars.loopStart = loop.index;
 		}
-		pBufMesh->mesh.pLoops[loop.realIndex] = acfVars.vert;
-		pBufMesh->pNormals[loop.realIndex] = pLoopBuf->buf[i].normal;
-		pBufMesh->pUvs[loop.realIndex] = pLoopBuf->buf[i].uv;
-		blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.loopAttribs,
+		asMesh(pBufMesh)->mesh.pLoops[loop.realIndex] = acfVars.vert;
+		asMesh(pBufMesh)->pNormals[loop.realIndex] = pLoopBuf->buf[i].normal;
+		asMesh(pBufMesh)->pUvs[loop.realIndex] = pLoopBuf->buf[i].uv;
+		blendMapAndInAttribs(&pVars->bufMesh, &asMesh(pBufMesh)->mesh.loopAttribs,
 							 &pVars->pMap->mesh.mesh.loopAttribs,
 							 &pVars->mesh.mesh.loopAttribs,
 							 pLoopBuf->buf, i, loop.realIndex,
@@ -689,12 +693,12 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 							 pVars->pCommonAttribList->loopCount, &baseFace);
 		addEdge(pVars, i, &pVars->bufMesh, pLoopBuf->buf, &pVars->alloc,
 		        refFace, &acfVars, &baseFace, &ruvmFace);
-		pBufMesh->mesh.pEdges[loop.realIndex] = acfVars.edge;
+		asMesh(pBufMesh)->mesh.pEdges[loop.realIndex] = acfVars.edge;
 	}
 	BufMeshIndex face = bufMeshAddFace(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars);
 	acfVars.face = face.index;
-	pBufMesh->mesh.pFaces[face.realIndex] = acfVars.loopStart;
-	blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.faceAttribs,
+	asMesh(pBufMesh)->mesh.pFaces[face.realIndex] = acfVars.loopStart;
+	blendMapAndInAttribs(&pVars->bufMesh, &asMesh(pBufMesh)->mesh.faceAttribs,
 						 &pVars->pMap->mesh.mesh.faceAttribs,
 						 &pVars->mesh.mesh.faceAttribs,
 						 pLoopBuf->buf, 0, face.realIndex,
@@ -710,7 +714,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
                          DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, int32_t tile, FaceRange baseFace) {
-	FaceBounds bounds;
+	FaceBounds bounds = {0};
 	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri;
 	pDpVars->facesNotSkipped++;
@@ -720,6 +724,9 @@ void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
 		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[loop]];
 	}
 	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.index].cellSize; ++i) {
+		assert(asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
+		assert(asMesh(&pVars->bufMesh)->mesh.faceCount <
+		       asMesh(&pVars->bufMesh)->faceBufSize);
 		Cell* pCell = pFaceCellsTable->pFaceCells[baseFace.index].pCells[i];
 		assert(pCell->localIndex >= 0 && pCell->localIndex < 4);
 		assert(pCell->initialized % 2 == pCell->initialized);
@@ -741,7 +748,7 @@ void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
 		}
 		for (int32_t j = range.start; j < range.end; ++j) {
 			pDpVars->totalFacesComp++;
-			FaceRange ruvmFace;
+			FaceRange ruvmFace = {0};
 			ruvmFace.index = pCellFaces[j];
 			ruvmFace.start = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index];
 			ruvmFace.end = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index + 1];

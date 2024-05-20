@@ -3,10 +3,20 @@
 #include <RUVM.h>
 #include <RuvmInternal.h>
 #include <MathUtils.h>
+#include <Mesh.h>
 
 typedef RuvmAttrib Attrib;
 typedef RuvmAttribType AttribType;
 typedef RuvmAttribArray AttribArray;
+
+typedef enum {
+	ATTRIB_SPECIAL_NONE,
+	ATTRIB_SPECIAL_VERTS,
+	ATTRIB_SPECIAL_UVS,
+	ATTRIB_SPECIAL_NORMALS,
+	ATTRIB_SPECIAL_PRESERVE,
+	ATTRIB_SPECIAL_RECEIVE
+} SpecialAttrib;
 
 int32_t getAttribSize(AttribType type);
 RuvmAttrib *getAttrib(char *pName, RuvmAttribArray *pAttribs);
@@ -29,8 +39,9 @@ void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
                   RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
 				  int32_t dataLen);
 void castType(void *pValue, RuvmAttribType type);
-void reallocAttribs(const RuvmAlloc *pAlloc, AttribArray *pAttribArr,
-                    int32_t newLen);
+void reallocAttribs(const RuvmAlloc *pAlloc, Mesh *pMesh,
+                    AttribArray *pAttribArr, int32_t newLen);
 void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, int32_t start,
 						   int32_t offset, int32_t lenToCopy, int32_t newLen);
+void setSpecialAttribs(Mesh *pMesh, UBitField8 flags);

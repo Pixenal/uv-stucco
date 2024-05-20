@@ -437,16 +437,7 @@ void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath) {
 	decodeRuvmData(pContext, pMapFile, &dataByteString);
 	pContext->alloc.pFree(headerByteString.pString);
 	pContext->alloc.pFree(dataByteString.pString);
-	RuvmMesh *pMesh = &pMapFile->mesh.mesh;
-	pMapFile->mesh.pVertAttrib =
-		getAttrib("position", &pMesh->vertAttribs);
-	pMapFile->mesh.pVerts = pMapFile->mesh.pVertAttrib->pData;
-	pMapFile->mesh.pUvAttrib =
-		getAttrib("UVMap", &pMesh->loopAttribs);
-	pMapFile->mesh.pUvs = pMapFile->mesh.pUvAttrib->pData;
-	pMapFile->mesh.pNormalAttrib =
-		getAttrib("normal", &pMesh->loopAttribs);
-	pMapFile->mesh.pNormals = pMapFile->mesh.pNormalAttrib->pData;
+	setSpecialAttribs(&pMapFile->mesh, 0x2e); //101110 - set all except for preserve
 }
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {

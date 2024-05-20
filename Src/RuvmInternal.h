@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <Mesh.h>
+#include <DebugAndPerf.h>
 
 typedef uint64_t UBitField64;
 typedef uint32_t UBitField32;
@@ -16,11 +17,6 @@ typedef struct {
 typedef struct {
 	float d[4];
 } Color;
-
-typedef struct {
-	int32_t index;
-	int32_t realIndex;
-} BufMeshIndex;
 
 typedef struct BorderFace{
 	struct BorderFace *pNext;
@@ -77,11 +73,3 @@ typedef struct {
 	int32_t totalFaces;
 	uint64_t reallocTime;
 } SendOffArgs;
-
-typedef struct {
-	uint64_t timeSpent[3];
-	int32_t maxDepth;
-	int32_t facesNotSkipped;
-	int32_t totalFacesComp;
-	uint64_t reallocTime;
-} DebugAndPerfVars;
