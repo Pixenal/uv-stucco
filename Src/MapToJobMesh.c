@@ -8,6 +8,7 @@
 #include <Clock.h>
 #include <AttribUtils.h>
 #include <Utils.h>
+#include <Error.h>
 
 static
 void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
@@ -266,14 +267,9 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	pSend->bufSize = vars.bufSize;
 	pSend->rawBufSize = vars.rawBufSize;
 	pSend->finalBufSize = asMesh(&vars.bufMesh)->faceBufSize;
-	pSend->totalBorderFaces = vars.bufMesh.borderFaceCount;
-	pSend->totalBorderEdges = vars.bufMesh.borderEdgeCount;
-	pSend->totalFaces = asMesh(&vars.bufMesh)->mesh.faceCount;
-	pSend->totalLoops = asMesh(&vars.bufMesh)->mesh.loopCount;
-	pSend->totalEdges = asMesh(&vars.bufMesh)->mesh.edgeCount;
-	pSend->totalVerts = asMesh(&vars.bufMesh)->mesh.vertCount;
 	destroyMappingTables(&vars.alloc, &vars.localTables);
 	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
+	RUVM_ASSERT("", !(!vars.borderTable.pTable ^ !vars.borderTable.size));
 	pSend->borderTable.pTable = vars.borderTable.pTable;
 	pSend->bufMesh = vars.bufMesh;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,

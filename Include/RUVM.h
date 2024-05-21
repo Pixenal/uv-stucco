@@ -1,9 +1,16 @@
 #pragma once
+#ifdef __cplusplus
+#include <cstdint>
+#include <cstddef>
+#include <cstdbool>
+#else
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#endif
 
-#ifdef PLATFORM_WINDOWS
+
+#ifdef WIN32
 	#define RUVM_EXPORT __declspec(dllexport)
 #elif PLATFORM_LINUX
 	#define RUVM_EXPORT __attribute__((visibility("default")))
@@ -174,7 +181,7 @@ typedef struct {
 	char name[RUVM_ATTRIB_NAME_MAX_LEN];
 	RuvmAttribType type;
 	RUVM_ATTRIB_ORIGIN origin;
-	_Bool interpolate;
+	bool interpolate;
 } RuvmAttrib;
 
 typedef struct {

@@ -7,6 +7,7 @@
 #include <CombineJobMeshes.h>
 #include <AttribUtils.h>
 #include <MapFile.h>
+#include <Error.h>
 
 static
 void allocateMeshOut(RuvmContext pContext, Mesh *pMeshOut,
@@ -19,11 +20,20 @@ void allocateMeshOut(RuvmContext pContext, Mesh *pMeshOut,
 		int32_t verts;
 	} MeshCounts;
 	MeshCounts totalCount = {0};
+	MeshCounts totalBorderCount = {0};
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
-		totalCount.faces += pJobArgs[i].totalFaces;
-		totalCount.loops += pJobArgs[i].totalLoops;
-		totalCount.edges += pJobArgs[i].totalEdges;
-		totalCount.verts += pJobArgs[i].totalVerts;
+		//TODO maybe replace *Counts vars in Mesh to use MeshCounts,
+		//     so we can just do:
+		//     meshCountsAdd(totalCount, pJobArgs[i].bufMesh.mesh.meshCounts);
+		//     or something.
+		totalCount.faces += pJobArgs[i].bufMesh.mesh.mesh.faceCount;
+		totalCount.loops += pJobArgs[i].bufMesh.mesh.mesh.loopCount;
+		totalCount.edges += pJobArgs[i].bufMesh.mesh.mesh.edgeCount;
+		totalCount.verts += pJobArgs[i].bufMesh.mesh.mesh.vertCount;
+		totalBorderCount.faces += pJobArgs[i].bufMesh.borderFaceCount;
+		totalBorderCount.loops += pJobArgs[i].bufMesh.borderLoopCount;
+		totalBorderCount.edges += pJobArgs[i].bufMesh.borderEdgeCount;
+		totalBorderCount.verts += pJobArgs[i].bufMesh.borderVertCount;
 	}
 	//TODO figure out how to handle edges in local meshes,
 	//probably just add internal edges to local mesh,
@@ -31,10 +41,10 @@ void allocateMeshOut(RuvmContext pContext, Mesh *pMeshOut,
 	//You'll need to provide functionality for interpolating and blending
 	//edge data, so keep that in mind.
 	RuvmMesh *pBufCore = &asMesh(&pJobArgs[0].bufMesh)->mesh;
-	pMeshOut->faceBufSize = totalCount.faces;
-	pMeshOut->loopBufSize = totalCount.loops;
-	pMeshOut->edgeBufSize = totalCount.edges;
-	pMeshOut->vertBufSize = totalCount.verts;
+	pMeshOut->faceBufSize = 2 + totalCount.faces + totalBorderCount.faces / 10;
+	pMeshOut->loopBufSize = 2 + totalCount.loops + totalBorderCount.loops / 10;
+	pMeshOut->edgeBufSize = 2 + totalCount.edges + totalBorderCount.edges / 10;
+	pMeshOut->vertBufSize = 2 + totalCount.verts + totalBorderCount.verts / 10;
 	pMeshOut->mesh.pFaces =
 		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->faceBufSize);
 	pMeshOut->mesh.pLoops =
@@ -136,24 +146,24 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs,
 								  const int32_t loopIndex) {
 	BorderInInfo inInfo = {0};
-	assert(pEntry->baseFace >= 0);
-	assert(pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
+	RUVM_ASSERT("", pEntry->baseFace >= 0);
+	RUVM_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
 	inInfo.loopLocal = pEntry->baseLoop >> loopIndex * 2 & 3;
-	assert(inInfo.loopLocal >= 0);
+	RUVM_ASSERT("", inInfo.loopLocal >= 0);
 	inInfo.start =
 		pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
-	assert(inInfo.start >= 0);
-	assert(inInfo.start < pJobArgs[pEntry->job].mesh.mesh.loopCount);
+	RUVM_ASSERT("", inInfo.start >= 0);
+	RUVM_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.mesh.loopCount);
 	//Check local loop is less than face size
-	assert(inInfo.loopLocal <
+	RUVM_ASSERT("", inInfo.loopLocal <
 	       pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1] -
 		   inInfo.start);
 	inInfo.loop = inInfo.start + inInfo.loopLocal;
-	assert(inInfo.loop < pJobArgs[pEntry->job].mesh.mesh.loopCount);
+	RUVM_ASSERT("", inInfo.loop < pJobArgs[pEntry->job].mesh.mesh.loopCount);
 	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.loop];
-	assert(inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
+	RUVM_ASSERT("", inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
 	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pLoops[inInfo.loop];
-	assert(inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
+	RUVM_ASSERT("", inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
 	return inInfo;
 }
 
@@ -172,7 +182,7 @@ _Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex) {
 int32_t getMapLoop(const BorderFace *pEntry,
                    const RuvmMap pMap, const int32_t loopIndex) {
 	int32_t mapLoop = pEntry->ruvmLoop >> loopIndex * 3 & 7;
-	assert(mapLoop >= 0 && mapLoop < pMap->mesh.mesh.loopCount);
+	RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pMap->mesh.mesh.loopCount);
 	return mapLoop;
 }
 

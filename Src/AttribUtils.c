@@ -8,6 +8,7 @@
 #include <MathUtils.h>
 #include <Context.h>
 #include <Mesh.h>
+#include <Error.h>
 
 #define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->pData)[i][c]
 
@@ -2001,25 +2002,25 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			valid = true;
 			break;
 	}
-	assert(valid);
+	RUVM_ASSERT("", valid);
 }
 
 void reallocAttribs(const RuvmAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, const int32_t newLen) {
-	assert(newLen >= 0 && newLen < 100000000);
+	RUVM_ASSERT("", newLen >= 0 && newLen < 100000000);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
 		SpecialAttrib special = getIfSpecialAttrib(pMesh, pAttrib);
 		//Check entry is valid
-		assert(pAttrib->interpolate % 2 == pAttrib->interpolate);
+		RUVM_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
 		int8_t oldFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData =
 			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
 		int8_t newFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
-		assert(newFirstElement == oldFirstElement);
+		RUVM_ASSERT("", newFirstElement == oldFirstElement);
 		reassignIfSpecial((Mesh *)pMesh, pAttrib, special);
-		assert(i >= 0 && i < pAttribArr->count);
+		RUVM_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
 }
 
@@ -2027,13 +2028,13 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, const int32_t start,
 						   const int32_t offset, const int32_t lenToCopy,
 						   const int32_t newLen) {
-	assert(newLen >= 0 && newLen < 100000000);
-	assert(start >= 0 && start < newLen);
+	RUVM_ASSERT("", newLen >= 0 && newLen < 100000000);
+	RUVM_ASSERT("", start >= 0 && start < newLen);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
 		SpecialAttrib special = getIfSpecialAttrib(asMesh(pMesh), pAttrib);
 		//Check entry is valid
-		assert(pAttrib->interpolate % 2 == pAttrib->interpolate);
+		RUVM_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
 		int8_t oldFirstElement =
 			*(int8_t *)attribAsVoid(pAttrib, start);
 		int8_t oldLastElement =
@@ -2047,10 +2048,10 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 			*(int8_t *)attribAsVoid(pAttrib, start + offset);
 		int8_t newLastElement =
 			*(int8_t *)attribAsVoid(pAttrib, start + offset + lenToCopy - 1);
-		assert(newFirstElement == oldFirstElement);
-		assert(newLastElement == oldLastElement);
+		RUVM_ASSERT("", newFirstElement == oldFirstElement);
+		RUVM_ASSERT("", newLastElement == oldLastElement);
 		reassignIfSpecial((Mesh *)pMesh, pAttrib, special);
-		assert(i >= 0 && i < pAttribArr->count);
+		RUVM_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
 }
 
@@ -2058,17 +2059,17 @@ void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 	RuvmMesh *pCore = &pMesh->mesh;
 	if (flags >> ATTRIB_SPECIAL_VERTS & 0x01) {
 		pMesh->pVertAttrib = getAttrib("position", &pCore->vertAttribs);
-		assert(pMesh->pVertAttrib);
+		RUVM_ASSERT("", pMesh->pVertAttrib);
 		pMesh->pVerts = pMesh->pVertAttrib->pData;
 	}
 	if (flags >> ATTRIB_SPECIAL_UVS & 0x01) {
 		pMesh->pUvAttrib = getAttrib("UVMap", &pCore->loopAttribs);
-		assert(pMesh->pUvAttrib);
+		RUVM_ASSERT("", pMesh->pUvAttrib);
 		pMesh->pUvs = pMesh->pUvAttrib->pData;
 	}
 	if (flags >> ATTRIB_SPECIAL_NORMALS & 0x01) {
 		pMesh->pNormalAttrib = getAttrib("normal", &pCore->loopAttribs);
-		assert(pMesh->pNormalAttrib);
+		RUVM_ASSERT("", pMesh->pNormalAttrib);
 		pMesh->pNormals = pMesh->pNormalAttrib->pData;
 	}
 	if (flags >> ATTRIB_SPECIAL_PRESERVE & 0x01) {

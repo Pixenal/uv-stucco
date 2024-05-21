@@ -1,6 +1,8 @@
 #pragma once
+
 #include <stdint.h>
 #include <stdbool.h>
+
 #include <Mesh.h>
 #include <DebugAndPerf.h>
 
@@ -65,11 +67,5 @@ typedef struct {
 	int32_t finalBufSize;
 	int8_t *pInVertTable;
 	int32_t id;
-	int32_t totalBorderFaces;
-	int32_t totalBorderEdges;
-	int32_t totalVerts;
-	int32_t totalLoops;
-	int32_t totalEdges;
-	int32_t totalFaces;
 	uint64_t reallocTime;
 } SendOffArgs;

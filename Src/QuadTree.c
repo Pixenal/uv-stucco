@@ -10,6 +10,7 @@
 #include <MapFile.h>
 #include <MathUtils.h>
 #include <Utils.h>
+#include <Error.h>
 
 typedef struct {
 	int32_t d[4];
@@ -19,35 +20,35 @@ static
 void calcCellBounds(Cell *cell) {
 	float xSide = (float)(cell->localIndex % 2);
 	float ySide = (float)(((cell->localIndex + 2) / 2) % 2);
-	assert(isfinite(xSide) && isfinite(ySide));
+	RUVM_ASSERT("", isfinite(xSide) && isfinite(ySide));
 	cell->boundsMin.d[0] = xSide * .5;
 	cell->boundsMin.d[1] = ySide * .5;
 	cell->boundsMax.d[0] = 1.0 - (1.0 - xSide) * .5;
 	cell->boundsMax.d[1] = 1.0 - (1.0 - ySide) * .5;
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	assert(_(cell->boundsMin V2GREATEQL zero));
-	assert(_(cell->boundsMax V2LESSEQL one));
+	RUVM_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
+	RUVM_ASSERT("", _(cell->boundsMax V2LESSEQL one));
 }
 
 static
 void addCellToEncasingCells(Cell *cell, EncasingCells *pEncasingCells,
                             int32_t edge) {
-	assert(edge % 2 == edge);
-	assert(cell->initialized % 2 == cell->initialized);
+	RUVM_ASSERT("", edge % 2 == edge);
+	RUVM_ASSERT("", cell->initialized % 2 == cell->initialized);
 	int32_t faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
-	assert(faceSize >= 0 && faceSize < 100000000);
-	assert(pEncasingCells->faceTotal >= 0);
+	RUVM_ASSERT("", faceSize >= 0 && faceSize < 100000000);
+	RUVM_ASSERT("", pEncasingCells->faceTotal >= 0);
 	pEncasingCells->faceTotal += faceSize;
 	int32_t dupIndex = -1;
 	for (int32_t i = 0; i < pEncasingCells->cellSize; ++i) {
-		assert(pEncasingCells->ppCells[i]->localIndex >= 0);
-		assert(pEncasingCells->ppCells[i]->localIndex < 4);
+		RUVM_ASSERT("", pEncasingCells->ppCells[i]->localIndex >= 0);
+		RUVM_ASSERT("", pEncasingCells->ppCells[i]->localIndex < 4);
 		if (pEncasingCells->ppCells[i] == cell) {
 			dupIndex = i;
 			break;
 		}
-		assert(i >= 0 && i < pEncasingCells->cellSize);
+		RUVM_ASSERT("", i >= 0 && i < pEncasingCells->cellSize);
 	}
 	if (dupIndex >= 0) {
 		if (!pEncasingCells->pCellType[dupIndex] && edge) {
@@ -67,7 +68,7 @@ int32_t findFaceQuadrantUv(RuvmAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
 	commonSides->d[0] = commonSides->d[1] = 1;
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * vertCount);
 	for (int32_t i = 0; i < vertCount; ++i) {
-		assert(v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
+		RUVM_ASSERT("", v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
 		pSides[i].d[0] = pVerts[i].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pVerts[i].d[1] < midPoint.d[1];
 		for (int32_t j = 0; j < i; ++j) {
@@ -75,14 +76,14 @@ int32_t findFaceQuadrantUv(RuvmAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
 	}
-	assert(commonSides->d[0] % 2 == commonSides->d[0]);
-	assert(commonSides->d[1] % 2 == commonSides->d[1]);
+	RUVM_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
+	RUVM_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
 	if (!commonSides->d[0] && !commonSides->d[1]) {
 		pAlloc->pFree(pSides);
 		return 0;
 	}
-	assert(pSides->d[0] % 2 == pSides->d[0]);
-	assert(pSides->d[1] % 2 == pSides->d[1]);
+	RUVM_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
+	RUVM_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
 	signs->d[0] = pSides[0].d[0];
 	signs->d[1] = pSides[0].d[1];
 	pAlloc->pFree(pSides);
@@ -102,7 +103,7 @@ int32_t findFaceQuadrant(RuvmAlloc* pAlloc, FaceRange *pFace,
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * pFace->size);
 	for (int32_t i = 0; i < pFace->size; ++i) {
 		int32_t vertIndex = pMesh->mesh.pLoops[pFace->start + i];
-		assert(v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIndex]));
+		RUVM_ASSERT("", v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIndex]));
 		pSides[i].d[0] = pMesh->pVerts[vertIndex].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pMesh->pVerts[vertIndex].d[1] < midPoint.d[1];
 		for (int32_t j = 0; j < i; ++j) {
@@ -110,14 +111,14 @@ int32_t findFaceQuadrant(RuvmAlloc* pAlloc, FaceRange *pFace,
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
 	}
-	assert(commonSides->d[0] % 2 == commonSides->d[0]);
-	assert(commonSides->d[1] % 2 == commonSides->d[1]);
+	RUVM_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
+	RUVM_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
 	if (!commonSides->d[0] && !commonSides->d[1]) {
 		pAlloc->pFree(pSides);
 		return 0;
 	}
-	assert(pSides->d[0] % 2 == pSides->d[0]);
-	assert(pSides->d[1] % 2 == pSides->d[1]);
+	RUVM_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
+	RUVM_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
 	signs->d[0] = pSides[0].d[0];
 	signs->d[1] = pSides[0].d[1];
 	pAlloc->pFree(pSides);
@@ -132,7 +133,7 @@ int32_t findFaceQuadrant(RuvmAlloc* pAlloc, FaceRange *pFace,
 static
 void getChildrenFromResult(int32_t result, Children* pChildren,
                            V2_I32* pCommonSides, V2_I32* pSigns) {
-	assert(result >= 0 && result <= 2);
+	RUVM_ASSERT("", result >= 0 && result <= 2);
 	switch (result) {
 		case 0: {
 			//addCellToEncasingCells(cell, pEncasingCells, 0);
@@ -174,11 +175,11 @@ void findEncasingChildCells(RuvmAlloc *pAlloc, Cell *pCell, Children *pChildren,
 							V2_F32 *pVerts, V2_I32 *pTileMin) {
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	assert(_(pCell->boundsMin V2GREATEQL zero));
-	assert(_(pCell->boundsMax V2LESSEQL one));
+	RUVM_ASSERT("", _(pCell->boundsMin V2GREATEQL zero));
+	RUVM_ASSERT("", _(pCell->boundsMax V2LESSEQL one));
 	V2_F32 midPoint = _(_(pCell->boundsMax V2SUB pCell->boundsMin) V2MULS .5);
 	_(&midPoint V2ADDEQL pCell->boundsMin);
-	assert(v2IsFinite(midPoint));
+	RUVM_ASSERT("", v2IsFinite(midPoint));
 	V2_I32 signs;
 	V2_I32 commonSides;
 	midPoint.d[0] += (float)pTileMin->d[0];
@@ -195,28 +196,28 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 	Cell *cellStack[16];
 	Children children[16];
 	Cell *pRootCell = pState->pMap->quadTree.pRootCell;
-	assert(pRootCell->cellIndex == 0 && pRootCell->localIndex == 0);
+	RUVM_ASSERT("", pRootCell->cellIndex == 0 && pRootCell->localIndex == 0);
 	cellStack[0] = pRootCell;
 	pState->pCellInits[0] = 0;
 	int32_t cellStackPtr = 0;
 	for (int32_t i = 0; i < 4; ++i) {
-		assert(pRootCell->pChildren[i].localIndex >= 0);
-		assert(pRootCell->pChildren[i].localIndex < 4);
+		RUVM_ASSERT("", pRootCell->pChildren[i].localIndex >= 0);
+		RUVM_ASSERT("", pRootCell->pChildren[i].localIndex < 4);
 		pState->pCellInits[pRootCell->pChildren[i].cellIndex] = 0;
-		assert(i >= 0 && i < 4);
+		RUVM_ASSERT("", i >= 0 && i < 4);
 	}
 	do {
-		assert(cellStackPtr >= 0 && cellStackPtr < 16);
+		RUVM_ASSERT("", cellStackPtr >= 0 && cellStackPtr < 16);
 		Cell *cell = cellStack[cellStackPtr];
-		assert(cell->localIndex >= 0 && cell->localIndex < 4);
-		assert(cell->cellIndex >= 0 && cell->cellIndex < pTree->cellCount);
-		assert((cell->pChildren && cell->faceSize > 0) || !cell->pChildren);
-		assert(cell->initialized % 2 == cell->initialized);
+		RUVM_ASSERT("", cell->localIndex >= 0 && cell->localIndex < 4);
+		RUVM_ASSERT("", cell->cellIndex >= 0 && cell->cellIndex < pTree->cellCount);
+		RUVM_ASSERT("", (cell->pChildren && cell->faceSize > 0) || !cell->pChildren);
+		RUVM_ASSERT("", cell->initialized % 2 == cell->initialized);
 		if (!cell->pChildren) {
-			assert(!cell->edgeFaceSize);
+			RUVM_ASSERT("", !cell->edgeFaceSize);
 			addCellToEncasingCells(cell, pEncasingCells, 0);
 			cellStackPtr--;
-			assert(!pState->pCellInits[cell->cellIndex]);
+			RUVM_ASSERT("", !pState->pCellInits[cell->cellIndex]);
 			pState->pCellInits[cell->cellIndex] = 1;
 			continue;
 		}
@@ -228,7 +229,7 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 					nextChild = i;
 					break;
 				}
-				assert(i >= 0 && i < 4);
+				RUVM_ASSERT("", i >= 0 && i < 4);
 			}
 			if (nextChild == -1) {
 				cellStackPtr--;
@@ -238,15 +239,15 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 			cellStack[cellStackPtr] = cell->pChildren + nextChild;
 			continue;
 		}
-		assert(vertCount >= 0 && vertCount < 10000);
+		RUVM_ASSERT("", vertCount >= 0 && vertCount < 10000);
 		findEncasingChildCells(pState->pAlloc, cell, children, &cellStackPtr,
 		                       vertCount, pVerts, &tileMin);
 		addCellToEncasingCells(cell, pEncasingCells, 1);
-		assert(!pState->pCellInits[cell->cellIndex]);
+		RUVM_ASSERT("", !pState->pCellInits[cell->cellIndex]);
 		pState->pCellInits[cell->cellIndex] = 1;
 		for (int32_t i = 0; i < 4; ++i) {
 			pState->pCellInits[cell->pChildren[i].cellIndex] = 0;
-			assert(i >= 0 && i < 4);
+			RUVM_ASSERT("", i >= 0 && i < 4);
 		}
 		int32_t nextChild = 0;
 		for (int32_t i = 0; i < 4; ++i) {
@@ -254,7 +255,7 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 				nextChild = i;
 				break;
 			}
-			assert(i >= 0 && i < 4);
+			RUVM_ASSERT("", i >= 0 && i < 4);
 		}
 		cellStackPtr++;
 		cellStack[cellStackPtr] = cell->pChildren + nextChild;
@@ -555,8 +556,8 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPtr) {
 	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	assert(_(cell->boundsMin V2GREATEQL zero));
-	assert(_(cell->boundsMax V2LESSEQL one));
+	RUVM_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
+	RUVM_ASSERT("", _(cell->boundsMax V2LESSEQL one));
 }
 
 static
@@ -575,15 +576,15 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRa
 			}
 			pRange->end = i;
 		}
-		assert(i >= 0 && i < pAncestor->edgeFaceSize);
+		RUVM_ASSERT("", i >= 0 && i < pAncestor->edgeFaceSize);
 	}
-	assert(pRange->start >= 0 && pRange->end <= pAncestor->edgeFaceSize);
+	RUVM_ASSERT("", pRange->start >= 0 && pRange->end <= pAncestor->edgeFaceSize);
 	pRange->end++;
 	return linked;
 }
 
 static
-void addLinkEdgesToCells(RuvmContext pContext, Cell* pParentCell,
+void addLinkEdgesToCells(RuvmContext pContext, int32_t parentCell,
                          Mesh *pMesh, CellTable *pTable, int32_t *pCellStack,
 						 int32_t cellStackPtr) {
 	int32_t buf[32];
@@ -591,21 +592,21 @@ void addLinkEdgesToCells(RuvmContext pContext, Cell* pParentCell,
 	int32_t bufSize;
 	for (int32_t i = 0; i < 4; ++i) {
 		bufSize = 0;
-		Cell *pChild = pParentCell->pChildren + i;
-		assert(pChild->initialized == 0);
-		assert(pChild->localIndex >= 0 && pChild->localIndex < 4);
+		Cell *pChild = pTable->pArr[parentCell].pChildren + i;
+		RUVM_ASSERT("", pChild->initialized == 0);
+		RUVM_ASSERT("", pChild->localIndex >= 0 && pChild->localIndex < 4);
 		for (int32_t j = 0; j <= cellStackPtr; ++j) {
 			Cell *pAncestor = pTable->pArr + pCellStack[j];
-			assert(pAncestor->initialized % 2 == pAncestor->initialized);
-			assert(pAncestor->localIndex >= 0);
-			assert(pAncestor->localIndex < 4);
+			RUVM_ASSERT("", pAncestor->initialized % 2 == pAncestor->initialized);
+			RUVM_ASSERT("", pAncestor->localIndex >= 0);
+			RUVM_ASSERT("", pAncestor->localIndex < 4);
 			Range range = {0};
 			if (checkIfLinkedEdge(pChild, pAncestor, pMesh, &range)) {
 				buf[bufSize] = pAncestor->cellIndex;
 				rangeBuf[bufSize] = range;
 				bufSize++;
 			}
-			assert(j >= 0 && j <= cellStackPtr);
+			RUVM_ASSERT("", j >= 0 && j <= cellStackPtr);
 		}
 		if (bufSize) {
 			pChild->pLinkEdges =
@@ -617,7 +618,7 @@ void addLinkEdgesToCells(RuvmContext pContext, Cell* pParentCell,
 				memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
 			pChild->linkEdgeSize = bufSize;
 		}
-		assert(i >= 0 && i < 4);
+		RUVM_ASSERT("", i >= 0 && i < 4);
 	}
 }
 
@@ -684,12 +685,13 @@ void getDupEdgeFaces(RuvmContext pContext, Cell **pCellStack,
 */
 
 static
-void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
-                            Mesh *pMesh, int8_t *pFaceFlag) {
+void addEnclosedVertsToCell(RuvmContext pContext, int32_t parentCellIndex,
+                            Mesh *pMesh, CellTable* pTable, int8_t *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
+	Cell* pParentCell = pTable->pArr + parentCellIndex;
 	V2_F32 midPoint = pParentCell->pChildren[1].boundsMin;
-	assert(v2IsFinite(midPoint));
+	RUVM_ASSERT("", v2IsFinite(midPoint));
 	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
 		FaceRange face = getFaceRange(&pMesh->mesh, pParentCell->pFaces[i], false);
 		V2_I32 signs;
@@ -701,31 +703,31 @@ void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
 			int32_t childIndex = signs.d[0] + signs.d[1] * 2;
 			Cell *pChild = pParentCell->pChildren + childIndex;
 			pFaceFlag[i] = childIndex + 1;
-			assert(pChild->faceSize >= 0);
-			assert(pChild->faceSize <= pParentCell->faceSize);
+			RUVM_ASSERT("", pChild->faceSize >= 0);
+			RUVM_ASSERT("", pChild->faceSize <= pParentCell->faceSize);
 			pChild->faceSize++;
 		}
 		else {
 			pFaceFlag[i] = -1;
-			assert(pParentCell->edgeFaceSize >= 0);
-			assert(pParentCell->edgeFaceSize <= pParentCell->faceSize);
+			RUVM_ASSERT("", pParentCell->edgeFaceSize >= 0);
+			RUVM_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 			pParentCell->edgeFaceSize++;
 		}
-		assert(i >= 0 && i < pParentCell->faceSize);
+		RUVM_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
 	for (int32_t i = 0; i < 4; ++i) {
 		Cell *cell = pParentCell->pChildren + i;
-		assert(cell->initialized == 0 && cell->localIndex == i);
-		assert(cell->faceSize >= 0);
-		assert(cell->faceSize <= pParentCell->faceSize);
+		RUVM_ASSERT("", cell->initialized == 0 && cell->localIndex == i);
+		RUVM_ASSERT("", cell->faceSize >= 0);
+		RUVM_ASSERT("", cell->faceSize <= pParentCell->faceSize);
 		if (cell->faceSize) {
 			cell->pFaces =
 				pContext->alloc.pMalloc(sizeof(int32_t) * cell->faceSize);
 		}
-		assert(i >= 0 && i < 4);
+		RUVM_ASSERT("", i >= 0 && i < 4);
 	}
-	assert(pParentCell->edgeFaceSize >= 0);
-	assert(pParentCell->edgeFaceSize <= pParentCell->faceSize);
+	RUVM_ASSERT("", pParentCell->edgeFaceSize >= 0);
+	RUVM_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 	if (pParentCell->edgeFaceSize) {
 		pParentCell->pEdgeFaces =
 			pContext->alloc.pMalloc(sizeof(int32_t) * pParentCell->edgeFaceSize);
@@ -736,27 +738,27 @@ void addEnclosedVertsToCell(RuvmContext pContext, Cell *pParentCell,
 		if (!pFaceFlag[i]) {
 			continue;
 		}
-		assert(pFaceFlag[i] <= 5);
+		RUVM_ASSERT("", pFaceFlag[i] <= 5);
 		if (pFaceFlag[i] > 0) {
 			int32_t child = pFaceFlag[i] - 1;
 			Cell *cell = pParentCell->pChildren + child;
-			assert(cell->initialized == 0 && cell->localIndex < 4);
-			assert(cell->faceSize >= 0);
-			assert(cell->faceSize <= pParentCell->faceSize);
+			RUVM_ASSERT("", cell->initialized == 0 && cell->localIndex < 4);
+			RUVM_ASSERT("", cell->faceSize >= 0);
+			RUVM_ASSERT("", cell->faceSize <= pParentCell->faceSize);
 			cell->pFaces[facesSize[child]] = pParentCell->pFaces[i];
 			facesSize[child]++;
 		}
 		else {
-			assert(pFaceFlag[i] == -1);
-			assert(pParentCell->edgeFaceSize >= 0);
-			assert(pParentCell->edgeFaceSize <= pParentCell->faceSize);
+			RUVM_ASSERT("", pFaceFlag[i] == -1);
+			RUVM_ASSERT("", pParentCell->edgeFaceSize >= 0);
+			RUVM_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 			pParentCell->pEdgeFaces[edgeFacesSize] = pParentCell->pFaces[i];
 			edgeFacesSize++;
 		}
 		pFaceFlag[i] = 0;
-		assert(i >= 0 && i < pParentCell->faceSize);
+		RUVM_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
-	assert(pParentCell->initialized % 2 == pParentCell->initialized);
+	RUVM_ASSERT("", pParentCell->initialized % 2 == pParentCell->initialized);
 }
 
 
@@ -778,7 +780,7 @@ void reallocCellTable(const RuvmContext pContext, QuadTree *pTree,
 		return;
 	}
 	pTree->cellTable.size += sizeDiff;
-	assert(pTree->cellTable.size > 0);
+	RUVM_ASSERT("", pTree->cellTable.size > 0);
 	Cell *pOldPtr = pTree->cellTable.pArr;
 	pTree->cellTable.pArr =
 		pContext->alloc.pRealloc(pTree->cellTable.pArr,
@@ -792,30 +794,30 @@ void reallocCellTable(const RuvmContext pContext, QuadTree *pTree,
 }
 
 static
-void allocateChildren(RuvmContext pContext, Cell *parentCell,
+void allocateChildren(RuvmContext pContext, int32_t parentCell,
                       int32_t cellStackPtr, RuvmMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
-	assert(pTree->cellCount > 0);
-	assert(pTree->cellCount <= pTree->cellTable.size);
+	RUVM_ASSERT("", pTree->cellCount > 0);
+	RUVM_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
 	if (pTree->cellCount + 4 > pTree->cellTable.size) {
 		int32_t sizeIncrease = (pTree->cellTable.size + 4) * 2;
 		reallocCellTable(pContext, pTree, sizeIncrease);
 	}
-	assert(pTree->cellTable.size >= pTree->cellCount + 4);
-	assert(pTree->cellTable.pArr[0].initialized == 1);
-	assert(!pTree->cellTable.pArr[0].cellIndex);
-	assert(!pTree->cellTable.pArr[0].localIndex);
-	parentCell->pChildren = pTree->cellTable.pArr + pTree->cellCount;
+	RUVM_ASSERT("", pTree->cellTable.size >= pTree->cellCount + 4);
+	RUVM_ASSERT("", pTree->cellTable.pArr[0].initialized == 1);
+	RUVM_ASSERT("", !pTree->cellTable.pArr[0].cellIndex);
+	RUVM_ASSERT("", !pTree->cellTable.pArr[0].localIndex);
+	pTree->cellTable.pArr[parentCell].pChildren = pTree->cellTable.pArr + pTree->cellCount;
 	for (int32_t i = 0; i < 4; ++i) {
 		// v for visualizing quadtree v
 		//cell->children[i].cellIndex = rand();
-		Cell *cell = parentCell->pChildren + i;
-		assert(!cell->initialized);
+		Cell *cell = pTree->cellTable.pArr[parentCell].pChildren + i;
+		RUVM_ASSERT("", !cell->initialized);
 		cell->cellIndex = pMap->quadTree.cellCount;
 		pTree->cellCount++;
 		cell->localIndex = (uint32_t)i;
-		setCellBounds(cell, parentCell, cellStackPtr);
-		assert(i >= 0 && i < 4);
+		setCellBounds(cell, pTree->cellTable.pArr + parentCell, cellStackPtr);
+		RUVM_ASSERT("", i >= 0 && i < 4);
 	}
 	pMap->quadTree.leafCount += 4;
 }
@@ -826,38 +828,42 @@ void processCell(RuvmContext pContext, int32_t *pCellStack,
 				 RuvmMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
 	CellTable *pCellTable = &pTree->cellTable;
-	Cell *cell = pCellTable->pArr + pCellStack[*pCellStackPtr];
-	assert(cell->initialized % 2 == cell->initialized);
-	assert(cell->cellIndex >= 0 && cell->cellIndex < pTree->cellCount);
-	assert(cell->localIndex >= 0 && cell->localIndex < 4);
-	assert(cell->faceSize >= 0 && cell->faceSize < 100000000);
+	int32_t cell = pCellStack[*pCellStackPtr];
+	RUVM_ASSERT("", pCellTable->pArr[cell].initialized % 2 ==
+	                pCellTable->pArr[cell].initialized);
+	RUVM_ASSERT("", pCellTable->pArr[cell].cellIndex >= 0 &&
+	                pCellTable->pArr[cell].cellIndex < pTree->cellCount);
+	RUVM_ASSERT("", pCellTable->pArr[cell].localIndex >= 0 &&
+	                pCellTable->pArr[cell].localIndex < 4);
+	RUVM_ASSERT("", pCellTable->pArr[cell].faceSize >= 0 &&
+	                pCellTable->pArr[cell].faceSize < 100000000);
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
-	int32_t hasChildren = cell->faceSize > CELL_MAX_VERTS;
+	int32_t hasChildren = pCellTable->pArr[cell].faceSize > CELL_MAX_VERTS;
 	if (hasChildren) {
 		// Get number of children
 		int32_t childSize = 0;
-		if (!cell->pChildren) {
+		if (!pCellTable->pArr[cell].pChildren) {
 			pMap->quadTree.leafCount--;
-			allocateChildren(pContext, cell,*pCellStackPtr, pMap);
-			addEnclosedVertsToCell(pContext, cell, pMesh, pFaceFlag);
+			allocateChildren(pContext, cell, *pCellStackPtr, pMap);
+			addEnclosedVertsToCell(pContext, cell, pMesh, &pTree->cellTable, pFaceFlag);
 			addLinkEdgesToCells(pContext, cell, pMesh, &pTree->cellTable,
 			                    pCellStack, *pCellStackPtr);
 		}
-		assert(childSize >= 0);
+		RUVM_ASSERT("", childSize >= 0);
 		for (int32_t i = 0; i < 4; ++i) {
-			childSize += (int32_t)cell->pChildren[i].initialized;
-			assert(i >= 0 && i < 4);
+			childSize += (int32_t)pCellTable->pArr[cell].pChildren[i].initialized;
+			RUVM_ASSERT("", i >= 0 && i < 4);
 		}
 		// If the cell has children, and they are not yet all initialized,
 		// then add the next one to the stack
 		if (childSize < 4) {
 			(*pCellStackPtr)++;
-			pCellStack[*pCellStackPtr] = cell->pChildren[childSize].cellIndex;
+			pCellStack[*pCellStackPtr] = pCellTable->pArr[cell].pChildren[childSize].cellIndex;
 			return;
 		}
 	}
 	// Otherwise, set the current cell as initialized, and pop it off the stack
-	cell->initialized = 1;
+	pCellTable->pArr[cell].initialized = 1;
 	(*pCellStackPtr)--;
 }
 
@@ -872,29 +878,28 @@ void initRootAndChildren(RuvmContext pContext, int32_t *pCellStack,
 						 int8_t *pFaceFlag) {
 	pTree->maxTreeDepth = 32;
 
-	Cell *rootCell = pTree->pRootCell;
-	rootCell->cellIndex = 0;
+	CellTable* pTable = &pTree->cellTable;
+	pTable->pArr[0].cellIndex = 0;
 	pTree->cellCount = 1;
 	pCellStack[0] = 0;
-	rootCell->boundsMax.d[0] = rootCell->boundsMax.d[1] = 1.0f;
-	rootCell->initialized = 1;
-	rootCell->faceSize = pMesh->mesh.faceCount;
-	rootCell->pFaces =
+	pTable->pArr[0].boundsMax.d[0] = pTable->pArr[0].boundsMax.d[1] = 1.0f;
+	pTable->pArr[0].initialized = 1;
+	pTable->pArr[0].faceSize = pMesh->mesh.faceCount;
+	pTable->pArr[0].pFaces =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->mesh.faceCount);
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
-		rootCell->pFaces[i] = i;
+		pTable->pArr[0].pFaces[i] = i;
 	}
-	allocateChildren(pContext, rootCell, 0, pMap);
-	addEnclosedVertsToCell(pContext, rootCell, pMesh, pFaceFlag);
-	addLinkEdgesToCells(pContext, rootCell, pMesh, &pTree->cellTable,
+	allocateChildren(pContext, 0, 0, pMap);
+	addEnclosedVertsToCell(pContext, 0, pMesh, pTable, pFaceFlag);
+	addLinkEdgesToCells(pContext, 0, pMesh, pTable,
 	                    pCellStack, 0);
 	pCellStack[1] = 1;
-	assert(rootCell == pTree->cellTable.pArr);
 }
 
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
-	assert(pMap->mesh.mesh.faceCount > 0);
+	RUVM_ASSERT("", pMap->mesh.mesh.faceCount > 0);
 	pTree->cellTable.size = pMap->mesh.mesh.faceCount / CELL_MAX_VERTS + 1;
 	pTree->cellTable.pArr =
 		pContext->alloc.pCalloc(pTree->cellTable.size, sizeof(Cell));
@@ -912,10 +917,10 @@ void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 		processCell(pContext, cellStack, &cellStackPtr, pMesh,
 		            pFaceFlag, pMap);
 	} while(cellStackPtr >= 0);
-	assert(pTree->cellCount <= pTree->cellTable.size);
-	assert(pTree->pRootCell->initialized == 1);
+	RUVM_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
+	RUVM_ASSERT("", pTree->pRootCell->initialized == 1);
 	int32_t sizeDecrease = pTree->cellCount - pTree->cellTable.size;
-	assert(sizeDecrease < 0);
+	RUVM_ASSERT("", sizeDecrease < 0);
 	reallocCellTable(pContext, pTree, sizeDecrease);
 	pContext->alloc.pFree(pFaceFlag);
 	printf("Created quadTree -- cells: %d, leaves: %d\n",

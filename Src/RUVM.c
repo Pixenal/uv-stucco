@@ -15,6 +15,7 @@
 #include <AttribUtils.h>
 #include <Utils.h>
 #include <ImageUtils.h>
+#include <Error.h>
 
 // TODO
 // - Reduce the bits written to the UVGP file for vert and loop indices, based on the total amount, in order to save space.
@@ -335,16 +336,22 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 
 	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
 	//it doesn't matter what it's set to here
-	setAttribOrigins(&pMeshIn->meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&pMeshIn->faceAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&pMeshIn->loopAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&pMeshIn->edgeAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&pMeshIn->vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.faceAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.loopAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.edgeAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+
+	if (!meshInWrap.mesh.edgeCount) {
+		RUVM_ASSERT("", !meshInWrap.mesh.edgeAttribs.count);
+		RUVM_ASSERT("", !meshInWrap.mesh.edgeAttribs.pArr);
+		buildEdgeList(pContext, &meshInWrap);
+	}
 
 	CLOCK_START;
 	EdgeVerts *pEdgeVerts = {0};
-	printf("EdgeCount: %d\n", pMeshIn->edgeCount);
-	buildEdgeVertsTable(pContext, &pEdgeVerts, pMeshIn);
+	printf("EdgeCount: %d\n", meshInWrap.mesh.edgeCount);
+	buildEdgeVertsTable(pContext, &pEdgeVerts, &meshInWrap.mesh);
 	int8_t *pInVertTable;
 	int8_t *pVertSeamTable;
 	buildVertTables(pContext, &meshInWrap, &pInVertTable,
@@ -461,7 +468,7 @@ static void testPixelAgainstFace(RenderArgs *pVars, V2_F32 *pPos, FaceRange *pFa
 	int8_t triLoops[4] = {0};
 	V3_F32 bc = getBarycentricInFace(verts, triLoops, pFace->size, *pPos);
 	if (bc.d[0] < -.0001f || bc.d[1] < -.0001f || bc.d[2] < -.0001f ||
-		isnan(bc.d[0]) || isnan(bc.d[1]) || isnan(bc.d[1])) {
+		!v3IsFinite(bc)) {
 		return;
 	}
 	V3_F32 vertsXyz[3];

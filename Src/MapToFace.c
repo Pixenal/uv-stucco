@@ -11,6 +11,7 @@
 #include <MathUtils.h>
 #include <AttribUtils.h>
 #include <Utils.h>
+#include <Error.h>
 
 #define FLOAT_BC_MARGIN .0001f
 
@@ -501,9 +502,9 @@ void addEdge(MappingJobVars *pVars, int32_t loopBufIndex, BufMesh *pBufMesh,
 			                   refFace, isMapEdge);
 			break;
 		}
-		assert(pEntry->pNext && pEntry->pNext->pNext <= (LocalEdge *)1000000000000000);
+		RUVM_ASSERT("", pEntry->pNext && pEntry->pNext->pNext <= (LocalEdge *)1000000000000000);
 		pEntry = pEntry->pNext;
-		assert(depth >= 0 && depth < 1000);
+		RUVM_ASSERT("", depth >= 0 && depth < 1000);
 		depth++;
 	} while(1);
 	pEntry->loopCount++;
@@ -599,7 +600,7 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 	pEntry->hasPreservedEdge = hasPreservedEdge;
 	pEntry->seam = seam;
 
-	assert(pLoopBuf->size <= 11);
+	RUVM_ASSERT("", pLoopBuf->size <= 11);
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		pEntry->onLine |= (pLoopBuf->buf[i].onLine != 0) << i;
 		pEntry->isRuvm |= (pLoopBuf->buf[i].isRuvm) << i;
@@ -724,12 +725,12 @@ void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
 		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[loop]];
 	}
 	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.index].cellSize; ++i) {
-		assert(asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
-		assert(asMesh(&pVars->bufMesh)->mesh.faceCount <
+		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
+		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount <
 		       asMesh(&pVars->bufMesh)->faceBufSize);
 		Cell* pCell = pFaceCellsTable->pFaceCells[baseFace.index].pCells[i];
-		assert(pCell->localIndex >= 0 && pCell->localIndex < 4);
-		assert(pCell->initialized % 2 == pCell->initialized);
+		RUVM_ASSERT("", pCell->localIndex >= 0 && pCell->localIndex < 4);
+		RUVM_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 		int32_t* pCellFaces;
 		Range range;
 		if (pFaceCellsTable->pFaceCells[baseFace.index].pCellType[i]) {
