@@ -13,7 +13,7 @@
 #include <QuadTree.h>
 #include <MapFile.h>
 #include <Context.h>
-#include <Platform.h>
+#include <PlatformIo.h>
 #include <MathUtils.h>
 #include <AttribUtils.h>
 
@@ -415,6 +415,8 @@ void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath) {
 	pContext->io.pClose(pFile);
 	dataByteString.pString = pContext->alloc.pMalloc(header.dataSize);
 	printf("Decompressing data\n");
+	z_streamp stream;
+	uint64_t size;
 	int32_t zResult = uncompress(dataByteString.pString, &dataSizeUncompressed,
 			                     dataByteStringRaw, header.dataSizeCompressed);
 	pContext->alloc.pFree(dataByteStringRaw);
