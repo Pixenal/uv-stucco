@@ -1,41 +1,55 @@
 # Reverse UV Mapper 
 
-# Build (Temp for reference)
+# Build Instructions
 ```
-git clone https://github.com/Pixenal/reverse-uv-mapper.git RUVM
-cd RUVM
+git clone https://github.com/Pixenal/reverse-uv-mapper.git RUVM && cd RUVM
 ```
-RUVM's only dependancy other than the standard library, is zlib.
-Cmake may be unable to find zlib on your system (this will likely
-be the case on Windows).
-RUVM uses Conan for package managament, and so you can use this
-to retreive zlib in such cases.
+```
+mkdir -p build/linux && cd build/linux <-- Of course, change to your preferred path
+```
+RUVM's only dependency, other than the c standard library, is zlib.  
+Depending on your system, the below command may fail,
+CMake will try to find zlib on its own, but might not be able to.  
+```
+```
+If this does fail, you can disable auto search by toggling FIND_ZLIB,
+and specify directories manually. For example on macos:
+```
+brew install zlib
+```
+```
+cmake ../.. -DFIND_ZLIB=OFF -DZLIB_LIB="/opt/homebrew/opt/zlib/lib/libz.a" -DZLIB_INCLUDE="/opt/homebrew/opt/zlib/include"
+```
+Alternatively, zlib can also be found using Conan.  
 If you've not used conan before, you may need to first run:
 ```
 conan profile detect --force
 ```
-Then get the package as so:
+Make sure to cd back out to the repository root directory,  
+then install the package using conan install:
 ```
 conan install . --output-folder=build --build=missing
 ```
 Note that this will only get the release package,
 and so attempting to build with s debug configuration,
-such as in visual studio, may fail.
+such as in visual studio, may fail.  
 If you wish to build RUVM in debug, append
---settings--build_type=Debug to the above command, eg:
+--settings--build_type=Debug to the above command,
+eg:
 ```
 conan install . --output-folder=Build --build=missing --settings=build_type=Debug
 ```
-Now that dependancies are sorted, the project files can be built:
 ```
-mkdir -p build/LinuxStatic <-- Of course replace with your desired path name
-cd build/LinuxStatic
-cmake ../.. -DCMAKE_TOOLCHAIN_FILE="../conan_toolchain.cmake"
+cmake ../.. -DFIND_ZLIB_CONAN=ON -DCMAKE_TOOLCHAIN_FILE="../conan_toolchain.cmake"
+```
+
+Once build files are generated, compile as usual:
+```
 cmake --build . --config release
 ```
-As is standard, shared/ dyanmic and static libarry builds are toggled
-using `-DBUILD_SHARED_LIBS`.
-And MSVC runtime type is toggled with `-DCMAKE_MSVC_RUNTIME_LIBRARY` if on Windows.
+
+As is standard, shared/ dyanmic and static libary builds can be toggled with `-DBUILD_SHARED_LIBS`.  
+And on windows, MSVC runtime type is toggled with `-DCMAKE_MSVC_RUNTIME_LIBRARY`.  
 Eg:
 ```
 cmake ../.. -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DBUILD_SHARED_LIBS=ON -DCMAKE_TOOLCHAIN_FILE="../conan_toolchain.cmake"
