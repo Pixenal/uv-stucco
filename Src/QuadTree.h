@@ -1,6 +1,7 @@
 #pragma once
 #include <MathUtils.h>
 #include <Utils.h>
+#include <Error.h>
 
 #define CELL_MAX_VERTS 32
 

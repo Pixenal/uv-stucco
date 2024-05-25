@@ -157,7 +157,8 @@ void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopB
 		V2_F32 ruvmVert = *(V2_F32 *)&pLoopBuf->buf[i].loop;
 		V2_F32 uvRuvmDir = _(ruvmVert V2SUB pBaseLoop->vert);
 		float dot = _(baseLoopCross V2DOT uvRuvmDir);
-		pInsideBuf[i] = dot == .0f ? -1 : (dot < .0f) ^ !faceWindingDir;
+		_Bool onLine = dot < .0000001f && dot > -.0000001f;
+		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ !faceWindingDir;
 	}
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		int32_t vertNextIndex = (i + 1) % pLoopBuf->size;
@@ -712,17 +713,28 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 	}
 }
 
-void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
-                         DebugAndPerfVars *pDpVars,
-					     V2_F32 fTileMin, int32_t tile, FaceRange baseFace) {
+Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
+                           DebugAndPerfVars *pDpVars,
+					       V2_F32 fTileMin, int32_t tile, FaceRange baseFace) {
 	FaceBounds bounds = {0};
 	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri;
 	pDpVars->facesNotSkipped++;
+	RUVM_ASSERT("", baseFace.size >= 3 && baseFace.size <= 4);
 	for (int32_t i = 0; i < baseFace.size; ++i) {
 		int32_t loop = baseFace.start + i;
 		baseTri.uv[i] = _(pVars->mesh.pUvs[loop] V2SUB fTileMin);
 		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[loop]];
+	}
+	_Bool degenerate;
+	degenerate = v3DegenerateTri(baseTri.xyz[0], baseTri.xyz[1],
+	                             baseTri.xyz[2], .001f);
+	if (baseFace.size == 4) {
+		degenerate = v3DegenerateTri(baseTri.xyz[2], baseTri.xyz[3],
+		                             baseTri.xyz[0], .001f);
+	}
+	if (degenerate) {
+		return RUVM_ERROR;
 	}
 	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.index].cellSize; ++i) {
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
@@ -797,4 +809,5 @@ void ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
 									  seam, onLine);
 		}
 	}
+	return RUVM_SUCCESS;
 }

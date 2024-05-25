@@ -99,6 +99,18 @@ int32_t v3IsFinite(V3_F32 a) {
 	return isfinite(a.d[0]) && isfinite(a.d[1]) && isfinite(a.d[2]);
 }
 
+float v3SquareDist(V3_F32 a) {
+	return a.d[0] * a.d[0] + a.d[1] * a.d[1] + a.d[2] * a.d[2];
+}
+
+_Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold) {
+	V3_F32 ac = _(a V3SUB c);
+	V3_F32 bc = _(b V3SUB c);
+	V3_F32 cross = _(ac V3CROSS bc);
+	float len = v3SquareDist(cross);
+	return len < threshold && len > -threshold;
+}
+
 float v3Dot(V3_F32 a, V3_F32 b) {
 	return a.d[0] * b.d[0] + a.d[1] * b.d[1] + a.d[2] * b.d[2];
 }
@@ -256,10 +268,10 @@ int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack) {
 	}
 }
 
-int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 centre, float threshold) {
-	V2_F32 aDiff = _(a V2SUB centre);
-	V2_F32 bDiff = _(b V2SUB centre);
-	float cross = aDiff.d[0] * bDiff.d[1] - bDiff.d[0] * aDiff.d[1];
+int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, float threshold) {
+	V2_F32 ac = _(a V2SUB c);
+	V2_F32 bc = _(b V2SUB c);
+	float cross = ac.d[0] * bc.d[1] - bc.d[0] * ac.d[1];
 	return cross < threshold && cross > -threshold;
 }
 

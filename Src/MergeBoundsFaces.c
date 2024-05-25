@@ -633,9 +633,10 @@ void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
                               BorderBucket *pBucket, int32_t faceIndex,
 							  int32_t hash, int32_t job) {
 	for (int32_t j = job + 1; j < pContext->threadCount; ++j) {
-		RUVM_ASSERT("", pJobArgs[j].borderTable.size > 0);
-		RUVM_ASSERT("", pJobArgs[j].borderTable.pTable);
+		//RUVM_ASSERT("", pJobArgs[j].borderTable.size > 0);
+		//RUVM_ASSERT("", pJobArgs[j].borderTable.pTable != NULL);
 		BorderBucket *pBucketOther = pJobArgs[j].borderTable.pTable + hash;
+		//RUVM_ASSERT("", pBucketOther != NULL);
 		do {
 			if (pBucketOther->pEntry) {
 				if (faceIndex == pBucketOther->pEntry->faceIndex) {

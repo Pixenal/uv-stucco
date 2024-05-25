@@ -25,12 +25,12 @@ typedef struct {
 	int32_t edge;
 	int32_t sort;
 	int8_t job;
-} LoopBufEntry;
+} BoundsLoopBufEntry;
 
 typedef struct {
-	LoopBufEntry *pBuf;
+	BoundsLoopBufEntry *pBuf;
 	int32_t count;
-} LoopBuf;
+} BoundsLoopBuf;
 
 typedef struct {
 	int32_t *pBuf;
@@ -38,7 +38,7 @@ typedef struct {
 } MapLoopBuf;
 
 typedef struct {
-	LoopBuf loopBuf;
+	BoundsLoopBuf loopBuf;
 	MapLoopBuf mapLoopBuf;
 	int32_t *pIndexTable;
 	int32_t *pIndices;
@@ -50,7 +50,7 @@ typedef struct {
 	Mat3x3 tbnInv;
 	FaceRange ruvmFace;
 	int32_t bufSize;
-	LoopBuf loopBuf;
+	BoundsLoopBuf loopBuf;
 	MapLoopBuf mapLoopBuf;
 	MergeSendOffArgs *pArgs;
 	int32_t *pIndexTable;
@@ -100,7 +100,7 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 			ruvmDestroyMergeBufs(pContext, pHandle);
 		}
 		pHandle->pLoopBuf =
-			pContext->alloc.pMalloc(sizeof(LoopBufEntry) * totalVerts);
+			pContext->alloc.pMalloc(sizeof(BoundsLoopBufEntry) * totalVerts);
 		pHandle->pMapLoopBuf =
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pIndexTable =
@@ -452,7 +452,7 @@ void addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			//int32_t vertNext = bufMesh->mesh.pLoops[face.start - kNext];
 			//if (borderLoop || vertNext >= bufMesh->mesh.vertCount) {
 			//}
-			LoopBuf *pLoopBuf = &pVars->loopBuf;
+			BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
 			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
 			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
 			pLoopBuf->pBuf[pLoopBuf->count].bufFace = pEntry->face;
@@ -476,7 +476,7 @@ static
 void sortLoopsFull(int32_t *pIndexTable, Vars *pVars) {
 	//insertion sort
 	Mesh *pMeshOut = pVars->pArgs->pMeshOut;
-	LoopBuf *pLoopBuf = &pVars->loopBuf;
+	BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
 	V2_F32 centre = {0};
 	for (int32_t i = 0; i < pVars->loopBuf.count; ++i) {
 		V3_F32* pVert = pMeshOut->pVerts + pVars->loopBuf.pBuf[i].loop;
@@ -531,7 +531,7 @@ void sortLoopsFull(int32_t *pIndexTable, Vars *pVars) {
 }
 
 static void sortLoops(int32_t *pIndexTable, Vars *pVars) {
-	LoopBufEntry *pLoopBuf = pVars->loopBuf.pBuf + 1;
+	BoundsLoopBufEntry *pLoopBuf = pVars->loopBuf.pBuf + 1;
 	//insertion sort
 	int32_t a = pLoopBuf[0].sort;
 	int32_t b = pLoopBuf[1].sort;

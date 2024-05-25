@@ -134,18 +134,23 @@ Mat3x3 buildFaceTbn(FaceRange face, Mesh *pMesh) {
 }
 
 static
-void mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
+Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
                        FaceCellsTable *pFaceCellsTable,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
+	Result result = RUVM_NOT_SET;
 	FaceBounds *pFaceBounds = &pFaceCellsTable->pFaceCells[rawFace].faceBounds;
 	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
 			V2_F32 fTileMin = {k, j};
 			int32_t tile = k + (j * pFaceBounds->max.d[0]);
-			ruvmMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
-			                    fTileMin, tile, *pBaseFace);
+			result = ruvmMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
+			                             fTileMin, tile, *pBaseFace);
+			if (result != RUVM_SUCCESS) {
+				return result;
+			}
 		}
 	}
+	return result;
 }
 
 static
@@ -180,6 +185,7 @@ void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 
 void ruvmMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_INIT;
+	Result result = RUVM_NOT_SET;
 	FaceCellsTable faceCellsTable = {0};
 	SendOffArgs *pSend = pVarsPtr;
 	MappingJobVars vars = {0};
@@ -229,8 +235,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		}
 		if (baseFace.size <= 4) {
 			//face is a quad, or a tri
-			mapPerTile(&vars, &baseFace, &faceCellsTable,
-			           &dpVars, i);
+			result = mapPerTile(&vars, &baseFace, &faceCellsTable,
+			                    &dpVars, i);
 		}
 		else {
 			//face is an ngon. ngons are processed per tri
@@ -239,8 +245,11 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 				baseFace.start = faceTris.pLoops[triFaceStart];
 				baseFace.end = faceTris.pLoops[triFaceStart + 2];
 				baseFace.size = baseFace.end - baseFace.start;
-				mapPerTile(&vars, &baseFace, &faceCellsTable,
-				           &dpVars, i);
+				result = mapPerTile(&vars, &baseFace, &faceCellsTable,
+				                    &dpVars, i);
+				if (result != RUVM_SUCCESS) {
+					break;
+				}
 			}
 		}
 		if (faceTris.pTris) {
@@ -259,25 +268,35 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pRanges);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
+		if (result != RUVM_SUCCESS) {
+			break;
+		}
 	}
 	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
 	//vars.alloc.pFree(pCellFaces);
-	bufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
-	pSend->reallocTime = dpVars.reallocTime;
-	pSend->bufSize = vars.bufSize;
-	pSend->rawBufSize = vars.rawBufSize;
-	pSend->finalBufSize = asMesh(&vars.bufMesh)->faceBufSize;
+	if (result == RUVM_SUCCESS) {
+		bufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
+		pSend->reallocTime = dpVars.reallocTime;
+		pSend->bufSize = vars.bufSize;
+		pSend->rawBufSize = vars.rawBufSize;
+		pSend->finalBufSize = asMesh(&vars.bufMesh)->faceBufSize;
+		RUVM_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
+		RUVM_ASSERT("", vars.borderTable.pTable != NULL);
+		printf("borderTable %d\n", vars.borderTable.pTable != NULL);
+		pSend->borderTable.pTable = vars.borderTable.pTable;
+		pSend->bufMesh = vars.bufMesh;
+	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
 	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
-	RUVM_ASSERT("", !(!vars.borderTable.pTable ^ !vars.borderTable.size));
-	pSend->borderTable.pTable = vars.borderTable.pTable;
-	pSend->bufMesh = vars.bufMesh;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
 	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
 	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
 	++*pSend->pJobsCompleted;
+	if (result != RUVM_SUCCESS || *pSend->pResult == RUVM_NOT_SET) {
+		*pSend->pResult = result;
+	}
 	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,
 	                                         pSend->pMutex);
 }

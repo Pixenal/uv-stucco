@@ -5,6 +5,7 @@
 
 #include <Mesh.h>
 #include <DebugAndPerf.h>
+#include <Error.h>
 
 typedef uint64_t UBitField64;
 typedef uint32_t UBitField32;
@@ -68,4 +69,5 @@ typedef struct {
 	int8_t *pInVertTable;
 	int32_t id;
 	uint64_t reallocTime;
+	Result* pResult;
 } SendOffArgs;

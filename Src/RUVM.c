@@ -45,14 +45,15 @@
 //the base mesh. Is this possible?
 
 static
-void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
+RuvmResult ruvmSetTypeDefaultConfig(RuvmContext pContext) {
 	RuvmTypeDefaultConfig config = {0};
 	pContext->typeDefaults = config;
+	return RUVM_SUCCESS;
 }
 
-void ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
-                     RuvmThreadPool *pThreadPool, RuvmIo *pIo,
-					 RuvmTypeDefaultConfig *pTypeDefaultConfig) {
+RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
+                           RuvmThreadPool *pThreadPool, RuvmIo *pIo,
+					       RuvmTypeDefaultConfig *pTypeDefaultConfig) {
 	RuvmAlloc alloc;
 	if (pAlloc) {
 		ruvmAllocSetCustom(&alloc, pAlloc);
@@ -83,31 +84,38 @@ void ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
 	else {
 		ruvmSetTypeDefaultConfig(*pContext);
 	}
+	return RUVM_SUCCESS;
 }
 
-void ruvmContextDestroy(RuvmContext pContext) {
+RuvmResult ruvmContextDestroy(RuvmContext pContext) {
 	pContext->threadPool.pDestroy(pContext->pThreadPoolHandle);
 	pContext->alloc.pFree(pContext);
+	return RUVM_SUCCESS;
 }
 
-void ruvmMapFileExport(RuvmContext pContext, RuvmMesh *pMesh) {
+RuvmResult ruvmMapFileExport(RuvmContext pContext, RuvmMesh *pMesh) {
 	printf("%d vertices, and %d faces\n", pMesh->vertCount, pMesh->faceCount);
 	ruvmWriteRuvmFile(pContext, pMesh);
+	return RUVM_SUCCESS;
 }
 
-void ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
-                      char *filePath) {
+RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
+                           char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
 	ruvmLoadRuvmFile(pContext, pMap, filePath);
 	ruvmCreateQuadTree(pContext, pMap);
 	*pMapHandle = pMap;
 	//writeDebugImage(pMap->quadTree.rootCell);
+	//TODO add proper checks, and return RUVM_ERROR if fails.
+	//Do for all public functions
+	return RUVM_SUCCESS;
 }
 
-void ruvmMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
+RuvmResult ruvmMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
 	ruvmDestroyQuadTree(pContext, &pMap->quadTree);
 	ruvmMeshDestroy(pContext, &pMap->mesh.mesh);
 	pContext->alloc.pFree(pMap);
+	return RUVM_SUCCESS;
 }
 
 static
@@ -156,7 +164,7 @@ void getCommonAttribs(RuvmContext pContext, AttribArray *pMapAttribs,
 
 //TODO handle edge case, where attribute share the same name,
 //but have incompatible types. Such as a float and a string.
-void ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
+RuvmResult ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
                             RuvmCommonAttribList *pCommonAttribs) {
 	getCommonAttribs(pContext, &pMap->mesh.mesh.meshAttribs, &pMesh->meshAttribs,
 					 &pCommonAttribs->meshCount, &pCommonAttribs->pMesh);
@@ -168,9 +176,10 @@ void ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
 	                 &pCommonAttribs->edgeCount, &pCommonAttribs->pEdge);
 	getCommonAttribs(pContext, &pMap->mesh.mesh.vertAttribs, &pMesh->vertAttribs,
 					 &pCommonAttribs->vertCount, &pCommonAttribs->pVert);
+	return RUVM_SUCCESS;
 }
 
-void ruvmDestroyCommonAttribs(RuvmContext pContext,
+RuvmResult ruvmDestroyCommonAttribs(RuvmContext pContext,
                               RuvmCommonAttribList *pCommonAttribs) {
 	if (pCommonAttribs->pMesh) {
 		pContext->alloc.pFree(pCommonAttribs->pMesh);
@@ -187,13 +196,14 @@ void ruvmDestroyCommonAttribs(RuvmContext pContext,
 	if (pCommonAttribs->pVert) {
 		pContext->alloc.pFree(pCommonAttribs->pVert);
 	}
+	return RUVM_SUCCESS;
 }
 
 static
 void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
                  int32_t *pJobsCompleted, Mesh *pMesh, void *pMutex,
                  EdgeVerts *pEdgeVerts, int8_t *pInVertTable,
-				 RuvmCommonAttribList *pCommonAttribList) {
+				 RuvmCommonAttribList *pCommonAttribList, Result *pJobResult) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	int32_t facesPerThread = pMesh->mesh.faceCount / pContext->threadCount;
@@ -217,6 +227,7 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 		pJobArgs[i].pContext = pContext;
 		pJobArgs[i].pMutex = pMutex;
 		pJobArgs[i].pCommonAttribList = pCommonAttribList;
+		pJobArgs[i].pResult = pJobResult;
 		jobArgPtrs[i] = pJobArgs + i;
 	}
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
@@ -297,42 +308,32 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 }
 
 static
-int32_t validateMeshIn(RuvmMesh *pMeshIn) {
-	for (int32_t i = 0; i < pMeshIn->faceCount; ++i) {
-		int32_t loopCount = pMeshIn->pFaces[i + 1] - pMeshIn->pFaces[i];
-		if (loopCount > 4) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-static
 void setAttribOrigins(AttribArray *pAttribs, RUVM_ATTRIB_ORIGIN origin) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		pAttribs->pArr[i].origin = origin;
 	}
 }
 
-int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
-                      RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
+Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+                     RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
 	CLOCK_INIT;
 	if (!pMeshIn) {
 		printf("Ruvm map to mesh failed, pMeshIn was null\n");
-		return 2;
+		return RUVM_ERROR;
 	}
 	if (!pMap) {
 		printf("Ruvm map to mesh failed, pMap was null\n");
-		return 3;
-	}
-	if (validateMeshIn(pMeshIn)) {
-		//return 1;
+		return RUVM_ERROR;
 	}
 
 	Mesh meshInWrap = {.mesh = *pMeshIn};
 	//TODO replace hard coded names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
 	setSpecialAttribs(&meshInWrap, 0x1e); //011110 - set all except for receive
+
+	if (isMeshInvalid(&meshInWrap)) {
+		return RUVM_ERROR;
+	}
 
 	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
 	//it doesn't matter what it's set to here
@@ -361,16 +362,19 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_START;
 	SendOffArgs jobArgs[MAX_THREADS] = {0};
 	int32_t jobsCompleted = 0;
+	Result jobResult = RUVM_NOT_SET;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
 	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, &meshInWrap, pMutex,
-	            pEdgeVerts, pInVertTable, pCommonAttribList);
+	            pEdgeVerts, pInVertTable, pCommonAttribList, &jobResult);
 	CLOCK_STOP("Send Off Time");
-
 	CLOCK_START;
 	waitForJobs(pContext, &jobsCompleted, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	CLOCK_STOP("Waiting Time");
+	if (jobResult != RUVM_SUCCESS) {
+		return jobResult;
+	}
 
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
@@ -384,10 +388,10 @@ int32_t ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	reallocMeshToFit(&pContext->alloc, &meshOutWrap);
 	*pMeshOut = meshOutWrap.mesh;
 	CLOCK_STOP("Realloc time");
-	return 0;
+	return RUVM_SUCCESS;
 }
 
-void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
+RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
 	for (int32_t i = 0; i < pMesh->meshAttribs.count; ++i) {
 		if (pMesh->meshAttribs.pArr[i].pData) {
 			pContext->alloc.pFree(pMesh->meshAttribs.pArr[i].pData);
@@ -437,14 +441,17 @@ void ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
 	if (pMesh->vertAttribs.count && pMesh->vertAttribs.pArr) {
 		pContext->alloc.pFree(pMesh->vertAttribs.pArr);
 	}
+	return RUVM_SUCCESS;
 }
 
-void ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
+RuvmResult ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
 	*pSize = getAttribSize(pAttrib->type);
+	return RUVM_SUCCESS;
 }
 
-RuvmAttrib *ruvmGetAttrib(char *pName, AttribArray *pAttribs) {
-	return getAttrib(pName, pAttribs);
+RuvmResult ruvmGetAttrib(char *pName, AttribArray *pAttribs, Attrib **ppAttrib) {
+	*ppAttrib = getAttrib(pName, pAttribs);
+	return RUVM_SUCCESS;
 }
 
 typedef struct {
@@ -594,7 +601,7 @@ V2_F32 getZBounds(RuvmMap pMap) {
 	return zBounds;
 }
 
-void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *pImage) {
+RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *pImage) {
 	V2_F32 zBounds = getZBounds(pMap);
 	int32_t pixelCount = pImage->res * pImage->res;
 	int32_t pixelsPerJob = pixelCount / pContext->threadCount;
@@ -633,4 +640,5 @@ void ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *p
 		memcpy(pImageOffset, args[i].imageBuf.pData, bytesToCopy);
 		pContext->alloc.pFree(args[i].imageBuf.pData);
 	}
+	return RUVM_SUCCESS;
 }
