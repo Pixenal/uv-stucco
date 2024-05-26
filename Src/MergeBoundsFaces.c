@@ -457,6 +457,7 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 		pSharedEdges =
 			pArgs->pContext->alloc.pCalloc(tableSize, sizeof(SharedEdgeWrap));
 	}
+	RUVM_ASSERT("", entryCount > 0);
 	Piece *pEntries = pArgs->pContext->alloc.pCalloc(entryCount, sizeof(Piece));
 	pPieceRoots->pArr = pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * entryCount);
 	pPieceArr->pArr = pEntries;
@@ -546,9 +547,9 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 	uint64_t timeSpent[7] = {0};
 	MergeBufHandles mergeBufHandles = {0};
 	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
-	pArgs->pPieceArrTable = pContext->alloc.pMalloc(sizeof(PieceArr) * count);
-	pArgs->pPieceRootTable = pContext->alloc.pMalloc(sizeof(PieceRootsArr) * count);
-	pArgs->pTotalVertTable = pContext->alloc.pMalloc(sizeof(int32_t) * count);
+	pArgs->pPieceArrTable = pContext->alloc.pCalloc(count, sizeof(PieceArr));
+	pArgs->pPieceRootTable = pContext->alloc.pCalloc(count, sizeof(PieceRootsArr));
+	pArgs->pTotalVertTable = pContext->alloc.pCalloc(count, sizeof(int32_t));
 	for (int32_t i = 0; i < count; ++i) {
 		int32_t reali = pArgs->entriesStart + i;
 		CLOCK_START;
@@ -610,8 +611,12 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 		}
 		if (pPieceArr->pArr) {
 			pArgs->pContext->alloc.pFree(pPieceArr->pArr);
+			int abc = 0;
 		}
-		CLOCK_STOP_NO_PRINT;
+		if (timespec_get(&stop, TIME_UTC) != TIME_UTC) {
+			printf("CLOCK_START failed\n");
+		}
+		//CLOCK_STOP_NO_PRINT;
 		timeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 		RUVM_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
 	}

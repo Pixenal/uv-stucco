@@ -99,15 +99,19 @@ int32_t v3IsFinite(V3_F32 a) {
 	return isfinite(a.d[0]) && isfinite(a.d[1]) && isfinite(a.d[2]);
 }
 
-float v3SquareDist(V3_F32 a) {
+float v3SquareLen(V3_F32 a) {
 	return a.d[0] * a.d[0] + a.d[1] * a.d[1] + a.d[2] * a.d[2];
+}
+
+float v3Len(V3_F32 a) {
+	return sqrt(v3SquareLen(a));
 }
 
 _Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold) {
 	V3_F32 ac = _(a V3SUB c);
 	V3_F32 bc = _(b V3SUB c);
 	V3_F32 cross = _(ac V3CROSS bc);
-	float len = v3SquareDist(cross);
+	float len = v3Len(cross);
 	return len < threshold && len > -threshold;
 }
 

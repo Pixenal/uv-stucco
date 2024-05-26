@@ -728,10 +728,10 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	}
 	_Bool degenerate;
 	degenerate = v3DegenerateTri(baseTri.xyz[0], baseTri.xyz[1],
-	                             baseTri.xyz[2], .001f);
+	                             baseTri.xyz[2], .000001f);
 	if (baseFace.size == 4) {
 		degenerate = v3DegenerateTri(baseTri.xyz[2], baseTri.xyz[3],
-		                             baseTri.xyz[0], .001f);
+		                             baseTri.xyz[0], .000001f);
 	}
 	if (degenerate) {
 		return RUVM_ERROR;

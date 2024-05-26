@@ -16,23 +16,6 @@
 #include <Error.h>
 
 typedef struct {
-	V3_F32 normal;
-	V2_F32 uv;
-	V2_F32 vertBuf;
-	int32_t bufLoop;
-	int32_t bufFace;
-	int32_t loop;
-	int32_t edge;
-	int32_t sort;
-	int8_t job;
-} BoundsLoopBufEntry;
-
-typedef struct {
-	BoundsLoopBufEntry *pBuf;
-	int32_t count;
-} BoundsLoopBuf;
-
-typedef struct {
 	int32_t *pBuf;
 	int32_t count;
 } MapLoopBuf;
@@ -104,7 +87,7 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 		pHandle->pMapLoopBuf =
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pIndexTable =
-			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
+			pContext->alloc.pMalloc(sizeof(int32_t) * (totalVerts + 1));
 		pHandle->pSortedUvs =
 			pContext->alloc.pMalloc(sizeof(V2_F32) * totalVerts);
 		pHandle->size = totalVerts;

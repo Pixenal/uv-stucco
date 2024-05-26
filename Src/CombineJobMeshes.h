@@ -6,20 +6,38 @@
 #include <QuadTree.h>
 
 typedef struct {
+	V3_F32 normal;
+	V2_F32 uv;
+	V2_F32 vertBuf;
+	int32_t bufLoop;
+	int32_t bufFace;
+	int32_t loop;
+	int32_t edge;
+	int32_t sort;
+	int8_t job;
+} BoundsLoopBufEntry;
+
+typedef struct {
+	BoundsLoopBufEntry* pBuf;
+	int32_t count;
+} BoundsLoopBuf;
+
+typedef struct {
+	BoundsLoopBufEntry* pLoopBuf;
+	int32_t* pMapLoopBuf;
+	int32_t* pIndexTable;
+	V2_F32* pSortedUvs;
+	int32_t size;
+} MergeBufHandles;
+
+
+typedef struct {
 	int32_t start;
 	int32_t loopLocal;
 	int32_t loop;
 	int32_t edge;
 	int32_t vert;
 } BorderInInfo;
-
-typedef struct {
-	void *pLoopBuf;
-	void *pMapLoopBuf;
-	void *pIndexTable;
-	void *pSortedUvs;
-	int32_t size;
-} MergeBufHandles;
 
 typedef struct Piece {
 	struct Piece *pNext;
