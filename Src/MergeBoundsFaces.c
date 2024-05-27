@@ -613,10 +613,7 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 			pArgs->pContext->alloc.pFree(pPieceArr->pArr);
 			int abc = 0;
 		}
-		if (timespec_get(&stop, TIME_UTC) != TIME_UTC) {
-			printf("CLOCK_START failed\n");
-		}
-		//CLOCK_STOP_NO_PRINT;
+		CLOCK_STOP_NO_PRINT;
 		timeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 		RUVM_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
 	}
