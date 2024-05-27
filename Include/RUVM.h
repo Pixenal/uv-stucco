@@ -295,10 +295,21 @@ typedef struct {
 	int32_t res;
 } RuvmImage;
 
+#define RUVM_STAGE_NAME_LEN 64
+typedef struct RuvmStageReport {
+	char stage[RUVM_STAGE_NAME_LEN];
+	int32_t progress;
+	int32_t outOf;
+	void (*pBegin)(void *, struct RuvmStageReport *, const char *);
+	void (*pProgress)(void *, struct RuvmStageReport* , int32_t);
+	void (*pEnd)(void *, struct RuvmStageReport *);
+} RuvmStageReport;
+
 RUVM_EXPORT RuvmResult ruvmThreadPoolSetCustom(RuvmContext context, RuvmThreadPool *pThreadPool);
 RUVM_EXPORT RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
-                                 RuvmThreadPool *pTheadPool, RuvmIo *pIo,
-					 		     RuvmTypeDefaultConfig *pTypeDefaultConfig);
+                                       RuvmThreadPool *pTheadPool, RuvmIo *pIo,
+					 		           RuvmTypeDefaultConfig *pTypeDefaultConfig,
+                                       RuvmStageReport *pStageReport);
 RUVM_EXPORT RuvmResult ruvmMapFileExport(RuvmContext context, RuvmMesh *pMesh);
 RUVM_EXPORT RuvmResult ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                                   char *filePath);

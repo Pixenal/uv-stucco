@@ -310,20 +310,30 @@ static void decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 
 static void decodeAttribs(RuvmContext pContext, ByteString *pData,
                           AttribArray *pAttribs, int32_t dataLen) {
+	stageBeginWrap(pContext, "", pAttribs->count * dataLen);
+	const char stageName[] = "Deconding attrib ";
+	char stageBuf[RUVM_STAGE_NAME_LEN] = {0};
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		int32_t attribSize = getAttribSize(pAttribs->pArr[i].type) * 8;
-		pAttribs->pArr[i].pData = dataLen ?
+		Attrib* pAttrib = pAttribs->pArr + i;
+		memcpy(stageBuf, stageName, sizeof(stageName));
+		setStageName(pContext, strncat(stageBuf, pAttrib->name, RUVM_STAGE_NAME_LEN - sizeof(stageName)));
+		int32_t attribSize = getAttribSize(pAttrib->type) * 8;
+		pAttrib->pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
+		int32_t progressBase = i * pAttribs->count * dataLen;
 		for (int32_t j = 0; j < dataLen; ++j) {
-			void *pAttribData = attribAsVoid(pAttribs->pArr + i, j);
+			void *pAttribData = attribAsVoid(pAttrib, j);
 			if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
 				decodeString(pData, pAttribData, attribSize);
 			}
 			else {
 				decodeValue(pData, pAttribData, attribSize);
 			}
+			stageProgressWrap(pContext, j + progressBase);
 		}
+		memset(stageBuf, 0, RUVM_STAGE_NAME_LEN);
 	}
+	stageEndWrap(pContext);
 }
 
 static RuvmHeader decodeRuvmHeader(RuvmContext pContext, RuvmMap pMapFile, ByteString *headerByteString) {
@@ -372,23 +382,29 @@ static void decodeRuvmData(RuvmContext pContext, RuvmMap pMapFile,
 	RuvmMesh *pMesh = &pMapFile->mesh.mesh;
 
 	decodeAttribs(pContext, dataByteString, &pMesh->meshAttribs, 1);
+	stageEndWrap(pContext);
 
 	pMesh->pFaces = pContext->alloc.pCalloc(pMesh->faceCount + 1, sizeof(int32_t));
+	stageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pFaces[i], 32);
+		stageProgressWrap(pContext, i);
 	}
+	stageEndWrap(pContext);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->loopCount;
 	decodeAttribs(pContext, dataByteString, &pMesh->faceAttribs, pMesh->faceCount);
 
 	pMesh->pLoops = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
 	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
+	stageBeginWrap(pContext, "Decoding loops", pMesh->loopCount);
 	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pLoops[i], 32);
 		decodeValue(dataByteString, (uint8_t *)&pMesh->pEdges[i], 32);
+		stageProgressWrap(pContext, i);
 	}
+	stageEndWrap(pContext);
 	decodeAttribs(pContext, dataByteString, &pMesh->loopAttribs, pMesh->loopCount);
 	decodeAttribs(pContext, dataByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
-
 	decodeAttribs(pContext, dataByteString, &pMesh->vertAttribs, pMesh->vertCount);
 }
 

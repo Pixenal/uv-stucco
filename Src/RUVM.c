@@ -43,17 +43,28 @@
 //the map is higher res than the base mesh). So that the surface can be
 //smoothed, without needing to induce the perf cost of actually subdividing
 //the base mesh. Is this possible?
+//TODO add a cache (hash table?) for triangulated in faces, as your going to need to reference
+//their edges when merging border faces
+//TODO add user define void * args to custom callbacks
 
 static
-RuvmResult ruvmSetTypeDefaultConfig(RuvmContext pContext) {
+void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
 	RuvmTypeDefaultConfig config = {0};
 	pContext->typeDefaults = config;
-	return RUVM_SUCCESS;
+}
+
+static
+void setDefaultStageReport(RuvmContext pContext) {
+	pContext->stageReport.outOf = 50,
+	pContext->stageReport.pBegin = stageBegin;
+	pContext->stageReport.pProgress = stageProgress;
+	pContext->stageReport.pEnd = stageEnd;
 }
 
 RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                            RuvmThreadPool *pThreadPool, RuvmIo *pIo,
-					       RuvmTypeDefaultConfig *pTypeDefaultConfig) {
+					       RuvmTypeDefaultConfig *pTypeDefaultConfig,
+                           RuvmStageReport *pStageReport) {
 	RuvmAlloc alloc;
 	if (pAlloc) {
 		ruvmAllocSetCustom(&alloc, pAlloc);
@@ -84,6 +95,12 @@ RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
 	else {
 		ruvmSetTypeDefaultConfig(*pContext);
 	}
+	if (pStageReport) {
+		(*pContext)->stageReport = *pStageReport;
+	}
+	else {
+		setDefaultStageReport(*pContext);
+	}
 	return RUVM_SUCCESS;
 }
 
@@ -103,6 +120,7 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                            char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
 	ruvmLoadRuvmFile(pContext, pMap, filePath);
+	printf("File loaded. Creating quad tree\n");
 	ruvmCreateQuadTree(pContext, pMap);
 	*pMapHandle = pMap;
 	//writeDebugImage(pMap->quadTree.rootCell);

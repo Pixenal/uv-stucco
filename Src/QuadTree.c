@@ -825,7 +825,7 @@ void allocateChildren(RuvmContext pContext, int32_t parentCell,
 static
 void processCell(RuvmContext pContext, int32_t *pCellStack,
                  int32_t *pCellStackPtr, Mesh *pMesh, int8_t *pFaceFlag,
-				 RuvmMap pMap) {
+				 RuvmMap pMap, int32_t *pProgress) {
 	QuadTree *pTree = &pMap->quadTree;
 	CellTable *pCellTable = &pTree->cellTable;
 	int32_t cell = pCellStack[*pCellStackPtr];
@@ -864,6 +864,10 @@ void processCell(RuvmContext pContext, int32_t *pCellStack,
 	}
 	// Otherwise, set the current cell as initialized, and pop it off the stack
 	pCellTable->pArr[cell].initialized = 1;
+	if (*pCellStackPtr == 2) {
+		*pProgress += pContext->stageReport.outOf / 16;
+		stageProgressWrap(pContext, *pProgress);
+	}
 	(*pCellStackPtr)--;
 }
 
@@ -900,6 +904,7 @@ void initRootAndChildren(RuvmContext pContext, int32_t *pCellStack,
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
 	RUVM_ASSERT("", pMap->mesh.mesh.faceCount > 0);
+	stageBeginWrap(pContext, "Creating quad tree", pContext->stageReport.outOf);
 	pTree->cellTable.size = pMap->mesh.mesh.faceCount / CELL_MAX_VERTS + 1;
 	pTree->cellTable.pArr =
 		pContext->alloc.pCalloc(pTree->cellTable.size, sizeof(Cell));
@@ -913,9 +918,10 @@ void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	int32_t cellStack[256];
 	initRootAndChildren(pContext, cellStack, pTree, pMap, pMesh, pFaceFlag);
 	int32_t cellStackPtr = 1;
+	int32_t progress = 0;
 	do {
 		processCell(pContext, cellStack, &cellStackPtr, pMesh,
-		            pFaceFlag, pMap);
+		            pFaceFlag, pMap, &progress);
 	} while(cellStackPtr >= 0);
 	RUVM_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
 	RUVM_ASSERT("", pTree->pRootCell->initialized == 1);
@@ -923,6 +929,7 @@ void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	RUVM_ASSERT("", sizeDecrease < 0);
 	reallocCellTable(pContext, pTree, sizeDecrease);
 	pContext->alloc.pFree(pFaceFlag);
+	stageEndWrap(pContext);
 	printf("Created quadTree -- cells: %d, leaves: %d\n",
 	       pTree->cellCount, pTree->leafCount);
 }
