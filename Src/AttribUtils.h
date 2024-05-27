@@ -9,6 +9,8 @@ typedef RuvmAttrib Attrib;
 typedef RuvmAttribType AttribType;
 typedef RuvmAttribArray AttribArray;
 
+//TODO switch pAttrib pData ptr from void * to uint8_t *?
+
 typedef enum {
 	ATTRIB_SPECIAL_NONE,
 	ATTRIB_SPECIAL_VERTS,

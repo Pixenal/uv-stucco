@@ -83,7 +83,7 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 			ruvmDestroyMergeBufs(pContext, pHandle);
 		}
 		pHandle->pLoopBuf =
-			pContext->alloc.pMalloc(sizeof(BoundsLoopBufEntry) * totalVerts);
+			pContext->alloc.pMalloc(sizeof(BoundsLoopBufEntry) * (totalVerts + 1));
 		pHandle->pMapLoopBuf =
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pIndexTable =
