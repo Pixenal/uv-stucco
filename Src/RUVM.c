@@ -393,6 +393,9 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	if (jobResult != RUVM_SUCCESS) {
 		return jobResult;
 	}
+	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		RUVM_ASSERT("", jobArgs[i].bufSize > 0);
+	}
 
 	CLOCK_START;
 	Mesh meshOutWrap = {0};

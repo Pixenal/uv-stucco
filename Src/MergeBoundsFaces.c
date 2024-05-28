@@ -575,6 +575,7 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 		CLOCK_START;
 		splitIntoPieces(pArgs, pPieceRoots, pEntry, pPieceArr,
 		                pTotalVerts);
+		RUVM_ASSERT("", pPieceRoots->count > 0);
 		int32_t aproxVertsPerPiece = *pTotalVerts / pPieceRoots->count;
 		RUVM_ASSERT("", aproxVertsPerPiece != 0);
 		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
@@ -602,6 +603,8 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 			getFaceRange(&pArgs->pMap->mesh.mesh, pPieceArr->pArr[0].pEntry->faceIndex, false);
 		ruvmAllocMergeBufs(pArgs->pContext, &mergeBufHandles, totalVerts);
 		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
+			int32_t job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
+			RUVM_ASSERT("", job >= 0 && job < pContext->threadCount);
 			ruvmMergeSingleBorderFace(pArgs, timeSpent, pPieceRoots->pArr[j], pPieceArr,
 									  &ruvmFace, &mergeBufHandles);
 			RUVM_ASSERT("", j >= 0 && j < pPieceRoots->count);

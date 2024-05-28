@@ -290,6 +290,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
+	RUVM_ASSERT("", pSend->bufSize > 0);
 	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
 	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
