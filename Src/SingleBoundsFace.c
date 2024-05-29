@@ -659,7 +659,6 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 			                 vars.pIndexTable);
 			RUVM_ASSERT("", i >= 0 && i < tris.triCount);
 		}
-		pArgs->pContext->alloc.pFree(tris.pTris);
 		pArgs->pContext->alloc.pFree(tris.pLoops);
 	}
 	else {

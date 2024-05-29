@@ -229,7 +229,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		baseFace.index = i;
 		vars.tbn = buildFaceTbn(baseFace, &vars.mesh);
 		FaceTriangulated faceTris = {0};
-		if (baseFace.size > 3) {
+		if (baseFace.size > 4) {
 			faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pUvs,
 			                           NULL, 1);
 		}
@@ -241,7 +241,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		else {
 			//face is an ngon. ngons are processed per tri
 			for (int32_t j = 0; j < faceTris.triCount; ++j) {
-				int32_t triFaceStart = faceTris.pTris[j];
+				int32_t triFaceStart = j * 3;
 				baseFace.start = faceTris.pLoops[triFaceStart];
 				baseFace.end = faceTris.pLoops[triFaceStart + 2];
 				baseFace.size = baseFace.end - baseFace.start;
@@ -251,10 +251,6 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 					break;
 				}
 			}
-		}
-		if (faceTris.pTris) {
-			vars.alloc.pFree(faceTris.pTris);
-			faceTris.pTris = NULL;
 		}
 		if (faceTris.pLoops) {
 			vars.alloc.pFree(faceTris.pLoops);

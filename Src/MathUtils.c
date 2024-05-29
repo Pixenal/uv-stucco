@@ -115,6 +115,13 @@ _Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold) {
 	return len < threshold && len > -threshold;
 }
 
+float v3TriHeight(V3_F32 a, V3_F32 b, V3_F32 c) {
+	V3_F32 ac = _(a V3SUB c);
+	V3_F32 bc = _(b V3SUB c);
+	V3_F32 cross = _(ac V3CROSS bc);
+	return v3Len(cross);
+}
+
 float v3Dot(V3_F32 a, V3_F32 b) {
 	return a.d[0] * b.d[0] + a.d[1] * b.d[1] + a.d[2] * b.d[2];
 }
@@ -277,6 +284,12 @@ int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, float threshold) {
 	V2_F32 bc = _(b V2SUB c);
 	float cross = ac.d[0] * bc.d[1] - bc.d[0] * ac.d[1];
 	return cross < threshold && cross > -threshold;
+}
+
+float v2TriHeight(V2_F32 a, V2_F32 b, V2_F32 c) {
+	V2_F32 ac = _(a V2SUB c);
+	V2_F32 bc = _(b V2SUB c);
+	return ac.d[0] * bc.d[1] - bc.d[0] * ac.d[1];
 }
 
 int32_t v2IsFinite(V2_F32 a) {

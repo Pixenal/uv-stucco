@@ -57,6 +57,7 @@ V3_F32 v3Normalize(V3_F32 a);
 float v3Dot(V3_F32 a, V3_F32 b);
 int32_t v3IsFinite(V3_F32);
 _Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold);
+float v3TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
 float v3SquareLen(V3_F32);
 float v3Len(V3_F32 a);
 V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint);
@@ -91,6 +92,7 @@ int32_t v2Equal(V2_F32 a, V2_F32 b);
 int32_t v2AproxEqual(V2_F32 a, V2_F32 b);
 int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack);
 int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, float threshold);
+float v2TriHeight(V2_F32 a, V2_F32 b, V2_F32 c);
 int32_t v2IsFinite(V2_F32);
 
 Mat2x2 mat2x2Adjugate(Mat2x2 a);
