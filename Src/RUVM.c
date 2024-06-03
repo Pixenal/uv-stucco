@@ -110,9 +110,9 @@ RuvmResult ruvmContextDestroy(RuvmContext pContext) {
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmMapFileExport(RuvmContext pContext, RuvmMesh *pMesh) {
+RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName, RuvmMesh *pMesh) {
 	printf("%d vertices, and %d faces\n", pMesh->vertCount, pMesh->faceCount);
-	ruvmWriteRuvmFile(pContext, pMesh);
+	ruvmWriteRuvmFile(pContext, pName, pMesh);
 	return RUVM_SUCCESS;
 }
 

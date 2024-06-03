@@ -168,7 +168,7 @@ static void encodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 	}
 }
 
-void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
+void ruvmWriteRuvmFile(RuvmContext pContext, const char *pName, RuvmMesh *pMesh) {
 	ByteString header;
 	ByteString data;
 
@@ -284,10 +284,7 @@ void ruvmWriteRuvmFile(RuvmContext pContext, RuvmMesh *pMesh) {
 	//TODO CRC for uncompressed data
 	
 	void *pFile;
-	pContext->io.pOpen(&pFile, "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/HardSurface.ruvm",
-	                   0, &pContext->alloc);
-	//pContext->io.pOpen(&pFile, "T:/workshop_folders/RUVM/TestOutputDir/CrownfallWall.ruvm",
-	//                   0, &pContext->alloc);
+	pContext->io.pOpen(&pFile, pName, 0, &pContext->alloc);
 	headerSizeInBytes = header.byteIndex + (header.nextBitIndex > 0);
 	pContext->io.pWrite(pFile, (uint8_t *)&headerSizeInBytes, 4);
 	pContext->io.pWrite(pFile, header.pString, headerSizeInBytes);

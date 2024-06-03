@@ -310,7 +310,7 @@ RUVM_EXPORT RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                                        RuvmThreadPool *pTheadPool, RuvmIo *pIo,
 					 		           RuvmTypeDefaultConfig *pTypeDefaultConfig,
                                        RuvmStageReport *pStageReport);
-RUVM_EXPORT RuvmResult ruvmMapFileExport(RuvmContext context, RuvmMesh *pMesh);
+RUVM_EXPORT RuvmResult ruvmMapFileExport(RuvmContext context, const char *pName, RuvmMesh *pMesh);
 RUVM_EXPORT RuvmResult ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                                   char *filePath);
 RUVM_EXPORT RuvmResult ruvmMapFileUnload(RuvmContext context, RuvmMap pMap);

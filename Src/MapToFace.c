@@ -77,38 +77,50 @@ V3_F32 calcIntersection(LoopBufWrap *pLoopBuf, LoopInfo *pBaseLoop,
 }
 
 static
+bool checkIfOnVert(LoopBufWrap *pLoopBuf, int32_t i, int32_t iNext) {
+	return pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[iNext].baseLoop ||
+	       pLoopBuf->buf[i].isBaseLoop || pLoopBuf->buf[iNext].isBaseLoop;
+}
+
+static
 void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
-                        int32_t *pInsideBuf, int32_t i, LoopInfo *pBaseLoop,
+                        int32_t *pInsideBuf, int32_t i, int32_t iNext, LoopInfo *pBaseLoop,
 						int32_t *pOnLine) {
 	pNewLoopBuf->buf[pNewLoopBuf->size] = pLoopBuf->buf[i];
 	//using += so that base loops can be determined. ie, if an ruvm
 	//vert has a dot of 0 twice, then it is sitting on a base vert,
 	//but if once, then it's sitting on an edge.
 	if (pInsideBuf[i] < 0) {
-		if (pLoopBuf->buf[i].onLine) {
-			//this loop already resided on a previous base edge,
-			//it must then reside on a base vert, rather than an edge.
-			//determine which vert in the edge it sits on:
-			int32_t onLineBase;
-			if (pLoopBuf->buf[i].loop.d[0] == pBaseLoop->vert.d[0] &&
-				pLoopBuf->buf[i].loop.d[1] == pBaseLoop->vert.d[1]) {
-				//on base vert
-				onLineBase = pBaseLoop->localIndex;
-			}
-			else {
-				//on next base vert
-				onLineBase = pBaseLoop->localIndexNext;
-			}
-			pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = onLineBase;
+		if (!pLoopBuf->buf[i].isRuvm) {
 			pNewLoopBuf->buf[pNewLoopBuf->size].isBaseLoop = true;
+			pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = pBaseLoop->localIndex;
 		}
 		else {
-			//resides on base edge
-			pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop =
-				pBaseLoop->localIndex;
+			if (pLoopBuf->buf[i].onLine) {
+				//this loop already resided on a previous base edge,
+				//it must then reside on a base vert, rather than an edge.
+				//determine which vert in the edge it sits on:
+				int32_t onLineBase;
+				if (pLoopBuf->buf[i].loop.d[0] == pBaseLoop->vert.d[0] &&
+					pLoopBuf->buf[i].loop.d[1] == pBaseLoop->vert.d[1]) {
+					//on base vert
+					onLineBase = pBaseLoop->localIndex;
+				}
+				else {
+					//on next base vert
+					onLineBase = pBaseLoop->localIndexNext;
+				}
+				pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = onLineBase;
+				pNewLoopBuf->buf[pNewLoopBuf->size].isBaseLoop = true;
+			}
+			else {
+				//resides on base edge
+				pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop =
+					pBaseLoop->localIndex;
+			}
+			*pOnLine = 1;
+			pNewLoopBuf->buf[pNewLoopBuf->size].onLine = 1;
 		}
-		*pOnLine = 1;
-		pNewLoopBuf->buf[pNewLoopBuf->size].onLine = 1;
 	}
 	(pNewLoopBuf->size)++;
 }
@@ -120,8 +132,7 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 	int32_t alpha = 0;
 	*pEdgeFace += 1;
 	LoopBuf *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
-	if ((pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[vertNextIndex].baseLoop ||
-		 pLoopBuf->buf[i].isBaseLoop || pLoopBuf->buf[vertNextIndex].isBaseLoop)) {
+	if (checkIfOnVert(pLoopBuf, i, vertNextIndex)) {
 		int32_t whichVert = pLoopBuf->buf[i].baseLoop == pBaseLoop->index - 1;
 		pNewEntry->loop = calcIntersection(pLoopBuf, pBaseLoop,
 										   i, vertNextIndex, &alpha);
@@ -157,14 +168,14 @@ void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopB
 		V2_F32 ruvmVert = *(V2_F32 *)&pLoopBuf->buf[i].loop;
 		V2_F32 uvRuvmDir = _(ruvmVert V2SUB pBaseLoop->vert);
 		float dot = _(baseLoopCross V2DOT uvRuvmDir);
-		_Bool onLine = dot < .0000001f && dot > -.0000001f;
+		_Bool onLine = dot < .000001f && dot > -.000001f;
 		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ !faceWindingDir;
 	}
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		int32_t vertNextIndex = (i + 1) % pLoopBuf->size;
 		if (pInsideBuf[i]) {
 			//point is inside, or on the line
-			addInsideLoopToBuf(pNewLoopBuf, pLoopBuf, pInsideBuf, i, pBaseLoop,
+			addInsideLoopToBuf(pNewLoopBuf, pLoopBuf, pInsideBuf, i, vertNextIndex, pBaseLoop,
 			                   pOnLine);
 		}
 		if (pInsideBuf[i] != 0 ^ pInsideBuf[vertNextIndex] != 0 &&
