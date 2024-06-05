@@ -108,7 +108,7 @@ void copyMesh(int32_t jobIndex, Mesh *pMeshOut, SendOffArgs *pJobArgs) {
 
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-						  int8_t *pVertSeamTable) {
+						  int8_t *pVertSeamTable, bool *pEdgeSeamTable) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	allocateMeshOut(pContext, pMeshOut, pJobArgs);
@@ -127,7 +127,8 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	}
 	printf("realloc time total %lu\n", reallocTime);
 	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
-	                       pEdgeVerts, pJobBases, pVertSeamTable);
+	                     pEdgeVerts, pJobBases, pVertSeamTable,
+	                     pEdgeSeamTable);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
 		ruvmMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);

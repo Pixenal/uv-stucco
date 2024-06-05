@@ -429,31 +429,38 @@ V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint) {
 	return pointCartesian;
 }
 
-V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint) {
+V3_F32 cartesianToBarycentric(V2_F32 *pTri32, V2_F32 *pPoint32) {
 	V3_F32 pointBc;
 	double derta = .0;
 	double dertau = .0;
 	double dertav = .0;
 
-	/*Perform cramers rule*/
+	//Convert to double
+	V3_F64 pPoint = {.d = {pPoint32->d[0], pPoint32->d[1]}};
+	V3_F64 pTri[3];
+	for (int32_t i = 0; i < 3; ++i) {
+		pTri[i].d[0] = pTri32[i].d[0];
+		pTri[i].d[1] = pTri32[i].d[1];
+	}
 
+	//Perform cramers rule
 	derta = (pTri[0].d[0] * pTri[1].d[1]) - (pTri[0].d[0] * pTri[2].d[1]) -
 			(pTri[1].d[0] * pTri[0].d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
 			(pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
-	/*Get determinate of Au*/
-	dertau = (pPoint->d[0] * pTri[1].d[1]) - (pPoint->d[0] * pTri[2].d[1]) -
-			 (pTri[1].d[0] * pPoint->d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
-			 (pTri[2].d[0] * pPoint->d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
-	/*Get determinate of Av*/
-	dertav = (pTri[0].d[0] * pPoint->d[1]) - (pTri[0].d[0] * pTri[2].d[1]) -
-			 (pPoint->d[0] * pTri[0].d[1]) + (pPoint->d[0] * pTri[2].d[1]) +
-			 (pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pPoint->d[1]);
+	//Get determinate of Au
+	dertau = (pPoint.d[0] * pTri[1].d[1]) - (pPoint.d[0] * pTri[2].d[1]) -
+			 (pTri[1].d[0] * pPoint.d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
+			 (pTri[2].d[0] * pPoint.d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
+	//Get determinate of Av
+	dertav = (pTri[0].d[0] * pPoint.d[1]) - (pTri[0].d[0] * pTri[2].d[1]) -
+			 (pPoint.d[0] * pTri[0].d[1]) + (pPoint.d[0] * pTri[2].d[1]) +
+			 (pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pPoint.d[1]);
 
-	/*u = dert(Au) / dert(A)*/
+	//u = dert(Au) / dert(A)
 	pointBc.d[0] = dertau / derta;
-	/*u = dert(Av) / dert(A)*/
+	//u = dert(Av) / dert(A)
 	pointBc.d[1] = dertav / derta;
-	/*w can be derived from u and v*/
+	//w can be derived from u and v
 	pointBc.d[2] = 1.0 - pointBc.d[0] - pointBc.d[1];
 
 	return pointBc;

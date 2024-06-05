@@ -274,19 +274,20 @@ typedef struct {
 static
 void addVertToTableEntry(Mesh *pMesh, FaceRange face, int32_t localLoop,
                          int32_t vert, int32_t edge, EdgeVerts *pEdgeVerts,
-						 int8_t **ppVertSeamTable, int8_t **ppInVertTable,
-						 EdgeCache *pEdgeCache) {
+						 int8_t *pVertSeamTable, int8_t *pInVertTable,
+						 EdgeCache *pEdgeCache, bool *pEdgeSeamTable) {
 	//isSeam returns 2 if mesh border, and 1 if uv seam
 	int32_t isSeam = checkIfEdgeIsSeam(edge, face, localLoop, pMesh,
 									   pEdgeVerts);
 	if (isSeam) {
-		(*ppVertSeamTable)[vert] = isSeam;
+		pVertSeamTable[vert] = isSeam;
+		pEdgeSeamTable[edge] = true;
 	}
-	if ((*ppInVertTable)[vert] < 3 &&
+	if (pInVertTable[vert] < 3 &&
 		checkIfEdgeIsPreserve(pMesh, edge) &&
 		pEdgeCache[vert].d[0] != edge + 1 &&
 		pEdgeCache[vert].d[1] != edge + 1) {
-		(*ppInVertTable)[vert]++;
+		pInVertTable[vert]++;
 		int32_t *pEdgeCacheIndex = &pEdgeCache[vert].index;
 		pEdgeCache[vert].d[*pEdgeCacheIndex] = edge + 1;
 		++*pEdgeCacheIndex;
@@ -296,9 +297,10 @@ void addVertToTableEntry(Mesh *pMesh, FaceRange face, int32_t localLoop,
 static
 void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 					 int8_t **ppInVertTable, int8_t **ppVertSeamTable,
-					 EdgeVerts *pEdgeVerts) {
+					 EdgeVerts *pEdgeVerts, bool **ppEdgeSeamTable) {
 	*ppInVertTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
 	*ppVertSeamTable = pContext->alloc.pCalloc(pMesh->mesh.vertCount, 1);
+	*ppEdgeSeamTable = pContext->alloc.pCalloc(pMesh->mesh.edgeCount, 1);
 	//TODO do we need to list number of unique preserve edges per vert?
 	//I'm not doing so currently (hence why pEdgeCache is commented out),
 	//and it seems to be working. (talking about split to pieces)
@@ -315,11 +317,13 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 			int32_t vert = pMesh->mesh.pLoops[loop];
 			int32_t edge = pMesh->mesh.pEdges[loop];
 			addVertToTableEntry(pMesh, face, j, vert, edge, pEdgeVerts,
-			                    ppVertSeamTable, ppInVertTable, pEdgeCache);
+			                    *ppVertSeamTable, *ppInVertTable, pEdgeCache,
+			                    *ppEdgeSeamTable);
 			int32_t prevj = j == 0 ? face.size - 1 : j - 1;
 			int32_t prevEdge = pMesh->mesh.pEdges[face.start + prevj];
 			addVertToTableEntry(pMesh, face, prevj, vert, prevEdge, pEdgeVerts,
-			                    ppVertSeamTable, ppInVertTable, pEdgeCache);
+			                    *ppVertSeamTable, *ppInVertTable, pEdgeCache,
+			                    *ppEdgeSeamTable);
 		}
 	}
 	pContext->alloc.pFree(pEdgeCache);
@@ -373,8 +377,9 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	buildEdgeVertsTable(pContext, &pEdgeVerts, &meshInWrap.mesh);
 	int8_t *pInVertTable;
 	int8_t *pVertSeamTable;
+	bool *pEdgeSeamTable;
 	buildVertTables(pContext, &meshInWrap, &pInVertTable,
-	                &pVertSeamTable, pEdgeVerts);
+	                &pVertSeamTable, pEdgeVerts, &pEdgeSeamTable);
 	CLOCK_STOP("Edge Table Time");
 
 	CLOCK_START;
@@ -400,11 +405,12 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
 	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
-	                     pVertSeamTable);
+	                     pVertSeamTable, pEdgeSeamTable);
 	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
 	pContext->alloc.pFree(pVertSeamTable);
+	pContext->alloc.pFree(pEdgeSeamTable);
 	CLOCK_START;
 	reallocMeshToFit(&pContext->alloc, &meshOutWrap);
 	*pMeshOut = meshOutWrap.mesh;

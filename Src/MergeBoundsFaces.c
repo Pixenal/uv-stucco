@@ -226,7 +226,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		int32_t *pVerts = pArgs->pEdgeVerts[inInfo.edge].verts;
 		RUVM_ASSERT("", pVerts && (pVerts[0] == inInfo.loop || pVerts[1] == inInfo.loop));
 		if (pVerts[1] < 0) {
-			//no adjacent vert
+			//no other vert on edge
 			continue;
 		}
 		_Bool isOnInVert = getIfOnInVert(pEntry, i);
@@ -247,6 +247,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			continue;
 		}
 		//CLOCK_START;
+		/*
 		int32_t whichLoop = pVerts[0] == inInfo.loop;
 		int32_t otherLoop = pVerts[whichLoop];
 		int32_t baseFaceEnd =
@@ -265,10 +266,13 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		//to likely be technical error, rather than artist authored.
 		//For instance, the subdiv modifier in blender will create small
 		//splits in uvs if "Keep Boundaries" is set.
+		
 		_Bool seam = !_(uv V2APROXEQL uvOther);
 		if (seam) {
 			//continue;
 		}
+		*/
+		bool seam = pArgs->pEdgeSeamTable[inInfo.edge];
 		//face is connected
 		pEntries[entryIndex].edges[pEntries[entryIndex].edgeCount] = inInfo.edge;
 		pEntries[entryIndex].edgeCount++;
@@ -323,10 +327,10 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 					pEdgeEntry->loop[1] = i;
 					pEdgeEntry->index = 1;
 				}
+				pEdgeEntry->refIndex[1] = refIndex;
 				if (!pEdgeEntry->seam &&
 					!pEdgeEntry->altIndex &&
 					isPreserve && pEdgeEntry->refIndex[0] != refIndex) {
-					pEdgeEntry->refIndex[1] = refIndex;
 					pEdgeEntry->receive += isReceive;
 					if (refIndex >= 0 && isReceive) {
 						//this is done here (as well as in initSharedEdgeEntry),
@@ -745,7 +749,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 					  Mesh *pMeshOut, SendOffArgs *pMapJobArgs,
 					  EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
 					  CombineTables *pCTables, JobBases *pJobBases,
-					  int32_t *pJobsCompleted, void *pMutex) {
+					  int32_t *pJobsCompleted, void *pMutex, bool *pEdgeSeamTable) {
 	int32_t entriesPerJob = pBorderTable->count / pContext->threadCount;
 	void *jobArgPtrs[MAX_THREADS];
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -764,6 +768,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 		pMergeJobArgs[i].pJobArgs = pMapJobArgs;
 		pMergeJobArgs[i].pEdgeVerts = pEdgeVerts;
 		pMergeJobArgs[i].pVertSeamTable = pVertSeamTable;
+		pMergeJobArgs[i].pEdgeSeamTable = pEdgeSeamTable;
 		pMergeJobArgs[i].pJobBases = pJobBases;
 		pMergeJobArgs[i].pCTables = pCTables;
 		pMergeJobArgs[i].job = i;
@@ -778,7 +783,8 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 
 void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-					      JobBases *pJobBases, int8_t *pVertSeamTable) {
+					      JobBases *pJobBases, int8_t *pVertSeamTable,
+                          bool *pEdgeSeamTable) {
 	int32_t totalBorderFaces = 0;
 	int32_t totalBorderEdges = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -810,7 +816,7 @@ void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
 	sendOffMergeJobs(pContext, &borderTable, mergeJobArgs, pMap, pMeshOut,
 	                 pJobArgs, pEdgeVerts, pVertSeamTable, &cTables, pJobBases,
-					 &jobsCompleted, pMutex);
+					 &jobsCompleted, pMutex, pEdgeSeamTable);
 	waitForJobs(pContext, &jobsCompleted, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	pContext->alloc.pFree(borderTable.ppTable);

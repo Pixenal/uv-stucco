@@ -168,7 +168,7 @@ void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopB
 		V2_F32 ruvmVert = *(V2_F32 *)&pLoopBuf->buf[i].loop;
 		V2_F32 uvRuvmDir = _(ruvmVert V2SUB pBaseLoop->vert);
 		float dot = _(baseLoopCross V2DOT uvRuvmDir);
-		_Bool onLine = dot < .000001f && dot > -.000001f;
+		_Bool onLine = dot == .0f;
 		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ !faceWindingDir;
 	}
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
@@ -612,7 +612,7 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 	pEntry->hasPreservedEdge = hasPreservedEdge;
 	pEntry->seam = seam;
 
-	RUVM_ASSERT("", pLoopBuf->size <= 11);
+	RUVM_ASSERT("", pLoopBuf->size <= 12);
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		pEntry->onLine |= (pLoopBuf->buf[i].onLine != 0) << i;
 		pEntry->isRuvm |= (pLoopBuf->buf[i].isRuvm) << i;

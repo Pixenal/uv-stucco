@@ -122,6 +122,7 @@ typedef struct {
 	SendOffArgs *pJobArgs;
 	EdgeVerts *pEdgeVerts;
 	int8_t *pVertSeamTable;
+	bool* pEdgeSeamTable;
 	void *pMutex;
 	CompiledBorderTable *pBorderTable;
 	JobBases *pJobBases;
