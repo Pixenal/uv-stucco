@@ -50,8 +50,11 @@ typedef struct Piece {
 	UBitField16 keepSeam;
 	UBitField16 keepPreserve;
 	UBitField16 keepOnInVert;
+	UBitField16 skip;
+	uint8_t order[11];
 	int32_t entryIndex;
-	_Bool listed;
+	bool listed;
+	bool triangulate;
 } Piece;
 
 typedef struct BorderEdge {
@@ -138,8 +141,8 @@ typedef struct {
 
 void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-						  JobBases *pJobBases, int8_t *pVertSeamTable);
-
+					      JobBases *pJobBases, int8_t *pVertSeamTable,
+                          bool *pEdgeSeamTable);
 void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
 void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
@@ -149,7 +152,7 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-						  int8_t *pVertSeamTable);
+						  int8_t *pVertSeamTable, bool *pEdgeSeamTable);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs, int32_t loopIndex);
 _Bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);

@@ -43,7 +43,6 @@ typedef struct {
 	int32_t infoBufSize;
 	_Bool seamFace;
 	_Bool fullSort;
-	_Bool triangulate;
 } Vars;
 
 /*
@@ -297,21 +296,6 @@ static void initOnLineTableEntry(MergeSendOffArgs *pArgs, OnLine *pEntry,
 	pEntry->type = isBaseLoop + 1;
 }
 
-static int32_t checkIfShouldSkip(Vars *pVars, Piece *pPiece, int32_t k) {
-	_Bool skip = true;
-	if (pPiece->keepSingle >> k & 1) {
-		skip = false;
-	}
-	//override if keep is set to 1
-	if (skip && (pPiece->keepPreserve >> k & 1 ||
-		         pPiece->keepOnInVert >> k & 1 ||
-		         pPiece->keepSeam >> k & 1)) {
-		skip = false;
-		pVars->triangulate = true;
-	}
-	return skip;
-}
-
 static
 void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
                    BorderFace *pEntry, int32_t *pVert, int32_t k) {
@@ -350,7 +334,7 @@ void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
 }
 
 static
-void addLoopsToBufAndVertsToMesh(Vars *pVars) {
+bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	//CLOCK_INIT;
 	//pieces should be called sub pieces here
@@ -368,8 +352,11 @@ void addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			_Bool isRuvm = getIfRuvm(pEntry, k);
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
-				if (checkIfShouldSkip(pVars, pPiece, k)) {
+				if (pPiece->skip >> k & 0x01) {
 					continue;
+				}
+				if (!pPiece->order[k]) {
+					return true;
 				}
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
@@ -391,6 +378,9 @@ void addLoopsToBufAndVertsToMesh(Vars *pVars) {
 				//pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
 			}
 			else {
+				if (!pPiece->order[k]) {
+					return true;
+				}
 				//is an ruvm loop (this includes ruvm loops sitting on base edges or verts)
 
 				//add an item to pEntry in mapToMesh, which denotes if an ruvm
@@ -436,6 +426,7 @@ void addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			//if (borderLoop || vertNext >= bufMesh->mesh.vertCount) {
 			//}
 			BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
+			pVars->pIndexTable[pPiece->order[k]] = pLoopBuf->count;
 			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
 			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
 			pLoopBuf->pBuf[pLoopBuf->count].bufFace = pEntry->face;
@@ -453,6 +444,7 @@ void addLoopsToBufAndVertsToMesh(Vars *pVars) {
 		pArgs->pContext->alloc.pFree(pEntry);
 		pPiece = pPiece->pNext;
 	} while(pPiece);
+	return false;
 }
 
 static
@@ -629,7 +621,9 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
-	addLoopsToBufAndVertsToMesh(&vars);
+	if (addLoopsToBufAndVertsToMesh(&vars)) {
+		return;
+	}
 	if (vars.loopBuf.count <= 2) {
 		return;
 	}
@@ -637,14 +631,15 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
+	/*
 	if (vars.fullSort) {
 		//full winding sort
 		sortLoopsFull(vars.pIndexTable + 1, &vars);
 	}
 	else {
 		sortLoops(vars.pIndexTable + 1, &vars);
-	}
-	if (vars.triangulate) {
+	}*/
+	if (vars.pPieceRoot->triangulate) {
 		FaceRange tempFace = {0};
 		tempFace.end = tempFace.size = vars.loopBuf.count;
 		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {

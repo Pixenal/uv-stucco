@@ -2,7 +2,7 @@
 
 #include <RUVM.h>
 
-#define FLOAT_EQUAL_MARGIN .0001f
+#define FLOAT_EQUAL_MARGIN .000001f
 
 typedef Ruvm_V2_I8 V2_I8;
 typedef Ruvm_V2_I16 V2_I16;
