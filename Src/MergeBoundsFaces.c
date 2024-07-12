@@ -231,7 +231,8 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		}
 		int32_t lasti = i ? i - 1 : face.size - 1;
 		if ((pEntry->baseLoop >> i * 2 & 0x03) ==
-			(pEntry->baseLoop >> lasti * 2 & 0x03)) {
+			(pEntry->baseLoop >> lasti * 2 & 0x03) &&
+			!getIfRuvm(pEntry, lasti)) {
 			//Edge belongs to last loop, not this one
 			continue;
 		}
@@ -466,20 +467,39 @@ bool isEntryInPiece(Piece *pPiece, int32_t entryIndex) {
 }
 
 static
-SharedEdge *getEdgeEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
-                         int32_t edgeTableSize, Piece *pPiece, int32_t loop) {
-	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, loop);
+Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
+	RUVM_ASSERT("", pPieceRoot);
+	Piece* pPiece = pPieceRoot;
+	do {
+		if (pPiece->entryIndex == otherPiece) {
+			return pPiece;
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+	return NULL;
+}
+
+static
+Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
+                         int32_t edgeTableSize, Piece *pPiece, Piece *pPieceRoot,
+                         int32_t *pLoop) {
+	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, *pLoop);
 	int32_t hash = ruvmFnvHash((uint8_t*)&inInfo.edge, 4, edgeTableSize);
 	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
 	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
 	while (pEdgeEntry) {
-		bool loopMatches = loop == pEdgeEntry->loop[0] &&
+		bool loopMatches = *pLoop == pEdgeEntry->loop[0] &&
 		                   pPiece->entryIndex == pEdgeEntry->entries[0] ||
-		                   loop == pEdgeEntry->loop[1] &&
+		                   *pLoop == pEdgeEntry->loop[1] &&
 						   pPiece->entryIndex == pEdgeEntry->entries[1];
-		if (inInfo.edge + 1 == pEdgeEntry->edge &&
-			!pEdgeEntry->seam && loopMatches) {
-			return pEdgeEntry;
+		if (inInfo.edge + 1 == pEdgeEntry->edge && loopMatches) {
+			bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
+			int32_t otherPiece = pEdgeEntry->entries[!which];
+			Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
+			if (pNeighbour) {
+				*pLoop = (pEdgeEntry->loop[!which] + 1) % pNeighbour->bufFace.size;
+			}
+			return pNeighbour;
 		}
 		pEdgeEntry = pEdgeEntry->pNext;
 	}
@@ -652,23 +672,27 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			pPiece->order[loop] = sort;
 			sort++;
 		}
+		else {
+			pPiece->order[loop] = 1;
+		}
 		//Set next loop
 		if (getIfRuvm(pPiece->pEntry, loop)) {
 			loop++;
 			continue;
 		}
-		SharedEdge* pEdgeEntry =
-			getEdgeEntry(pArgs, pEdgeTable, edgeTableSize, pPiece, loop);
-		if (!pEdgeEntry) {
+		Piece *pOtherPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
+		                                       pPiece, pPieceRoot, &loop);
+		if (!pOtherPiece) {
 			loop++;
 			continue;
 		}
-		bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
-		pPiece = &pPieceArr->pArr[pEdgeEntry->entries[!which]];
-		loop = (pEdgeEntry->loop[!which] + 1) % pPiece->bufFace.size;
+		pPiece = pOtherPiece;
 		if (!(pPiece->skip >> loop & 0x01)) {
 			pPiece->order[loop] = sort;
 			sort++;
+		}
+		else {
+			pPiece->order[loop] = 1;
 		}
 		loop++;
 	} while(1);

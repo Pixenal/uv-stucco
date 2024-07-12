@@ -78,8 +78,9 @@ V3_F32 calcIntersection(LoopBufWrap *pLoopBuf, LoopInfo *pBaseLoop,
 
 static
 bool checkIfOnVert(LoopBufWrap *pLoopBuf, int32_t i, int32_t iNext) {
-	return pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[iNext].baseLoop ||
-	       pLoopBuf->buf[i].isBaseLoop || pLoopBuf->buf[iNext].isBaseLoop;
+	return (pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[iNext].baseLoop ||
+	        pLoopBuf->buf[i].isBaseLoop || pLoopBuf->buf[iNext].isBaseLoop) &&
+		    !pLoopBuf->buf[i].isRuvm && !pLoopBuf->buf[iNext].isRuvm;
 }
 
 static
