@@ -488,18 +488,20 @@ Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
 	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
 	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
 	while (pEdgeEntry) {
-		bool loopMatches = *pLoop == pEdgeEntry->loop[0] &&
-		                   pPiece->entryIndex == pEdgeEntry->entries[0] ||
-		                   *pLoop == pEdgeEntry->loop[1] &&
-						   pPiece->entryIndex == pEdgeEntry->entries[1];
-		if (inInfo.edge + 1 == pEdgeEntry->edge && loopMatches) {
-			bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
-			int32_t otherPiece = pEdgeEntry->entries[!which];
-			Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
-			if (pNeighbour) {
-				*pLoop = (pEdgeEntry->loop[!which] + 1) % pNeighbour->bufFace.size;
+		if (pEdgeEntry->index) {
+			bool loopMatches = *pLoop == pEdgeEntry->loop[0] &&
+							   pPiece->entryIndex == pEdgeEntry->entries[0] ||
+							   *pLoop == pEdgeEntry->loop[1] &&
+							   pPiece->entryIndex == pEdgeEntry->entries[1];
+			if (loopMatches && inInfo.edge + 1 == pEdgeEntry->edge) {
+				bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
+				int32_t otherPiece = pEdgeEntry->entries[!which];
+				Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
+				if (pNeighbour) {
+					*pLoop = (pEdgeEntry->loop[!which] + 1) % pNeighbour->bufFace.size;
+				}
+				return pNeighbour;
 			}
-			return pNeighbour;
 		}
 		pEdgeEntry = pEdgeEntry->pNext;
 	}
@@ -649,6 +651,19 @@ void determineLoopsToSkip(Piece* pPiece) {
 }
 
 static
+int32_t getFirstLoopNotSkipped(Piece **ppPiece) {
+	do {
+		for (int32_t i = 0; i < (*ppPiece)->bufFace.size; ++i) {
+			if (!((*ppPiece)->skip >> i & 0x01)) {
+				return i;
+			}
+		}
+		*ppPiece = (*ppPiece)->pNext;
+	} while (*ppPiece);
+	return -1;
+}
+
+static
 void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
                SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize) {
 	if (!pPiece->pNext) {
@@ -658,9 +673,12 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 		}
 		return;
 	}
-	Piece* pPieceRoot = pPiece;
 	Mesh* pBufMesh = &pArgs->pJobArgs[0].mesh;
-	int32_t loop = 0;
+	// Get first not skipped loop.
+	// This is done to ensure we don't start inside the face
+	Piece* pPieceRoot = pPiece;
+	int32_t loop = getFirstLoopNotSkipped(&pPiece);
+	RUVM_ASSERT("No valid starting loop found", loop >= 0);
 	int32_t sort = 1;
 	do {
 		loop %= pPiece->bufFace.size;
@@ -687,14 +705,14 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			continue;
 		}
 		pPiece = pOtherPiece;
+		/*
 		if (!(pPiece->skip >> loop & 0x01)) {
 			pPiece->order[loop] = sort;
 			sort++;
 		}
 		else {
 			pPiece->order[loop] = 1;
-		}
-		loop++;
+		}*/
 	} while(1);
 }
 
