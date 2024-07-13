@@ -25,7 +25,7 @@ typedef struct {
 	MapLoopBuf mapLoopBuf;
 	int32_t *pIndexTable;
 	int32_t *pIndices;
-	V2_F32 *pSortedUvBuf;
+	int32_t *pSortedVertBuf;
 	int32_t size;
 } MergeBufs;
 
@@ -37,7 +37,7 @@ typedef struct {
 	MapLoopBuf mapLoopBuf;
 	MergeSendOffArgs *pArgs;
 	int32_t *pIndexTable;
-	V2_F32 *pSortedUvBuf;
+	int32_t *pSortedVertBuf;
 	PieceArr *pPieceArr;
 	Piece *pPieceRoot;
 	int32_t infoBufSize;
@@ -70,7 +70,7 @@ void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle) {
 		pContext->alloc.pFree(pHandle->pLoopBuf);
 		pContext->alloc.pFree(pHandle->pMapLoopBuf);
 		pContext->alloc.pFree(pHandle->pIndexTable);
-		pContext->alloc.pFree(pHandle->pSortedUvs);
+		pContext->alloc.pFree(pHandle->pSortedVerts);
 	}
 }
 
@@ -87,8 +87,8 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pIndexTable =
 			pContext->alloc.pMalloc(sizeof(int32_t) * (totalVerts + 1));
-		pHandle->pSortedUvs =
-			pContext->alloc.pMalloc(sizeof(V2_F32) * totalVerts);
+		pHandle->pSortedVerts =
+			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->size = totalVerts;
 	}
 }
@@ -603,7 +603,7 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	vars.loopBuf.pBuf = pMergeBufHandles->pLoopBuf;
 	vars.mapLoopBuf.pBuf = pMergeBufHandles->pMapLoopBuf;
 	vars.pIndexTable = pMergeBufHandles->pIndexTable;
-	vars.pSortedUvBuf = pMergeBufHandles->pSortedUvs;
+	vars.pSortedVertBuf = pMergeBufHandles->pSortedVerts;
 	if (!vars.pPieceRoot->pEntry) {
 		return;
 	}
@@ -643,12 +643,13 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		FaceRange tempFace = {0};
 		tempFace.end = tempFace.size = vars.loopBuf.count;
 		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
-			vars.pSortedUvBuf[i] = vars.loopBuf.pBuf[vars.pIndexTable[i + 1]].uv;
+			int32_t vertIndex = vars.loopBuf.pBuf[vars.pIndexTable[i + 1]].loop;
+			vars.pSortedVertBuf[i] = vertIndex;
 			RUVM_ASSERT("", i >= 0 && i < vars.loopBuf.count);
 		}
 		FaceTriangulated tris = {0};
-		tris = triangulateFace(pArgs->pContext->alloc, tempFace, vars.pSortedUvBuf,
-		                       NULL, 1);
+		tris = triangulateFace(pArgs->pContext->alloc, tempFace, pArgs->pMeshOut->pVerts,
+		                       vars.pSortedVertBuf, false);
 		for (int32_t i = 0; i < tris.triCount; ++i) {
 			addFaceToOutMesh(&vars, tris.pLoops + (i * 3), 3,
 			                 vars.pIndexTable);

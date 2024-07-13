@@ -81,6 +81,8 @@ float v2Dot(V2_F32 a, V2_F32 b);
 V2_F32 v2Cross(V2_F32 a);
 V2_F32 v2ModScalar(V2_F32 a, float b);
 void v2ModEqualScalar(V2_F32 *pA, float b);
+float v2SquareLen(V2_F32 a);
+float v2Len(V2_F32 a);
 int32_t v2GreaterThan(V2_F32 a, V2_F32 b);
 int32_t v2GreaterThanScalar(V2_F32 a, float b);
 int32_t v2GreaterThanEqualTo(V2_F32 a, V2_F32 b);

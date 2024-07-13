@@ -219,6 +219,14 @@ V2_F32 v2ModScalar(V2_F32 a, float b) {
 	return c;
 }
 
+float v2SquareLen(V2_F32 a) {
+	return a.d[0] * a.d[0] + a.d[1] * a.d[1];
+}
+
+float v2Len(V2_F32 a) {
+	return sqrt(v2SquareLen(a));
+}
+
 void v2ModEqualScalar(V2_F32 *a, float b) {
 	a->d[0] = fmod(a->d[0], b);
 	a->d[1] = fmod(a->d[1], b);

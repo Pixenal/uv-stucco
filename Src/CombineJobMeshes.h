@@ -26,7 +26,7 @@ typedef struct {
 	BoundsLoopBufEntry* pLoopBuf;
 	int32_t* pMapLoopBuf;
 	int32_t* pIndexTable;
-	V2_F32* pSortedUvs;
+	V2_F32* pSortedVerts;
 	int32_t size;
 } MergeBufHandles;
 

@@ -28,6 +28,7 @@ typedef struct SharedEdge {
 	_Bool index : 1;
 	_Bool altIndex : 1;
 	_Bool seam : 1;
+	_Bool removed : 1;
 } SharedEdge;
 
 typedef struct {
@@ -293,7 +294,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		}
 		else if (isPreserve) {
 			if (isOnInVert) {
-				isReceive = baseKeep;
+				isReceive = true;
 				//negate if base loop
 				refIndex = (inInfo.vert + 1) * -1;
 			}
@@ -383,14 +384,9 @@ void validatePreserveEdges(RuvmContext pContext, SharedEdgeWrap *pBucket) {
 			pEntry = pEntry->pNext;
 			continue;
 		}
-		//remove edge from list
-		SharedEdge *pNext = pEntry->pNext;
-		((SharedEdge *)pEntry->pLast)->pNext = pNext;
-		if (pNext) {
-			pNext->pLast = pEntry->pLast;
-		}
-		pContext->alloc.pFree(pEntry);
-		pEntry = pNext;
+		//intersects 2 or more receive, so mark as a seam
+		pEntry->seam = true;
+		pEntry = pEntry->pNext;
 	}
 }
 
