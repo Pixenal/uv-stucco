@@ -88,42 +88,39 @@ void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
                         int32_t *pInsideBuf, int32_t i, int32_t iNext, LoopInfo *pBaseLoop,
 						int32_t *pOnLine) {
 	pNewLoopBuf->buf[pNewLoopBuf->size] = pLoopBuf->buf[i];
+	if (pInsideBuf[i] == 2) {
+		//pNewLoopBuf->buf[pNewLoopBuf->size].onLine = true;
+	}
 	//using += so that base loops can be determined. ie, if an ruvm
 	//vert has a dot of 0 twice, then it is sitting on a base vert,
 	//but if once, then it's sitting on an edge.
 	if (pInsideBuf[i] < 0) {
-		if (!pLoopBuf->buf[i].isRuvm) {
-			pNewLoopBuf->buf[pNewLoopBuf->size].isBaseLoop = true;
-			pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = pBaseLoop->localIndex;
-		}
-		else {
-			if (pLoopBuf->buf[i].onLine) {
-				//this loop already resided on a previous base edge,
-				//it must then reside on a base vert, rather than an edge.
-				//determine which vert in the edge it sits on:
-				int32_t onLineBase;
-				if (pLoopBuf->buf[i].loop.d[0] == pBaseLoop->vert.d[0] &&
-					pLoopBuf->buf[i].loop.d[1] == pBaseLoop->vert.d[1]) {
-					//on base vert
-					onLineBase = pBaseLoop->localIndex;
-				}
-				else {
-					//on next base vert
-					onLineBase = pBaseLoop->localIndexNext;
-				}
-				pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = onLineBase;
-				pNewLoopBuf->buf[pNewLoopBuf->size].isBaseLoop = true;
+		if (pLoopBuf->buf[i].onLine) {
+			//this loop already resided on a previous base edge,
+			//it must then reside on a base vert, rather than an edge.
+			//determine which vert in the edge it sits on:
+			int32_t onLineBase;
+			if (pLoopBuf->buf[i].loop.d[0] == pBaseLoop->vert.d[0] &&
+				pLoopBuf->buf[i].loop.d[1] == pBaseLoop->vert.d[1]) {
+				//on base vert
+				onLineBase = pBaseLoop->localIndex;
 			}
 			else {
-				//resides on base edge
-				pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop =
-					pBaseLoop->localIndex;
+				//on next base vert
+				onLineBase = pBaseLoop->localIndexNext;
 			}
-			*pOnLine = 1;
-			pNewLoopBuf->buf[pNewLoopBuf->size].onLine = 1;
+			pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop = onLineBase;
+			pNewLoopBuf->buf[pNewLoopBuf->size].isBaseLoop = true;
 		}
+		else if (pLoopBuf->buf[i].isRuvm) {
+			//resides on base edge
+			pNewLoopBuf->buf[pNewLoopBuf->size].baseLoop =
+				pBaseLoop->localIndex;
+		}
+		*pOnLine = 1;
+		pNewLoopBuf->buf[pNewLoopBuf->size].onLine = 1;
 	}
-	(pNewLoopBuf->size)++;
+	pNewLoopBuf->size++;
 }
 
 static
@@ -163,17 +160,56 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 }
 
 static
+void setOnLineLoopsToLast(int32_t *pInsideBuf, LoopBufWrap *pLoopBuf) {
+	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
+		if (pInsideBuf[i] >= 0) {
+			//Loop is not on line
+			continue;
+		}
+		for (int32_t j = i - 1; ; --j) {
+			if (j < 0) {
+				j = pLoopBuf->size - 1;
+			}
+			if (j == i) {
+				//Wrapped around whole face, and all loops are on line,
+				RUVM_ASSERT("All loops are on line", false);
+				return;
+			}
+			if (pInsideBuf[j] >= 0) {
+				pInsideBuf[i] = pInsideBuf[j] * 2;
+				break;
+			}
+		}
+	}
+}
+
+static
 void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopBuf,
                                    int32_t *pInsideBuf, LoopInfo *pBaseLoop,
 								   V2_F32 baseLoopCross, int32_t *pEdgeFace,
 								   int32_t preserve, bool flippedWind,
 								   int32_t *pOnLine) {
+	int32_t onLineCount = 0;
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		V2_F32 ruvmVert = *(V2_F32 *)&pLoopBuf->buf[i].loop;
 		V2_F32 uvRuvmDir = _(ruvmVert V2SUB pBaseLoop->vert);
 		float dot = _(baseLoopCross V2DOT uvRuvmDir);
 		_Bool onLine = dot == .0f;
+		if (onLine) {
+			onLineCount++;
+		}
 		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ flippedWind;
+	}
+	//TODO remove this, no longer needed
+	if (onLineCount && false) {
+		if (onLineCount == pLoopBuf->size) {
+			for (int32_t i = 0; i < pLoopBuf->size; ++i) {
+				pInsideBuf[i] = 2;
+			}
+		}
+		else {
+			setOnLineLoopsToLast(pInsideBuf, pLoopBuf);
+		}
 	}
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		int32_t vertNextIndex = (i + 1) % pLoopBuf->size;
@@ -650,13 +686,25 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 
 	RUVM_ASSERT("", pLoopBuf->size <= 12);
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
+		RUVM_ASSERT("", (pLoopBuf->buf[i].onLine & 0x01) ==
+		                pLoopBuf->buf[i].onLine);
 		pEntry->onLine |= (pLoopBuf->buf[i].onLine != 0) << i;
+		RUVM_ASSERT("", (pLoopBuf->buf[i].isRuvm & 0x01) ==
+		                pLoopBuf->buf[i].isRuvm);
 		pEntry->isRuvm |= (pLoopBuf->buf[i].isRuvm) << i;
+		RUVM_ASSERT("", (pLoopBuf->buf[i].ruvmLoop & 0x07) ==
+		                pLoopBuf->buf[i].ruvmLoop);
 		pEntry->ruvmLoop |= pLoopBuf->buf[i].ruvmLoop << i * 3;
+		RUVM_ASSERT("", (pLoopBuf->buf[i].isBaseLoop & 0x01) ==
+		                pLoopBuf->buf[i].isBaseLoop);
 		pEntry->onInVert |= pLoopBuf->buf[i].isBaseLoop << i;
 		if (pLoopBuf->buf[i].isRuvm && !pLoopBuf->buf[i].onLine) {
+			// Only add baseloop for ruvm if online, otherwise value will
+			// will not fit within 2 bits
 			continue;
 		}
+		RUVM_ASSERT("", (pLoopBuf->buf[i].baseLoop & 0x03) ==
+		                pLoopBuf->buf[i].baseLoop);
 		pEntry->baseLoop |= pLoopBuf->buf[i].baseLoop << i * 2;
 	}
 }

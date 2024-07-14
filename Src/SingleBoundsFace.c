@@ -302,8 +302,8 @@ void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	_Bool isOnInVert = getIfOnInVert(pEntry, k);
+	int32_t base = isOnInVert ? inInfo.vert : inInfo.edge;
 	int32_t ruvmVert = pArgs->pMap->mesh.mesh.pLoops[pVars->ruvmFace.start + ruvmLoop];
-	int32_t base = isOnInVert ? inInfo.loop : inInfo.edge;
 	int32_t hash = ruvmFnvHash((uint8_t *)&base, 4, pArgs->pCTables->onLineTableSize);
 	OnLine *pOnLineEntry = pArgs->pCTables->pOnLineTable + hash;
 	if (!pOnLineEntry->type) {
