@@ -42,15 +42,22 @@ typedef struct PreserveVert {
 	int8_t preserve;
 } PreserveVert;
 
-int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry) {
-	int32_t faceIndex = pEntry->faceIndex;
+static
+bool determineIfSeamFace(RuvmMap pMap, Piece *pPiece) {
+	if (pPiece->hasSeam) {
+		if (!pPiece->triangulate) {
+			pPiece->triangulate = true;
+		}
+		return true;
+	}
+	int32_t faceIndex = pPiece->pEntry->faceIndex;
 	int32_t ruvmLoops = 0;
 	do {
 		for (int32_t i = 0; i < 11; ++i) {
-			ruvmLoops += getIfRuvm(pEntry, i);
+			ruvmLoops += getIfRuvm(pPiece->pEntry, i);
 		}
-		pEntry = pEntry->pNext;
-	} while(pEntry);
+		pPiece = pPiece->pNext;
+	} while(pPiece);
 	FaceRange face = getFaceRange(&pMap->mesh.mesh, faceIndex, false);
 	return ruvmLoops < face.size;
 }
@@ -216,7 +223,8 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		//CLOCK_START;
 		//int32_t vert = pBufMesh->mesh.pLoops[face.start - i];
 		_Bool isRuvm = getIfRuvm(pEntry, i);
-		if (isRuvm) {
+		bool isOnLine = getIfOnLine(pEntry, i);
+		if (isRuvm && !isOnLine) {
 			//ruvm loop - skip
 			continue;
 		}
@@ -228,12 +236,13 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		RUVM_ASSERT("", pVerts && (pVerts[0] == inInfo.loop || pVerts[1] == inInfo.loop));
 		if (pVerts[1] < 0) {
 			//no other vert on edge
+			pPiece->hasSeam = true;
 			continue;
 		}
 		int32_t lasti = i ? i - 1 : face.size - 1;
 		if ((pEntry->baseLoop >> i * 2 & 0x03) ==
 			(pEntry->baseLoop >> lasti * 2 & 0x03) &&
-			!getIfRuvm(pEntry, lasti)) {
+			!(getIfRuvm(pEntry, lasti) && !getIfOnLine(pEntry, lasti))) {
 			//Edge belongs to last loop, not this one
 			continue;
 		}
@@ -255,31 +264,6 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			continue;
 		}
 		//CLOCK_START;
-		/*
-		int32_t whichLoop = pVerts[0] == inInfo.loop;
-		int32_t otherLoop = pVerts[whichLoop];
-		int32_t baseFaceEnd =
-			pArgs->pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
-		int32_t baseFaceSize = baseFaceEnd - inInfo.start;
-		RUVM_ASSERT("", baseFaceSize > 1 && baseFaceSize < 10000);
-		RUVM_ASSERT("", inInfo.start +
-		       baseFaceSize <= pArgs->pJobArgs[0].mesh.mesh.loopCount);
-		int32_t nextBaseLoop =
-			inInfo.start + ((inInfo.loopLocal + 1) % baseFaceSize);
-		V2_F32 uv = pArgs->pJobArgs[0].mesh.pUvs[nextBaseLoop];
-		V2_F32 uvOther = pArgs->pJobArgs[0].mesh.pUvs[otherLoop];
-		RUVM_ASSERT("", v2IsFinite(uv) && v2IsFinite(uvOther));
-		//need to use approximate equal comparison here,
-		//in case there are small gaps in uvs. Small enough
-		//to likely be technical error, rather than artist authored.
-		//For instance, the subdiv modifier in blender will create small
-		//splits in uvs if "Keep Boundaries" is set.
-		
-		_Bool seam = !_(uv V2APROXEQL uvOther);
-		if (seam) {
-			//continue;
-		}
-		*/
 		bool seam = pArgs->pEdgeSeamTable[inInfo.edge];
 		//face is connected
 		pEntries[entryIndex].edges[pEntries[entryIndex].edgeCount] = inInfo.edge;
@@ -394,6 +378,7 @@ static
 void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
                                int32_t tableSize, int32_t i) {
 	Piece *pPiece = pEntries + i;
+	Piece* pPieceRoot = pPiece;
 	Piece *pPieceTail = pPiece;
 	BorderFace *pTail = pPiece->pEntry;
 	pPiece->listed = true;
@@ -431,6 +416,11 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 					int32_t otherEntryIndex = pEdgeEntry->entries[whichEntry];
 					if (pEntries[otherEntryIndex].listed) {
 						break;
+					}
+					if (!pPieceRoot->hasSeam &&
+					    pEntries[otherEntryIndex].hasSeam) {
+
+						pPieceRoot->hasSeam = true;
 					}
 					//add entry to linked list
 					pTail->pNext = pEntries[otherEntryIndex].pEntry;
@@ -626,17 +616,45 @@ static int32_t checkIfShouldSkip(Piece *pPieceRoot, Piece* pPiece, int32_t k) {
 	             pPiece->keepOnInVert >> k & 1 ||
 	             pPiece->keepSeam >> k & 1)) {
 		skip = false;
-		pPieceRoot->triangulate = true;
+		if (!pPieceRoot->triangulate) {
+			pPieceRoot->triangulate = true;
+		}
 	}
 	return skip;
 }
 
 static
-void determineLoopsToSkip(Piece* pPiece) {
+bool setDupsToSkip(RuvmMap* pMap, Piece* pPieceRoot, Piece* pPiece, int32_t loop) {
+	int32_t mapLoop = getMapLoop(pPiece->pEntry, pMap, loop);
+	Piece* pOtherPiece = pPieceRoot;
+	do {
+		if (pOtherPiece != pPiece) {
+			for (int32_t i = 0; i < pOtherPiece->bufFace.size; ++i) {
+				if (!getIfRuvm(pOtherPiece->pEntry, i) ||
+				    !getIfOnLine(pOtherPiece->pEntry, i)) {
+					continue;
+				}
+				int32_t otherMapLoop = getMapLoop(pOtherPiece->pEntry, pMap, i);
+				if (otherMapLoop == mapLoop) {
+					pOtherPiece->skip |= 0x01 << i;
+					break;
+				}
+			}
+		}
+		pOtherPiece = pOtherPiece->pNext;
+	} while (pOtherPiece);
+}
+
+static
+void determineLoopsToSkip(RuvmMap *pMap, Piece* pPiece) {
 	Piece* pPieceRoot = pPiece;
 	do {
 		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
 			if (getIfRuvm(pPiece->pEntry, i)) {
+				if (getIfOnLine(pPiece->pEntry, i) &&
+					!(pPiece->skip >> i & 0x01)) {
+					setDupsToSkip(pMap, pPieceRoot, pPiece, i);
+				}
 				continue;
 			}
 			bool skip = checkIfShouldSkip(pPieceRoot, pPiece, i);
@@ -661,7 +679,7 @@ int32_t getFirstLoopNotSkipped(Piece **ppPiece) {
 
 static
 void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
-               SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize) {
+               SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize, int32_t *pCount) {
 	if (!pPiece->pNext) {
 		//Only one entry, so just use existing order
 		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
@@ -690,7 +708,9 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			pPiece->order[loop] = 1;
 		}
 		//Set next loop
-		if (getIfRuvm(pPiece->pEntry, loop)) {
+		if (getIfRuvm(pPiece->pEntry, loop) &&
+			!getIfOnLine(pPiece->pEntry, loop)) {
+
 			loop++;
 			continue;
 		}
@@ -710,6 +730,7 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			pPiece->order[loop] = 1;
 		}*/
 	} while(1);
+	*pCount = sort - 1;
 }
 
 static
@@ -761,12 +782,15 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
 			Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[j];
 			RUVM_ASSERT("", pPiece->pEntry);
-			_Bool seamFace = determineIfSeamFace(pArgs->pMap, pPiece->pEntry);
+			bool seamFace = determineIfSeamFace(pArgs->pMap, pPiece);
 			if (seamFace) {
 				determineLoopsToKeep(pArgs, pPieceArr, &ruvmFace, pPiece, aproxVertsPerPiece);
 			}
-			determineLoopsToSkip(pPiece);
-			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize);
+			determineLoopsToSkip(pArgs->pMap, pPiece);
+			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, pTotalVerts);
+			if (pPiece->triangulate && *pTotalVerts <= 4) {
+				pPiece->triangulate = false;
+			}
 		}
 		if (pSharedEdges) {
 			destroySharedEdgeTable(&pArgs->pContext->alloc, pSharedEdges, edgeTableSize);

@@ -160,56 +160,17 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 }
 
 static
-void setOnLineLoopsToLast(int32_t *pInsideBuf, LoopBufWrap *pLoopBuf) {
-	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		if (pInsideBuf[i] >= 0) {
-			//Loop is not on line
-			continue;
-		}
-		for (int32_t j = i - 1; ; --j) {
-			if (j < 0) {
-				j = pLoopBuf->size - 1;
-			}
-			if (j == i) {
-				//Wrapped around whole face, and all loops are on line,
-				RUVM_ASSERT("All loops are on line", false);
-				return;
-			}
-			if (pInsideBuf[j] >= 0) {
-				pInsideBuf[i] = pInsideBuf[j] * 2;
-				break;
-			}
-		}
-	}
-}
-
-static
 void clipRuvmFaceAgainstSingleLoop(LoopBufWrap *pLoopBuf, LoopBufWrap *pNewLoopBuf,
                                    int32_t *pInsideBuf, LoopInfo *pBaseLoop,
 								   V2_F32 baseLoopCross, int32_t *pEdgeFace,
 								   int32_t preserve, bool flippedWind,
 								   int32_t *pOnLine) {
-	int32_t onLineCount = 0;
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		V2_F32 ruvmVert = *(V2_F32 *)&pLoopBuf->buf[i].loop;
 		V2_F32 uvRuvmDir = _(ruvmVert V2SUB pBaseLoop->vert);
 		float dot = _(baseLoopCross V2DOT uvRuvmDir);
 		_Bool onLine = dot == .0f;
-		if (onLine) {
-			onLineCount++;
-		}
 		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ flippedWind;
-	}
-	//TODO remove this, no longer needed
-	if (onLineCount && false) {
-		if (onLineCount == pLoopBuf->size) {
-			for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-				pInsideBuf[i] = 2;
-			}
-		}
-		else {
-			setOnLineLoopsToLast(pInsideBuf, pLoopBuf);
-		}
 	}
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		int32_t vertNextIndex = (i + 1) % pLoopBuf->size;

@@ -86,7 +86,7 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 		pHandle->pMapLoopBuf =
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pIndexTable =
-			pContext->alloc.pMalloc(sizeof(int32_t) * (totalVerts + 1));
+			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->pSortedVerts =
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->size = totalVerts;
@@ -347,14 +347,14 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 		FaceRange face = pPiece->bufFace;
 		for (int32_t k = 0; k < face.size; ++k) {
 			//CLOCK_START;
+			if (pPiece->skip >> k & 0x01) {
+				continue;
+			}
 			int32_t vert;
 			int32_t edge;
 			_Bool isRuvm = getIfRuvm(pEntry, k);
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
-				if (pPiece->skip >> k & 0x01) {
-					continue;
-				}
 				if (!pPiece->order[k]) {
 					return true;
 				}
@@ -373,7 +373,6 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 				RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pArgs->pMap->mesh.mesh.loopCount);
 				addBorderLoopAndVert(pVars, &vert, pEntry, k, mapLoop,
 									 &edge, face.start - k);
-				pVars->loopBuf.pBuf[pVars->loopBuf.count + 1].sort = -1;
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
 			}
@@ -397,9 +396,6 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 					RUVM_ASSERT("", vert > asMesh(pBufMesh)->vertBufSize - 1 -
 						   pBufMesh->borderVertCount);
 					RUVM_ASSERT("", vert < asMesh(pBufMesh)->vertBufSize);
-					if (checkIfDup(pVars, mapLoop)) {
-						continue;
-					}
 					addOnLineVert(pVars, mapLoop, pEntry, &vert, k);
 				}
 				//the vert and edge indices are local to the buf mesh,
@@ -413,7 +409,6 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 				edge += pArgs->pJobBases[pEntry->job].edgeBase;
 				
 				//CLOCK_START;
-				pVars->loopBuf.pBuf[pVars->loopBuf.count + 1].sort = mapLoop * 10;
 				pVars->mapLoopBuf.pBuf[pVars->mapLoopBuf.count] = mapLoop;
 				pVars->mapLoopBuf.count++;
 				//CLOCK_STOP_NO_PRINT;
@@ -426,7 +421,8 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			//if (borderLoop || vertNext >= bufMesh->mesh.vertCount) {
 			//}
 			BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
-			pVars->pIndexTable[pPiece->order[k]] = pLoopBuf->count;
+			RUVM_ASSERT("", pPiece->order[k] > 0);
+			pVars->pIndexTable[pPiece->order[k] - 1] = pLoopBuf->count;
 			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
 			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
 			pLoopBuf->pBuf[pLoopBuf->count].bufFace = pEntry->face;
@@ -448,123 +444,13 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 }
 
 static
-void sortLoopsFull(int32_t *pIndexTable, Vars *pVars) {
-	//insertion sort
-	Mesh *pMeshOut = pVars->pArgs->pMeshOut;
-	BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
-	V2_F32 centre = {0};
-	for (int32_t i = 0; i < pVars->loopBuf.count; ++i) {
-		V3_F32* pVert = pMeshOut->pVerts + pVars->loopBuf.pBuf[i].loop;
-		V3_F32 vertV3 = v3MultiplyMat3x3(*pVert, &pVars->tbnInv);
-		pLoopBuf->pBuf[i].vertBuf.d[0] = vertV3.d[0];
-		pLoopBuf->pBuf[i].vertBuf.d[1] = vertV3.d[1];
-		_(&centre V2ADDEQL pLoopBuf->pBuf[i].vertBuf);
-		RUVM_ASSERT("", i >= 0 && i < pVars->loopBuf.count);
-	}
-	_(&centre V2DIVSEQL pVars->loopBuf.count);
-	int32_t order = v2WindingCompare(pLoopBuf->pBuf[0].vertBuf,
-	                                 pLoopBuf->pBuf[1].vertBuf,
-	                                 centre, 1);
-	pIndexTable[0] = !order;
-	pIndexTable[1] = order;
-	int32_t bufSize = 2;
-	for (int32_t i = bufSize; i < pVars->loopBuf.count; ++i) {
-		_Bool insert;
-		int32_t j;
-		for (j = bufSize - 1; j >= 0; --j) {
-			if (j != 0) {
-				insert = v2WindingCompare(pLoopBuf->pBuf[i].vertBuf,
-					                      pLoopBuf->pBuf[pIndexTable[j]].vertBuf,
-					                      centre, 1)
-					&&
-					v2WindingCompare(pLoopBuf->pBuf[pIndexTable[j - 1]].vertBuf,
-					                 pLoopBuf->pBuf[i].vertBuf, centre, 1);
-			}
-			else {
-				insert = v2WindingCompare(pLoopBuf->pBuf[i].vertBuf,
-					                      pLoopBuf->pBuf[pIndexTable[j]].vertBuf,
-					                      centre, 1);
-			}
-			if (insert) {
-				break;
-			}
-			RUVM_ASSERT("", j < bufSize && j >= 0);
-		}
-		if (!insert) {
-			pIndexTable[bufSize] = i;
-		}
-		else {
-			for (int32_t k = bufSize; k > j; --k) {
-				pIndexTable[k] = pIndexTable[k - 1];
-				RUVM_ASSERT("", k <= bufSize && k > j);
-			}
-			pIndexTable[j] = i;
-		}
-		RUVM_ASSERT("", i >= 0 && i < pVars->loopBuf.count);
-		bufSize++;
-	}
-}
-
-static void sortLoops(int32_t *pIndexTable, Vars *pVars) {
-	BoundsLoopBufEntry *pLoopBuf = pVars->loopBuf.pBuf + 1;
-	//insertion sort
-	int32_t a = pLoopBuf[0].sort;
-	int32_t b = pLoopBuf[1].sort;
-	int32_t order = a < b;
-	pIndexTable[0] = !order;
-	pIndexTable[1] = order;
-	int32_t bufSize = 2;
-	for (int32_t i = bufSize; i < pVars->loopBuf.count; ++i) {
-		_Bool insert;
-		int32_t j;
-		for (j = bufSize - 1; j >= 0; --j) {
-			insert = pLoopBuf[i].sort < pLoopBuf[pIndexTable[j]].sort &&
-			         pLoopBuf[i].sort > pLoopBuf[pIndexTable[j - 1]].sort;
-			if (insert) {
-				break;
-			}
-			RUVM_ASSERT("", j < bufSize && j >= 0);
-		}
-		if (!insert) {
-			pIndexTable[bufSize] = i;
-		}
-		else {
-			for (int32_t m = bufSize; m > j; --m) {
-				pIndexTable[m] = pIndexTable[m - 1];
-				RUVM_ASSERT("", m <= bufSize && m > j);
-			}
-			pIndexTable[j] = i;
-		}
-		RUVM_ASSERT("", i >= bufSize && i < pVars->loopBuf.count);
-		bufSize++;
-	}
-}
-
-static
-void determineIfFullSort(Vars *pVars) {
-	if (pVars->seamFace) {
-		pVars->fullSort = 1;
-		return;
-	}
-	Piece *pPiece = pVars->pPieceRoot;
-	do {
-		if (pPiece->keepPreserve ||
-			pPiece->keepOnInVert || pPiece->keepSeam) {
-			pVars->fullSort = 1;
-			return;
-		}
-		pPiece = pPiece->pNext;
-	} while (pPiece);
-}
-
-static
 void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
                       int32_t count, int32_t *pIndexTable) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	Mesh *pMeshOut = pVars->pArgs->pMeshOut;
 	int32_t loopBase = pMeshOut->mesh.loopCount;
 	for (int32_t i = 0; i < count; ++i) {
-		int32_t bufIndex = pIndexTable[pIndices[i] + 1];
+		int32_t bufIndex = pIndexTable[pIndices[i]];
 		RUVM_ASSERT("", pVars->loopBuf.pBuf[bufIndex].loop >= 0);
 		RUVM_ASSERT("", pVars->loopBuf.pBuf[bufIndex].loop < pMeshOut->mesh.vertCount);
 		int32_t outLoop = meshAddLoop(&pArgs->pContext->alloc, pMeshOut);
@@ -608,18 +494,8 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		return;
 	}
 	vars.ruvmFace = *pRuvmFace;
-	vars.seamFace = determineIfSeamFace(pArgs->pMap, vars.pPieceRoot->pEntry);
-	determineIfFullSort(&vars);
-	//determineIfTriangulate(&vars);
-	vars.loopBuf.pBuf[0].sort = -10;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
-	CLOCK_START;
-	if (vars.fullSort) {
-		buildApproximateTbnInverse(&vars);
-	}
-	CLOCK_STOP_NO_PRINT;
-	pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
 	if (addLoopsToBufAndVertsToMesh(&vars)) {
 		return;
@@ -627,23 +503,14 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	if (vars.loopBuf.count <= 2) {
 		return;
 	}
-	vars.pIndexTable[0] = -1;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
-	/*
-	if (vars.fullSort) {
-		//full winding sort
-		sortLoopsFull(vars.pIndexTable + 1, &vars);
-	}
-	else {
-		sortLoops(vars.pIndexTable + 1, &vars);
-	}*/
 	if (vars.pPieceRoot->triangulate) {
 		FaceRange tempFace = {0};
 		tempFace.end = tempFace.size = vars.loopBuf.count;
 		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
-			int32_t vertIndex = vars.loopBuf.pBuf[vars.pIndexTable[i + 1]].loop;
+			int32_t vertIndex = vars.loopBuf.pBuf[vars.pIndexTable[i]].loop;
 			vars.pSortedVertBuf[i] = vertIndex;
 			RUVM_ASSERT("", i >= 0 && i < vars.loopBuf.count);
 		}

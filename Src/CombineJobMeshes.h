@@ -13,7 +13,6 @@ typedef struct {
 	int32_t bufFace;
 	int32_t loop;
 	int32_t edge;
-	int32_t sort;
 	int8_t job;
 } BoundsLoopBufEntry;
 
@@ -24,9 +23,9 @@ typedef struct {
 
 typedef struct {
 	BoundsLoopBufEntry* pLoopBuf;
-	int32_t* pMapLoopBuf;
-	int32_t* pIndexTable;
-	V2_F32* pSortedVerts;
+	int32_t *pMapLoopBuf;
+	int32_t *pIndexTable;
+	int32_t *pSortedVerts;
 	int32_t size;
 } MergeBufHandles;
 
@@ -55,6 +54,7 @@ typedef struct Piece {
 	int32_t entryIndex;
 	bool listed;
 	bool triangulate;
+	bool hasSeam;
 } Piece;
 
 typedef struct BorderEdge {
@@ -164,4 +164,3 @@ int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, int32_t localLoop);
 int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, int32_t localLoop);
-int32_t determineIfSeamFace(RuvmMap pMap, BorderFace *pEntry);
