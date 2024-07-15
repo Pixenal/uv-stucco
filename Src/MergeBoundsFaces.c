@@ -222,7 +222,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		++*pTotalVerts;
 		//CLOCK_START;
 		//int32_t vert = pBufMesh->mesh.pLoops[face.start - i];
-		_Bool isRuvm = getIfRuvm(pEntry, i);
+		bool isRuvm = getIfRuvm(pEntry, i);
 		bool isOnLine = getIfOnLine(pEntry, i);
 		if (isRuvm && !isOnLine) {
 			//ruvm loop - skip
@@ -230,15 +230,9 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		}
 		//CLOCK_STOP_NO_PRINT;
 		//pTimeSpent[1] += //CLOCK_TIME_DIFF(start, stop);
+		bool isOnInVert = getIfOnInVert(pEntry, i);
 		//Get in mesh details for current buf loop
 		BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, i);
-		int32_t *pVerts = pArgs->pEdgeVerts[inInfo.edge].verts;
-		RUVM_ASSERT("", pVerts && (pVerts[0] == inInfo.loop || pVerts[1] == inInfo.loop));
-		if (pVerts[1] < 0) {
-			//no other vert on edge
-			pPiece->hasSeam = true;
-			continue;
-		}
 		int32_t lasti = i ? i - 1 : face.size - 1;
 		if ((pEntry->baseLoop >> i * 2 & 0x03) ==
 			(pEntry->baseLoop >> lasti * 2 & 0x03) &&
@@ -246,8 +240,21 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			//Edge belongs to last loop, not this one
 			continue;
 		}
-		_Bool isOnInVert = getIfOnInVert(pEntry, i);
-		_Bool baseKeep;
+		if (isOnInVert &&
+			checkIfVertIsPreserve(&pArgs->pJobArgs[0].mesh, inInfo.vert)) {
+			//This does not necessarily mean this vert will be kept,
+			//only loops encountered in sortLoops func will be kept.
+			//ie, only loops on the exterior. Interior loops are skipped.
+			pPiece->keepVertPreserve |= true << i;
+		}
+		int32_t* pVerts = pArgs->pEdgeVerts[inInfo.edge].verts;
+		RUVM_ASSERT("", pVerts && (pVerts[0] == inInfo.loop || pVerts[1] == inInfo.loop));
+		if (pVerts[1] < 0) {
+			//no other vert on edge
+			pPiece->hasSeam = true;
+			continue;
+		}
+		bool baseKeep;
 		if (isOnInVert) {
 			RUVM_ASSERT("", pArgs->pJobArgs[0].pInVertTable[inInfo.vert] >= 0); //pInVertTable is 0 .. 3
 			RUVM_ASSERT("", pArgs->pJobArgs[0].pInVertTable[inInfo.vert] <= 3); 
@@ -269,9 +276,9 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		pEntries[entryIndex].edges[pEntries[entryIndex].edgeCount] = inInfo.edge;
 		pEntries[entryIndex].edgeCount++;
 
-		_Bool isPreserve =
+		bool isPreserve =
 			checkIfEdgeIsPreserve(&pArgs->pJobArgs[0].mesh, inInfo.edge);
-		_Bool isReceive = false;
+		bool isReceive = false;
 		int32_t refIndex = 0; 
 		if (seam) {
 			refIndex = isOnInVert ? -1 : 1;
@@ -700,7 +707,12 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			//We've done a full loop around
 			break;
 		}
-		if (!(pPiece->skip >> loop & 0x01)) {
+		bool skip = pPiece->skip >> loop & 0x01;
+		if (!skip || (pPiece->keepVertPreserve >> loop & 0x01)) {
+			if (skip) {
+				//set skip to false
+				pPiece->skip ^= 0x01 << loop;
+			}
 			pPiece->order[loop] = sort;
 			sort++;
 		}
@@ -788,9 +800,13 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 			}
 			determineLoopsToSkip(pArgs->pMap, pPiece);
 			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, pTotalVerts);
+#ifndef RUVM_DISABLE_TRIANGULATION
 			if (pPiece->triangulate && *pTotalVerts <= 4) {
 				pPiece->triangulate = false;
 			}
+#else
+			pPiece->triangulate = false;
+#endif
 		}
 		if (pSharedEdges) {
 			destroySharedEdgeTable(&pArgs->pContext->alloc, pSharedEdges, edgeTableSize);

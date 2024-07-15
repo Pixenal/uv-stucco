@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #endif
 
+#define RUVM_DISABLE_TRIANGULATION
+
 
 #ifdef WIN32
 	#define RUVM_EXPORT __declspec(dllexport)

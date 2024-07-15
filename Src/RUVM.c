@@ -351,7 +351,7 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	Mesh meshInWrap = {.mesh = *pMeshIn};
 	//TODO replace hard coded names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
-	setSpecialAttribs(&meshInWrap, 0x1e); //011110 - set all except for receive
+	setSpecialAttribs(&meshInWrap, 0x5e); //1011110 - set all except for receive
 
 	if (isMeshInvalid(&meshInWrap)) {
 		return RUVM_ERROR;

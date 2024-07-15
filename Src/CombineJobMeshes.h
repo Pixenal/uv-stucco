@@ -48,10 +48,12 @@ typedef struct Piece {
 	UBitField16 keepSingle;
 	UBitField16 keepSeam;
 	UBitField16 keepPreserve;
+	UBitField16 keepVertPreserve;
 	UBitField16 keepOnInVert;
 	UBitField16 skip;
 	uint8_t order[11];
 	int32_t entryIndex;
+	V3_F32 realNormal;
 	bool listed;
 	bool triangulate;
 	bool hasSeam;

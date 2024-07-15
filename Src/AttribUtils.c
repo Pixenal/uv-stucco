@@ -1971,6 +1971,9 @@ SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 		else if (pAttrib->pData == pMesh->pEdgeReceive) {
 			return ATTRIB_SPECIAL_RECEIVE;
 		}
+		else if (pAttrib->pData == pMesh->pVertPreserve) {
+			return ATTRIB_SPECIAL_PRESERVE_VERT;
+		}
 		return ATTRIB_SPECIAL_NONE;
 }
 
@@ -1999,6 +2002,10 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			break;
 		case (ATTRIB_SPECIAL_RECEIVE):
 			pMesh->pEdgeReceive = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_PRESERVE_VERT):
+			pMesh->pVertPreserve = pAttrib->pData;
 			valid = true;
 			break;
 	}
@@ -2082,6 +2089,12 @@ void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 		pMesh->pEdgeReceiveAttrib = getAttrib("RuvmPreserveReceive", &pCore->edgeAttribs);
 		if (pMesh->pEdgeReceiveAttrib) {
 			pMesh->pEdgeReceive = pMesh->pEdgeReceiveAttrib->pData;
+		}
+	}
+	if (flags >> ATTRIB_SPECIAL_PRESERVE_VERT & 0x01) {
+		pMesh->pVertPreserveAttrib = getAttrib("RuvmPreserveVert", &pCore->vertAttribs);
+		if (pMesh->pVertPreserveAttrib) {
+			pMesh->pVertPreserve = pMesh->pVertPreserveAttrib->pData;
 		}
 	}
 }
