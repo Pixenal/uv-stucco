@@ -58,14 +58,8 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	pMesh->mesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pMesh->faceBufSize);
 	pMesh->mesh.pLoops = pAlloc->pMalloc(sizeof(int32_t) * pMesh->loopBufSize);
 	pMesh->mesh.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pMesh->edgeBufSize);
-	allocAttribs(pAlloc, &pMesh->mesh.faceAttribs, &pMeshIn->faceAttribs,
-	             &pMap->mesh.mesh.faceAttribs, pMesh->faceBufSize);
-	allocAttribs(pAlloc, &pMesh->mesh.loopAttribs, &pMeshIn->loopAttribs,
-	             &pMap->mesh.mesh.loopAttribs, pMesh->loopBufSize);
-	allocAttribs(pAlloc, &pMesh->mesh.edgeAttribs, &pMeshIn->edgeAttribs,
-	             &pMap->mesh.mesh.edgeAttribs, pMesh->edgeBufSize);
-	allocAttribs(pAlloc, &pMesh->mesh.vertAttribs, &pMeshIn->vertAttribs,
-	             &pMap->mesh.mesh.vertAttribs, pMesh->vertBufSize);
+	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
+	allocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
 	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.loopAttribs);
 	pMesh->pUvs = pMesh->pUvAttrib->pData;
 	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.loopAttribs);
@@ -73,6 +67,7 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	pMesh->pVertAttrib = getAttrib("position", &pMesh->mesh.vertAttribs);
 	pMesh->pVerts = pMesh->pVertAttrib->pData;
 	pMesh->loopBufSize = loopBufSize;
+	pMesh->mesh.type.type = RUVM_OBJECT_DATA_MESH_BUF;
 }
 
 static

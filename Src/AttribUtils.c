@@ -1900,58 +1900,61 @@ void blendAttribs(RuvmAttrib *pD, int32_t iD, RuvmAttrib *pA, int32_t iA,
 	}
 }
 
-void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
-                  RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
-				  int32_t dataLen) {
-	if (pSrcA && pSrcA->count) {
-		pDest->count = pSrcA->count;
+static
+AttribArray *getAttribArrFromDomain(RuvmMesh *pMesh, RuvmDomain domain) {
+	switch (domain) {
+	case RUVM_DOMAIN_FACE:
+		return &pMesh->faceAttribs;
+	case RUVM_DOMAIN_LOOP:
+		return &pMesh->loopAttribs;
+	case RUVM_DOMAIN_EDGE:
+		return &pMesh->edgeAttribs;
+	case RUVM_DOMAIN_VERT:
+		return &pMesh->vertAttribs;
+	default:
+		return NULL;
 	}
-	if (pSrcB && pSrcB->count) {
-		for (int32_t i = 0; i < pSrcB->count; ++i) {
-			if (getAttrib(pSrcB->pArr[i].name, pSrcA)) {
-				//skip if attribute already exists in bufmesh
-				continue;
+}
+
+void allocAttribs(RuvmAlloc *pAlloc, AttribArray *pDest,
+                  int32_t srcCount, Mesh **ppSrcArr,
+				  int32_t dataLen, RuvmDomain domain, bool setCommon) {
+	pDest->size = 2;
+	pDest->pArr = pAlloc->pCalloc(pDest->size, sizeof(Attrib));
+	for (int32_t i = 0; i < srcCount; ++i) {
+		AttribArray *pSrc = getAttribArrFromDomain(&ppSrcArr[i]->mesh, domain);
+		if (pSrc && pSrc->count) {
+			for (int32_t j = 0; j < pSrc->count; ++j) {
+				Attrib *pAttrib = getAttrib(pSrc->pArr[j].name, pDest);
+				if (pAttrib) {
+					//if attribute already exists in destination,
+					//set origin to common, then skip
+					if (setCommon) {
+						pAttrib->origin = RUVM_ATTRIB_ORIGIN_COMMON;
+					}
+					continue;
+				}
+				pDest->pArr[pDest->count].type = pSrc->pArr[j].type;
+				memcpy(pDest->pArr[pDest->count].name, pSrc->pArr[j].name,
+				       RUVM_ATTRIB_NAME_MAX_LEN);
+				pDest->pArr[pDest->count].origin = pSrc->pArr[j].origin;
+				pDest->pArr[pDest->count].interpolate = pSrc->pArr[j].interpolate;
+				int32_t attribSize = getAttribSize(pSrc->pArr[j].type);
+				pDest->pArr[pDest->count].pData = pAlloc->pCalloc(dataLen, attribSize);
+				pDest->count++;
+				RUVM_ASSERT("", pDest->count <= pDest->size);
+				if (pDest->count == pDest->size) {
+					pDest->size *= 2;
+					pDest->pArr = pAlloc->pRealloc(pDest->pArr, pDest->size * sizeof(Attrib));
+				}
 			}
-			++pDest->count;
 		}
 	}
 	if (!pDest->count) {
+		pAlloc->pFree(pDest->pArr);
+		pDest->pArr = NULL;
 		return;
 	}
-	pDest->pArr = pAlloc->pMalloc(sizeof(RuvmAttrib) * pDest->count);
-	//reset attrib count, for use in the below loops
-	pDest->count = 0;
-	if (pSrcA && pSrcA->count) {
-		for (int32_t i = 0; i < pSrcA->count; ++i) {
-			pDest->pArr[i].type = pSrcA->pArr[i].type;
-			memcpy(pDest->pArr[i].name, pSrcA->pArr[i].name,
-			       RUVM_ATTRIB_NAME_MAX_LEN);
-			pDest->pArr[i].origin = RUVM_ATTRIB_ORIGIN_MESH_IN;
-			pDest->pArr[i].interpolate = pSrcA->pArr[i].interpolate;
-			int32_t attribSize = getAttribSize(pSrcA->pArr[i].type);
-			pDest->pArr[i].pData = pAlloc->pMalloc(attribSize * dataLen);
-		}
-		pDest->count = pSrcA->count;
-	}
-	if (!pSrcB || !pSrcB->count) {
-		return;
-	}
-	for (int32_t i = 0; i < pSrcB->count; ++i) {
-		RuvmAttrib *pExisting = getAttrib(pSrcB->pArr[i].name, pDest);
-		if (pExisting) {
-			pExisting->origin = RUVM_ATTRIB_ORIGIN_COMMON;
-			continue;
-		}
-		pDest->pArr[pDest->count].type = pSrcB->pArr[i].type;
-		memcpy(pDest->pArr[pDest->count].name, pSrcB->pArr[i].name,
-		       RUVM_ATTRIB_NAME_MAX_LEN);
-		pDest->pArr[pDest->count].origin = RUVM_ATTRIB_ORIGIN_MAP;
-		pDest->pArr[pDest->count].interpolate = pSrcB->pArr[i].interpolate;
-		int32_t attribSize = getAttribSize(pSrcB->pArr[i].type);
-		pDest->pArr[pDest->count].pData = pAlloc->pMalloc(attribSize * dataLen);
-		++pDest->count;
-	}
-	return;
 }
 
 static
@@ -2097,4 +2100,16 @@ void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 			pMesh->pVertPreserve = pMesh->pVertPreserveAttrib->pData;
 		}
 	}
+}
+
+void allocAttribsFromMeshArr(RuvmAlloc *pAlloc, Mesh *pMeshDest,
+                             int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon) {
+	allocAttribs(pAlloc, &pMeshDest->mesh.faceAttribs, srcCount,
+	             ppMeshSrcs, pMeshDest->faceBufSize, RUVM_DOMAIN_FACE, setCommon);
+	allocAttribs(pAlloc, &pMeshDest->mesh.loopAttribs, srcCount,
+	             ppMeshSrcs, pMeshDest->loopBufSize, RUVM_DOMAIN_LOOP, setCommon);
+	allocAttribs(pAlloc, &pMeshDest->mesh.edgeAttribs, srcCount,
+	             ppMeshSrcs, pMeshDest->edgeBufSize, RUVM_DOMAIN_EDGE, setCommon);
+	allocAttribs(pAlloc, &pMeshDest->mesh.vertAttribs, srcCount,
+	             ppMeshSrcs, pMeshDest->vertBufSize, RUVM_DOMAIN_VERT, setCommon);
 }

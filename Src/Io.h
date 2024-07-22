@@ -3,10 +3,13 @@
 #include <QuadTree.h>
 #include <RUVM.h>
 
-void ruvmWriteDebugImage(Cell *pRootCell);
-void ruvmWriteRuvmFile(RuvmContext pContext, const char *pName, RuvmMesh *pMesh);
-void ruvmLoadRuvmFile(RuvmContext pContext, RuvmMap pMapFile, char *filePath);
-void ruvmDestroyRuvmFile(RuvmContext pContext, RuvmMap pMapFIle);
+//void ruvmWriteDebugImage(Cell *pRootCell);
+RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
+                             int32_t objCount, RuvmObject *pObjArr,
+                             int32_t usgCount, RuvmObject *pUsgArr);
+void ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
+                      int32_t *pObjCount, RuvmObject **ppObjArr,
+                      int32_t *pUsgCount, RuvmObject **ppUsgArr, bool forEdit);
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo);
 void ruvmIoSetDefault(RuvmContext pContext);

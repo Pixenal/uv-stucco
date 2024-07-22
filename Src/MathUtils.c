@@ -2,6 +2,26 @@
 
 #include <MathUtils.h>
 
+V4_F32 v4MultiplyMat4x4(V4_F32 a, Mat4x4 *pB) {
+	V4_F32 c;
+	c.d[0] = a.d[0] * pB->d[0][0] + a.d[1] * pB->d[1][0] + a.d[2] * pB->d[2][0] + a.d[3] * pB->d[3][0];
+	c.d[1] = a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1] + a.d[3] * pB->d[3][1];
+	c.d[2] = a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2] + a.d[3] * pB->d[3][2];
+	return c;
+}
+
+void v4MultiplyEqualMat4x4(V4_F32 *pA, Mat4x4 *pB) {
+	V4_F32 c;
+	c.d[0] = pA->d[0] * pB->d[0][0] + pA->d[1] * pB->d[1][0] + pA->d[2] * pB->d[2][0] + pA->d[3] * pB->d[3][0];
+	c.d[1] = pA->d[0] * pB->d[0][1] + pA->d[1] * pB->d[1][1] + pA->d[2] * pB->d[2][1] + pA->d[3] * pB->d[3][1];
+	c.d[2] = pA->d[0] * pB->d[0][2] + pA->d[1] * pB->d[1][2] + pA->d[2] * pB->d[2][2] + pA->d[3] * pB->d[3][2];
+	*pA = c;
+}
+
+V3_F32 divideByW(V4_F32 a) {
+	return _(*(V3_F32 *)&a V3DIVS a.d[3]);
+}
+
 V3_F32 v3MultiplyScalar(V3_F32 a, float b) {
 	V3_F32 c = {a.d[0] * b, a.d[1] * b, a.d[2] * b};
 	return c;

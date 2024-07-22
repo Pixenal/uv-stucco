@@ -9,109 +9,38 @@
 #include <MapFile.h>
 #include <Error.h>
 
-static
-void allocateMeshOut(RuvmContext pContext, Mesh *pMeshOut,
-                     SendOffArgs *pJobArgs) {
-	RuvmAlloc *pAlloc = &pContext->alloc;
-	typedef struct {
-		int32_t faces;
-		int32_t loops;
-		int32_t edges;
-		int32_t verts;
-	} MeshCounts;
-	MeshCounts totalCount = {0};
-	MeshCounts totalBorderCount = {0};
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
-		//TODO maybe replace *Counts vars in Mesh to use MeshCounts,
-		//     so we can just do:
-		//     meshCountsAdd(totalCount, pJobArgs[i].bufMesh.mesh.meshCounts);
-		//     or something.
-		totalCount.faces += pJobArgs[i].bufMesh.mesh.mesh.faceCount;
-		totalCount.loops += pJobArgs[i].bufMesh.mesh.mesh.loopCount;
-		totalCount.edges += pJobArgs[i].bufMesh.mesh.mesh.edgeCount;
-		totalCount.verts += pJobArgs[i].bufMesh.mesh.mesh.vertCount;
-		totalBorderCount.faces += pJobArgs[i].bufMesh.borderFaceCount;
-		totalBorderCount.loops += pJobArgs[i].bufMesh.borderLoopCount;
-		totalBorderCount.edges += pJobArgs[i].bufMesh.borderEdgeCount;
-		totalBorderCount.verts += pJobArgs[i].bufMesh.borderVertCount;
-	}
-	//TODO figure out how to handle edges in local meshes,
-	//probably just add internal edges to local mesh,
-	//and figure out edges in border faces after jobs are finished?
-	//You'll need to provide functionality for interpolating and blending
-	//edge data, so keep that in mind.
-	RuvmMesh *pBufCore = &asMesh(&pJobArgs[0].bufMesh)->mesh;
-	pMeshOut->faceBufSize = 2 + totalCount.faces + totalBorderCount.faces / 10;
-	pMeshOut->loopBufSize = 2 + totalCount.loops + totalBorderCount.loops / 10;
-	pMeshOut->edgeBufSize = 2 + totalCount.edges + totalBorderCount.edges / 10;
-	pMeshOut->vertBufSize = 2 + totalCount.verts + totalBorderCount.verts / 10;
-	pMeshOut->mesh.pFaces =
-		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->faceBufSize);
-	pMeshOut->mesh.pLoops =
-		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
-	pMeshOut->mesh.pEdges =
-		pAlloc->pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
-	allocAttribs(pAlloc, &pMeshOut->mesh.faceAttribs, &pBufCore->faceAttribs,
-				 NULL, pMeshOut->faceBufSize);
-	allocAttribs(pAlloc, &pMeshOut->mesh.loopAttribs, &pBufCore->loopAttribs,
-				 NULL, pMeshOut->loopBufSize);
-	allocAttribs(pAlloc, &pMeshOut->mesh.edgeAttribs, &pBufCore->edgeAttribs,
-				 NULL, pMeshOut->edgeBufSize);
-	allocAttribs(pAlloc, &pMeshOut->mesh.vertAttribs, &pBufCore->vertAttribs,
-				 NULL, pMeshOut->vertBufSize);
-	setSpecialAttribs(pMeshOut, 0xe); //1110 - set only verts, uvs, & normals
-}
-
-static
-void bulkCopyAttribs(AttribArray *pSrc, int32_t SrcOffset,
-                     AttribArray *pDest, int32_t dataLen) {
-	for (int32_t i = 0; i < pSrc->count; ++i) {
-		void *attribDestStart = attribAsVoid(pDest->pArr + i, SrcOffset);
-		int32_t attribTypeSize = getAttribSize(pSrc->pArr[i].type);
-		memcpy(attribDestStart, pSrc->pArr[i].pData, attribTypeSize * dataLen);
-	}
-}
-
-static
-void copyMesh(int32_t jobIndex, Mesh *pMeshOut, SendOffArgs *pJobArgs) {
-	BufMesh *pBufMesh = &pJobArgs[jobIndex].bufMesh;
-	RuvmMesh *pOutCore = &pMeshOut->mesh;
-	for (int32_t j = 0; j < asMesh(pBufMesh)->mesh.faceCount; ++j) {
-		asMesh(pBufMesh)->mesh.pFaces[j] += pOutCore->loopCount;
-	}
-	for (int32_t j = 0; j < asMesh(pBufMesh)->mesh.loopCount; ++j) {
-		asMesh(pBufMesh)->mesh.pLoops[j] += pOutCore->vertCount;
-		asMesh(pBufMesh)->mesh.pEdges[j] += pOutCore->edgeCount;
-	}
-	int32_t *facesStart = pOutCore->pFaces + pOutCore->faceCount;
-	int32_t *loopsStart = pOutCore->pLoops + pOutCore->loopCount;
-	int32_t *edgesStart = pOutCore->pEdges + pOutCore->loopCount;
-	memcpy(facesStart, asMesh(pBufMesh)->mesh.pFaces,
-	       sizeof(int32_t) * asMesh(pBufMesh)->mesh.faceCount);
-	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.faceAttribs, pOutCore->faceCount,
-	                &pOutCore->faceAttribs, asMesh(pBufMesh)->mesh.faceCount);
-	pOutCore->faceCount += asMesh(pBufMesh)->mesh.faceCount;
-	memcpy(loopsStart, asMesh(pBufMesh)->mesh.pLoops,
-	       sizeof(int32_t) * asMesh(pBufMesh)->mesh.loopCount);
-	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.loopAttribs, pOutCore->loopCount,
-	                &pOutCore->loopAttribs, asMesh(pBufMesh)->mesh.loopCount);
-	pOutCore->loopCount += asMesh(pBufMesh)->mesh.loopCount;
-	memcpy(edgesStart, asMesh(pBufMesh)->mesh.pEdges,
-	       sizeof(int32_t) * asMesh(pBufMesh)->mesh.loopCount);
-	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.edgeAttribs, pOutCore->edgeCount,
-	                &pOutCore->edgeAttribs, asMesh(pBufMesh)->mesh.edgeCount);
-	pOutCore->edgeCount += asMesh(pBufMesh)->mesh.edgeCount;
-	bulkCopyAttribs(&asMesh(pBufMesh)->mesh.vertAttribs, pOutCore->vertCount,
-	                &pOutCore->vertAttribs, asMesh(pBufMesh)->mesh.vertCount);
-	pOutCore->vertCount += asMesh(pBufMesh)->mesh.vertCount;
-}
-
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable) {
 	//struct timeval start, stop;
 	//CLOCK_START;
-	allocateMeshOut(pContext, pMeshOut, pJobArgs);
+	//TODO figure out how to handle edges in local meshes,
+	//probably just add internal edges to local mesh,
+	//and figure out edges in border faces after jobs are finished?
+	//You'll need to provide functionality for interpolating and blending
+	//edge data, so keep that in mind.
+	pMeshOut->mesh.type.type = RUVM_OBJECT_DATA_MESH_INTERN;
+	MeshCounts totalCount = {0};
+	MeshCounts totalBoundsCount = {0};
+	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		addToMeshCounts(pContext, &totalCount, &totalBoundsCount,
+		                (Mesh *)&pJobArgs[i].bufMesh);
+	}
+	//3 for last face index
+	pMeshOut->faceBufSize = 3 + totalCount.faces + totalBoundsCount.faces / 10;
+	pMeshOut->loopBufSize = 2 + totalCount.loops + totalBoundsCount.loops / 10;
+	pMeshOut->edgeBufSize = 2 + totalCount.edges + totalBoundsCount.edges / 10;
+	pMeshOut->vertBufSize = 2 + totalCount.verts + totalBoundsCount.verts / 10;
+	pMeshOut->mesh.pFaces =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->faceBufSize);
+	pMeshOut->mesh.pLoops =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
+	pMeshOut->mesh.pEdges =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
+	//only need to use the first buf mesh, as attribs are the same across all jobs
+	Mesh *src = &pJobArgs[0].bufMesh;
+	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false);
+	setSpecialAttribs(pMeshOut, 0xe); //1110 - set only verts, uvs, & normals
 	JobBases *pJobBases =
 		pContext->alloc.pMalloc(sizeof(JobBases) * pContext->threadCount);
 	uint64_t reallocTime = 0;
@@ -123,7 +52,7 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 		printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
 		pJobBases[i].vertBase = pMeshOut->mesh.vertCount;
 		pJobBases[i].edgeBase = pMeshOut->mesh.edgeCount;
-		copyMesh(i, pMeshOut, pJobArgs);
+		copyMesh(&pMeshOut->mesh, &pJobArgs[i].bufMesh.mesh);
 	}
 	printf("realloc time total %lu\n", reallocTime);
 	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,

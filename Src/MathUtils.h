@@ -4,6 +4,13 @@
 
 #define FLOAT_EQUAL_MARGIN .000001f
 
+#define RUVM_IDENT_MAT4X4 {1.0, .0, .0, .0,\
+                           .0, 1.0, .0, .0,\
+                           .0, .0, 1.0, .0,\
+                           .0, .0, .0, 1.0}
+
+static Ruvm_M4x4_F32 identM4x4 = RUVM_IDENT_MAT4X4;
+
 typedef Ruvm_V2_I8 V2_I8;
 typedef Ruvm_V2_I16 V2_I16;
 typedef Ruvm_V2_I32 V2_I32;
@@ -36,7 +43,13 @@ typedef struct {
 	float d[3][3];
 } Mat3x3;
 
+typedef Ruvm_M4x4_F32 Mat4x4;
+
 V2_I32 v2FloorAssign(V2_F32 *pA);
+
+V4_F32 v4MultiplyMat4x4(V4_F32 a, Mat4x4 *pB);
+void v4MultiplyEqualMat4x4(V4_F32 *pA, Mat4x4 *pB);
+V3_F32 divideByW(V4_F32 *pA);
 
 V3_F32 v3MultiplyScalar(V3_F32 a, float b);
 void v3DivideEqualScalar(V3_F32 *pA, float b);
@@ -108,6 +121,9 @@ Mat3x3 mat3x3Invert(Mat3x3 *pA);
 int32_t mat3x3IsFinite(Mat3x3 *pA);
 
 float customFloor(float a);
+
+#define V4MULM4X4 ,4MultiplyMat4x4,
+#define V4MULEQLM4X4 ,4MultiplyEqualMat4x4,
 
 #define V3MULS ,3MultiplyScalar,
 #define V3DIVEQLS ,3DivideEqualScalar,

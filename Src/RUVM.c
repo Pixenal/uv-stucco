@@ -46,6 +46,7 @@
 //TODO add a cache (hash table?) for triangulated in faces, as your going to need to reference
 //their edges when merging border faces
 //TODO add user define void * args to custom callbacks
+//TODO add the ability to open map files in dcc, to make edits to mesh, USGs etc
 
 static
 void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
@@ -110,22 +111,58 @@ RuvmResult ruvmContextDestroy(RuvmContext pContext) {
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName, RuvmMesh *pMesh) {
-	printf("%d vertices, and %d faces\n", pMesh->vertCount, pMesh->faceCount);
-	ruvmWriteRuvmFile(pContext, pName, pMesh);
+RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName,
+                             int32_t objCount, RuvmObject* pObjArr,
+                             int32_t usgCount, RuvmObject* pUsgArr) {
+	return ruvmWriteRuvmFile(pContext, pName, objCount, pObjArr,
+	                         usgCount, pUsgArr);
+}
+
+RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
+                                  int32_t *pObjCount, RuvmObject **ppObjArr,
+                                  int32_t *pUsgCount, RuvmObject **ppUsgArr) {
+	ruvmLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
+	                 ppUsgArr, true);
 	return RUVM_SUCCESS;
 }
 
 RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                            char *filePath) {
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
-	ruvmLoadRuvmFile(pContext, pMap, filePath);
+	int32_t objCount = 0;
+	RuvmObject *pObjArr = NULL;
+	RuvmObject *pUsgArr = NULL;
+	ruvmLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
+	                 &pMap->usgArr.count, &pUsgArr, false);
+
+	for (int32_t i = 0; i < objCount; ++i) {
+		setSpecialAttribs(pObjArr[i].pData, 0x2e); //101110 - all except for preserve
+		applyObjTransform(pObjArr + i);
+	}
+	pMap->mesh.mesh.type.type = RUVM_OBJECT_DATA_MESH_INTERN;
+	mergeObjArr(pContext, &pMap->mesh, objCount, pObjArr, false);
+	setSpecialAttribs(&pMap->mesh, 0x2e);
+	destroyObjArr(pContext, objCount, pObjArr);
+
+	//the quadtree is created before USGs are assigned to verts,
+	//as the tree's used to speed up the process
 	printf("File loaded. Creating quad tree\n");
 	ruvmCreateQuadTree(pContext, pMap);
+
+	pMap->usgArr.pArr = pContext->alloc.pCalloc(pMap->usgArr.count, sizeof(Usg));
+	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
+		setSpecialAttribs(pUsgArr[i].pData, 0x02); //000010 - set only vert pos
+		pMap->usgArr.pArr[i].origin.d[0] = pUsgArr[i].transform.d[0][3];
+		pMap->usgArr.pArr[i].origin.d[1] = pUsgArr[i].transform.d[1][3];
+		applyObjTransform(pUsgArr + i);
+	}
+	assignUsgsToVerts(pContext, pMap, pMap->usgArr.count, pUsgArr);
+	//usg objects are no longer needed
+	destroyObjArr(pContext, pMap->usgArr.count, pUsgArr);
+
 	*pMapHandle = pMap;
-	//writeDebugImage(pMap->quadTree.rootCell);
 	//TODO add proper checks, and return RUVM_ERROR if fails.
-	//Do for all public functions
+	//Do for all public functions (or internal ones as well)
 	return RUVM_SUCCESS;
 }
 
@@ -416,6 +453,11 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	*pMeshOut = meshOutWrap.mesh;
 	CLOCK_STOP("Realloc time");
 	return RUVM_SUCCESS;
+}
+
+RuvmResult ruvmObjArrDestroy(RuvmContext pContext,
+                             int32_t objCount, RuvmObject *pObjArr) {
+	destroyObjArr(pContext, objCount, pObjArr);
 }
 
 RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {

@@ -38,9 +38,9 @@ void interpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
                        int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
 void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
                   Attrib *pB, int32_t iB, RuvmBlendConfig blendConfig);
-void allocAttribs(RuvmAlloc *pAlloc, RuvmAttribArray *pDest,
-                  RuvmAttribArray *pSrcA, RuvmAttribArray *pSrcB,
-				  int32_t dataLen);
+void allocAttribs(RuvmAlloc *pAlloc, AttribArray *pDest,
+                  int32_t srcCount, Mesh **ppSrcArr,
+				  int32_t dataLen, RuvmDomain domain, bool setCommon);
 void castType(void *pValue, RuvmAttribType type);
 void reallocAttribs(const RuvmAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, int32_t newLen);
@@ -48,3 +48,5 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, int32_t start,
 						   int32_t offset, int32_t lenToCopy, int32_t newLen);
 void setSpecialAttribs(Mesh *pMesh, UBitField8 flags);
+void allocAttribsFromMeshArr(RuvmAlloc *pAlloc, Mesh *pMeshDest,
+                             int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon);
