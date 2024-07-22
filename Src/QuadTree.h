@@ -86,3 +86,6 @@ void ruvmDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *ruvmFindEncasingCell(Cell *rootCell, V2_F32 pos);
 void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
 void ruvmDestroyQuadTree(RuvmContext pContext, QuadTree *pTree);
+void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+                      Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
+					  int32_t *pAverageMapFacesPerFace) ;

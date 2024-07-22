@@ -605,6 +605,7 @@ void loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bo
 	//set usg attrib metadata if used
 	if (usesUsg) {
 		Attrib *usgAttrib = pMesh->vertAttribs.pArr + pMesh->vertAttribs.count;
+		usgAttrib->pData = pContext->alloc.pCalloc(pMesh->vertCount, sizeof(int32_t));
 		strncpy(usgAttrib->name, "RuvmUsg", RUVM_ATTRIB_NAME_MAX_LEN);
 		usgAttrib->origin = RUVM_ATTRIB_ORIGIN_MAP;
 		usgAttrib->interpolate = true;
@@ -669,6 +670,9 @@ void loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bo
 
 	if (isDataNameInvalid(pByteString, "OE")) { //obj end
 		return;
+	}
+	if (usesUsg) {
+		pMesh->vertAttribs.count++;
 	}
 }
 

@@ -11,41 +11,6 @@
 #include <Error.h>
 
 static
-void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
-                      Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
-					  int32_t *pAverageMapFacesPerFace) {
-	*pAverageMapFacesPerFace = 0;
-	ruvmInitFaceCellsTable(pAlloc, pFaceCellsTable, pMeshIn->mesh.faceCount);
-	QuadTreeSearch searchState = {0};
-	ruvmInitQuadTreeSearch(pAlloc, pMap, &searchState);
-	for (int32_t i = 0; i < pMeshIn->mesh.faceCount; ++i) {
-		FaceRange faceInfo = {0};
-		faceInfo.index = i;
-		faceInfo.start = pMeshIn->mesh.pFaces[i];
-		faceInfo.end = pMeshIn->mesh.pFaces[i + 1];
-		faceInfo.size = faceInfo.end - faceInfo.start;
-		FaceBounds faceBounds = {0};
-		getFaceBounds(&faceBounds, pMeshIn->pUvs, faceInfo);
-		faceBounds.fMinSmall = faceBounds.fMin;
-		faceBounds.fMaxSmall = faceBounds.fMax;
-		faceBounds.min = v2FloorAssign(&faceBounds.fMin);
-		faceBounds.max = v2FloorAssign(&faceBounds.fMax);
-		_(&faceBounds.fMax V2ADDEQLS 1.0f);
-		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
-		for (int32_t j = 0; j < faceInfo.size; ++j) {
-			pVertBuf[j] = pMeshIn->pUvs[faceInfo.start + j];
-		}
-		ruvmGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
-			                      pFaceCellsTable, &faceBounds, i);
-		pAlloc->pFree(pVertBuf);
-		*pAverageMapFacesPerFace += pFaceCellsTable->pFaceCells[i].faceSize;
-		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
-	}
-	*pAverageMapFacesPerFace /= pMeshIn->mesh.faceCount;
-	ruvmDestroyQuadTreeSearch(&searchState);
-}
-
-static
 void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	RuvmMap pMap = pVars->pMap;
 	RuvmMesh *pMeshIn = &pVars->mesh.mesh;
@@ -181,7 +146,6 @@ void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 void ruvmMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_INIT;
 	Result result = RUVM_NOT_SET;
-	FaceCellsTable faceCellsTable = {0};
 	SendOffArgs *pSend = pVarsPtr;
 	MappingJobVars vars = {0};
 	vars.pEdgeVerts = pSend->pEdgeVerts;
@@ -191,8 +155,9 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	vars.mesh = pSend->mesh;
 	vars.pMap = pSend->pMap;
 	vars.pCommonAttribList = pSend->pCommonAttribList;
-	int32_t averageMapFacesPerFace = 0;
 	//CLOCK_START;
+	FaceCellsTable faceCellsTable = {0};
+	int32_t averageMapFacesPerFace = 0;
 	getEncasingCells(&vars.alloc, vars.pMap, &vars.mesh, &faceCellsTable,
 	                 &averageMapFacesPerFace);
 	//CLOCK_STOP("Get Encasing Cells Time");

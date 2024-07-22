@@ -952,3 +952,33 @@ void ruvmDestroyQuadTree(RuvmContext pContext, QuadTree *pTree) {
 	}
 	pContext->alloc.pFree(pTree->cellTable.pArr);
 }
+
+void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+                      Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
+					  int32_t *pAverageMapFacesPerFace) {
+	*pAverageMapFacesPerFace = 0;
+	ruvmInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->mesh.faceCount);
+	QuadTreeSearch searchState = {0};
+	ruvmInitQuadTreeSearch(pAlloc, pMap, &searchState);
+	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
+		FaceRange faceInfo = getFaceRange(pMesh, i, false);
+		FaceBounds faceBounds = {0};
+		getFaceBounds(&faceBounds, pMesh->pUvs, faceInfo);
+		faceBounds.fMinSmall = faceBounds.fMin;
+		faceBounds.fMaxSmall = faceBounds.fMax;
+		faceBounds.min = v2FloorAssign(&faceBounds.fMin);
+		faceBounds.max = v2FloorAssign(&faceBounds.fMax);
+		_(&faceBounds.fMax V2ADDEQLS 1.0f);
+		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
+		for (int32_t j = 0; j < faceInfo.size; ++j) {
+			pVertBuf[j] = pMesh->pUvs[faceInfo.start + j];
+		}
+		ruvmGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
+			                      pFaceCellsTable, &faceBounds, i);
+		pAlloc->pFree(pVertBuf);
+		*pAverageMapFacesPerFace += pFaceCellsTable->pFaceCells[i].faceSize;
+		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
+	}
+	*pAverageMapFacesPerFace /= pMesh->mesh.faceCount;
+	ruvmDestroyQuadTreeSearch(&searchState);
+}

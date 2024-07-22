@@ -136,12 +136,12 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	                 &pMap->usgArr.count, &pUsgArr, false);
 
 	for (int32_t i = 0; i < objCount; ++i) {
-		setSpecialAttribs(pObjArr[i].pData, 0x2e); //101110 - all except for preserve
+		setSpecialAttribs(pObjArr[i].pData, 0xae); //10101110 - all except for preserve
 		applyObjTransform(pObjArr + i);
 	}
 	pMap->mesh.mesh.type.type = RUVM_OBJECT_DATA_MESH_INTERN;
 	mergeObjArr(pContext, &pMap->mesh, objCount, pObjArr, false);
-	setSpecialAttribs(&pMap->mesh, 0x2e);
+	setSpecialAttribs(&pMap->mesh, 0xae);
 	destroyObjArr(pContext, objCount, pObjArr);
 
 	//the quadtree is created before USGs are assigned to verts,
@@ -156,7 +156,7 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 		pMap->usgArr.pArr[i].origin.d[1] = pUsgArr[i].transform.d[1][3];
 		applyObjTransform(pUsgArr + i);
 	}
-	assignUsgsToVerts(pContext, pMap, pMap->usgArr.count, pUsgArr);
+	assignUsgsToVerts(pContext, pMap, pUsgArr);
 	//usg objects are no longer needed
 	destroyObjArr(pContext, pMap->usgArr.count, pUsgArr);
 

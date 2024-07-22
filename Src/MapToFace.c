@@ -795,12 +795,12 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.index].cellSize; ++i) {
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount <
-		       asMesh(&pVars->bufMesh)->faceBufSize);
+		                asMesh(&pVars->bufMesh)->faceBufSize);
 		Cell* pCell = pFaceCellsTable->pFaceCells[baseFace.index].pCells[i];
 		RUVM_ASSERT("", pCell->localIndex >= 0 && pCell->localIndex < 4);
 		RUVM_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 		int32_t* pCellFaces;
-		Range range;
+		Range range = {0};
 		if (pFaceCellsTable->pFaceCells[baseFace.index].pCellType[i]) {
 			pCellFaces = pCell->pEdgeFaces;
 			range = pFaceCellsTable->pFaceCells[baseFace.index].pRanges[i];
@@ -817,11 +817,8 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 		}
 		for (int32_t j = range.start; j < range.end; ++j) {
 			pDpVars->totalFacesComp++;
-			FaceRange ruvmFace = {0};
-			ruvmFace.index = pCellFaces[j];
-			ruvmFace.start = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index];
-			ruvmFace.end = pVars->pMap->mesh.mesh.pFaces[ruvmFace.index + 1];
-			ruvmFace.size = ruvmFace.end - ruvmFace.start;
+			FaceRange ruvmFace =
+				getFaceRange(&pVars->pMap->mesh.mesh, pCellFaces[j], false);
 			if (!checkFaceIsInBounds(_(bounds.fMin V2SUB fTileMin),
 									 _(bounds.fMax V2SUB fTileMin),
 									 ruvmFace, &pVars->pMap->mesh)) {

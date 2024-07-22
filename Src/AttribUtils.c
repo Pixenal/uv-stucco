@@ -1977,6 +1977,9 @@ SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 		else if (pAttrib->pData == pMesh->pVertPreserve) {
 			return ATTRIB_SPECIAL_PRESERVE_VERT;
 		}
+		else if (pAttrib->pData == pMesh->pUsg) {
+			return ATTRIB_SPECIAL_USG;
+		}
 		return ATTRIB_SPECIAL_NONE;
 }
 
@@ -2009,6 +2012,10 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			break;
 		case (ATTRIB_SPECIAL_PRESERVE_VERT):
 			pMesh->pVertPreserve = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_USG):
+			pMesh->pUsg = pAttrib->pData;
 			valid = true;
 			break;
 	}
@@ -2065,6 +2072,8 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 	}
 }
 
+//TODO why is there a flag param again?
+//Why not just set each if present?
 void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 	RuvmMesh *pCore = &pMesh->mesh;
 	if (flags >> ATTRIB_SPECIAL_VERTS & 0x01) {
@@ -2098,6 +2107,12 @@ void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 		pMesh->pVertPreserveAttrib = getAttrib("RuvmPreserveVert", &pCore->vertAttribs);
 		if (pMesh->pVertPreserveAttrib) {
 			pMesh->pVertPreserve = pMesh->pVertPreserveAttrib->pData;
+		}
+	}
+	if (flags >> ATTRIB_SPECIAL_USG & 0x01) {
+		pMesh->pUsgAttrib = getAttrib("RuvmUsg", &pCore->vertAttribs);
+		if (pMesh->pUsgAttrib) {
+			pMesh->pUsg = pMesh->pUsgAttrib->pData;
 		}
 	}
 }

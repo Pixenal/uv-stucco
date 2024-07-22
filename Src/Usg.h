@@ -1,3 +1,4 @@
+#pragma once
 #include <MathUtils.h>
 
 typedef struct {
@@ -13,4 +14,5 @@ typedef struct {
 	int32_t count;
 } UsgArr;
 
-RuvmResult assignUsgsToVerts();
+RuvmResult assignUsgsToVerts(RuvmContext pContext,
+                             RuvmMap pMap, RuvmObject *pUsgArr);
