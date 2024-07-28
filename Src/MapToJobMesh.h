@@ -9,6 +9,9 @@ typedef struct {
 	V3_F32 normal;
 	V3_F32 bc; //barycentric coords
 	V2_F32 uv;
+	V3_F32 projNormal;
+	V3_F32 projNormalMasked;
+	float z;
 	int8_t baseLoop;
 	uint8_t ruvmLoop : 4;
 	uint8_t onLine : 1;
@@ -47,12 +50,17 @@ typedef struct {
 } LocalTables;
 
 typedef struct {
-	RuvmMap pMap;
 	BufMesh bufMesh;
 	Mesh mesh;
+	RuvmMap pMap;
+	InFaceArr *pInFaces;
+	int32_t inFaceSize;
+	bool getInFaces;
+	DebugAndPerfVars *pDpVars;
 	RuvmAlloc alloc;
 	LocalTables localTables;
 	Mat3x3 tbn;
+	Mat3x3 tbnInv;
 	RuvmCommonAttribList *pCommonAttribList;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
@@ -62,7 +70,6 @@ typedef struct {
 	int32_t rawBufSize;
 	int32_t finalBufSize;
 	int32_t loopBufSize;
-	DebugAndPerfVars *pDpVars;
 } MappingJobVars;
 
 void ruvmMapToJobMesh(void *pArgsPtr);

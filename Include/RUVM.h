@@ -81,7 +81,7 @@ typedef enum {
 	RUVM_ATTRIB_ORIGIN_MESH_IN,
 	RUVM_ATTRIB_ORIGIN_MESH_OUT,
 	RUVM_ATTRIB_ORIGIN_COMMON
-} RUVM_ATTRIB_ORIGIN;
+} RuvmAttribOrigin;
 
 typedef enum {
 	RUVM_IMAGE_UI8,
@@ -191,7 +191,7 @@ typedef struct {
 	void *pData;
 	char name[RUVM_ATTRIB_NAME_MAX_LEN];
 	RuvmAttribType type;
-	RUVM_ATTRIB_ORIGIN origin;
+	RuvmAttribOrigin origin;
 	bool interpolate;
 } RuvmAttrib;
 

@@ -8,6 +8,7 @@
 typedef RuvmAttrib Attrib;
 typedef RuvmAttribType AttribType;
 typedef RuvmAttribArray AttribArray;
+typedef RuvmAttribOrigin AttribOrigin;
 
 //TODO switch pAttrib pData ptr from void * to uint8_t *?
 
@@ -51,3 +52,5 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 void setSpecialAttribs(Mesh *pMesh, UBitField8 flags);
 void allocAttribsFromMeshArr(RuvmAlloc *pAlloc, Mesh *pMeshDest,
                              int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon);
+void initAttrib(RuvmAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
+                bool interpolate, AttribOrigin origin, AttribType type);

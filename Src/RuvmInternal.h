@@ -5,6 +5,7 @@
 
 #include <Mesh.h>
 #include <DebugAndPerf.h>
+#include <Usg.h>
 #include <Error.h>
 
 typedef uint64_t UBitField64;
@@ -54,9 +55,13 @@ typedef struct {
 } BorderTable;
 
 typedef struct {
-	RuvmMap pMap;
 	Mesh mesh;
 	BufMesh bufMesh;
+	RuvmMap pMap;
+	InFaceArr *pInFaces;
+	bool getInFaces;
+	uint64_t reallocTime;
+	Result* pResult;
 	RuvmContext pContext;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
@@ -68,6 +73,4 @@ typedef struct {
 	int32_t finalBufSize;
 	int8_t *pInVertTable;
 	int32_t id;
-	uint64_t reallocTime;
-	Result* pResult;
 } SendOffArgs;

@@ -9,9 +9,23 @@
 #include <MapFile.h>
 #include <Error.h>
 
+static
+void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable, SendOffArgs *pJobArgs) {
+	int32_t face = 0;
+	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		int32_t faceCount = pJobArgs[i].bufMesh.mesh.mesh.faceCount;
+		for (int32_t j = 0; j < faceCount; ++j) {
+			pInFaceTable[face] = pJobArgs[i].pInFaces[j];
+			face++;
+		}
+		pContext->alloc.pFree(pJobArgs[i].pInFaces);
+	}
+}
+
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-						  int8_t *pVertSeamTable, bool *pEdgeSeamTable) {
+						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
+                          InFaceArr **ppInFaceTable) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	//TODO figure out how to handle edges in local meshes,
@@ -54,10 +68,14 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 		pJobBases[i].edgeBase = pMeshOut->mesh.edgeCount;
 		copyMesh(&pMeshOut->mesh, &pJobArgs[i].bufMesh.mesh);
 	}
+	if (ppInFaceTable) {
+		*ppInFaceTable = pContext->alloc.pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
+		combineJobInFaceLists(pContext, *ppInFaceTable, pJobArgs);
+	}
 	printf("realloc time total %lu\n", reallocTime);
 	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                     pEdgeVerts, pJobBases, pVertSeamTable,
-	                     pEdgeSeamTable);
+	                     pEdgeSeamTable, ppInFaceTable);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
 		ruvmMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);

@@ -121,19 +121,22 @@ RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName,
 RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
                                   int32_t *pUsgCount, RuvmObject **ppUsgArr) {
-	ruvmLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
-	                 ppUsgArr, true);
-	return RUVM_SUCCESS;
+	return ruvmLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
+	                        ppUsgArr, true);
 }
 
 RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                            char *filePath) {
+	RuvmResult status = RUVM_NOT_SET;
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
 	int32_t objCount = 0;
 	RuvmObject *pObjArr = NULL;
 	RuvmObject *pUsgArr = NULL;
-	ruvmLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
-	                 &pMap->usgArr.count, &pUsgArr, false);
+	status = ruvmLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
+	                          &pMap->usgArr.count, &pUsgArr, false);
+	if (status != RUVM_SUCCESS) {
+		return status;
+	}
 
 	for (int32_t i = 0; i < objCount; ++i) {
 		setSpecialAttribs(pObjArr[i].pData, 0xae); //10101110 - all except for preserve
@@ -152,11 +155,12 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	pMap->usgArr.pArr = pContext->alloc.pCalloc(pMap->usgArr.count, sizeof(Usg));
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
 		setSpecialAttribs(pUsgArr[i].pData, 0x02); //000010 - set only vert pos
-		pMap->usgArr.pArr[i].origin.d[0] = pUsgArr[i].transform.d[0][3];
-		pMap->usgArr.pArr[i].origin.d[1] = pUsgArr[i].transform.d[1][3];
+		pMap->usgArr.pArr[i].origin = *(V2_F32 *)&pUsgArr[i].transform.d[3];
 		applyObjTransform(pUsgArr + i);
 	}
-	assignUsgsToVerts(pContext, pMap, pUsgArr);
+	allocUsgSquaresMesh(&pContext->alloc, pMap);
+	fillUsgSquaresMesh(pMap, pUsgArr);
+	assignUsgsToVerts(&pContext->alloc, pMap, pUsgArr);
 	//usg objects are no longer needed
 	destroyObjArr(pContext, pMap->usgArr.count, pUsgArr);
 
@@ -367,14 +371,15 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 }
 
 static
-void setAttribOrigins(AttribArray *pAttribs, RUVM_ATTRIB_ORIGIN origin) {
+void setAttribOrigins(AttribArray *pAttribs, RuvmAttribOrigin origin) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		pAttribs->pArr[i].origin = origin;
 	}
 }
 
-Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
-                     RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
+Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+                         RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList,
+                         InFaceArr **ppInFaceTable) {
 	CLOCK_INIT;
 	if (!pMeshIn) {
 		printf("Ruvm map to mesh failed, pMeshIn was null\n");
@@ -442,7 +447,7 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
 	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
-	                     pVertSeamTable, pEdgeSeamTable);
+	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable);
 	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
@@ -453,6 +458,58 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	*pMeshOut = meshOutWrap.mesh;
 	CLOCK_STOP("Realloc time");
 	return RUVM_SUCCESS;
+}
+
+static
+void InFaceTableToHashTable(RuvmAlloc *pAlloc,
+                            RuvmMap pMap, InFaceArr *pInFaceTable) {
+	UsgInFace **ppHashTable = &pMap->usgArr.pInFaceTable;
+	pMap->usgArr.tableSize = pMap->usgArr.count * 2;
+	*ppHashTable = pAlloc->pCalloc(pMap->usgArr.tableSize, sizeof(UsgInFace));
+	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
+		for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
+			uint32_t sum = pInFaceTable[i].usg + pInFaceTable[i].pArr[j];
+			int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
+			UsgInFace *pEntry = *ppHashTable + hash;
+			if (!pEntry->pEntry) {
+				pEntry->pEntry = pInFaceTable + i;
+				pEntry->face = pInFaceTable[i].pArr[j];
+				continue;
+			}
+			do {
+				if (!pEntry->pNext) {
+					pEntry = pEntry->pNext = pAlloc->pCalloc(1, sizeof(UsgInFace));
+					pEntry->pEntry = pInFaceTable + i;
+					pEntry->face = pInFaceTable[i].pArr[j];
+					break;
+				}
+				pEntry = pEntry->pNext;
+			} while(true);
+		}
+	}
+}
+
+Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+                     RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList) {
+	InFaceArr *pInFaceTable = NULL;
+	if (pMap->usgArr.count) {
+		MapFile squares = { .mesh = pMap->usgArr.squares };
+		ruvmCreateQuadTree(pContext, &squares);
+		RuvmMesh squaresOut = {0};
+		mapToMeshInternal(pContext, &squares, pMeshIn, &squaresOut, pCommonAttribList, &pInFaceTable);
+		ruvmMeshDestroy(pContext, &squaresOut);
+		sampleInAttribsAtUsgOrigins(pMap, pMeshIn, pInFaceTable);
+		InFaceTableToHashTable(&pContext->alloc, pMap, pInFaceTable);
+	}
+	mapToMeshInternal(pContext, pMap, pMeshIn, pMeshOut, pCommonAttribList, NULL);
+	if (pMap->usgArr.count) {
+		pContext->alloc.pFree(pMap->usgArr.pInFaceTable);
+		pMap->usgArr.pInFaceTable = NULL;
+		for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
+			//pContext->alloc.pFree(pInFaceTable[i].pArr);
+		}
+		pContext->alloc.pFree(pInFaceTable);
+	}
 }
 
 RuvmResult ruvmObjArrDestroy(RuvmContext pContext,

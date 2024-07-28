@@ -2128,3 +2128,12 @@ void allocAttribsFromMeshArr(RuvmAlloc *pAlloc, Mesh *pMeshDest,
 	allocAttribs(pAlloc, &pMeshDest->mesh.vertAttribs, srcCount,
 	             ppMeshSrcs, pMeshDest->vertBufSize, RUVM_DOMAIN_VERT, setCommon);
 }
+
+void initAttrib(RuvmAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
+                bool interpolate, AttribOrigin origin, AttribType type) {
+	memcpy(pAttrib->name, pName, RUVM_ATTRIB_NAME_MAX_LEN);
+	pAttrib->pData = pAlloc->pCalloc(dataLen, getAttribSize(type));
+	pAttrib->type = type;
+	pAttrib->interpolate = interpolate;
+	pAttrib->origin = origin;
+}

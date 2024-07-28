@@ -9,10 +9,32 @@ typedef struct {
 	V2_F32 origin;
 } Usg;
 
+typedef struct InFaceArr {
+	Mat3x3 tbn;
+	V3_F32 normal;
+	struct InFaceArr *pNext;
+	int32_t *pArr;
+	int32_t count;
+	int32_t usg;
+} InFaceArr;
+
+typedef struct UsgInFace {
+	struct UsgInFace *pNext;
+	InFaceArr *pEntry;
+	int32_t face;
+} UsgInFace;
+
 typedef struct {
 	Usg *pArr;
+	Mesh squares;
+	UsgInFace *pInFaceTable;
+	int32_t tableSize;
 	int32_t count;
 } UsgArr;
 
-RuvmResult assignUsgsToVerts(RuvmContext pContext,
+RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap);
+RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmObject *pUsgArr);
+RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
                              RuvmMap pMap, RuvmObject *pUsgArr);
+RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
+                                       InFaceArr *pInFaceTable);

@@ -449,6 +449,13 @@ void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
 	pAlloc->pFree(pFaceCellsTable->pFaceCells);
 }
 
+void ruvmDestroyFaceCellsEntry(RuvmAlloc *pAlloc, int32_t i,
+                               FaceCellsTable *pFaceCellsTable) {
+	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCells);
+	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCellType);
+	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pRanges);
+}
+
 void ruvmInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pState) {
 	pState->pAlloc = pAlloc;
 	pState->pMap = pMap;

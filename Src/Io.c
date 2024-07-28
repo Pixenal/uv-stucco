@@ -1,7 +1,9 @@
+//TODO these should be prefixed with RUVM_
 #define VERT_ATTRIBUTE_AMOUNT 3
 #define LOOP_ATTRIBUTE_AMOUNT 3
 #define ENCODE_DECODE_BUFFER_LENGTH 34
 #define MAP_FORMAT_NAME_MAX_LEN 14
+#define RUVM_MAP_VERSION 100
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -464,7 +466,7 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	int64_t headerSizeInBytes = headerSizeInBits / 8 + 2;
 	header.pString = pContext->alloc.pCalloc(headerSizeInBytes, 1);
 	encodeString(&header, (uint8_t *)format, &headerSizeInBits);
-	int32_t version = 100;
+	int32_t version = RUVM_MAP_VERSION;
 	encodeValue(&header, (uint8_t *)&version, 16, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&compressedDataSize, 64, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&dataSize, 64, &headerSizeInBits);
@@ -491,12 +493,21 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	return RUVM_SUCCESS;
 }
 
-static void decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
+static
+RuvmResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
 		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
-		decodeString(pData, (char *)&pAttribs->pArr[i].name, maxNameLen);
+		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
+		for (int32_t j = 0; j < i; ++j) {
+			if (0 == strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
+			    RUVM_ATTRIB_NAME_MAX_LEN)) {
+
+				return RUVM_ERROR;
+			}
+		}
 	}
+	return RUVM_SUCCESS;
 }
 
 static void decodeAttribs(RuvmContext pContext, ByteString *pData,
@@ -540,7 +551,7 @@ static RuvmHeader decodeRuvmHeader(RuvmContext pContext, ByteString *headerByteS
 }
 
 static
-bool isDataNameInvalid(ByteString *pByteString, char *pName) {
+RuvmResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 	//ensure string is aligned with byte (we need to do this manually,
 	//as decodeValue is being used instead of decodeString, given there's
 	//only 2 characters)
@@ -548,60 +559,75 @@ bool isDataNameInvalid(ByteString *pByteString, char *pName) {
 	pByteString->nextBitIndex = 0;
 	char dataName[2] = {0};
 	decodeValue(pByteString, (uint8_t *)&dataName, 16);
-	return dataName[0] != pName[0] || dataName[1] != pName[1];
+	if (dataName[0] != pName[0] || dataName[1] != pName[1]) {
+		return RUVM_ERROR;
+	}
+	else {
+		return RUVM_SUCCESS;
+	}
 }
 
 static
-void loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bool usesUsg) {
+RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bool usesUsg) {
 	createMesh(pContext, pObj, RUVM_OBJECT_DATA_MESH_INTERN);
 	RuvmMesh *pMesh = pObj->pData;
 
-	if (isDataNameInvalid(pByteString, "OS")) { //transform/ xform and type
-		return;
-	}
-	if (isDataNameInvalid(pByteString, "XF")) { //transform/ xform and type
-		return;
-	}
+	RuvmResult err = RUVM_NOT_SET;
+
+	err = isDataNameInvalid(pByteString, "OS"); //transform/ xform and type
+	RUVM_ERROR("Data name did not match 'OS'", err);
+	err = isDataNameInvalid(pByteString, "XF"); //transform/ xform and type
+	RUVM_ERROR("Data name did not match 'XF'", err);
 	for (int32_t i = 0; i < 16; ++i) {
 		int32_t x = i % 4;
 		int32_t y = i / 4;
 		decodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
 	}
-	if (isDataNameInvalid(pByteString, "OT")) { //object type
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "OT"); //object type
+	RUVM_ERROR("Data name did not match 'OT'", err);
 	decodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8);
 	if (!checkIfMesh(pObj->pData)) {
-		return;
+		err = RUVM_ERROR;
+		RUVM_ERROR("Object is not a mesh", err);
 	}
 
-	if (isDataNameInvalid(pByteString, "HD")) { //header
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "HD"); //header
+	RUVM_ERROR("Data name did not match 'HD'", err);
 	decodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
 	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->meshAttribs.count, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(pByteString, &pMesh->meshAttribs);
+	err = decodeAttribMeta(pByteString, &pMesh->meshAttribs);
+	RUVM_ERROR("Failed to decode mesh attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
 	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->faceAttribs.count, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(pByteString, &pMesh->faceAttribs);
+	err = decodeAttribMeta(pByteString, &pMesh->faceAttribs);
+	RUVM_ERROR("Failed to decode face attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->loopAttribs.count, 32);
 	pMesh->loopAttribs.pArr = pMesh->loopAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->loopAttribs.count, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(pByteString, &pMesh->loopAttribs);
+	err = decodeAttribMeta(pByteString, &pMesh->loopAttribs);
+	RUVM_ERROR("Failed to decode loop attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
 	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->edgeAttribs.count, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(pByteString, &pMesh->edgeAttribs);
+	err = decodeAttribMeta(pByteString, &pMesh->edgeAttribs);
+	RUVM_ERROR("Failed to decode edge meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
 	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->vertAttribs.count + usesUsg, sizeof(RuvmAttrib)) : NULL;
-	decodeAttribMeta(pByteString, &pMesh->vertAttribs);
+	err = decodeAttribMeta(pByteString, &pMesh->vertAttribs);
+	RUVM_ERROR("Failed to decode vert attrib meta", err);
+
+	decodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
+	decodeValue(pByteString, (uint8_t *)&pMesh->loopCount, 32);
+	decodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32);
+	decodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32);
+
 	//set usg attrib metadata if used
 	if (usesUsg) {
 		Attrib *usgAttrib = pMesh->vertAttribs.pArr + pMesh->vertAttribs.count;
@@ -612,23 +638,16 @@ void loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bo
 		usgAttrib->type = RUVM_ATTRIB_I32;
 	}
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->loopCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32);
-
 	//TODO add short headers (like 2 or 4 bytes) to the start of each
 	//of these large blocks of data, to better catch corrupt files.
 	//So one for faces, loops, edges, etc
 
-	if (isDataNameInvalid(pByteString, "MA")) { //mesh attribs
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
+	RUVM_ERROR("Data name did not match 'MA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->meshAttribs, 1);
 	stageEndWrap(pContext);
-	if (isDataNameInvalid(pByteString, "FL")) { //face list
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "FL"); //face list
+	RUVM_ERROR("Data name did not match 'FL'", err);
 	pMesh->pFaces = pContext->alloc.pCalloc(pMesh->faceCount + 1, sizeof(int32_t));
 	stageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
@@ -636,15 +655,13 @@ void loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bo
 		stageProgressWrap(pContext, i);
 	}
 	stageEndWrap(pContext);
-	if (isDataNameInvalid(pByteString, "FA")) { //face attribs
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "FA"); //face attribs
+	RUVM_ERROR("Data name did not match 'FA'", err);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->loopCount;
 	decodeAttribs(pContext, pByteString, &pMesh->faceAttribs, pMesh->faceCount);
 
-	if (isDataNameInvalid(pByteString, "LL")) { //loop and edge lists
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "LL"); //loop and edge lists
+	RUVM_ERROR("Data name did not match 'LL'", err);
 	pMesh->pLoops = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
 	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
 	stageBeginWrap(pContext, "Decoding loops", pMesh->loopCount);
@@ -655,51 +672,62 @@ void loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bo
 	}
 	stageEndWrap(pContext);
 
-	if (isDataNameInvalid(pByteString, "LA")) { //loop attribs
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "LA"); //loop attribs
+	RUVM_ERROR("Data name did not match 'LA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->loopAttribs, pMesh->loopCount);
-	if (isDataNameInvalid(pByteString, "EA")) { //edge attribs
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "EA"); //edge attribs
+	RUVM_ERROR("Data name did not match 'EA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
-	if (isDataNameInvalid(pByteString, "VA")) { //vert attribs
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "VA"); //vert attribs
+	RUVM_ERROR("Data name did not match 'VA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->vertAttribs, pMesh->vertCount);
 
-	if (isDataNameInvalid(pByteString, "OE")) { //obj end
-		return;
-	}
+	err = isDataNameInvalid(pByteString, "OE"); //obj end
+	RUVM_ERROR("Data name did not match 'OE'", err);
 	if (usesUsg) {
 		pMesh->vertAttribs.count++;
 	}
+	//TODO add RUVM_ERROR and RUVM_RETURN to all functions that return RuvmResult
+	RUVM_RETURN(err, 
+		//if error:
+		ruvmMeshDestroy(pContext, pMesh);
+		pContext->alloc.pFree(pMesh);
+	);
 }
 
 static
-void decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
-                    ByteString *dataByteString, RuvmObject **ppObjArr,
-                    RuvmObject **ppUsgArr, bool forEdit) {
+RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
+                          ByteString *dataByteString, RuvmObject **ppObjArr,
+                          RuvmObject **ppUsgArr, bool forEdit) {
 	*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(RuvmObject));
 	RUVM_ASSERT("", pHeader->usgCount >= 0);
 	bool usesUsg = pHeader->usgCount > 0 && !forEdit;
+	RuvmResult status = RUVM_NOT_SET;
 	for (int32_t i = 0; i < pHeader->objCount; ++i) {
 		//usgUsg is passed here to indicate that an extra vert
 		//attrib should be created. This would be used later to mark a verts
 		//respective usg.
-		loadObj(pContext, *ppObjArr + i, dataByteString, usesUsg);
+		status = loadObj(pContext, *ppObjArr + i, dataByteString, usesUsg);
+		if (status != RUVM_SUCCESS) {
+			return status;
+		}
 	}
 
 	*ppUsgArr = pContext->alloc.pCalloc(pHeader->usgCount, sizeof(RuvmObject));
 	for (int32_t i = 0; i < pHeader->usgCount; ++i) {
 		//usgs themselves don't need a usg attrib, so false is passed
-		loadObj(pContext, *ppUsgArr + i, dataByteString, false);
+		status = loadObj(pContext, *ppUsgArr + i, dataByteString, false);
+		if (status != RUVM_SUCCESS) {
+			return status;
+		}
 	}
+	return RUVM_SUCCESS;
 }
 
-void ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
-                      int32_t *pObjCount, RuvmObject **ppObjArr,
-                      int32_t *pUsgCount, RuvmObject **ppUsgArr, bool forEdit) {
+RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
+                            int32_t *pObjCount, RuvmObject **ppObjArr,
+                            int32_t *pUsgCount, RuvmObject **ppUsgArr, bool forEdit) {
+	RuvmResult status = RUVM_NOT_SET;
 	ByteString headerByteString = {0};
 	ByteString dataByteString = {0};
 	void *pFile;
@@ -714,6 +742,10 @@ void ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 	pContext->io.pRead(pFile, headerByteString.pString, headerSize);
 	printf("Decoding header\n");
 	RuvmHeader header = decodeRuvmHeader(pContext, &headerByteString);
+	if (strncmp(header.format,  "RUVM Map File", MAP_FORMAT_NAME_MAX_LEN) ||
+		header.version != RUVM_MAP_VERSION) {
+		return RUVM_ERROR;
+	}
 	uint8_t *dataByteStringRaw = pContext->alloc.pMalloc(header.dataSize);
 	unsigned long dataSizeUncompressed = header.dataSize;
 	printf("Reading data\n");
@@ -739,14 +771,18 @@ void ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 	}
 	if (dataSizeUncompressed != header.dataSize) {
 		printf("Failed to load RUVM file. Decompressed data size doesn't match header description\n");
-		return;
+		return RUVM_ERROR;
 	}
 	printf("Decoding data\n");
-	decodeRuvmData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr, forEdit);
+	status = decodeRuvmData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr, forEdit);
+	if (status != RUVM_SUCCESS) {
+		return status;
+	}
 	pContext->alloc.pFree(headerByteString.pString);
 	pContext->alloc.pFree(dataByteString.pString);
 	*pObjCount = header.objCount;
 	*pUsgCount = header.usgCount;
+	return RUVM_SUCCESS;
 }
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {

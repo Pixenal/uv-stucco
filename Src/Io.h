@@ -7,9 +7,9 @@
 RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject *pObjArr,
                              int32_t usgCount, RuvmObject *pUsgArr);
-void ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
-                      int32_t *pObjCount, RuvmObject **ppObjArr,
-                      int32_t *pUsgCount, RuvmObject **ppUsgArr, bool forEdit);
+RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
+                            int32_t *pObjCount, RuvmObject **ppObjArr,
+                            int32_t *pUsgCount, RuvmObject **ppUsgArr, bool forEdit);
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo);
 void ruvmIoSetDefault(RuvmContext pContext);

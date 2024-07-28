@@ -7,5 +7,19 @@
 typedef RuvmResult Result;
 
 #define RUVM_ASSERT(message, condition) \
-	if (!(condition)) printf("RUVM ASSERT MESSAGE: %s\n", message); \
+	if (!(condition)) \
+	printf("RUVM ASSERT in %s, MESSAGE: %s\n", __func__, message); \
 	assert(condition);
+
+#define RUVM_ERROR(message, err) \
+	if (err != RUVM_SUCCESS) { \
+		printf("RUVM ERROR CODE %d in %s, MESSAGE: %s\n", err, __func__, message); \
+		goto handle_error; \
+	}
+
+#define RUVM_RETURN(err, cleanup) \
+	if (err != RUVM_SUCCESS) { \
+	handle_error: \
+		##cleanup \
+	} \
+	return err;

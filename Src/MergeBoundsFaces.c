@@ -672,6 +672,17 @@ void determineLoopsToSkip(RuvmMap *pMap, Piece* pPiece) {
 }
 
 static
+int32_t getPieceCount(Piece* pPiece) {
+	int32_t count = 1;
+	Piece* pPieceRoot = pPiece->pNext;
+	while (pPiece) {
+		count++;
+		pPiece = pPiece->pNext;
+	};
+	return count;
+}
+
+static
 int32_t getFirstLoopNotSkipped(Piece **ppPiece) {
 	do {
 		for (int32_t i = 0; i < (*ppPiece)->bufFace.size; ++i) {
@@ -743,6 +754,18 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 		}*/
 	} while(1);
 	*pCount = sort - 1;
+}
+
+static
+void getPieceInFaces(RuvmAlloc *pAlloc, int32_t **ppInFaces,
+                     Piece *pPiece, int32_t pieceCount) {
+	*ppInFaces = pAlloc->pCalloc(pieceCount, sizeof(int32_t));
+	int32_t i = 0;
+	do {
+		(*ppInFaces)[i] = pPiece->pEntry->baseFace;
+		pPiece = pPiece->pNext;
+		i++;
+	} while(pPiece);
 }
 
 static
@@ -828,10 +851,20 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 			getFaceRange(&pArgs->pMap->mesh.mesh, pPieceArr->pArr[0].pEntry->faceIndex, false);
 		ruvmAllocMergeBufs(pArgs->pContext, &mergeBufHandles, totalVerts);
 		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
+			Piece *pPieceRoot = pPieceArr->pArr + pPieceRoots->pArr[j];
+			int32_t *pInFaces = NULL;
+			int32_t pieceCount = 0; //this is only need if getting in faces
+			if (pArgs->ppInFaceTable) {
+				pieceCount = getPieceCount(pPieceRoot); 
+				getPieceInFaces(&pArgs->pContext->alloc, &pInFaces, pPieceRoot, pieceCount);
+			}
 			int32_t job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
 			RUVM_ASSERT("", job >= 0 && job < pContext->threadCount);
 			ruvmMergeSingleBorderFace(pArgs, timeSpent, pPieceRoots->pArr[j], pPieceArr,
-									  &ruvmFace, &mergeBufHandles);
+									  &ruvmFace, &mergeBufHandles, pInFaces, pieceCount);
+			if (pInFaces) {
+				pArgs->pContext->alloc.pFree(pInFaces);
+			}
 			RUVM_ASSERT("", j >= 0 && j < pPieceRoots->count);
 		}
 		if (pPieceRoots->pArr) {
@@ -970,7 +1003,8 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 					  Mesh *pMeshOut, SendOffArgs *pMapJobArgs,
 					  EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
 					  CombineTables *pCTables, JobBases *pJobBases,
-					  int32_t *pJobsCompleted, void *pMutex, bool *pEdgeSeamTable) {
+					  int32_t *pJobsCompleted, void *pMutex, bool *pEdgeSeamTable,
+                      InFaceArr **ppInFaceTable) {
 	int32_t entriesPerJob = pBorderTable->count / pContext->threadCount;
 	void *jobArgPtrs[MAX_THREADS];
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -986,6 +1020,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 		pMergeJobArgs[i].pContext = pContext;
 		pMergeJobArgs[i].pMap = pMap;
 		pMergeJobArgs[i].pMeshOut = pMeshOut;
+		pMergeJobArgs[i].ppInFaceTable = ppInFaceTable;
 		pMergeJobArgs[i].pJobArgs = pMapJobArgs;
 		pMergeJobArgs[i].pEdgeVerts = pEdgeVerts;
 		pMergeJobArgs[i].pVertSeamTable = pVertSeamTable;
@@ -1005,7 +1040,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
-                          bool *pEdgeSeamTable) {
+                          bool *pEdgeSeamTable, InFaceArr **ppInFaceTable) {
 	int32_t totalBorderFaces = 0;
 	int32_t totalBorderEdges = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -1037,7 +1072,7 @@ void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
 	sendOffMergeJobs(pContext, &borderTable, mergeJobArgs, pMap, pMeshOut,
 	                 pJobArgs, pEdgeVerts, pVertSeamTable, &cTables, pJobBases,
-					 &jobsCompleted, pMutex, pEdgeSeamTable);
+					 &jobsCompleted, pMutex, pEdgeSeamTable, ppInFaceTable);
 	waitForJobs(pContext, &jobsCompleted, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	pContext->alloc.pFree(borderTable.ppTable);

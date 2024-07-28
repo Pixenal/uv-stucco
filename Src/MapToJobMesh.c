@@ -60,40 +60,6 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 }
 
 static
-Mat3x3 buildFaceTbn(FaceRange face, Mesh *pMesh) {
-	int32_t loop = face.start;
-	int32_t vertIndex = pMesh->mesh.pLoops[loop];
-	V2_F32 uv = pMesh->pUvs[loop];
-	V3_F32 vert = pMesh->pVerts[vertIndex];
-	int32_t vertIndexNext = pMesh->mesh.pLoops[face.start + 1];
-	V2_F32 uvNext = pMesh->pUvs[face.start + 1];
-	V3_F32 vertNext = pMesh->pVerts[vertIndexNext];
-	int32_t vertIndexPrev = pMesh->mesh.pLoops[face.end - 1];
-	V2_F32 uvPrev = pMesh->pUvs[face.end - 1];
-	V3_F32 vertPrev = pMesh->pVerts[vertIndexPrev];
-	//uv space direction vectors,
-	//forming the coefficient matrix
-	Mat2x2 coeffMat;
-	*(V2_F32 *)&coeffMat.d[0] = _(uvNext V2SUB uv);
-	*(V2_F32 *)&coeffMat.d[1] = _(uvPrev V2SUB uv);
-	//object space direction vectors,
-	//forming the variable matrix
-	Mat2x3 varMat;
-	V3_F32 osDirA = _(vertNext V3SUB vert);
-    V3_F32 osDirB = _(vertPrev V3SUB vert);
-	*(V3_F32 *)&varMat.d[0] = osDirA;
-	*(V3_F32 *)&varMat.d[1] = osDirB;
-	Mat2x2 coeffMatInv = mat2x2Invert(coeffMat);
-	Mat2x3 tb = mat2x2MultiplyMat2x3(coeffMatInv, varMat);
-	Mat3x3 tbn;
-	*(V3_F32 *)&tbn.d[0] = v3Normalize(*(V3_F32 *)&tb.d[0]);
-	*(V3_F32 *)&tbn.d[1] = v3Normalize(*(V3_F32 *)&tb.d[1]);
-	V3_F32 normal = _(osDirA V3CROSS osDirB);
-	*(V3_F32 *)&tbn.d[2] = v3Normalize(normal);
-	return tbn;
-}
-
-static
 Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
                        FaceCellsTable *pFaceCellsTable,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
@@ -155,6 +121,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	vars.mesh = pSend->mesh;
 	vars.pMap = pSend->pMap;
 	vars.pCommonAttribList = pSend->pCommonAttribList;
+	vars.pInFaces = pSend->pInFaces;
+	vars.getInFaces = pSend->getInFaces;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
@@ -175,6 +143,9 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	//	vars.alloc.pMalloc(sizeof(int32_t) * faceCellsTable.cellFacesMax);
 	//CLOCK_STOP("Alloc cell faces");
 	//int64_t linearizeTime = 0;
+	if (vars.getInFaces) {
+		vars.pInFaces = vars.alloc.pCalloc(8, sizeof(InFaceArr));
+	}
 	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
 		// copy faces over to a new contiguous array
 		//CLOCK_START;
@@ -188,6 +159,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		baseFace.size = baseFace.end - baseFace.start;
 		baseFace.index = i;
 		vars.tbn = buildFaceTbn(baseFace, &vars.mesh);
+		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
 		if (baseFace.size > 4) {
 			faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pUvs,
@@ -219,9 +191,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pCells);
-		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pCellType);
-		vars.alloc.pFree(faceCellsTable.pFaceCells[i].pRanges);
+		ruvmDestroyFaceCellsEntry(&vars.alloc, i, &faceCellsTable);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		if (result != RUVM_SUCCESS) {
@@ -241,6 +211,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		printf("borderTable %d\n", vars.borderTable.pTable != NULL);
 		pSend->borderTable.pTable = vars.borderTable.pTable;
 		pSend->bufMesh = vars.bufMesh;
+		pSend->pInFaces = vars.pInFaces;
 	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
 	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
