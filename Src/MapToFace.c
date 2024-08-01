@@ -325,6 +325,51 @@ void getTriScale(int32_t size, BaseTriVerts *pTri) {
 }
 
 static
+bool sampleUsg(LoopBuf *pLoop, FaceRange ruvmFace, RuvmMap pMap, FaceRange baseFace, Mesh *pInMesh, V3_F32 *pNormal) {
+	Mesh *pMapMesh = &pMap->mesh;
+	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + pLoop->ruvmLoop];
+	int32_t usg = pMapMesh->pUsg[mapLoop];
+	if (usg) {
+		bool flatCutoff = usg < 0;
+		usg = abs(usg) - 1;
+		uint32_t sum = usg + baseFace.index;
+		int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
+		UsgInFace* pEntry = pMap->usgArr.pInFaceTable + hash;
+		do {
+			if (pEntry->face == baseFace.index && pEntry->pEntry->usg == usg) {
+				break;
+			}
+			pEntry = pEntry->pNext;
+		} while (pEntry);
+		//RUVM_ASSERT("", pEntry);
+		if (pEntry) {
+			if (flatCutoff) {
+				BaseTriVerts usgTri = {
+					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
+							pInMesh->pUvs[pEntry->pEntry->tri[1]],
+							pInMesh->pUvs[pEntry->pEntry->tri[2]]},
+					.xyz = {pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[0]]],
+							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[1]]],
+							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[2]]]}
+				};
+				getTriScale(3, &usgTri);
+				V3_F32 usgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&pLoop->uvw);
+				pLoop->loopFlat = barycentricToCartesian(usgTri.xyz, &usgBc);
+				pLoop->transformed = true;
+			}
+			V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, pLoop->ruvmLoop);
+			V3_F32 up = { .0f, .0f, 1.0f };
+			float upMask = abs(_(mapRealNormal V3DOT up));
+			//pLoop->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
+			pLoop->projNormalMasked = pEntry->pEntry->normal;
+			*pNormal = pEntry->pEntry->normal;
+			return true;
+		}
+	}
+	return false;
+}
+
+static
 void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 									 FaceRange baseFace, BaseTriVerts *pBaseTri,
 									 MappingJobVars *pVars, V2_F32 tileMin, float wScale) {
@@ -361,53 +406,9 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[1]] V3MULS vertBc.d[1]));
 		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[2]] V3MULS vertBc.d[2]));
 		_(&normal V3DIVEQLS vertBc.d[0] + vertBc.d[1] + vertBc.d[2]);
-		pLoop->scale = pBaseTri->scale[pTriLoops[0]] * vertBc.d[0];
-		pLoop->scale += pBaseTri->scale[pTriLoops[1]] * vertBc.d[1];
-		pLoop->scale += pBaseTri->scale[pTriLoops[2]] * vertBc.d[2];
-		pLoop->scale /= vertBc.d[0] + vertBc.d[1] + vertBc.d[2];
 		if (pMapMesh->pUsg && pLoop->isRuvm) {
-			int32_t mapLoop = pVars->pMap->mesh.mesh.pLoops[ruvmFace.start + pLoop->ruvmLoop];
-			int32_t usg = pMapMesh->pUsg[mapLoop];
-			if (usg) {
-				bool flatCutoff = usg < 0;
-				usg = abs(usg) - 1;
-				uint32_t sum = usg + baseFace.index;
-				int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pVars->pMap->usgArr.tableSize);
-				UsgInFace* pEntry = pVars->pMap->usgArr.pInFaceTable + hash;
-				do {
-					if (pEntry->face == baseFace.index && pEntry->pEntry->usg == usg) {
-						break;
-					}
-					pEntry = pEntry->pNext;
-				} while (pEntry);
-				//RUVM_ASSERT("", pEntry);
-				if (pEntry) {
-					if (flatCutoff) {
-						BaseTriVerts usgTri = {
-							.uv = {pVars->mesh.pUvs[pEntry->pEntry->tri[0]],
-							       pVars->mesh.pUvs[pEntry->pEntry->tri[1]],
-								   pVars->mesh.pUvs[pEntry->pEntry->tri[2]]},
-							.xyz = {pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[pEntry->pEntry->tri[0]]],
-							        pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[pEntry->pEntry->tri[1]]],
-							        pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[pEntry->pEntry->tri[2]]]}
-						};
-						getTriScale(3, &usgTri);
-						V3_F32 usgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&pLoop->uvw);
-						pLoop->loopFlat = barycentricToCartesian(usgTri.xyz, &usgBc);
-						pLoop->transformed = true;
-						pLoop->scale = usgTri.scale[0] * usgBc.d[0];
-						pLoop->scale += usgTri.scale[1] * usgBc.d[1];
-						pLoop->scale += usgTri.scale[2] * usgBc.d[2];
-						pLoop->scale /= usgBc.d[0] + usgBc.d[1] + usgBc.d[2];
-					}
-					V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, pLoop->ruvmLoop);
-					V3_F32 up = { .0f, .0f, 1.0f };
-					float upMask = abs(_(mapRealNormal V3DOT up));
-					//pLoop->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
-					pLoop->projNormalMasked = pEntry->pEntry->normal;
-					normal = pEntry->pEntry->normal;
-				}
-			}
+			sampleUsg(pLoop, ruvmFace, pVars->pMap, baseFace, &pVars->mesh,
+			          &normal);
 		}
 		if (!pLoop->transformed) {
 			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);

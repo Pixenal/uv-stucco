@@ -118,11 +118,13 @@ RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName,
 	                         usgCount, pUsgArr);
 }
 
+//TODO replace these with RuvmUsg and RuvmObj arr structs, that combine arr and count
 RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
-                                  int32_t *pUsgCount, RuvmUsg **ppUsgArr) {
+                                  int32_t *pUsgCount, RuvmUsg **ppUsgArr,
+                                  int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr) {
 	return ruvmLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
-	                        ppUsgArr, true);
+	                        ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr, true);
 }
 
 RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
@@ -132,8 +134,11 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	int32_t objCount = 0;
 	RuvmObject *pObjArr = NULL;
 	RuvmUsg *pUsgArr = NULL;
+	int32_t flatCutoffCount = 0;
+	RuvmObject *pFlatCutoffArr = NULL;
 	status = ruvmLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
-	                          &pMap->usgArr.count, &pUsgArr, false);
+	                          &pMap->usgArr.count, &pUsgArr, &flatCutoffCount,
+	                          &pFlatCutoffArr, false);
 	if (status != RUVM_SUCCESS) {
 		return status;
 	}
@@ -170,11 +175,10 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 		ruvmMeshDestroy(pContext, pUsgArr[i].obj.pData);
 		pContext->alloc.pFree(pUsgArr[i].obj.pData);
 		if (pUsgArr[i].pFlatCutoff) {
-			ruvmMeshDestroy(pContext, pUsgArr[i].pFlatCutoff->pData);
-			pContext->alloc.pFree(pUsgArr[i].pFlatCutoff->pData);
 		}
 	}
-	pContext->alloc.pFree(pObjArr);
+	pContext->alloc.pFree(pUsgArr);
+	destroyObjArr(pContext, flatCutoffCount, pFlatCutoffArr);
 
 	*pMapHandle = pMap;
 	//TODO add proper checks, and return RUVM_ERROR if fails.
@@ -409,7 +413,8 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	Mesh meshInWrap = {.mesh = *pMeshIn};
 	//TODO replace hard coded names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
-	setSpecialAttribs(&meshInWrap, 0x5e); //1011110 - set all except for receive
+	UBitField8 flagsToSet = ppInFaceTable ? 0xe : 0x5e; //if ppInFaceTable don't set preserve
+	setSpecialAttribs(&meshInWrap, flagsToSet);
 
 	if (isMeshInvalid(&meshInWrap)) {
 		return RUVM_ERROR;
@@ -515,6 +520,8 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		ruvmCreateQuadTree(pContext, &squares);
 		RuvmMesh squaresOut = {0};
 		mapToMeshInternal(pContext, &squares, pMeshIn, &squaresOut, pCommonAttribList, &pInFaceTable, 1.0f);
+		//*pMeshOut = squaresOut;
+		//return RUVM_SUCCESS;
 		sampleInAttribsAtUsgOrigins(pMap, pMeshIn, squaresOut.faceCount, pInFaceTable);
 		InFaceTableToHashTable(&pContext->alloc, pMap, squaresOut.faceCount, pInFaceTable);
 		ruvmMeshDestroy(pContext, &squaresOut);
@@ -539,9 +546,6 @@ RuvmResult ruvmUsgArrDestroy(RuvmContext pContext,
                                     int32_t count, RuvmUsg *pUsgArr) {
 	for (int32_t i = 0; i < count; ++i) {
 		ruvmMeshDestroy(pContext, pUsgArr[i].obj.pData);
-		if (pUsgArr[i].pFlatCutoff) {
-			destroyObjArr(pContext, 1, pUsgArr[i].pFlatCutoff);
-		}
 	}
 	pContext->alloc.pFree(pUsgArr);
 	return RUVM_SUCCESS;

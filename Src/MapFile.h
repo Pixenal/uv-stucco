@@ -17,6 +17,7 @@ typedef struct {
 	int64_t dataSizeCompressed;
 	int32_t objCount;
 	int32_t usgCount;
+	int32_t flatCutoffCount;
 } RuvmHeader;
 
 typedef struct RuvmMapInternal {

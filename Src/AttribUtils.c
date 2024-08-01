@@ -2072,8 +2072,6 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 	}
 }
 
-//TODO why is there a flag param again?
-//Why not just set each if present?
 void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 	RuvmMesh *pCore = &pMesh->mesh;
 	if (flags >> ATTRIB_SPECIAL_VERTS & 0x01) {

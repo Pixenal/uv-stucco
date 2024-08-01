@@ -555,10 +555,15 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		pArgs->pContext->alloc.pFree(tris.pLoops);
 	}
 	else {
-		RUVM_ASSERT("", vars.loopBuf.count <= 16);
-		int32_t indices[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-		addFaceToOutMesh(&vars, indices, vars.loopBuf.count,
+		//RUVM_ASSERT("", vars.loopBuf.count <= 16);
+		int32_t *pIndices =
+			pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * vars.loopBuf.count);
+		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
+			pIndices[i] = i;
+		}
+		addFaceToOutMesh(&vars, pIndices, vars.loopBuf.count,
 		                 vars.pIndexTable, pInFaces);
+		pArgs->pContext->alloc.pFree(pIndices);
 	}
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[5] += CLOCK_TIME_DIFF(start, stop);

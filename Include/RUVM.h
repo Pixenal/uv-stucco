@@ -355,7 +355,8 @@ RuvmResult ruvmMapFileExport(RuvmContext context, const char *pName,
 RUVM_EXPORT
 RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
-                                  int32_t *pUsgCount, RuvmUsg **ppUsgArr);
+                                  int32_t *pUsgCount, RuvmUsg **ppUsgArr,
+                                  int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr);
 RUVM_EXPORT
 RuvmResult ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                            char *filePath);

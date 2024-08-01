@@ -4,6 +4,7 @@
 #define ENCODE_DECODE_BUFFER_LENGTH 34
 #define MAP_FORMAT_NAME_MAX_LEN 14
 #define RUVM_MAP_VERSION 100
+#define RUVM_FLAT_CUTOFF_HEADER_SIZE 56
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -385,12 +386,50 @@ void addSpacing(ByteString *pByteString, int32_t lenInBits, int64_t *pSize) {
 	*pSize -= lenInBits;
 }
 
+static
+int32_t addUniqToPtrArr(void *pPtr, int32_t *pCount, void **ppArr) {
+	for (int32_t i = 0; i < *pCount; ++i) {
+		if (pPtr == ppArr[i]) {
+			return i;
+		}
+	}
+	ppArr[*pCount] = pPtr;
+	++*pCount;
+	return *pCount - 1;
+}
+
+static
+void getUniqueFlatCutoffs(RuvmContext pContext, int32_t usgCount,
+                          RuvmUsg *pUsgArr, int32_t *pCutoffCount,
+                          RuvmObject ***pppCutoffs, int32_t **ppIndices) {
+	*ppIndices = pContext->alloc.pCalloc(usgCount, sizeof(int32_t));
+	*pppCutoffs = pContext->alloc.pCalloc(usgCount, sizeof(void *));
+	*pCutoffCount = 0;
+	for (int32_t i = 0; i < usgCount; ++i) {
+		if (!pUsgArr[i].pFlatCutoff) {
+			continue;
+		}
+		(*ppIndices)[i] =
+			addUniqToPtrArr(pUsgArr[i].pFlatCutoff, pCutoffCount, *pppCutoffs);
+	}
+	*pppCutoffs =
+		pContext->alloc.pRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
+}
+
 RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject *pObjArr,
                              int32_t usgCount, RuvmUsg *pUsgArr) {
 	RuvmResult err = 0;
 	ByteString header = {0};
 	ByteString data = {0};
+
+	int32_t *pCutoffIndices = NULL;
+	RuvmObject **ppCutoffs = NULL;
+	int32_t cutoffCount = 0;
+	if (usgCount) {
+		getUniqueFlatCutoffs(pContext, usgCount, pUsgArr, &cutoffCount, &ppCutoffs,
+							 &pCutoffIndices);
+	}
 
 	int64_t dataSizeInBits = 0;
 	MeshSizeInBits *pMeshSizes =
@@ -403,20 +442,23 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 		dataSizeInBits += sumOfMeshSize(pMeshSizes + i);
 	}
 	int32_t sizesIndex = objCount;
+	for (int32_t i = 0; i < cutoffCount; ++i) {
+		err = getObjDataSize(ppCutoffs[i], &dataSizeInBits, pMeshSizes + sizesIndex);
+		if (err != RUVM_SUCCESS) {
+			return err;
+		}
+		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIndex);
+		sizesIndex++;
+	}
 	for (int32_t i = 0; i < usgCount; ++i) {
 		err = getObjDataSize(&pUsgArr[i].obj, &dataSizeInBits, pMeshSizes + sizesIndex);
 		if (err != RUVM_SUCCESS) {
 			return err;
 		}
 		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIndex);
-		dataSizeInBits += 24; //3 bytes for flatten cut-off header
-		if (pUsgArr[i].pFlatCutoff) {
-			sizesIndex++;
-			err = getObjDataSize(pUsgArr[i].pFlatCutoff, &dataSizeInBits, pMeshSizes + sizesIndex);
-			if (err != RUVM_SUCCESS) {
-				return err;
-			}
-			dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIndex);
+		dataSizeInBits += RUVM_FLAT_CUTOFF_HEADER_SIZE;
+		if (!pUsgArr[i].pFlatCutoff) {
+			dataSizeInBits -= sizeof(int32_t); //no index
 		}
 		sizesIndex++;
 	}
@@ -431,21 +473,24 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 		}
 	}
 	sizesIndex = objCount;
+	for (int32_t i = 0; i < cutoffCount; ++i) {
+		err = encodeObj(&data, ppCutoffs[i], pMeshSizes + sizesIndex);
+		if (err != RUVM_SUCCESS) {
+			return err;
+		}
+		sizesIndex++;
+	}
 	for (int32_t i = 0; i < usgCount; ++i) {
 		err = encodeObj(&data, &pUsgArr[i].obj, pMeshSizes + sizesIndex);
 		if (err != RUVM_SUCCESS) {
 			return err;
 		}
 		bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
-		int64_t fcHeaderSize = 24;
+		int64_t fcHeaderSize = RUVM_FLAT_CUTOFF_HEADER_SIZE;
 		encodeDataName(&data, "FC", &fcHeaderSize); //flatten cut-off
 		encodeValue(&data, (uint8_t *)&hasFlatCutoff, 8, &fcHeaderSize);
 		if (hasFlatCutoff) {
-			sizesIndex++;
-			err = encodeObj(&data, pUsgArr[i].pFlatCutoff, pMeshSizes + sizesIndex);
-			if (err != RUVM_SUCCESS) {
-				return err;
-			}
+			encodeValue(&data, (uint8_t *)&pCutoffIndices[i], 32, &fcHeaderSize);
 		}
 		sizesIndex++;
 	}
@@ -484,7 +529,8 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	                           64 + //compressed data size
 	                           64 + //uncompressed data size
 	                           32 + //obj count
-	                           32; //usg count
+	                           32 + //usg count
+	                           32;  //flatten cutoff count
 	int64_t headerSizeInBytes = headerSizeInBits / 8 + 2;
 	header.pString = pContext->alloc.pCalloc(headerSizeInBytes, 1);
 	encodeString(&header, (uint8_t *)format, &headerSizeInBits);
@@ -494,6 +540,7 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	encodeValue(&header, (uint8_t *)&dataSize, 64, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&objCount, 32, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&usgCount, 32, &headerSizeInBits);
+	encodeValue(&header, (uint8_t *)&cutoffCount, 32, &headerSizeInBits);
 	if (isSizeInvalid(headerSizeInBits)) {
 		return RUVM_ERROR;
 	}
@@ -568,6 +615,7 @@ static RuvmHeader decodeRuvmHeader(RuvmContext pContext, ByteString *headerByteS
 	decodeValue(headerByteString, (uint8_t *)&header.dataSize, 64);
 	decodeValue(headerByteString, (uint8_t *)&header.objCount, 32);
 	decodeValue(headerByteString, (uint8_t *)&header.usgCount, 32);
+	decodeValue(headerByteString, (uint8_t *)&header.flatCutoffCount, 32);
 
 	return header;
 }
@@ -720,7 +768,8 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 static
 RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
                           ByteString *dataByteString, RuvmObject **ppObjArr,
-                          RuvmUsg **ppUsgArr, bool forEdit) {
+                          RuvmUsg **ppUsgArr, RuvmObject **ppFlatCutoffArr,
+                          bool forEdit) {
 	*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(RuvmObject));
 	RUVM_ASSERT("", pHeader->usgCount >= 0);
 	bool usesUsg = pHeader->usgCount > 0 && !forEdit;
@@ -736,6 +785,13 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
 	}
 
 	*ppUsgArr = pContext->alloc.pCalloc(pHeader->usgCount, sizeof(RuvmUsg));
+	*ppFlatCutoffArr = pContext->alloc.pCalloc(pHeader->flatCutoffCount, sizeof(RuvmObject));
+	for (int32_t i = 0; i < pHeader->flatCutoffCount; ++i) {
+		status = loadObj(pContext, *ppFlatCutoffArr + i, dataByteString, false);
+		if (status != RUVM_SUCCESS) {
+			return status;
+		}
+	}
 	for (int32_t i = 0; i < pHeader->usgCount; ++i) {
 		//usgs themselves don't need a usg attrib, so false is passed
 		status = loadObj(pContext, &(*ppUsgArr)[i].obj, dataByteString, false);
@@ -749,11 +805,11 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
 		bool hasFlatCutoff = false;
 		decodeValue(dataByteString, (uint8_t *)&hasFlatCutoff, 8);
 		if (hasFlatCutoff) {
-			(*ppUsgArr)[i].pFlatCutoff = pContext->alloc.pCalloc(1, sizeof(RuvmObject));
-			status = loadObj(pContext, (*ppUsgArr)[i].pFlatCutoff, dataByteString, false);
-			if (status != RUVM_SUCCESS) {
-				return status;
-			}
+			int32_t cutoffIndex = 0;
+			decodeValue(dataByteString, (uint8_t *)&cutoffIndex, 32);
+			RUVM_ASSERT("", cutoffIndex >= 0 &&
+			                cutoffIndex < pHeader->flatCutoffCount);
+			(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIndex;
 		}
 	}
 	return RUVM_SUCCESS;
@@ -761,7 +817,9 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
 
 RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
                             int32_t *pObjCount, RuvmObject **ppObjArr,
-                            int32_t *pUsgCount, RuvmUsg **ppUsgArr, bool forEdit) {
+                            int32_t *pUsgCount, RuvmUsg **ppUsgArr,
+	                        int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
+                            bool forEdit) {
 	RuvmResult status = RUVM_NOT_SET;
 	ByteString headerByteString = {0};
 	ByteString dataByteString = {0};
@@ -809,7 +867,8 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 		return RUVM_ERROR;
 	}
 	printf("Decoding data\n");
-	status = decodeRuvmData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr, forEdit);
+	status = decodeRuvmData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr,
+	                        ppFlatCutoffArr, forEdit);
 	if (status != RUVM_SUCCESS) {
 		return status;
 	}
@@ -817,6 +876,7 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 	pContext->alloc.pFree(dataByteString.pString);
 	*pObjCount = header.objCount;
 	*pUsgCount = header.usgCount;
+	*pFlatCutoffCount = header.flatCutoffCount;
 	return RUVM_SUCCESS;
 }
 
