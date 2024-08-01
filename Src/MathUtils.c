@@ -127,6 +127,13 @@ float v3Len(V3_F32 a) {
 	return sqrt(v3SquareLen(a));
 }
 
+float v3TriArea(V3_F32 a, V3_F32 b, V3_F32 c) {
+	V3_F32 ba = _(a V3SUB b);
+	V3_F32 bc = _(c V3SUB b);
+	V3_F32 cross = _(ba V3CROSS bc);
+	return v3Len(cross) / 2.0f;
+}
+
 _Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold) {
 	V3_F32 ac = _(a V3SUB c);
 	V3_F32 bc = _(b V3SUB c);
@@ -245,6 +252,15 @@ float v2SquareLen(V2_F32 a) {
 
 float v2Len(V2_F32 a) {
 	return sqrt(v2SquareLen(a));
+}
+
+float v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c) {
+	V2_F32 ba = _(a V2SUB b);
+	V2_F32 bc = _(c V2SUB b);
+	V3_F32 ba3 = {ba.d[0], ba.d[1], .0f};
+	V3_F32 bc3 = {bc.d[0], bc.d[1], .0f};
+	V3_F32 cross = _(ba3 V3CROSS bc3);
+	return fabs(cross.d[2]) / 2.0f;
 }
 
 void v2ModEqualScalar(V2_F32 *a, float b) {

@@ -326,6 +326,11 @@ typedef struct {
 	int32_t res;
 } RuvmImage;
 
+typedef struct {
+	RuvmObject obj;
+	RuvmObject *pFlatCutoff;
+} RuvmUsg;
+
 #define RUVM_STAGE_NAME_LEN 64
 typedef struct RuvmStageReport {
 	char stage[RUVM_STAGE_NAME_LEN];
@@ -346,11 +351,11 @@ RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
 RUVM_EXPORT
 RuvmResult ruvmMapFileExport(RuvmContext context, const char *pName,
                              int32_t objCount, RuvmObject* pObjArr,
-                             int32_t usgCount, RuvmObject* pUsgArr);
+                             int32_t usgCount, RuvmUsg* pUsgArr);
 RUVM_EXPORT
 RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
-                                  int32_t *pUsgCount, RuvmObject **ppUsgArr);
+                                  int32_t *pUsgCount, RuvmUsg **ppUsgArr);
 RUVM_EXPORT
 RuvmResult ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                            char *filePath);
@@ -364,10 +369,14 @@ RuvmResult ruvmDestroyCommonAttribs(RuvmContext pContext,
                                     RuvmCommonAttribList *pCommonAttribs);
 RUVM_EXPORT
 RuvmResult ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
-                         RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList);
+                         RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList,
+                         float wScale);
 RUVM_EXPORT
 RuvmResult ruvmObjArrDestroy(RuvmContext pContext,
                              int32_t objCount, RuvmObject *pObjArr);
+RUVM_EXPORT
+RuvmResult ruvmUsgArrDestroy(RuvmContext pContext,
+                                    int32_t count, RuvmUsg *pUsgArr);
 RUVM_EXPORT
 RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh);
 RUVM_EXPORT

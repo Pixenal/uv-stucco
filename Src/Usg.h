@@ -12,6 +12,7 @@ typedef struct {
 typedef struct InFaceArr {
 	Mat3x3 tbn;
 	V3_F32 normal;
+	int32_t tri[3];
 	struct InFaceArr *pNext;
 	int32_t *pArr;
 	int32_t count;
@@ -33,8 +34,8 @@ typedef struct {
 } UsgArr;
 
 RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap);
-RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmObject *pUsgArr);
+RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmUsg *pUsgArr);
 RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
-                             RuvmMap pMap, RuvmObject *pUsgArr);
+                             RuvmMap pMap, RuvmUsg *pUsgArr);
 RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
-                                       InFaceArr *pInFaceTable);
+                                       int32_t count, InFaceArr *pInFaceTable);

@@ -73,4 +73,5 @@ typedef struct {
 	int32_t finalBufSize;
 	int8_t *pInVertTable;
 	int32_t id;
+	float wScale;
 } SendOffArgs;

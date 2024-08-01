@@ -360,8 +360,10 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			_Bool isRuvm = getIfRuvm(pEntry, k);
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
+				
 				if (!pPiece->order[k]) {
-					return true;
+					//was not set skip, and was not given an order, must be interior
+					continue;
 				}
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
@@ -553,8 +555,8 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		pArgs->pContext->alloc.pFree(tris.pLoops);
 	}
 	else {
-		RUVM_ASSERT("", vars.loopBuf.count <= 11);
-		int32_t indices[11] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+		RUVM_ASSERT("", vars.loopBuf.count <= 16);
+		int32_t indices[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 		addFaceToOutMesh(&vars, indices, vars.loopBuf.count,
 		                 vars.pIndexTable, pInFaces);
 	}

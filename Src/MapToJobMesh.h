@@ -5,20 +5,23 @@
 #include <Utils.h>
 
 typedef struct {
+	V3_F32 uvw;
 	V3_F32 loop;
+	V3_F32 loopFlat;
 	V3_F32 normal;
 	V3_F32 bc; //barycentric coords
 	V2_F32 uv;
 	V3_F32 projNormal;
 	V3_F32 projNormalMasked;
-	float z;
+	float scale;
+	int8_t triLoops[3];
 	int8_t baseLoop;
 	uint8_t ruvmLoop : 4;
 	uint8_t onLine : 1;
 	uint8_t isBaseLoop : 1;
 	uint8_t preserve : 1;
 	uint8_t isRuvm : 1;
-	int8_t triLoops[3];
+	bool transformed;
 } LoopBuf;
 
 typedef struct {
@@ -70,6 +73,7 @@ typedef struct {
 	int32_t rawBufSize;
 	int32_t finalBufSize;
 	int32_t loopBufSize;
+	float wScale;
 } MappingJobVars;
 
 void ruvmMapToJobMesh(void *pArgsPtr);

@@ -251,23 +251,24 @@ RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
 	setSpecialAttribs(pMesh, 0xe); // 1110 - set pos uvs and normals
 }
 
-RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmObject *pUsgArr) {
+RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmUsg *pUsgArr) {
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
-		Mesh *pUsgMesh = (Mesh *)pUsgArr[i].pData;
+		Mesh *pUsgMesh = (Mesh *)pUsgArr[i].obj.pData;
 		getUsgBoundsSquare(&pMap->usgArr.squares, pUsgMesh);
 	}
 	return RUVM_SUCCESS;
 }
 
 RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
-                             RuvmMap pMap, RuvmObject *pUsgArr) {
+                             RuvmMap pMap, RuvmUsg *pUsgArr) {
 	Mesh *pSquares = &pMap->usgArr.squares;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
 	getEncasingCells(pAlloc, pMap, pSquares, &faceCellsTable,
 	                 &averageMapFacesPerFace);
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
-		Mesh *pMesh = (Mesh *)pUsgArr[i].pData;
+		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
+		Mesh *pFlatCutoff = (Mesh *)pUsgArr[i].pFlatCutoff->pData;
 		FaceRange squaresFace = getFaceRange(pSquares, i, false);
 		for (int32_t j = 0; j < faceCellsTable.pFaceCells[i].cellSize; ++j) {
 			//put this cell stuff into a generic function
@@ -304,6 +305,12 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 					V3_F32 vert = pMap->mesh.pVerts[vertIndex];
 					if (isPointInsideMesh(pAlloc, vert, pMesh)) {
 						pMap->mesh.pUsg[vertIndex] = i + 1;
+						if (pFlatCutoff &&
+						    isPointInsideMesh(pAlloc, vert, pFlatCutoff)) {
+
+							//negative indicates the vert is above the cutoff
+							pMap->mesh.pUsg[vertIndex] *= -1;
+						}
 					}
 				}
 			}
@@ -315,10 +322,10 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 }
 
 RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
-                                       InFaceArr *pInFaceTable) {
+                                       int32_t count, InFaceArr *pInFaceTable) {
 	Mesh meshInWrap = {.mesh = *pInMesh};
 	setSpecialAttribs(&meshInWrap, 0x5e); //1011110 - set all except for receive
-	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
+	for (int32_t i = 0; i < count; ++i) {
 		Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
 		V3_F32 closestBc = {FLT_MAX, FLT_MAX, FLT_MAX};
 		FaceRange closestFace = {.index = -1};
@@ -369,17 +376,21 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 			}
 		}
 		RUVM_ASSERT("", closestFace.index >= 0);
+		pInFaceTable[i].tri[0] = closestFace.start + closestFaceLoops[0];
+		pInFaceTable[i].tri[1] = closestFace.start + closestFaceLoops[1];
+		pInFaceTable[i].tri[2] = closestFace.start + closestFaceLoops[2];
 		Attrib attrib = {
 			.pData = &pInFaceTable[i].normal,
 			.interpolate = true,
 			.type = RUVM_ATTRIB_V3_F32
 		};
 		interpolateAttrib(&attrib, 0, meshInWrap.pNormalAttrib,
-		                  closestFace.start + closestFaceLoops[0],
-		                  closestFace.start + closestFaceLoops[1],
-		                  closestFace.start + closestFaceLoops[2],
+		                  pInFaceTable[i].tri[0],
+		                  pInFaceTable[i].tri[1],
+		                  pInFaceTable[i].tri[2],
 		                  closestBc);
-		pInFaceTable[i].tbn = buildFaceTbn(closestFace, &meshInWrap);
+		//pInFaceTable[i].tbn = buildFaceTbn(closestFace, &meshInWrap, closestFaceLoops);
+		
 		//TODO support usg for more than just normal maps,
 		//     add a ui to select which attribs should be uniform.
 		//     Ideally you should be able to do this per usg,

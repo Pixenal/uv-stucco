@@ -123,6 +123,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	vars.pCommonAttribList = pSend->pCommonAttribList;
 	vars.pInFaces = pSend->pInFaces;
 	vars.getInFaces = pSend->getInFaces;
+	vars.wScale = pSend->wScale;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
@@ -144,7 +145,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_STOP("Alloc cell faces");
 	//int64_t linearizeTime = 0;
 	if (vars.getInFaces) {
-		vars.pInFaces = vars.alloc.pCalloc(8, sizeof(InFaceArr));
+		vars.inFaceSize = 8;
+		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
 	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
 		// copy faces over to a new contiguous array
@@ -158,7 +160,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		baseFace.end = vars.mesh.mesh.pFaces[i + 1];
 		baseFace.size = baseFace.end - baseFace.start;
 		baseFace.index = i;
-		vars.tbn = buildFaceTbn(baseFace, &vars.mesh);
+		vars.tbn = buildFaceTbn(baseFace, &vars.mesh, NULL);
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
 		if (baseFace.size > 4) {

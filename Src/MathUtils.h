@@ -73,6 +73,7 @@ _Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold);
 float v3TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
 float v3SquareLen(V3_F32);
 float v3Len(V3_F32 a);
+float v3TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
 V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint);
 V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint);
 
@@ -96,6 +97,7 @@ V2_F32 v2ModScalar(V2_F32 a, float b);
 void v2ModEqualScalar(V2_F32 *pA, float b);
 float v2SquareLen(V2_F32 a);
 float v2Len(V2_F32 a);
+float v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c);
 int32_t v2GreaterThan(V2_F32 a, V2_F32 b);
 int32_t v2GreaterThanScalar(V2_F32 a, float b);
 int32_t v2GreaterThanEqualTo(V2_F32 a, V2_F32 b);

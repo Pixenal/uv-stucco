@@ -53,6 +53,7 @@ typedef struct {
 typedef struct {
 	V2_F32 uv[4];
 	V3_F32 xyz[4];
+	float scale[4];
 } BaseTriVerts;
 
 static
@@ -313,9 +314,20 @@ V3_F32 getLoopRealNormal(Mesh *pMesh, FaceRange *pFace, int32_t loop) {
 }
 
 static
+void getTriScale(int32_t size, BaseTriVerts *pTri) {
+	for (int32_t i = 0; i < size; ++i) {
+		int32_t iLast = i == 0 ? size - 1 : i - 1;
+		int32_t iNext = (i + 1) % size;
+		float uvArea = v2TriArea(pTri->uv[iLast], pTri->uv[i], pTri->uv[iNext]);
+		float xyzArea = v3TriArea(pTri->xyz[iLast], pTri->xyz[i], pTri->xyz[iNext]);
+		pTri->scale[i] = xyzArea / uvArea;
+	}
+}
+
+static
 void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 									 FaceRange baseFace, BaseTriVerts *pBaseTri,
-									 MappingJobVars *pVars, V2_F32 tileMin) {
+									 MappingJobVars *pVars, V2_F32 tileMin, float wScale) {
 	Mesh *pMapMesh = &pVars->pMap->mesh;
 	if (pMapMesh->pUsg) {
 		for (int32_t i = 0; i < pLoopBuf->size; ++i) {
@@ -325,37 +337,40 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 	//replace j, k, l, etc, in code that was moved to a func, but not updated,
 	//eg, the below loop should use i, not j
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
-		V3_F32 vert = pLoopBuf->buf[j].loop;
+		LoopBuf *pLoop = pLoopBuf->buf + j;
+		pLoop->uvw = pLoop->loop;
 		//uv is just the vert position before transform, so set that here
-		pLoopBuf->buf[j].uv = *(V2_F32 *)&vert;
+		pLoop->uv = *(V2_F32 *)&pLoop->uvw;
 		//find enclosing triangle
-		_((V2_F32 *)&vert V2SUBEQL tileMin);
-		V3_F32 vertBc = getBarycentricInFace(pBaseTri->uv, pLoopBuf->buf[j].triLoops,
-		                                     baseFace.size, *(V2_F32 *)&vert);
-		int8_t *pTriLoops = pLoopBuf->buf[j].triLoops;
+		_((V2_F32 *)&pLoop->uvw V2SUBEQL tileMin);
+		V3_F32 vertBc = getBarycentricInFace(pBaseTri->uv, pLoop->triLoops,
+		                                     baseFace.size, *(V2_F32 *)&pLoop->uvw);
+		int8_t *pTriLoops = pLoop->triLoops;
 		V3_F32 vertsXyz[3];
 		for (int32_t i = 0; i < 3; ++i) {
 			int32_t vertIndex =
 				pVars->mesh.mesh.pLoops[baseFace.start + pTriLoops[i]];
 			vertsXyz[i] = pVars->mesh.pVerts[vertIndex];
 		}
-		//transform vertex
-		pLoopBuf->buf[j].loop = barycentricToCartesian(vertsXyz, &vertBc);
-		pLoopBuf->buf[j].bc = vertBc;
+		pLoop->bc = vertBc;
 		V3_F32 *pInNormals = pVars->mesh.pNormals;
-		V3_F32 normal =
-			_(pInNormals[baseFace.start + pTriLoops[0]] V3MULS vertBc.d[0]);
-		_(&normal V3ADDEQL
-				_(pInNormals[baseFace.start + pTriLoops[1]] V3MULS vertBc.d[1]));
-		_(&normal V3ADDEQL
-				_(pInNormals[baseFace.start + pTriLoops[2]] V3MULS vertBc.d[2]));
+		//interpolate normals and scale
+		//TODO replace interpolation in this func with the attrib
+		//     interpolation funcions or macros
+		V3_F32 normal = _(pInNormals[baseFace.start + pTriLoops[0]] V3MULS vertBc.d[0]);
+		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[1]] V3MULS vertBc.d[1]));
+		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[2]] V3MULS vertBc.d[2]));
 		_(&normal V3DIVEQLS vertBc.d[0] + vertBc.d[1] + vertBc.d[2]);
-		if (pMapMesh->pUsg && pLoopBuf->buf[j].isRuvm) {
-			int32_t mapLoop = pVars->pMap->mesh.mesh.pLoops[ruvmFace.start + pLoopBuf->buf[j].ruvmLoop];
+		pLoop->scale = pBaseTri->scale[pTriLoops[0]] * vertBc.d[0];
+		pLoop->scale += pBaseTri->scale[pTriLoops[1]] * vertBc.d[1];
+		pLoop->scale += pBaseTri->scale[pTriLoops[2]] * vertBc.d[2];
+		pLoop->scale /= vertBc.d[0] + vertBc.d[1] + vertBc.d[2];
+		if (pMapMesh->pUsg && pLoop->isRuvm) {
+			int32_t mapLoop = pVars->pMap->mesh.mesh.pLoops[ruvmFace.start + pLoop->ruvmLoop];
 			int32_t usg = pMapMesh->pUsg[mapLoop];
-			RUVM_ASSERT("", usg >= 0);
 			if (usg) {
-				usg--;
+				bool flatCutoff = usg < 0;
+				usg = abs(usg) - 1;
 				uint32_t sum = usg + baseFace.index;
 				int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pVars->pMap->usgArr.tableSize);
 				UsgInFace* pEntry = pVars->pMap->usgArr.pInFaceTable + hash;
@@ -367,23 +382,44 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 				} while (pEntry);
 				//RUVM_ASSERT("", pEntry);
 				if (pEntry) {
-					V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, pLoopBuf->buf[j].ruvmLoop);
+					if (flatCutoff) {
+						BaseTriVerts usgTri = {
+							.uv = {pVars->mesh.pUvs[pEntry->pEntry->tri[0]],
+							       pVars->mesh.pUvs[pEntry->pEntry->tri[1]],
+								   pVars->mesh.pUvs[pEntry->pEntry->tri[2]]},
+							.xyz = {pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[pEntry->pEntry->tri[0]]],
+							        pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[pEntry->pEntry->tri[1]]],
+							        pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[pEntry->pEntry->tri[2]]]}
+						};
+						getTriScale(3, &usgTri);
+						V3_F32 usgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&pLoop->uvw);
+						pLoop->loopFlat = barycentricToCartesian(usgTri.xyz, &usgBc);
+						pLoop->transformed = true;
+						pLoop->scale = usgTri.scale[0] * usgBc.d[0];
+						pLoop->scale += usgTri.scale[1] * usgBc.d[1];
+						pLoop->scale += usgTri.scale[2] * usgBc.d[2];
+						pLoop->scale /= usgBc.d[0] + usgBc.d[1] + usgBc.d[2];
+					}
+					V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, pLoop->ruvmLoop);
 					V3_F32 up = { .0f, .0f, 1.0f };
 					float upMask = abs(_(mapRealNormal V3DOT up));
-					//pLoopBuf->buf[j].projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
-					pLoopBuf->buf[j].projNormalMasked = pEntry->pEntry->normal;
+					//pLoop->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
+					pLoop->projNormalMasked = pEntry->pEntry->normal;
 					normal = pEntry->pEntry->normal;
 				}
 			}
 		}
-		pLoopBuf->buf[j].projNormal = normal;
-		pLoopBuf->buf[j].z = vert.d[2];
+		if (!pLoop->transformed) {
+			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);
+		}
+		pLoop->projNormal = normal;
 	}
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
-		float uvScale = fabs(pBaseTri->uv[0].d[0] - pBaseTri->uv[1].d[0]);
-		float xyzScale = fabs(pBaseTri->xyz[0].d[0] - pBaseTri->xyz[1].d[0]);
-		float scale = xyzScale / uvScale;
-		_(&pLoopBuf->buf[j].loop V3ADDEQL _(pLoopBuf->buf[j].projNormal V3MULS pLoopBuf->buf[j].z * scale));
+		//this scale solution is flawed, in that it doesn't account for scaling difference
+		//across a face. Replace it with something better.
+		LoopBuf *pLoop = pLoopBuf->buf + j;
+		pLoop->loop =
+			_(pLoop->loopFlat V3ADD _(pLoop->projNormal V3MULS pLoop->uvw.d[2] * wScale));
 		//transform normal from tangent space to object space
 		//TODO only multiply by TBN if an option is set to use map normals,
 		//otherwise just use the above interpolated
@@ -556,7 +592,8 @@ static
 void initEdgeTableEntry(MappingJobVars *pVars, LocalEdge *pEntry,
                         AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
 						int32_t refEdge, int32_t refFace, int32_t isMapEdge) {
-	BufMeshIndex edge = bufMeshAddEdge(&pVars->alloc, pBufMesh, !isMapEdge, pVars->pDpVars);
+	bool realloced = false;
+	BufMeshIndex edge = bufMeshAddEdge(&pVars->alloc, pBufMesh, !isMapEdge, pVars->pDpVars, &realloced);
 	pAcfVars->edge = edge.index;
 	pEntry->edge = edge.index;
 	simpleCopyAttribs(&asMesh(pBufMesh)->mesh.edgeAttribs,
@@ -624,7 +661,8 @@ static
 void addNewLoopAndOrVert(MappingJobVars *pVars, int32_t loopBufIndex,
                          AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
 						 LoopBuf *pLoopBuf, FaceRange *pBaseFace) {
-		BufMeshIndex vert = bufMeshAddVert(&pVars->alloc, pBufMesh, true, pVars->pDpVars);
+		bool realloced = false;
+		BufMeshIndex vert = bufMeshAddVert(&pVars->alloc, pBufMesh, true, pVars->pDpVars, &realloced);
 		pAcfVars->vert = vert.index;
 		asMesh(pBufMesh)->pVerts[vert.realIndex] = pLoopBuf[loopBufIndex].loop;
 		//temporarily setting mesh data index to 0, as it's only needed if interpolation is disabled
@@ -645,7 +683,8 @@ void initMapVertTableEntry(MappingJobVars *pVars, int32_t loopBufIndex,
                            AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
 						   LoopBuf *pLoopBuf, LocalVert *pEntry,
 						   FaceRange baseFace, int32_t ruvmVert) {
-	BufMeshIndex vert = bufMeshAddVert(&pVars->alloc, pBufMesh, false, pVars->pDpVars);
+	bool realloced = false;
+	BufMeshIndex vert = bufMeshAddVert(&pVars->alloc, pBufMesh, false, pVars->pDpVars, &realloced);
 	pAcfVars->vert = vert.index;
 	asMesh(pBufMesh)->pVerts[vert.realIndex] = pLoopBuf[loopBufIndex].loop;
 	pEntry->vert = vert.index;
@@ -777,10 +816,27 @@ void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 }
 
 static
+void addInFace(MappingJobVars *pVars, int32_t face, FaceRange *pBaseFace, FaceRange *pMapFace) {
+	InFaceArr *pInFaceEntry = pVars->pInFaces + face;
+	pInFaceEntry->pArr = pVars->alloc.pMalloc(sizeof(int32_t));
+	*pInFaceEntry->pArr = pBaseFace->index;
+	pInFaceEntry->count = 1;
+	pInFaceEntry->usg = pMapFace->index;
+	int32_t faceCount = pVars->bufMesh.mesh.mesh.faceCount;
+	RUVM_ASSERT("", faceCount <= pVars->inFaceSize);
+	if (pVars->inFaceSize == faceCount) {
+		pVars->inFaceSize *= 2;
+		pVars->pInFaces =
+			pVars->alloc.pRealloc(pVars->pInFaces, sizeof(InFaceArr) * pVars->inFaceSize);
+	}
+}
+
+static
 void addClippedFaceToBufMesh(MappingJobVars *pVars,
                              LoopBufWrap *pLoopBuf, int32_t edgeFace,
 							 FaceRange ruvmFace, int32_t tile, FaceRange baseFace,
                              int32_t hasPreservedEdge, int32_t seam, int32_t onLine) {
+	bool realloced = false;
 	AddClippedFaceVars acfVars = {0};
 	BufMesh *pBufMesh = &pVars->bufMesh;
 	_Bool isBorderFace = edgeFace || onLine;
@@ -798,7 +854,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 								 &ruvmFace);
 			refFace = baseFace.index;
 		}
-		BufMeshIndex loop = bufMeshAddLoop(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars);
+		BufMeshIndex loop = bufMeshAddLoop(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars, &realloced);
 		acfVars.loop = loop.index;
 		if (!i) {
 			acfVars.loopStart = loop.index;
@@ -818,7 +874,10 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 		        refFace, &acfVars, &baseFace, &ruvmFace);
 		asMesh(pBufMesh)->mesh.pEdges[loop.realIndex] = acfVars.edge;
 	}
-	BufMeshIndex face = bufMeshAddFace(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars);
+	BufMeshIndex face = bufMeshAddFace(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars, &realloced);
+	if (pVars->getInFaces && !isBorderFace) {
+		addInFace(pVars, face.index, &baseFace, &ruvmFace);
+	}
 	acfVars.face = face.index;
 	asMesh(pBufMesh)->mesh.pFaces[face.realIndex] = acfVars.loopStart;
 	blendMapAndInAttribs(&pVars->bufMesh, &asMesh(pBufMesh)->mesh.faceAttribs,
@@ -839,7 +898,7 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 					       V2_F32 fTileMin, int32_t tile, FaceRange baseFace) {
 	FaceBounds bounds = {0};
 	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
-	BaseTriVerts baseTri;
+	BaseTriVerts baseTri = {0};
 	pDpVars->facesNotSkipped++;
 	RUVM_ASSERT("", baseFace.size >= 3 && baseFace.size <= 4);
 	for (int32_t i = 0; i < baseFace.size; ++i) {
@@ -847,6 +906,7 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 		baseTri.uv[i] = _(pVars->mesh.pUvs[loop] V2SUB fTileMin);
 		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pLoops[loop]];
 	}
+	getTriScale(baseFace.size, &baseTri);
 	_Bool degenerate;
 	degenerate = v3DegenerateTri(baseTri.xyz[0], baseTri.xyz[1],
 	                             baseTri.xyz[2], .000001f);
@@ -922,25 +982,11 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 				continue;
 			}
 			transformClippedFaceFromUvToXyz(&loopBuf, ruvmFace, baseFace, &baseTri,
-											pVars, fTileMin);
+											pVars, fTileMin, pVars->wScale);
 			int32_t faceIndex = pVars->bufMesh.mesh.mesh.faceCount;
 			addClippedFaceToBufMesh(pVars, &loopBuf, edgeFace,
 									  ruvmFace, tile, baseFace, hasPreservedEdge,
 									  seam, onLine);
-			if (pVars->getInFaces) {
-				InFaceArr *pInFaceEntry = pVars->pInFaces + faceIndex;
-				pInFaceEntry->pArr = pVars->alloc.pMalloc(sizeof(int32_t));
-				*pInFaceEntry->pArr = baseFace.index;
-				pInFaceEntry->count = 1;
-				pInFaceEntry->usg = ruvmFace.index;
-				int32_t faceCount = pVars->bufMesh.mesh.mesh.faceCount;
-				RUVM_ASSERT("", pVars->inFaceSize <= faceCount);
-				if (pVars->inFaceSize == faceCount) {
-					pVars->inFaceSize *= 2;
-					pVars->pInFaces =
-						pVars->alloc.pRealloc(pVars->pInFaces, sizeof(InFaceArr) * pVars->inFaceSize);
-				}
-			}
 		}
 	}
 	return RUVM_SUCCESS;
