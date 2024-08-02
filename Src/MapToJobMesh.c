@@ -25,6 +25,30 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	pMesh->mesh.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pMesh->edgeBufSize);
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
 	allocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
+	//create attribs for deffering offset transform until combine stage
+	//make these bufmesh only attribs a part of the special attribs,
+	//you'll need to expand the flags param to a 16 bits
+	pMesh->mesh.loopAttribs.size += 3;
+	pMesh->mesh.loopAttribs.pArr =
+		pVars->alloc.pRealloc(pMesh->mesh.loopAttribs.pArr,
+	                          pMesh->mesh.loopAttribs.size * sizeof(Attrib));
+	Attrib *pWAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count;
+	initAttrib(&pVars->alloc, pWAttrib, "RuvmW", pMesh->loopBufSize, false,
+	           RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
+	Attrib *pInNormalAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 1;
+	initAttrib(&pVars->alloc, pInNormalAttrib, "RuvmInNormal", pMesh->loopBufSize, false,
+		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
+	Attrib *pAlphaAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 2;
+	initAttrib(&pVars->alloc, pAlphaAttrib, "RuvmAlpha", pMesh->loopBufSize, false,
+		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
+	pMesh->mesh.loopAttribs.count += 3;
+	pVars->bufMesh.pWAttrib = pWAttrib;
+	pVars->bufMesh.pW = pWAttrib->pData;
+	pVars->bufMesh.pInNormalAttrib = pInNormalAttrib;
+	pVars->bufMesh.pInNormal = pInNormalAttrib->pData;
+	pVars->bufMesh.pAlphaAttrib = pAlphaAttrib;
+	pVars->bufMesh.pAlpha = pAlphaAttrib->pData;
+
 	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.loopAttribs);
 	pMesh->pUvs = pMesh->pUvAttrib->pData;
 	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.loopAttribs);

@@ -50,12 +50,6 @@ typedef struct {
 	int32_t  vert;
 } AddClippedFaceVars;
 
-typedef struct {
-	V2_F32 uv[4];
-	V3_F32 xyz[4];
-	float scale[4];
-} BaseTriVerts;
-
 static
 V3_F32 calcIntersection(LoopBufWrap *pLoopBuf, LoopInfo *pBaseLoop,
                         int32_t i, int32_t vertNextIndex, int32_t *pAlpha) {
@@ -70,10 +64,7 @@ V3_F32 calcIntersection(LoopBufWrap *pLoopBuf, LoopInfo *pBaseLoop,
          ruvmDir.d[1] * pBaseLoop->dirBack.d[0];
 	float distance =
 		sqrt(ruvmDir.d[0] * ruvmDir.d[0] + ruvmDir.d[1] * ruvmDir.d[1]);
-	*pAlpha = t / distance;
-	if (*pAlpha < .0f) {
-		*pAlpha *= -1.0f;
-	}
+	*pAlpha = fabs(t / distance);
 	return _(*pRuvmVert V3ADD _(ruvmDirBack V3MULS t));
 }
 
@@ -157,6 +148,7 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 	pNewEntry->normal = pLoopBuf->buf[i].normal;
 	pNewEntry->isRuvm = 0;
 	pNewEntry->ruvmLoop = pLoopBuf->buf[i].ruvmLoop;
+	pNewEntry->alpha = alpha;
 	pNewLoopBuf->size++;
 }
 
@@ -314,62 +306,6 @@ V3_F32 getLoopRealNormal(Mesh *pMesh, FaceRange *pFace, int32_t loop) {
 }
 
 static
-void getTriScale(int32_t size, BaseTriVerts *pTri) {
-	for (int32_t i = 0; i < size; ++i) {
-		int32_t iLast = i == 0 ? size - 1 : i - 1;
-		int32_t iNext = (i + 1) % size;
-		float uvArea = v2TriArea(pTri->uv[iLast], pTri->uv[i], pTri->uv[iNext]);
-		float xyzArea = v3TriArea(pTri->xyz[iLast], pTri->xyz[i], pTri->xyz[iNext]);
-		pTri->scale[i] = xyzArea / uvArea;
-	}
-}
-
-static
-bool sampleUsg(LoopBuf *pLoop, FaceRange ruvmFace, RuvmMap pMap, FaceRange baseFace, Mesh *pInMesh, V3_F32 *pNormal) {
-	Mesh *pMapMesh = &pMap->mesh;
-	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + pLoop->ruvmLoop];
-	int32_t usg = pMapMesh->pUsg[mapLoop];
-	if (usg) {
-		bool flatCutoff = usg < 0;
-		usg = abs(usg) - 1;
-		uint32_t sum = usg + baseFace.index;
-		int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
-		UsgInFace* pEntry = pMap->usgArr.pInFaceTable + hash;
-		do {
-			if (pEntry->face == baseFace.index && pEntry->pEntry->usg == usg) {
-				break;
-			}
-			pEntry = pEntry->pNext;
-		} while (pEntry);
-		//RUVM_ASSERT("", pEntry);
-		if (pEntry) {
-			if (flatCutoff) {
-				BaseTriVerts usgTri = {
-					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
-							pInMesh->pUvs[pEntry->pEntry->tri[1]],
-							pInMesh->pUvs[pEntry->pEntry->tri[2]]},
-					.xyz = {pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[0]]],
-							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[1]]],
-							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[2]]]}
-				};
-				getTriScale(3, &usgTri);
-				V3_F32 usgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&pLoop->uvw);
-				pLoop->loopFlat = barycentricToCartesian(usgTri.xyz, &usgBc);
-				pLoop->transformed = true;
-			}
-			V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, pLoop->ruvmLoop);
-			V3_F32 up = { .0f, .0f, 1.0f };
-			float upMask = abs(_(mapRealNormal V3DOT up));
-			//pLoop->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
-			pLoop->projNormalMasked = pEntry->pEntry->normal;
-			*pNormal = pEntry->pEntry->normal;
-			return true;
-		}
-	}
-	return false;
-}
-
-static
 void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 									 FaceRange baseFace, BaseTriVerts *pBaseTri,
 									 MappingJobVars *pVars, V2_F32 tileMin, float wScale) {
@@ -407,8 +343,10 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[2]] V3MULS vertBc.d[2]));
 		_(&normal V3DIVEQLS vertBc.d[0] + vertBc.d[1] + vertBc.d[2]);
 		if (pMapMesh->pUsg && pLoop->isRuvm) {
-			sampleUsg(pLoop, ruvmFace, pVars->pMap, baseFace, &pVars->mesh,
-			          &normal);
+			V3_F32 usgBc = {0};
+			sampleUsg(pLoop->ruvmLoop, pLoop->uvw, &pLoop->loopFlat,
+			          &pLoop->transformed, &usgBc, ruvmFace, pVars->pMap,
+			          baseFace.index, &pVars->mesh, &normal, true);
 		}
 		if (!pLoop->transformed) {
 			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);
@@ -416,21 +354,28 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 		pLoop->projNormal = normal;
 	}
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
-		//this scale solution is flawed, in that it doesn't account for scaling difference
-		//across a face. Replace it with something better.
 		LoopBuf *pLoop = pLoopBuf->buf + j;
-		pLoop->loop =
-			_(pLoop->loopFlat V3ADD _(pLoop->projNormal V3MULS pLoop->uvw.d[2] * wScale));
+		if (pLoop->isRuvm) {
+			pLoop->loop =
+				_(pLoop->loopFlat V3ADD _(pLoop->projNormal V3MULS pLoop->uvw.d[2] * wScale));
+		}
+		else {
+			//offset will be deferred to combine stage,
+			//to allow for interpolation of usg normals.
+			//W will be add to the loop in the add to face function after this func
+			pLoop->loop = pLoop->loopFlat;
+		}
 		//transform normal from tangent space to object space
 		//TODO only multiply by TBN if an option is set to use map normals,
 		//otherwise just use the above interpolated
 		Mat3x3 tbn = pVars->tbn;
-		V3_F32 normal;
+		//uncomment normal once you reenable normal masking based on zup mask
+		//V3_F32 normal;
 		if (pLoopBuf->buf[j].isRuvm) {
-			normal = pLoopBuf->buf[j].projNormalMasked;
+			//normal = pLoopBuf->buf[j].projNormalMasked;
 		}
 		else {
-			normal = pLoopBuf->buf[j].projNormal;
+			//normal = pLoopBuf->buf[j].projNormal;
 		}
 		//TODO your currently using a single tbn per face, which is going to give flat faces on dense maps.
 		//     Generate tangents per vertex, and interpolate across the face, and build a tbn using that instead.
@@ -845,6 +790,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 		int32_t refFace;
 		int32_t isRuvm = pLoopBuf->buf[i].isRuvm;
 		if (!isRuvm || pLoopBuf->buf[i].onLine) {
+			//TODO these only add verts, not loops. Outdated name?
 			addNewLoopAndOrVert(pVars, i, &acfVars, &pVars->bufMesh,
 			                    pLoopBuf->buf, &baseFace);
 			refFace = ruvmFace.index;
@@ -860,6 +806,9 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 		if (!i) {
 			acfVars.loopStart = loop.index;
 		}
+		pBufMesh->pW[loop.realIndex] = pLoopBuf->buf[i].uvw.d[2];
+		pBufMesh->pInNormal[loop.realIndex] = pLoopBuf->buf[i].projNormal;
+		pBufMesh->pAlpha[loop.realIndex] = pLoopBuf->buf[i].alpha;
 		asMesh(pBufMesh)->mesh.pLoops[loop.realIndex] = acfVars.vert;
 		asMesh(pBufMesh)->pNormals[loop.realIndex] = pLoopBuf->buf[i].normal;
 		asMesh(pBufMesh)->pUvs[loop.realIndex] = pLoopBuf->buf[i].uv;

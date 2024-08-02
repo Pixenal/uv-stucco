@@ -14,6 +14,7 @@ typedef struct {
 	V3_F32 projNormal;
 	V3_F32 projNormalMasked;
 	float scale;
+	float alpha;
 	int8_t triLoops[3];
 	int8_t baseLoop;
 	uint8_t ruvmLoop : 4;

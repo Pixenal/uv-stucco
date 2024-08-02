@@ -144,7 +144,6 @@ void getTri(V3_F32 *pTri, int32_t *pVerts, Mesh *pMesh, FaceRange *pFace,
 
 }
 
-static
 bool isPointInsideMesh(RuvmAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh) {
 	//winding number test, with ray aligned with z axis
 	//(so flatten point and mesh into 2D (x,y))
@@ -396,4 +395,50 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 		//     Ideally you should be able to do this per usg,
 		//     though you'd need to store usg names for that to work.
 	}
+}
+
+bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
+               V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
+               Mesh *pInMesh, V3_F32 *pNormal, bool useFlatCutoff) {
+	Mesh *pMapMesh = &pMap->mesh;
+	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + ruvmLoop];
+	int32_t usg = pMapMesh->pUsg[mapLoop];
+	if (usg) {
+		bool flatCutoff = usg < 0;
+		usg = abs(usg) - 1;
+		uint32_t sum = usg + inFace;
+		int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
+		UsgInFace* pEntry = pMap->usgArr.pInFaceTable + hash;
+		do {
+			if (pEntry->face == inFace && pEntry->pEntry && pEntry->pEntry->usg == usg) {
+				break;
+			}
+			pEntry = pEntry->pNext;
+		} while(pEntry);
+		//RUVM_ASSERT("", pEntry);
+		if (pEntry) {
+			if (useFlatCutoff && flatCutoff) {
+				BaseTriVerts usgTri = {
+					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
+							pInMesh->pUvs[pEntry->pEntry->tri[1]],
+							pInMesh->pUvs[pEntry->pEntry->tri[2]]},
+					.xyz = {pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[0]]],
+							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[1]]],
+							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[2]]]}
+				};
+				getTriScale(3, &usgTri);
+				*pUsgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&uvw);
+				*pPos = barycentricToCartesian(usgTri.xyz, pUsgBc);
+				*pTransformed = true;
+			}
+			//V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, ruvmLoop);
+			//V3_F32 up = { .0f, .0f, 1.0f };
+			//float upMask = abs(_(mapRealNormal V3DOT up));
+			//pLoop->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
+			//pLoop->projNormalMasked = pEntry->pEntry->normal;
+			*pNormal = pEntry->pEntry->normal;
+			return true;
+		}
+	}
+	return false;
 }

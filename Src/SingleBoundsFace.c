@@ -13,6 +13,8 @@
 #include <MathUtils.h>
 #include <Utils.h>
 #include <AttribUtils.h>
+#include <MapToJobMesh.h>
+#include <Usg.h>
 #include <Error.h>
 
 typedef struct {
@@ -92,6 +94,8 @@ void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
 		pHandle->pSortedVerts =
 			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 		pHandle->size = totalVerts;
+		pHandle->pIndexTable =
+			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
 	}
 }
 
@@ -140,15 +144,59 @@ void buildApproximateTbnInverse(Vars *pVars) {
 	RUVM_ASSERT("", mat3x3IsFinite(&pVars->tbnInv));
 }
 
+static
+void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
+	BorderFace *pEntry, BufMesh *pBufMesh,
+	int32_t ruvmEdge, int32_t *pVert,
+	BorderInInfo *pInInfo, int32_t ruvmFace,
+	int32_t loop, int32_t loopLocal, int32_t outVert, Piece *pPieceRoot) {
+	V3_F32 posFlat = pBufMesh->mesh.pVerts[*pVert];
+	float w = pBufMesh->pW[loop];
+	V3_F32 projNormal = pBufMesh->pInNormal[loop];
+	V3_F32 pos = _(posFlat V3ADD _(projNormal V3MULS w * pArgs->wScale));
+	if (!getIfOnInVert(pEntry, loopLocal) && !pArgs->ppInFaceTable) {
+		V3_F32 uvw;
+		*(V2_F32 *)&uvw = pBufMesh->mesh.pUvs[loop];
+		uvw.d[2] = pBufMesh->pW[loop];
+		RuvmMap pMap = pArgs->pMap;
+		FaceRange mapFace = getFaceRange(&pMap->mesh, ruvmFace, false);
+		V3_F32 normal = {0};
+		V3_F32 usgBc = {0};
+		bool transformed = false;
+		for (int32_t i = 0; i < mapFace.size; ++i) {
+			int32_t mapLoop = getMapLoop(pEntry, pArgs->pMap, loopLocal);
+			int32_t mapVert = pMap->mesh.mesh.pLoops[mapFace.start + mapLoop];
+			int32_t usgIndex = pMap->mesh.pUsg[mapVert];
+			if (!usgIndex) {
+				continue;
+			}
+			usgIndex = abs(usgIndex) - 1;
+			Usg *pUsg = pMap->usgArr.pArr + usgIndex;
+			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
+				bool flatCutoff = pUsg->pFlatCutoff &&
+					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
+				bool inside = sampleUsg(mapLoop, uvw, &posFlat, &transformed, &usgBc, mapFace, pMap, pEntry->baseFace, pArgs->pInMesh, &normal, flatCutoff);
+				if (inside) {
+					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
+					break;
+				}
+			}
+		}
+	}
+	pArgs->pMeshOut->pVerts[outVert] = pos;
+}
+
 static void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
                                BorderFace *pEntry, BufMesh *pBufMesh,
 							   int32_t ruvmEdge, int32_t *pVert,
 							   BorderInInfo *pInInfo, int32_t ruvmFace,
-							   int32_t loop) {
+							   int32_t loop, int32_t loopLocal, Piece *pPieceRoot) {
 	bool realloced = false;
 	int32_t outVert = meshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
 	copyAllAttribs(&pArgs->pMeshOut->mesh.vertAttribs, outVert,
 				   &asMesh(pBufMesh)->mesh.vertAttribs, *pVert);
+	transformDeferredVert(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge, pVert,
+	                      pInInfo, ruvmFace, loop, loopLocal, outVert, pPieceRoot);
 	*pVert = outVert;
 	pVertEntry->vert = outVert;
 	pVertEntry->tile = pEntry->tile;
@@ -200,7 +248,7 @@ void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
 	if (!pVertEntry->loops) {
 		initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-		                   pVert, &inInfo, pEntry->faceIndex, loop);
+		                   pVert, &inInfo, pEntry->faceIndex, loop, k, pVars->pPieceRoot);
 	}
 	else {
 		do {
@@ -241,7 +289,7 @@ void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
 				pVertEntry = pVertEntry->pNext =
 					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderVert));
 				initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-				                   pVert, &inInfo, pEntry->faceIndex, loop);
+				                   pVert, &inInfo, pEntry->faceIndex, loop, k, pVars->pPieceRoot);
 				break;
 			}
 			pVertEntry = pVertEntry->pNext;
@@ -444,7 +492,6 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			pVars->infoBufSize++;
 			RUVM_ASSERT("", k >= 0 && k < face.size);
 		}
-		pArgs->pContext->alloc.pFree(pEntry);
 		pPiece = pPiece->pNext;
 	} while(pPiece);
 	return false;
@@ -500,6 +547,16 @@ void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
 				   &asMesh(pBufMesh)->mesh.faceAttribs,
 				   pVars->loopBuf.pBuf[0].bufFace);
 	pMeshOut->mesh.pFaces[outFace] = loopBase;
+}
+
+static
+void destroyEntries(RuvmContext pContext, Piece *pPiece) {
+	do {
+		if (pPiece->pEntry) {
+			pContext->alloc.pFree(pPiece->pEntry);
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
 }
 
 void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
@@ -565,6 +622,7 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		                 vars.pIndexTable, pInFaces);
 		pArgs->pContext->alloc.pFree(pIndices);
 	}
+	destroyEntries(pArgs->pContext, vars.pPieceRoot);
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[5] += CLOCK_TIME_DIFF(start, stop);
 }

@@ -758,7 +758,7 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 		pMesh->vertAttribs.count++;
 	}
 	//TODO add RUVM_ERROR and RUVM_RETURN to all functions that return RuvmResult
-	RUVM_RETURN(err, 
+	RUVM_RETURN(err,
 		//if error:
 		ruvmMeshDestroy(pContext, pMesh);
 		pContext->alloc.pFree(pMesh);

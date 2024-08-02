@@ -1004,7 +1004,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 					  EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
 					  CombineTables *pCTables, JobBases *pJobBases,
 					  int32_t *pJobsCompleted, void *pMutex, bool *pEdgeSeamTable,
-                      InFaceArr **ppInFaceTable) {
+                      InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh) {
 	int32_t entriesPerJob = pBorderTable->count / pContext->threadCount;
 	void *jobArgPtrs[MAX_THREADS];
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -1030,6 +1030,8 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 		pMergeJobArgs[i].job = i;
 		pMergeJobArgs[i].pJobsCompleted = pJobsCompleted;
 		pMergeJobArgs[i].pMutex = pMutex;
+		pMergeJobArgs[i].wScale = wScale;
+		pMergeJobArgs[i].pInMesh = pInMesh;
 		jobArgPtrs[i] = pMergeJobArgs + i;
 	}
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
@@ -1040,7 +1042,8 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
-                          bool *pEdgeSeamTable, InFaceArr **ppInFaceTable) {
+                          bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
+                          float wScale, Mesh *pInMesh) {
 	int32_t totalBorderFaces = 0;
 	int32_t totalBorderEdges = 0;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
@@ -1072,7 +1075,8 @@ void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
 	sendOffMergeJobs(pContext, &borderTable, mergeJobArgs, pMap, pMeshOut,
 	                 pJobArgs, pEdgeVerts, pVertSeamTable, &cTables, pJobBases,
-					 &jobsCompleted, pMutex, pEdgeSeamTable, ppInFaceTable);
+					 &jobsCompleted, pMutex, pEdgeSeamTable, ppInFaceTable,
+	                 wScale, pInMesh);
 	waitForJobs(pContext, &jobsCompleted, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	pContext->alloc.pFree(borderTable.ppTable);

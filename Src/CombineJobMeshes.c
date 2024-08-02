@@ -25,7 +25,7 @@ void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable, SendOf
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                          InFaceArr **ppInFaceTable) {
+                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	//TODO figure out how to handle edges in local meshes,
@@ -75,7 +75,7 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	printf("realloc time total %lu\n", reallocTime);
 	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                     pEdgeVerts, pJobBases, pVertSeamTable,
-	                     pEdgeSeamTable, ppInFaceTable);
+	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh);
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
 		ruvmMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);

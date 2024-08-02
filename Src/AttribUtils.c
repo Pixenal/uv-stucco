@@ -256,6 +256,9 @@ void *attribAsVoid(RuvmAttrib *pAttrib, int32_t index) {
 
 int32_t copyAttrib(RuvmAttrib *pDest, int32_t iDest,
                    RuvmAttrib *pSrc, int32_t iSrc) {
+	if (pSrc->origin == RUVM_ATTRIB_ORIGIN_IGNORE) {
+		return 0;
+	}
 	if (pSrc->type != pDest->type) {
 		return 1;
 	}
@@ -1925,6 +1928,9 @@ void allocAttribs(RuvmAlloc *pAlloc, AttribArray *pDest,
 		AttribArray *pSrc = getAttribArrFromDomain(&ppSrcArr[i]->mesh, domain);
 		if (pSrc && pSrc->count) {
 			for (int32_t j = 0; j < pSrc->count; ++j) {
+				if (pSrc->pArr[j].origin == RUVM_ATTRIB_ORIGIN_IGNORE) {
+					continue;
+				}
 				Attrib *pAttrib = getAttrib(pSrc->pArr[j].name, pDest);
 				if (pAttrib) {
 					//if attribute already exists in destination,

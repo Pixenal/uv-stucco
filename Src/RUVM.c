@@ -161,8 +161,10 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
 		setSpecialAttribs(pUsgArr[i].obj.pData, 0x02); //000010 - set only vert pos
 		pMap->usgArr.pArr[i].origin = *(V2_F32 *)&pUsgArr[i].obj.transform.d[3];
+		pMap->usgArr.pArr[i].pMesh = pUsgArr[i].obj.pData;
 		applyObjTransform(&pUsgArr[i].obj);
 		if (pUsgArr[i].pFlatCutoff) {
+			pMap->usgArr.pArr[i].pFlatCutoff = pUsgArr[i].pFlatCutoff->pData;
 			setSpecialAttribs(pUsgArr[i].pFlatCutoff->pData, 0x02); //000010 - set only vert pos
 			applyObjTransform(pUsgArr[i].pFlatCutoff);
 		}
@@ -170,15 +172,7 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	allocUsgSquaresMesh(&pContext->alloc, pMap);
 	fillUsgSquaresMesh(pMap, pUsgArr);
 	assignUsgsToVerts(&pContext->alloc, pMap, pUsgArr);
-	//usg objects are no longer needed
-	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
-		ruvmMeshDestroy(pContext, pUsgArr[i].obj.pData);
-		pContext->alloc.pFree(pUsgArr[i].obj.pData);
-		if (pUsgArr[i].pFlatCutoff) {
-		}
-	}
-	pContext->alloc.pFree(pUsgArr);
-	destroyObjArr(pContext, flatCutoffCount, pFlatCutoffArr);
+	pMap->usgArr.pMemArr = pUsgArr;
 
 	*pMapHandle = pMap;
 	//TODO add proper checks, and return RUVM_ERROR if fails.
@@ -469,7 +463,7 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
 	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
-	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable);
+	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale, &meshInWrap);
 	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
