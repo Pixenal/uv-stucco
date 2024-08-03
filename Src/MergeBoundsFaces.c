@@ -91,9 +91,9 @@ void addLoopsWithSingleVert(MergeSendOffArgs *pArgs, PieceArr *pPieceArr,
 static
 void initLocalEdgeTableEntry(BorderVert *pEdgeEntry, Piece *pPiece,
                              int32_t ruvmEdge, BorderInInfo *pInInfo,
-							 int32_t loop, int32_t faceStart) {
+							 int32_t loop, int32_t faceStart, V2_I32 tileMin) {
 	pEdgeEntry->ruvmEdge = ruvmEdge;
-	pEdgeEntry->tile = pPiece->pEntry->tile;
+	pEdgeEntry->tile = tileMin;
 	pEdgeEntry->baseEdge = pInInfo->edge;
 	pEdgeEntry->baseVert = pInInfo->vert;
 	pEdgeEntry->loops = 1;
@@ -107,6 +107,7 @@ static
 void addLoopToLocalEdgeTable(MergeSendOffArgs *pArgs, FaceRange *pRuvmFace, int32_t tableSize,
                              BorderVert *localEdgeTable, BorderFace *pEntry,
 							 int32_t faceStart, int32_t k, Piece *pPiece) {
+	V2_I32 tileMin = getTileMinFromBoundsEntry(pEntry);
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	Mesh *pInMesh = &pArgs->pJobArgs[pEntry->job].mesh;
 	_Bool isOnInVert = getIfOnInVert(pEntry, k);
@@ -122,7 +123,7 @@ void addLoopToLocalEdgeTable(MergeSendOffArgs *pArgs, FaceRange *pRuvmFace, int3
 	BorderVert *pEdgeEntry = localEdgeTable + hash;
 	if (!pEdgeEntry->loops) {
 		initLocalEdgeTableEntry(pEdgeEntry, pPiece, mapEdge, &inInfo,
-		                        k, faceStart);
+		                        k, faceStart, tileMin);
 	}
 	else {
 		do {
@@ -135,7 +136,8 @@ void addLoopToLocalEdgeTable(MergeSendOffArgs *pArgs, FaceRange *pRuvmFace, int3
 			}
 			else {
 				match =  pEdgeEntry->ruvmEdge == mapEdge &&
-						 pEdgeEntry->tile == pEntry->tile &&
+						 pEdgeEntry->tile.d[0] == tileMin.d[0] &&
+						 pEdgeEntry->tile.d[1] == tileMin.d[1] &&
 						 pEdgeEntry->baseEdge == inInfo.edge;
 			}
 			if (match) {
@@ -147,7 +149,7 @@ void addLoopToLocalEdgeTable(MergeSendOffArgs *pArgs, FaceRange *pRuvmFace, int3
 				pEdgeEntry = pEdgeEntry->pNext =
 					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderVert));
 					initLocalEdgeTableEntry(pEdgeEntry, pPiece, mapEdge, &inInfo,
-					                        k, faceStart);
+					                        k, faceStart, tileMin);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
@@ -259,7 +261,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			RUVM_ASSERT("", pArgs->pJobArgs[0].pInVertTable[inInfo.vert] >= 0); //pInVertTable is 0 .. 3
 			RUVM_ASSERT("", pArgs->pJobArgs[0].pInVertTable[inInfo.vert] <= 3); 
 			baseKeep = pArgs->pJobArgs[0].pInVertTable[inInfo.vert] > 2;
-			pPiece->keepOnInVert |= baseKeep << i;
+			//pPiece->keepOnInVert |= baseKeep << i;
 		}
 		else {
 			//seamVert = pVertSeamTable[inInfo.vert] == 1;

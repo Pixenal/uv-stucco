@@ -262,11 +262,10 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 	} while (cellStackPtr >= 0);
 }
 
-static
-void checkIfFaceIsInsideTile(int32_t vertCount,
-                             V2_F32 *pVerts, FaceBounds *pFaceBounds,
-							 int32_t *pIsInsideBuffer, int32_t *pFaceVertInside,
-							 V2_I32 tileMin) {
+int32_t checkIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
+                                FaceBounds *pFaceBounds, V2_I32 tileMin) {
+	int32_t isInsideBuffer[4] = {1, 1, 1, 1};
+	int32_t faceVertInside = 0;
 	for (int32_t i = 0; i < vertCount; ++i) {
 		//check if current edge intersects tile
 		int32_t nexti = (i + 1) % vertCount;
@@ -276,15 +275,27 @@ void checkIfFaceIsInsideTile(int32_t vertCount,
 			V2_F32 cellPoint = {tileMin.d[0] + j % 2, tileMin.d[1] + j / 2};
 			V2_F32 cellDir = _(cellPoint V2SUB pVerts[i]);
 			float dot = _(loopCross V2DOT cellDir);
-			pIsInsideBuffer[j] *= dot < .0f;
+			isInsideBuffer[j] *= dot < .0f;
 		}
 		//in addition, test for face verts inside tile
 		//edge cases may not be cause by the above,
 		//like if a face entered the tile, and then exited the same side,
 		//with a single vert in the tile. Checking for verts will catch this:
-		*pFaceVertInside += _(pVerts[i] V2GREAT pFaceBounds->fMin) &&
+		faceVertInside += _(pVerts[i] V2GREAT pFaceBounds->fMin) &&
 		                    _(pVerts[i] V2LESSEQL pFaceBounds->fMax);
 	}
+	int32_t isInside = isInsideBuffer[0] || isInsideBuffer[1] ||
+						isInsideBuffer[2] || isInsideBuffer[3];
+	int32_t isFullyEnclosed = isInsideBuffer[0] && isInsideBuffer[1] &&
+								isInsideBuffer[2] && isInsideBuffer[3];
+	if (isFullyEnclosed) {
+		return 1;
+	}
+	if (!faceVertInside && !isInside) {
+		//face is not inside current tile
+		return 0;
+	}
+	return 2;
 }
 
 static
@@ -293,20 +304,10 @@ int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
 								  EncasingCells *pCellsBuffer, V2_I32 tileMin) {
 	//Don't check if in tile, if pFaceBounds is NULL
 	if (pFaceBounds) {
-		int32_t isInsideBuffer[4] = {1, 1, 1, 1};
-		int32_t faceVertInside = 0;
-		checkIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, isInsideBuffer,
-								&faceVertInside, tileMin);
-		int32_t isInside = isInsideBuffer[0] || isInsideBuffer[1] ||
-						   isInsideBuffer[2] || isInsideBuffer[3];
-		int32_t isFullyEnclosed = isInsideBuffer[0] && isInsideBuffer[1] &&
-								  isInsideBuffer[2] && isInsideBuffer[3];
-		if (isFullyEnclosed) {
-			return 1;
-		}
-		if (!faceVertInside && !isInside) {
-			//face is not inside current tile
-			return 0;
+		int32_t result =
+			checkIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, tileMin);
+		if (result != 2) {
+			return result;
 		}
 	}
 	//find fully encasing cell using clipped face
@@ -960,6 +961,16 @@ void ruvmDestroyQuadTree(RuvmContext pContext, QuadTree *pTree) {
 	pContext->alloc.pFree(pTree->cellTable.pArr);
 }
 
+void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
+                              Mesh *pMesh, FaceRange *pFace) {
+	getFaceBounds(pFaceBounds, pMesh->pUvs, *pFace);
+	pFaceBounds->fMinSmall = pFaceBounds->fMin;
+	pFaceBounds->fMaxSmall = pFaceBounds->fMax;
+	pFaceBounds->min = v2FloorAssign(&pFaceBounds->fMin);
+	pFaceBounds->max = v2FloorAssign(&pFaceBounds->fMax);
+	_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
+}
+
 void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
                       Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
 					  int32_t *pAverageMapFacesPerFace) {
@@ -970,12 +981,7 @@ void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceRange faceInfo = getFaceRange(pMesh, i, false);
 		FaceBounds faceBounds = {0};
-		getFaceBounds(&faceBounds, pMesh->pUvs, faceInfo);
-		faceBounds.fMinSmall = faceBounds.fMin;
-		faceBounds.fMaxSmall = faceBounds.fMax;
-		faceBounds.min = v2FloorAssign(&faceBounds.fMin);
-		faceBounds.max = v2FloorAssign(&faceBounds.fMax);
-		_(&faceBounds.fMax V2ADDEQLS 1.0f);
+		getFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);
 		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
 		for (int32_t j = 0; j < faceInfo.size; ++j) {
 			pVertBuf[j] = pMesh->pUvs[faceInfo.start + j];

@@ -80,4 +80,4 @@ typedef struct {
 void ruvmMapToJobMesh(void *pArgsPtr);
 Result ruvmMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
                          DebugAndPerfVars *pDpVars,
-					     V2_F32 fTileMin, int32_t tile, FaceRange baseFace);
+					     V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace);

@@ -146,17 +146,19 @@ void buildApproximateTbnInverse(Vars *pVars) {
 
 static
 void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
-	BorderFace *pEntry, BufMesh *pBufMesh,
-	int32_t ruvmEdge, int32_t *pVert,
-	BorderInInfo *pInInfo, int32_t ruvmFace,
-	int32_t loop, int32_t loopLocal, int32_t outVert, Piece *pPieceRoot) {
+                           BorderFace *pEntry, BufMesh *pBufMesh,
+                           int32_t ruvmEdge, int32_t *pVert,
+                           BorderInInfo *pInInfo, int32_t ruvmFace,
+                           int32_t loop, int32_t loopLocal, int32_t outVert,
+                           Piece *pPieceRoot, V2_I32 tileMin) {
 	V3_F32 posFlat = pBufMesh->mesh.pVerts[*pVert];
 	float w = pBufMesh->pW[loop];
 	V3_F32 projNormal = pBufMesh->pInNormal[loop];
 	V3_F32 pos = _(posFlat V3ADD _(projNormal V3MULS w * pArgs->wScale));
+	V2_F32 fTileMin = {(float)tileMin.d[0], (float)tileMin.d[1]};
 	if (!getIfOnInVert(pEntry, loopLocal) && !pArgs->ppInFaceTable) {
 		V3_F32 uvw;
-		*(V2_F32 *)&uvw = pBufMesh->mesh.pUvs[loop];
+		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[loop] V2SUB fTileMin);
 		uvw.d[2] = pBufMesh->pW[loop];
 		RuvmMap pMap = pArgs->pMap;
 		FaceRange mapFace = getFaceRange(&pMap->mesh, ruvmFace, false);
@@ -175,7 +177,9 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
 				bool flatCutoff = pUsg->pFlatCutoff &&
 					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
-				bool inside = sampleUsg(mapLoop, uvw, &posFlat, &transformed, &usgBc, mapFace, pMap, pEntry->baseFace, pArgs->pInMesh, &normal, flatCutoff);
+				bool inside = sampleUsg(mapLoop, uvw, &posFlat, &transformed,
+				                        &usgBc, mapFace, pMap, pEntry->baseFace,
+				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff);
 				if (inside) {
 					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
 					break;
@@ -186,20 +190,22 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 	pArgs->pMeshOut->pVerts[outVert] = pos;
 }
 
-static void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
-                               BorderFace *pEntry, BufMesh *pBufMesh,
-							   int32_t ruvmEdge, int32_t *pVert,
-							   BorderInInfo *pInInfo, int32_t ruvmFace,
-							   int32_t loop, int32_t loopLocal, Piece *pPieceRoot) {
+static
+void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
+                        BorderFace *pEntry, BufMesh *pBufMesh,
+                        int32_t ruvmEdge, int32_t *pVert,
+                        BorderInInfo *pInInfo, int32_t ruvmFace,
+                        int32_t loop, int32_t loopLocal,
+                        Piece *pPieceRoot, V2_I32 tileMin) {
 	bool realloced = false;
 	int32_t outVert = meshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
 	copyAllAttribs(&pArgs->pMeshOut->mesh.vertAttribs, outVert,
 				   &asMesh(pBufMesh)->mesh.vertAttribs, *pVert);
 	transformDeferredVert(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge, pVert,
-	                      pInInfo, ruvmFace, loop, loopLocal, outVert, pPieceRoot);
+	                      pInInfo, ruvmFace, loop, loopLocal, outVert, pPieceRoot, tileMin);
 	*pVert = outVert;
 	pVertEntry->vert = outVert;
-	pVertEntry->tile = pEntry->tile;
+	pVertEntry->tile = tileMin;
 	pVertEntry->ruvmEdge = ruvmEdge;
 	pVertEntry->loops = 1;
 	pVertEntry->baseEdge = pInInfo->edge;
@@ -228,6 +234,7 @@ static
 void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
                           BorderFace *pEntry, int32_t k,
 						  int32_t ruvmLoop, int32_t *pEdge, int32_t loop) {
+	V2_I32 tileMin = getTileMinFromBoundsEntry(pEntry);
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	_Bool isOnInVert = getIfOnInVert(pEntry, k);
@@ -248,7 +255,8 @@ void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
 	if (!pVertEntry->loops) {
 		initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-		                   pVert, &inInfo, pEntry->faceIndex, loop, k, pVars->pPieceRoot);
+		                   pVert, &inInfo, pEntry->faceIndex, loop, k,
+		                   pVars->pPieceRoot, tileMin);
 	}
 	else {
 		do {
@@ -272,7 +280,8 @@ void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
 					_(asMesh(pBufMesh)->pUvs[loop] V2APROXEQL
 					  asMesh(pOtherBufMesh)->pUvs[pVertEntry->loop]);
 				match =  pVertEntry->ruvmEdge == ruvmEdge &&
-						 pVertEntry->tile == pEntry->tile &&
+					     *(uint32_t *)&pVertEntry->tile.d[0] == tileMin.d[0] &&
+					     *(uint32_t *)&pVertEntry->tile.d[1] == tileMin.d[1] &&
 						 pVertEntry->baseEdge == inInfo.edge &&
 						 connected;
 			}
@@ -289,7 +298,8 @@ void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
 				pVertEntry = pVertEntry->pNext =
 					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderVert));
 				initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-				                   pVert, &inInfo, pEntry->faceIndex, loop, k, pVars->pPieceRoot);
+				                   pVert, &inInfo, pEntry->faceIndex, loop, k,
+				                   pVars->pPieceRoot, tileMin);
 				break;
 			}
 			pVertEntry = pVertEntry->pNext;

@@ -91,3 +91,7 @@ void ruvmDestroyQuadTree(RuvmContext pContext, QuadTree *pTree);
 void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
                       Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
 					  int32_t *pAverageMapFacesPerFace);
+int32_t checkIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
+                                FaceBounds *pFaceBounds, V2_I32 tileMin);
+void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
+                              Mesh *pMesh, FaceRange *pFace);

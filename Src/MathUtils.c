@@ -303,7 +303,7 @@ int32_t v2Equal(V2_F32 a, V2_F32 b) {
 int32_t v2AproxEqual(V2_F32 a, V2_F32 b) {
 	V2_F32 bLow = _(b V2SUBS FLOAT_EQUAL_MARGIN);
 	V2_F32 bHigh = _(b V2ADDS FLOAT_EQUAL_MARGIN);
-	return _(a V2LESS bHigh) && _(a V2GREAT bLow);
+	return _(a V2LESSEQL bHigh) && _(a V2GREATEQL bLow);
 }
 
 int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack) {

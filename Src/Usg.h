@@ -44,5 +44,5 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
                                        int32_t count, InFaceArr *pInFaceTable);
 bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
                V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
-               Mesh *pInMesh, V3_F32 *pNormal, bool transform);
+               Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin, bool transform);
 bool isPointInsideMesh(RuvmAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh);

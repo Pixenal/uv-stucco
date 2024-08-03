@@ -29,7 +29,8 @@ typedef struct BorderFace{
 	UBitField64 job : 8;
 	uint64_t seam : 1;
 
-	uint64_t tile : 24;
+	uint64_t tileX : 12;
+	uint64_t tileY : 12;
 	UBitField64 isRuvm : 11;
 	UBitField64 onLine : 11;
 	UBitField64 onInVert : 11;

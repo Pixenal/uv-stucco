@@ -333,45 +333,60 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 		for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
 			FaceRange inFace =
 				getFaceRange(&meshInWrap.mesh, pInFaceTable[i].pArr[j], false);
-			int8_t triLoops[4] = {0};
-			V2_F32 triUvs[4] = {0};
-			for (int32_t k = 0; k < inFace.size; ++k) {
-				triUvs[k] = meshInWrap.pUvs[inFace.start + k];
-			}
-			//TODO move in uvs to 0 - 1 space if in another tile
-			//(don't move origin, conversion to barycentric causes problems if you do that).
-			//Determine how many uv tiles this face spans, then test barycentric for each tile
-			//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
-			V3_F32 bc = getBarycentricInFace(triUvs,
-			                                 triLoops, inFace.size, pUsg->origin);
-			for (int32_t k = 0; k < inFace.size; ++k) {
-				triUvs[k] = meshInWrap.pUvs[inFace.start + triLoops[k]];
-			}
-			int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
-			int32_t edge = 0;
-			float dist = .0f;
-			if (!inside) {
-				V3_F32 bcAbs = {fabs(bc.d[0]), fabs(bc.d[1]), fabs(bc.d[2])};
-				V3_F32 closestAbs = {fabs(closestBc.d[0]), fabs(closestBc.d[1]), fabs(closestBc.d[2])};
-				for (edge; edge < 3; ++edge) {
-					int32_t last = edge == 0 ? 2 : edge - 1;
-					int32_t next = (edge + 1) % 3;
-					if (bcAbs.d[edge] < closestDist && bc.d[last] >= .0f && bc.d[next] >= .0f) {
-						dist = bcAbs.d[edge];
-						break;
+			FaceBounds faceBounds = {0};
+			getFaceBoundsForTileTest(&faceBounds, &meshInWrap, &inFace);
+			V2_I32 minTile = faceBounds.min;
+			V2_I32 maxTile = faceBounds.max;
+			for (int32_t l = minTile.d[1]; l <= maxTile.d[1]; ++l) {
+				for (int32_t m = minTile.d[0]; m <= maxTile.d[0]; ++m) {
+					V2_I32 tileMin = {m, l};
+					V2_F32 fTileMin = {(float)m, (float)l};
+					int8_t triLoops[4] = {0};
+					V2_F32 triUvs[4] = {0};
+					for (int32_t k = 0; k < inFace.size; ++k) {
+						triUvs[k] = meshInWrap.pUvs[inFace.start + k];
+					}
+					//TODO move in uvs to 0 - 1 space if in another tile
+					//(don't move origin, conversion to barycentric causes problems if you do that).
+					//Determine how many uv tiles this face spans, then test barycentric for each tile
+					//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
+					int32_t result =
+						checkIfFaceIsInsideTile(inFace.size, triUvs, &faceBounds, tileMin);
+					if (result != 2) {
+						return result;
+					}
+					for (int32_t k = 0; k < inFace.size; ++k) {
+						_(triUvs + k V2SUBEQL fTileMin);
+					}
+					V3_F32 bc = getBarycentricInFace(triUvs,
+													 triLoops, inFace.size, pUsg->origin);
+					int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
+					int32_t edge = 0;
+					float dist = .0f;
+					if (!inside) {
+						V3_F32 bcAbs = {fabs(bc.d[0]), fabs(bc.d[1]), fabs(bc.d[2])};
+						V3_F32 closestAbs = {fabs(closestBc.d[0]), fabs(closestBc.d[1]), fabs(closestBc.d[2])};
+						for (edge; edge < 3; ++edge) {
+							int32_t last = edge == 0 ? 2 : edge - 1;
+							int32_t next = (edge + 1) % 3;
+							if (bcAbs.d[edge] < closestDist && bc.d[last] >= .0f && bc.d[next] >= .0f) {
+								dist = bcAbs.d[edge];
+								break;
+							}
+						}
+					}
+					if (inside || edge < 3) {
+						closestBc = bc;
+						closestFace = inFace;
+						closestFaceLoops[0] = triLoops[0];
+						closestFaceLoops[1] = triLoops[1];
+						closestFaceLoops[2] = triLoops[2];
+						if (inside) {
+							break;
+						}
+						closestDist = dist;
 					}
 				}
-			}
-			if (inside || edge < 3) {
-				closestBc = bc;
-				closestFace = inFace;
-				closestFaceLoops[0] = triLoops[0];
-				closestFaceLoops[1] = triLoops[1];
-				closestFaceLoops[2] = triLoops[2];
-				if (inside) {
-					break;
-				}
-				closestDist = dist;
 			}
 		}
 		RUVM_ASSERT("", closestFace.index >= 0);
@@ -399,7 +414,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 
 bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
                V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
-               Mesh *pInMesh, V3_F32 *pNormal, bool useFlatCutoff) {
+               Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin, bool useFlatCutoff) {
 	Mesh *pMapMesh = &pMap->mesh;
 	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + ruvmLoop];
 	int32_t usg = pMapMesh->pUsg[mapLoop];
@@ -426,7 +441,10 @@ bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[1]]],
 							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[2]]]}
 				};
-				getTriScale(3, &usgTri);
+				_(&usgTri.uv[0] V2SUBEQL tileMin);
+				_(&usgTri.uv[1] V2SUBEQL tileMin);
+				_(&usgTri.uv[2] V2SUBEQL tileMin);
+				//getTriScale(3, &usgTri);
 				*pUsgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&uvw);
 				*pPos = barycentricToCartesian(usgTri.xyz, pUsgBc);
 				*pTransformed = true;

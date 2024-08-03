@@ -134,6 +134,16 @@ int32_t getMapLoop(const BorderFace *pEntry,
 	return mapLoop;
 }
 
+V2_I32 getTileMinFromBoundsEntry(BorderFace *pEntry) {
+	//tileX and Y are signed, but are stored unsigned in pEntry
+	V2_I32 tileMin = {0};
+	bool sign = pEntry->tileX >> 11 & 0x1;
+	tileMin.d[0] |= sign ? pEntry->tileX | ~0xfff : pEntry->tileX;
+	sign = pEntry->tileY >> 11 & 0x1;
+	tileMin.d[1] |= sign ? pEntry->tileY | ~0xfff : pEntry->tileY;
+	return tileMin;
+}
+
 int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localLoop) {
 	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);

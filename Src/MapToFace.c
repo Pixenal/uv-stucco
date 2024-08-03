@@ -346,7 +346,7 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 			V3_F32 usgBc = {0};
 			sampleUsg(pLoop->ruvmLoop, pLoop->uvw, &pLoop->loopFlat,
 			          &pLoop->transformed, &usgBc, ruvmFace, pVars->pMap,
-			          baseFace.index, &pVars->mesh, &normal, true);
+			          baseFace.index, &pVars->mesh, &normal, tileMin, true);
 		}
 		if (!pLoop->transformed) {
 			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);
@@ -685,11 +685,12 @@ void addRuvmLoopAndOrVert(MappingJobVars *pVars, int32_t loopBufIndex,
 static
 void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                           BorderFace *pEntry, int32_t ruvmFaceIndex,
-                          int32_t tile, LoopBufWrap *pLoopBuf, FaceRange baseFace,
+                          V2_I32 tile, LoopBufWrap *pLoopBuf, FaceRange baseFace,
 						  int32_t hasPreservedEdge, int32_t seam) {
 	pEntry->face = pAcfVars->face;
 	pEntry->faceIndex = ruvmFaceIndex;
-	pEntry->tile = tile;
+	pEntry->tileX = *(uint64_t *)&tile.d[0];
+	pEntry->tileY = *(uint64_t *)&tile.d[1];
 	pEntry->job = pVars->id;
 	pEntry->baseFace = baseFace.index;
 	pEntry->hasPreservedEdge = hasPreservedEdge;
@@ -724,7 +725,7 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 static
 void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                           LoopBufWrap *pLoopBuf, int32_t ruvmFaceIndex,
-						  int32_t tile, FaceRange baseFace, int32_t hasPreservedEdge,
+						  V2_I32 tile, FaceRange baseFace, int32_t hasPreservedEdge,
 						  int32_t seam) {
 	int32_t hash =
 		ruvmFnvHash((uint8_t *)&ruvmFaceIndex, 4, pVars->borderTable.size);
@@ -780,7 +781,7 @@ void addInFace(MappingJobVars *pVars, int32_t face, FaceRange *pBaseFace, FaceRa
 static
 void addClippedFaceToBufMesh(MappingJobVars *pVars,
                              LoopBufWrap *pLoopBuf, int32_t edgeFace,
-							 FaceRange ruvmFace, int32_t tile, FaceRange baseFace,
+							 FaceRange ruvmFace, V2_I32 tile, FaceRange baseFace,
                              int32_t hasPreservedEdge, int32_t seam, int32_t onLine) {
 	bool realloced = false;
 	AddClippedFaceVars acfVars = {0};
@@ -845,7 +846,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 
 Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
                            DebugAndPerfVars *pDpVars,
-					       V2_F32 fTileMin, int32_t tile, FaceRange baseFace) {
+					       V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace) {
 	FaceBounds bounds = {0};
 	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri = {0};

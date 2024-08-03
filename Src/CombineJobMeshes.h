@@ -91,7 +91,7 @@ typedef struct BorderVert {
 	int32_t ruvmFace;
 	int32_t ruvmEdge;
 	int32_t vert;
-	int32_t tile;
+	V2_I32 tile;
 	int32_t loops;
 	int32_t baseEdge;
 	int32_t baseVert;
@@ -168,6 +168,7 @@ _Bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
 _Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
 int32_t getMapLoop(const BorderFace *pEntry,
                    const RuvmMap pMap, int32_t loopIndex);
+V2_I32 getTileMinFromBoundsEntry(BorderFace *pEntry);
 int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, int32_t localLoop);
 int32_t bufMeshGetEdgeIndex(const Piece *pPiece,

@@ -91,8 +91,9 @@ Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
 	FaceBounds *pFaceBounds = &pFaceCellsTable->pFaceCells[rawFace].faceBounds;
 	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
+			RUVM_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
 			V2_F32 fTileMin = {k, j};
-			int32_t tile = k + (j * pFaceBounds->max.d[0]);
+			V2_I32 tile = {k, j};
 			result = ruvmMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
 			                             fTileMin, tile, *pBaseFace);
 			if (result != RUVM_SUCCESS) {

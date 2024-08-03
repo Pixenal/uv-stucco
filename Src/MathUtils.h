@@ -2,7 +2,7 @@
 
 #include <RUVM.h>
 
-#define FLOAT_EQUAL_MARGIN .000001f
+#define FLOAT_EQUAL_MARGIN .000002f
 
 #define RUVM_IDENT_MAT4X4 {1.0, .0, .0, .0,\
                            .0, 1.0, .0, .0,\
