@@ -98,6 +98,7 @@ void v2ModEqualScalar(V2_F32 *pA, float b);
 float v2SquareLen(V2_F32 a);
 float v2Len(V2_F32 a);
 float v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c);
+float v2Determinate(V2_F32 a, V2_F32 b);
 int32_t v2GreaterThan(V2_F32 a, V2_F32 b);
 int32_t v2GreaterThanScalar(V2_F32 a, float b);
 int32_t v2GreaterThanEqualTo(V2_F32 a, V2_F32 b);
@@ -156,6 +157,7 @@ float customFloor(float a);
 #define V2MULSEQL ,2MultiplyEqualScalar,
 #define V2MULS ,2MultiplyScalar,
 #define V2DOT ,2Dot,
+#define V2DET ,2Determinate,
 #define V2MODS ,2ModScalar,
 #define V2MODEQLS ,2ModEqualScalar,
 #define V2GREAT ,2GreaterThan,

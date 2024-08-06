@@ -414,12 +414,13 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 
 bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
                V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
-               Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin, bool useFlatCutoff) {
+               Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin,
+               bool useFlatCutoff, bool flatCutoffOveride) {
 	Mesh *pMapMesh = &pMap->mesh;
 	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + ruvmLoop];
 	int32_t usg = pMapMesh->pUsg[mapLoop];
 	if (usg) {
-		bool flatCutoff = usg < 0;
+		bool flatCutoff = flatCutoffOveride ? useFlatCutoff : usg < 0;
 		usg = abs(usg) - 1;
 		uint32_t sum = usg + inFace;
 		int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
@@ -432,7 +433,7 @@ bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 		} while(pEntry);
 		//RUVM_ASSERT("", pEntry);
 		if (pEntry) {
-			if (useFlatCutoff && flatCutoff) {
+			if (flatCutoff) {
 				BaseTriVerts usgTri = {
 					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
 							pInMesh->pUvs[pEntry->pEntry->tri[1]],

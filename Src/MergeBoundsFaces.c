@@ -2,6 +2,7 @@
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <CombineJobMeshes.h>
 #include <RUVM.h>
@@ -21,14 +22,15 @@ typedef struct SharedEdge {
 	int32_t entries[2];
 	int32_t refIndex[2];
 	int32_t edge;
+	int32_t validIdx;
 	int16_t loop[2];
 	int8_t receive;
-	_Bool checked : 1;
-	_Bool preserve : 1;
-	_Bool index : 1;
-	_Bool altIndex : 1;
-	_Bool seam : 1;
-	_Bool removed : 1;
+	bool checked : 1;
+	bool preserve : 1;
+	bool index : 1;
+	bool altIndex : 1;
+	bool seam : 1;
+	bool removed : 1;
 } SharedEdge;
 
 typedef struct {
@@ -203,6 +205,7 @@ void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryInde
 	pEntry->preserve = isPreserve;
 	pEntry->seam = seam;
 	pEntry->loop[0] = i;
+	pEntry->validIdx = -1;
 	if (refIndex >= 0 && isReceive) {
 		pPiece->keepPreserve |= 1 << i;
 	}
@@ -212,7 +215,7 @@ static
 void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
                                SharedEdgeWrap *pSharedEdges, Piece *pEntries,
 							   int32_t tableSize, int32_t entryIndex,
-							   int32_t *pTotalVerts) {
+							   int32_t *pTotalVerts, bool *pHasPreserve) {
 	//CLOCK_INIT;
 	RUVM_ASSERT("", (tableSize > 0 && entryIndex >= 0) || entryIndex == 0);
 	Piece *pPiece = pEntries + entryIndex;
@@ -280,6 +283,9 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 
 		bool isPreserve =
 			checkIfEdgeIsPreserve(&pArgs->pJobArgs[0].mesh, inInfo.edge);
+		if (isPreserve && !*pHasPreserve) {
+			*pHasPreserve = true;
+		}
 		bool isReceive = false;
 		int32_t refIndex = 0; 
 		if (seam) {
@@ -363,30 +369,441 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 }
 
 static
-void validatePreserveEdges(RuvmContext pContext, SharedEdgeWrap *pBucket) {
-	SharedEdge *pEntry = pBucket->pEntry;
-	while (pEntry) {
-		if (pEntry->checked || !pEntry->preserve) {
-			pEntry = pEntry->pNext;
+Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
+	RUVM_ASSERT("", pPieceRoot);
+	Piece* pPiece = pPieceRoot;
+	do {
+		if (pPiece->entryIndex == otherPiece) {
+			return pPiece;
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+	return NULL;
+}
+
+static
+Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
+                         int32_t edgeTableSize, Piece *pPiece, Piece *pPieceRoot,
+                         int32_t *pLoop, SharedEdge **ppEdge) {
+	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, *pLoop);
+	int32_t hash = ruvmFnvHash((uint8_t*)&inInfo.edge, 4, edgeTableSize);
+	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
+	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
+	while (pEdgeEntry) {
+		if (pEdgeEntry->index) {
+			bool loopMatches = *pLoop == pEdgeEntry->loop[0] &&
+							   pPiece->entryIndex == pEdgeEntry->entries[0] ||
+							   *pLoop == pEdgeEntry->loop[1] &&
+							   pPiece->entryIndex == pEdgeEntry->entries[1];
+			if (loopMatches && inInfo.edge + 1 == pEdgeEntry->edge) {
+				bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
+				int32_t otherPiece = pEdgeEntry->entries[!which];
+				Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
+				if (pNeighbour) {
+					*pLoop = (pEdgeEntry->loop[!which] + 1) % pNeighbour->bufFace.size;
+				}
+				if (ppEdge) {
+					*ppEdge = pEdgeEntry;
+				}
+				return pNeighbour;
+			}
+		}
+		pEdgeEntry = pEdgeEntry->pNext;
+	}
+	return NULL;
+}
+
+static
+bool isLoopOnExterior(MergeSendOffArgs *pArgs, Piece *pPiece,
+                      Piece *pPieceRoot, SharedEdgeWrap *pEdgeTable,
+                      int32_t edgeTableSize, int32_t loop) {
+	if (!getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
+			               pPiece, pPieceRoot, &loop, NULL)) {
+		//loop does not shared edge without any other loop,
+		//must be on outside
+		return true;
+	}
+	return false;
+}
+
+static
+int32_t getStartingLoop(Piece **ppPiece, MergeSendOffArgs *pArgs,
+                        Piece *pPieceRoot, SharedEdgeWrap *pEdgeTable,
+                        int32_t edgeTableSize) {
+	do {
+		for (int32_t i = 0; i < (*ppPiece)->bufFace.size; ++i) {
+			if (isLoopOnExterior(pArgs, *ppPiece, pPieceRoot, pEdgeTable,
+			                     edgeTableSize, i)) {
+				return i;
+			}
+		}
+		*ppPiece = (*ppPiece)->pNext;
+	} while (*ppPiece);
+	return -1;
+}
+
+typedef struct {
+	Piece *pPiece;
+	Piece *pStartPiece;
+	SharedEdge *pActiveEdge;
+	SharedEdge *pQuadEdge;
+	int32_t loop;
+	int32_t startLoop;
+	int32_t validBranches;
+	bool quad;
+} EdgeStack;
+
+static
+bool checkIfIntersectsReceive(EdgeStack *pItem, Mesh *pBufMesh, RuvmMap pMap,
+                              FaceRange *pMapFace, int32_t *pMapLoop, bool side) {
+	Mesh *pMapMesh = &pMap->mesh;
+	int32_t loop;
+	if (side) {
+		loop = (pItem->loop + 1) % pItem->pPiece->bufFace.size;
+	}
+	else {
+		loop = pItem->loop == 0 ?
+			pItem->pPiece->bufFace.size - 1 : pItem->loop - 1;
+	}
+	bool isOnInVert = getIfOnInVert(pItem->pPiece->pEntry, loop);
+	if (!isOnInVert) {
+		//exterior intersects with a map edge,
+		//so just check if said edge is receive
+		*pMapLoop = getMapLoop(pItem->pPiece->pEntry, pMap, loop);
+		RUVM_ASSERT("", *pMapLoop >= 0 && *pMapLoop < pMapFace->size);
+		*pMapLoop += pMapFace->start;
+		int32_t mapEdge = pMapMesh->mesh.pEdges[*pMapLoop];
+		return pMapMesh->pEdgeReceive[mapEdge];
+	}
+	//exterior does not intersect with a map edge.
+	//In this case, we perform an intersect test,
+	//and use that to see if the base edge would intersect
+	//with a preserve edge, were it to extend out infinitely
+	V2_F32 *pUvStart = pBufMesh->pUvs + pItem->pPiece->bufFace.start;
+	V2_F32 c = pUvStart[-pItem->loop];
+	int32_t loopNext = (pItem->loop + 1) % pItem->pPiece->bufFace.size;
+	V2_F32 d = pUvStart[-loopNext];
+	V2_F32 cd = _(d V2SUB c);
+	for (int32_t i = 0; i < pMapFace->size; ++i) {
+		*pMapLoop = pMapFace->start + i;
+		int32_t mapEdge = pMapMesh->mesh.pEdges[*pMapLoop];
+		if (!pMapMesh->pEdgeReceive[mapEdge]) {
 			continue;
 		}
-		if (pEntry->receive <= 1) {
-			//edge intersects 1 or no map receive edges or base verts
-			//on preserve junctions, so keep it in the list
-			pEntry->checked = true;
-			pEntry = pEntry->pNext;
+		float t = .0f;
+		int32_t iNext = (i + 1) % pMapFace->size;
+		int32_t mapVert = pMapMesh->mesh.pLoops[*pMapLoop];
+		int32_t mapLoopNext = pMapFace->start + iNext;
+		int32_t mapVertNext = pMapMesh->mesh.pLoops[mapLoopNext];
+		calcIntersection(pMapMesh->pVerts[mapVert],
+					        pMapMesh->pVerts[mapVertNext], c, cd,
+					        NULL, &t);
+		//do you need to handle .0 or 1.0 as distinct cases?
+		//ie, should you track preserve verts hit?
+		if (t < .0f || t > 1.0f) {
 			continue;
 		}
-		//intersects 2 or more receive, so mark as a seam
-		pEntry->seam = true;
-		pEntry = pEntry->pNext;
+		return true;
 	}
 }
 
 static
-void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
+void pushToEdgeStack(EdgeStack *pStack, int32_t *pStackPtr, int32_t treeCount,
+                     SharedEdge *pEdge, Piece *pPiece, int32_t loop) {
+	pStack[*pStackPtr].pActiveEdge = pEdge;
+	pEdge->validIdx = treeCount;
+	++*pStackPtr;
+	EdgeStack next = {.pPiece = pPiece, .loop = loop};
+	pStack[*pStackPtr] = next;
+}
+
+static
+bool handleExterior(EdgeStack *pStack, int32_t *pStackPtr, 
+                    EdgeStack *pNeighbour, bool *pValid,
+                    int32_t treeCount, int32_t *pReceive,
+                    MergeSendOffArgs *pArgs, FaceRange *pMapFace,
+                    SharedEdge *pEdge, bool *pUnwind, bool side) {
+	EdgeStack *pItem = pStack + *pStackPtr;
+	Mesh *pMapMesh = &pArgs->pMap->mesh;
+	Mesh *pBufMesh = &pArgs->pJobArgs[pItem->pPiece->pEntry->job].bufMesh;
+	int32_t mapLoop = -1;
+	bool isReceive =
+		checkIfIntersectsReceive(pItem, pBufMesh, pArgs->pMap,
+		                         pMapFace, &mapLoop, side);
+	if (isReceive) {
+		//preserve edge intersects receive edge. Add to count
+		RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pMapMesh->mesh.loopCount);
+		RUVM_ASSERT("", *pReceive >= -1 &&
+					    *pReceive < pMapMesh->mesh.loopCount);
+		if (*pReceive == -1) {
+			//start of new preserve tree
+			*pReceive = mapLoop;
+		}
+		else if (!pValid[treeCount] && mapLoop != *pReceive) {
+			pValid[treeCount] = true;
+		}
+		if (*pUnwind) {
+			*pUnwind = false;
+		}
+		pEdge->validIdx = treeCount;
+		pItem->validBranches++;
+	}
+	else if (!pItem->validBranches) {
+		*pUnwind = true;
+	}
+}
+
+static
+SharedEdge *getIfQuadJunc(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
+                          int32_t edgeTableSize, Piece *pPieceRoot,
+                          EdgeStack *pItem, EdgeStack *pNeighbour) {
+	EdgeStack copy = *pItem;
+	int32_t index = -1;
+	SharedEdge *cache[4] = {0};
+	EdgeStack retNeighbour = {0};
+	do {
+		copy.loop %= copy.pPiece->bufFace.size;
+		if (copy.pStartPiece == copy.pPiece &&
+			copy.startLoop == copy.loop) {
+			if (index == 3) {
+				*pNeighbour = retNeighbour;
+				return cache[1];
+			}
+		}
+		else if (index >= 3) {
+			break;
+		}
+		index++;
+		SharedEdge *pEdge = NULL;
+		//Set next loop
+		EdgeStack neighbour = {.loop = copy.loop};
+		neighbour.pPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
+		                                     copy.pPiece, pPieceRoot,
+		                                     &neighbour.loop, cache + index);
+		if (!neighbour.pPiece) {
+			break;
+		}
+		if (!index) {
+			retNeighbour = neighbour;
+		}
+		copy.pPiece = neighbour.pPiece;
+		copy.loop = neighbour.loop;
+	} while(true);
+	return NULL;
+}
+
+static
+void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
+                          int32_t treeCount, int32_t *pReceive, 
+                          MergeSendOffArgs *pArgs, SharedEdge *pEdgeTable,
+                          int32_t edgeTableSize, Piece *pPieceRoot,
+                          FaceRange *pMapFace, bool *pUnwind) {
+	EdgeStack *pItem = pStack + *pStackPtr;
+	//if pItem->pStartPiece is NULL, then this is the first time
+	//this func is being called on this item
+	if (*pUnwind) {
+		if (pItem->pActiveEdge) {
+			pItem->pActiveEdge->validIdx = 0;
+		}
+		if (pItem->validBranches || !*pStackPtr) {
+			*pUnwind = false;
+		}
+	}
+	else if (pItem->pStartPiece) {
+		//branch has returned, and is valid
+		pItem->validBranches++;
+	}
+
+	bool ret = false;
+	do {
+		SharedEdge *pEdge = NULL;
+		EdgeStack neighbour = {0};
+		pItem->loop %= pItem->pPiece->bufFace.size;
+		if (!pItem->pStartPiece) {
+			pItem->pStartPiece = pItem->pPiece;
+			pItem->startLoop = pItem->loop;
+			if (*pStackPtr) {
+				pEdge = 
+					getIfQuadJunc(pArgs, pEdgeTable, edgeTableSize,
+								  pPieceRoot, pItem, &neighbour);
+				if (pEdge) {
+					pItem->quad = true;
+				}
+			}
+		}
+		else if (pItem->quad ||
+		         (pItem->pStartPiece == pItem->pPiece &&
+		          pItem->startLoop == pItem->loop)) {
+			--*pStackPtr;
+			return;
+		}
+		//Set next loop
+		if (!*pStackPtr &&
+		    getIfRuvm(pItem->pPiece->pEntry, pItem->loop) &&
+			!getIfOnLine(pItem->pPiece->pEntry, pItem->loop)) {
+
+			RUVM_ASSERT("", !*pStackPtr);
+			pItem->loop++;
+			continue;
+		}
+		if (!pItem->quad) {
+			neighbour.loop = pItem->loop;
+			neighbour.pPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
+												 pItem->pPiece, pPieceRoot,
+												 &neighbour.loop, &pEdge);
+			if (!*pStackPtr && !neighbour.pPiece) {
+				pItem->loop++;
+				continue;
+			}
+		}
+		//if validIdx isn't -1, this edge has already been checked
+		if (pEdge->preserve && pEdge->validIdx == -1) {
+			if (!*pStackPtr) {
+				bool ret = 
+					handleExterior(pStack, pStackPtr, &neighbour, pValid, treeCount, pReceive,
+				                   pArgs, pMapFace, pEdge, pUnwind, false);
+			}
+			Piece *pPieceNext = pItem->quad ? neighbour.pPiece : pItem->pPiece;
+			int32_t loopNext = pItem->quad ? neighbour.loop : pItem->loop;
+			loopNext = (loopNext + 1) % pPieceNext->bufFace.size;
+			bool exterior = true;
+			if (*pReceive != -1) {
+				exterior = isLoopOnExterior(pArgs, pPieceNext, pPieceRoot,
+				                            pEdgeTable, edgeTableSize, loopNext);
+			}
+			if (exterior) {
+				handleExterior(pStack, pStackPtr, &neighbour, pValid, treeCount, pReceive,
+				               pArgs, pMapFace, pEdge, pUnwind, true);
+				if (!*pStackPtr || *pUnwind || pItem->quad) {
+					ret = true;
+				}
+			}
+			else {
+				pushToEdgeStack(pStack, pStackPtr, treeCount, pEdge, pPieceNext,
+				                loopNext);
+				if (*pUnwind) {
+					*pUnwind = false;
+				}
+				ret = true;
+			}
+		}
+		if (!pItem->quad) {
+			pItem->pPiece = neighbour.pPiece;
+			pItem->loop = neighbour.loop;
+		}
+		if (ret) {
+			return;
+		}
+	} while(1);
+}
+
+//TODO Make a in this function for in verts,
+//     list in each entry whether to keep
+//     (due to bordering a preserve edge)
+//     create the table in the stack walk, then
+//     set preserve in the later validate loop
+static
+void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
+                           int32_t piece, SharedEdgeWrap* pEdgeTable,
+                           int32_t edgeTableSize, bool **ppValid, int32_t *pValidCount) {
+	//TODO first , check if the map face even has any preserve edges,
+	//     no point doing all this if not
+	RuvmAlloc *pAlloc = &pArgs->pContext->alloc;
+	Mesh *pInMesh = pArgs->pInMesh;
+	Mesh *pMapMesh = &pArgs->pMap->mesh;
+	// Get first not exterior loop
+	// This is done to ensure we don't start inside the face
+	Piece *pPieceRoot = pPieceArr->pArr;
+	Piece *pPiece = pPieceArr->pArr + piece;
+	FaceRange mapFace = getFaceRange(&pArgs->pMap->mesh.mesh,
+	                                 pPieceRoot->pEntry->faceIndex, false);
+	int32_t validSize = 8;
+	*ppValid = pAlloc->pCalloc(validSize, sizeof(bool));
+	int32_t stackSize = 8;
+	EdgeStack *pStack = pAlloc->pCalloc(stackSize, sizeof(EdgeStack));
+	pStack[0].pPiece = pPiece;
+	int32_t stackPtr = 0;
+	pStack[0].loop = getStartingLoop(&pStack[0].pPiece, pArgs, pPiece,
+	                                 pEdgeTable, edgeTableSize);
+	bool unwind = false;
+	//note that order is used here to determine if a loop has already been checked.
+	//Sorting is not done until later, and order is cleared at the end of this func.
+	int32_t receive = -1;
+	do {
+		walkEdgesForPreserve(pStack, &stackPtr, *ppValid, *pValidCount, &receive,
+		                     pArgs, pEdgeTable, edgeTableSize, pPieceRoot,
+		                     &mapFace, &unwind);
+		RUVM_ASSERT("", stackPtr < stackSize);
+		if (stackPtr == stackSize - 1) {
+			int32_t oldSize = stackSize;
+			stackSize *= 2;
+			pStack = pAlloc->pRealloc(pStack, sizeof(EdgeStack) * stackSize);
+		}
+		else if (!stackPtr) {
+			//reset for next preserve tree
+			receive = -1;
+			++*pValidCount;
+			RUVM_ASSERT("", *pValidCount <= validSize);
+			if (*pValidCount == validSize) {
+				int32_t oldSize = validSize;
+				validSize *= 2;
+				*ppValid = pAlloc->pRealloc(*ppValid, sizeof(bool) * validSize);
+				memset(*ppValid + oldSize, 0, sizeof(bool) * oldSize);
+			}
+		}
+	} while(stackPtr >= 0);
+	++*pValidCount;
+	pAlloc->pFree(pStack);
+
+	//set order back to zero
+	do {
+		memset(pPiece->order, 0, 11);
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+}
+
+static
+void setValidPreserveAsSeam(SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize,
+                            bool *pValid, int32_t validCount) {
+	//mark valid preserve edges as seams
+	for (int32_t i = 0; i < edgeTableSize; ++i) {
+		SharedEdge *pEntry = pEdgeTable[i].pEntry;
+		while (pEntry) {
+			if (pEntry->checked || !pEntry->preserve) {
+				pEntry = pEntry->pNext;
+				continue;
+			}
+			int32_t validIdx = pEntry->validIdx;
+			RUVM_ASSERT("", validIdx >= -1 && validIdx < validCount);
+			if (validIdx == -1 || !pValid[validIdx]) {
+				//edge intersects 1 or no map receive edges or base verts
+				//on preserve junctions, so keep it in the list
+				pEntry->checked = true;
+				pEntry = pEntry->pNext;
+				continue;
+			}
+			//intersects 2 or more receive, so mark as a seam
+			pEntry->seam = true;
+			pEntry = pEntry->pNext;
+		}
+	}
+}
+
+static
+bool areNonListedPiecesLinked(PieceArr *pPieceArr) {
+	for (int32_t i = 0; i < pPieceArr->count; ++i) {
+		Piece *pPiece = pPieceArr->pArr + i;
+		if (!pPiece->listed && (pPiece->pNext || pPiece->pEntry->pNext)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static
+void combineConnectedIntoPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges,
                                int32_t tableSize, int32_t i) {
-	Piece *pPiece = pEntries + i;
+	Piece *pPiece = pPieceArr->pArr + i;
 	Piece* pPieceRoot = pPiece;
 	Piece *pPieceTail = pPiece;
 	BorderFace *pTail = pPiece->pEntry;
@@ -407,11 +824,11 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 						_Bool whichLoop = aIsOnInVert;
 
 						int32_t loopA = pEdgeEntry->loop[whichLoop];
-						Piece *pPieceA = pEntries + pEdgeEntry->entries[whichLoop];
+						Piece *pPieceA = pPieceArr->pArr + pEdgeEntry->entries[whichLoop];
 						pPieceA->keepSeam |= 1 << loopA;
 
 						int32_t loopB = pEdgeEntry->loop[!whichLoop];
-						Piece *pPieceB = pEntries + pEdgeEntry->entries[!whichLoop];
+						Piece *pPieceB = pPieceArr->pArr + pEdgeEntry->entries[!whichLoop];
 						//Also set adjacent loop
 						int32_t adjLoop = (loopB + 1) % pPieceB->bufFace.size;
 						pPieceB->keepSeam |= 1 << adjLoop;
@@ -423,21 +840,21 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 					int32_t whichEntry =
 						pEdgeEntry->entries[0] == pPiece->entryIndex;
 					int32_t otherEntryIndex = pEdgeEntry->entries[whichEntry];
-					if (pEntries[otherEntryIndex].listed) {
+					if (pPieceArr->pArr[otherEntryIndex].listed) {
 						break;
 					}
 					if (!pPieceRoot->hasSeam &&
-					    pEntries[otherEntryIndex].hasSeam) {
+						pPieceArr->pArr[otherEntryIndex].hasSeam) {
 
 						pPieceRoot->hasSeam = true;
 					}
 					//add entry to linked list
-					pTail->pNext = pEntries[otherEntryIndex].pEntry;
+					pTail->pNext = pPieceArr->pArr[otherEntryIndex].pEntry;
 					pTail = pTail->pNext;
 					//add piece to piece linked list
-					pPieceTail->pNext = pEntries + otherEntryIndex;
+					pPieceTail->pNext = pPieceArr->pArr + otherEntryIndex;
 					pPieceTail = pPieceTail->pNext;
-					pEntries[otherEntryIndex].listed = 1;
+					pPieceArr->pArr[otherEntryIndex].listed = 1;
 					break;
 				}
 				pEdgeEntry = pEdgeEntry->pNext;
@@ -445,6 +862,11 @@ void combineConnectedIntoPiece(Piece *pEntries, SharedEdgeWrap *pSharedEdges,
 			RUVM_ASSERT("", j < pPiece->edgeCount);
 		}
 		depth++;
+		if (depth > pPieceArr->count) {
+			//an infinite loop can occur if pNext are not NULL prior to this func
+			//this is checked for, so it shouldn't occur
+			RUVM_ASSERT("Piece list has likely linked in a loop", false);
+		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
 }
@@ -462,48 +884,6 @@ bool isEntryInPiece(Piece *pPiece, int32_t entryIndex) {
 }
 
 static
-Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
-	RUVM_ASSERT("", pPieceRoot);
-	Piece* pPiece = pPieceRoot;
-	do {
-		if (pPiece->entryIndex == otherPiece) {
-			return pPiece;
-		}
-		pPiece = pPiece->pNext;
-	} while(pPiece);
-	return NULL;
-}
-
-static
-Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
-                         int32_t edgeTableSize, Piece *pPiece, Piece *pPieceRoot,
-                         int32_t *pLoop) {
-	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, *pLoop);
-	int32_t hash = ruvmFnvHash((uint8_t*)&inInfo.edge, 4, edgeTableSize);
-	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
-	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
-	while (pEdgeEntry) {
-		if (pEdgeEntry->index) {
-			bool loopMatches = *pLoop == pEdgeEntry->loop[0] &&
-							   pPiece->entryIndex == pEdgeEntry->entries[0] ||
-							   *pLoop == pEdgeEntry->loop[1] &&
-							   pPiece->entryIndex == pEdgeEntry->entries[1];
-			if (loopMatches && inInfo.edge + 1 == pEdgeEntry->edge) {
-				bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
-				int32_t otherPiece = pEdgeEntry->entries[!which];
-				Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
-				if (pNeighbour) {
-					*pLoop = (pEdgeEntry->loop[!which] + 1) % pNeighbour->bufFace.size;
-				}
-				return pNeighbour;
-			}
-		}
-		pEdgeEntry = pEdgeEntry->pNext;
-	}
-	return NULL;
-}
-
-static
 void flipSharedEdgeEntry(SharedEdge *pEntry) {
 	int32_t entryBuf = pEntry->entries[0];
 	int32_t loopBuf = pEntry->loop[0];
@@ -517,9 +897,68 @@ void flipSharedEdgeEntry(SharedEdge *pEntry) {
 }
 
 static
+void breakPieceLinks(PieceArr *pPieceArr) {
+	for (int32_t i = 0; i < pPieceArr->count; ++i) {
+		pPieceArr->pArr[i].pNext = NULL;
+		pPieceArr->pArr[i].pEntry->pNext = NULL;
+	}
+}
+
+static
+void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
+                         PieceRootsArr *pPieceRoots, PieceArr *pPieceArr,
+                         SharedEdgeWrap *pEdgeTable, int32_t edgeTableSize) {
+	//A first pass separates pieces by connectivity only, then validates preserve edges.
+	//Once that's done, a second pass is done with preserve edges
+	bool *pValid = NULL;
+	int32_t validCount = 1; //first is reserved and is always false
+	int32_t i = 0;
+	do {
+		if (areNonListedPiecesLinked(pPieceArr)) {
+			RUVM_ASSERT("Linked pieces here will cause an infinite loop", false);
+			return;
+		}
+		for (int32_t j = 0; j < pPieceArr->count; ++j) {
+			if (pPieceArr->pArr[j].listed) {
+				continue;
+			}
+			combineConnectedIntoPiece(pPieceArr, pEdgeTable, edgeTableSize, j);
+			if (pPieceArr->pArr[j].pEntry) {
+				pPieceRoots->pArr[pPieceRoots->count] = j;
+				if (hasPreserve && !i) {
+					//check if preserve inMesh edge intersects at least 2
+					//map receiver edges. Edge is only preserved if this is so.
+					validatePreserveEdges(pArgs, pPieceArr, pPieceRoots->count,
+					                      pEdgeTable, edgeTableSize, &pValid, &validCount);
+				}
+				++pPieceRoots->count;
+			}
+			RUVM_ASSERT("", !pPieceRoots->count ||
+							pPieceArr->pArr[pPieceRoots->count - 1].pEntry);
+			RUVM_ASSERT("", j >= 0 && j < pPieceArr->count);
+		}
+		RUVM_ASSERT("", i >= 0 && i < 2);
+		if (hasPreserve && !i) {
+			setValidPreserveAsSeam(pEdgeTable, edgeTableSize, pValid, validCount);
+			pArgs->pContext->alloc.pFree(pValid);
+			for (int32_t j = 0; j < pPieceArr->count; ++j) {
+				pPieceArr->pArr[j].listed = false;
+			}
+			pPieceRoots->count = 0;
+			breakPieceLinks(pPieceArr);
+			i++;
+		}
+		else {
+			break;
+		}
+	} while(true);
+}
+
+static
 void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
                      BorderFace *pEntry, SharedEdgeWrap **ppSharedEdges,
-					 int32_t *pEdgeTableSize, PieceArr *pPieceArr, int32_t *pTotalVerts) {
+					 int32_t *pEdgeTableSize, PieceArr *pPieceArr,
+                     int32_t *pTotalVerts) {
 	//CLOCK_INIT;
 	//CLOCK_START;
 	*pEdgeTableSize = 0;
@@ -533,13 +972,16 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 	Piece *pEntries = pArgs->pContext->alloc.pCalloc(entryCount, sizeof(Piece));
 	pPieceRoots->pArr = pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * entryCount);
 	pPieceArr->pArr = pEntries;
+	pPieceArr->count = entryCount;
 	int32_t entryIndex = 0;
+	bool hasPreserve = false;
 	//CLOCK_START;
 	do {
 		//If there's only 1 border face entry, then this function will just
 		//initialize the Piece.
-		addEntryToSharedEdgeTable(pArgs, pEntry, *ppSharedEdges, pEntries, *pEdgeTableSize,
-		                          entryIndex, pTotalVerts);
+		addEntryToSharedEdgeTable(pArgs, pEntry, *ppSharedEdges, pEntries,
+		                          *pEdgeTableSize, entryIndex, pTotalVerts,
+		                          &hasPreserve);
 		RUVM_ASSERT("", entryIndex < entryCount);
 		entryIndex++;
 		BorderFace *pNextEntry = pEntry->pNext;
@@ -556,27 +998,9 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 		pPieceRoots->count = 1;
 	}
 	else {
-		//check if preserve inMesh edge intersects at least 2
-		//map receiver edges. Edge is only preserved if this is so.
-		for (int32_t i = 0; i < entryCount; ++i) {
-			SharedEdgeWrap *pBucket = *ppSharedEdges + i;
-			validatePreserveEdges(pArgs->pContext, pBucket);
-			RUVM_ASSERT("", i < entryCount);
-		}
-		//now link together connected entries
-		for (int32_t i = 0; i < entryCount; ++i) {
-			if (pEntries[i].listed) {
-				continue;
-			}
-			combineConnectedIntoPiece(pEntries, *ppSharedEdges, *pEdgeTableSize, i);
-			if (pEntries[i].pEntry) {
-				pPieceRoots->pArr[pPieceRoots->count] = i;
-				++pPieceRoots->count;
-			}
-			RUVM_ASSERT("", !pPieceRoots->count ||
-			                pPieceArr->pArr[pPieceRoots->count - 1].pEntry);
-			RUVM_ASSERT("", i < entryCount);
-		}
+		//now link together connected entries.
+		linkConnectedPieces(pArgs, hasPreserve, pPieceRoots, pPieceArr,
+		                    *ppSharedEdges, *pEdgeTableSize);
 	}
 	for (int32_t i = 0; i < entryCount; ++i) {
 		SharedEdgeWrap* pBucket = *ppSharedEdges + i;
@@ -740,7 +1164,7 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			continue;
 		}
 		Piece *pOtherPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
-		                                       pPiece, pPieceRoot, &loop);
+		                                       pPiece, pPieceRoot, &loop, NULL);
 		if (!pOtherPiece) {
 			loop++;
 			continue;

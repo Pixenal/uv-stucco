@@ -263,6 +263,10 @@ float v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c) {
 	return fabs(cross.d[2]) / 2.0f;
 }
 
+float v2Determinate(V2_F32 a, V2_F32 b) {
+	return a.d[0] * b.d[1] - a.d[1] * b.d[0];
+}
+
 void v2ModEqualScalar(V2_F32 *a, float b) {
 	a->d[0] = fmod(a->d[0], b);
 	a->d[1] = fmod(a->d[1], b);

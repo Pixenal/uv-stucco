@@ -51,24 +51,6 @@ typedef struct {
 } AddClippedFaceVars;
 
 static
-V3_F32 calcIntersection(LoopBufWrap *pLoopBuf, LoopInfo *pBaseLoop,
-                        int32_t i, int32_t vertNextIndex, int32_t *pAlpha) {
-	V3_F32 *pRuvmVert = &pLoopBuf->buf[i].loop;
-	V3_F32 *pRuvmVertNext = &pLoopBuf->buf[vertNextIndex].loop;
-	V3_F32 ruvmDir = _(*pRuvmVert V3SUB *pRuvmVertNext);
-	V3_F32 ruvmDirBack = _(*pRuvmVertNext V3SUB *pRuvmVert);
-	float t;
-	t = (pRuvmVert->d[0] - pBaseLoop->vert.d[0]) * pBaseLoop->dirBack.d[1];
-	t -= (pRuvmVert->d[1] - pBaseLoop->vert.d[1]) * pBaseLoop->dirBack.d[0];
-	t /= ruvmDir.d[0] * pBaseLoop->dirBack.d[1] -
-         ruvmDir.d[1] * pBaseLoop->dirBack.d[0];
-	float distance =
-		sqrt(ruvmDir.d[0] * ruvmDir.d[0] + ruvmDir.d[1] * ruvmDir.d[1]);
-	*pAlpha = fabs(t / distance);
-	return _(*pRuvmVert V3ADD _(ruvmDirBack V3MULS t));
-}
-
-static
 bool checkIfOnVert(LoopBufWrap *pLoopBuf, int32_t i, int32_t iNext) {
 	return (pLoopBuf->buf[i].baseLoop == pLoopBuf->buf[iNext].baseLoop ||
 	        pLoopBuf->buf[i].isBaseLoop || pLoopBuf->buf[iNext].isBaseLoop) &&
@@ -118,37 +100,31 @@ void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 static
 void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
                           int32_t i, int32_t *pEdgeFace, LoopInfo *pBaseLoop,
-						  int32_t vertNextIndex, int32_t preserve,
+						  int32_t iNext, int32_t preserve,
                           bool flippedWind) {
-	int32_t alpha = 0;
-	*pEdgeFace += 1;
+	LoopBuf *pLoop = pLoopBuf->buf + i;
+	LoopBuf *pLoopNext = pLoopBuf->buf + iNext;
 	LoopBuf *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
-	if (checkIfOnVert(pLoopBuf, i, vertNextIndex)) {
+	calcIntersection(pLoop->loop, pLoopNext->loop, pBaseLoop->vert,
+	                 pBaseLoop->dir, &pNewEntry->loop, &pNewEntry->alpha);
+	*pEdgeFace += 1;
+	if (checkIfOnVert(pLoopBuf, i, iNext)) {
 		int32_t lastBaseLoop = flippedWind ?
 			pBaseLoop->index + 1 : pBaseLoop->index - 1;
 		int32_t whichVert = pLoopBuf->buf[i].baseLoop == lastBaseLoop;
-		pNewEntry->loop = calcIntersection(pLoopBuf, pBaseLoop,
-										   i, vertNextIndex, &alpha);
 		pNewEntry->baseLoop = whichVert ?
 			pBaseLoop->localIndex : pBaseLoop->localIndexNext;
 		pNewEntry->preserve = preserve;
-		pNewEntry->isBaseLoop = 1;
+		pNewEntry->isBaseLoop = true;
 	}
 	else {
-		pNewEntry->loop = calcIntersection(pLoopBuf, pBaseLoop,
-										   i, vertNextIndex, &alpha);
 		pNewEntry->baseLoop = pBaseLoop->index;
-		pNewEntry->isBaseLoop = 0;
+		pNewEntry->isBaseLoop = false;
 		pNewEntry->preserve = preserve;
 	}
-	//pNewEntry->normal = vec3Lerp(pLoopBuf->buf[i].normal,
-	//                             pLoopBuf->buf[vertNextIndex].normal,
-	//                             alpha);
-	//TODO add proper lerp for normal (why was the above commented out?)
 	pNewEntry->normal = pLoopBuf->buf[i].normal;
-	pNewEntry->isRuvm = 0;
+	pNewEntry->isRuvm = false;
 	pNewEntry->ruvmLoop = pLoopBuf->buf[i].ruvmLoop;
-	pNewEntry->alpha = alpha;
 	pNewLoopBuf->size++;
 }
 
@@ -346,7 +322,7 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 			V3_F32 usgBc = {0};
 			sampleUsg(pLoop->ruvmLoop, pLoop->uvw, &pLoop->loopFlat,
 			          &pLoop->transformed, &usgBc, ruvmFace, pVars->pMap,
-			          baseFace.index, &pVars->mesh, &normal, tileMin, true);
+			          baseFace.index, &pVars->mesh, &normal, tileMin, false, false);
 		}
 		if (!pLoop->transformed) {
 			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);

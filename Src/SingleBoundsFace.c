@@ -166,8 +166,7 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 		V3_F32 usgBc = {0};
 		bool transformed = false;
 		for (int32_t i = 0; i < mapFace.size; ++i) {
-			int32_t mapLoop = getMapLoop(pEntry, pArgs->pMap, loopLocal);
-			int32_t mapVert = pMap->mesh.mesh.pLoops[mapFace.start + mapLoop];
+			int32_t mapVert = pMap->mesh.mesh.pLoops[mapFace.start + i];
 			int32_t usgIndex = pMap->mesh.pUsg[mapVert];
 			if (!usgIndex) {
 				continue;
@@ -177,9 +176,9 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
 				bool flatCutoff = pUsg->pFlatCutoff &&
 					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
-				bool inside = sampleUsg(mapLoop, uvw, &posFlat, &transformed,
+				bool inside = sampleUsg(i, uvw, &posFlat, &transformed,
 				                        &usgBc, mapFace, pMap, pEntry->baseFace,
-				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff);
+				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff, true);
 				if (inside) {
 					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
 					break;
