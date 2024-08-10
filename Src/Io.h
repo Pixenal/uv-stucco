@@ -3,6 +3,12 @@
 #include <QuadTree.h>
 #include <RUVM.h>
 
+typedef struct {
+    unsigned char *pString;
+    int32_t nextBitIndex;
+    int32_t byteIndex;
+} ByteString;
+
 //void ruvmWriteDebugImage(Cell *pRootCell);
 RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject *pObjArr,
@@ -15,3 +21,7 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 
 void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo);
 void ruvmIoSetDefault(RuvmContext pContext);
+void encodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits, int64_t *pSize);
+void encodeString(ByteString *byteString, uint8_t *string, int64_t *pSize);
+void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits);
+void decodeString(ByteString *byteString, char *string, int32_t maxLen);

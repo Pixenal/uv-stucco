@@ -174,6 +174,9 @@ int32_t getAttribSize(RuvmAttribType type) {
 			return 32;
 		case RUVM_ATTRIB_STRING:
 			return RUVM_ATTRIB_STRING_MAX_LEN;
+		default:
+			RUVM_ASSERT("", false);
+			return 0;
 	}
 }
 
@@ -251,6 +254,9 @@ void *attribAsVoid(RuvmAttrib *pAttrib, int32_t index) {
 			return ((double (*)[4])pAttrib->pData) + index;
 		case RUVM_ATTRIB_STRING:
 			return ((char (*)[RUVM_ATTRIB_STRING_MAX_LEN])pAttrib->pData) + index;
+		default:
+			RUVM_ASSERT("", false);
+			return NULL;
 	}
 }
 
@@ -422,6 +428,9 @@ RuvmTypeDefault *getTypeDefaultConfig(RuvmTypeDefaultConfig *pConfig,
 			return &pConfig->v4_f64;
 		case RUVM_ATTRIB_STRING:
 			return &pConfig->string;
+		default:
+			RUVM_ASSERT("", false);
+			return 0;
 	}
 }
 
@@ -1991,7 +2000,7 @@ SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 
 static
 void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
-	_Bool valid = false;
+	bool valid = false;
 	switch (special) {
 		case (ATTRIB_SPECIAL_NONE):
 			valid = true;

@@ -38,19 +38,24 @@ typedef struct {
 	int32_t vert;
 } BorderInInfo;
 
+typedef struct {
+	int32_t edge;
+	int32_t segment;
+} EdgeSegmentPair;
+
 typedef struct Piece {
 	struct Piece *pNext;
 	BorderFace *pEntry;
 	BorderFace *pTail;
 	FaceRange bufFace;
 	int32_t edgeCount;
-	int32_t edges[11];
+	EdgeSegmentPair edges[11];
 	UBitField16 keepSingle;
 	UBitField16 keepSeam;
 	UBitField16 keepPreserve;
 	UBitField16 keepVertPreserve;
-	UBitField16 keepOnInVert;
-	UBitField16 skip;
+	UBitField16 keepInternPreserve;
+	UBitField16 add;
 	uint8_t order[11];
 	int32_t entryIndex;
 	V3_F32 realNormal;
@@ -64,7 +69,7 @@ typedef struct BorderEdge {
 	int32_t edge;
 	int32_t inEdge;
 	int32_t mapFace;
-	_Bool valid;
+	bool valid;
 } BorderEdge;
 
 typedef struct {
@@ -98,7 +103,7 @@ typedef struct BorderVert {
 	int32_t loopIndex;
 	int32_t loop;
 	int8_t job;
-	_Bool keepBaseLoop;
+	bool keepBaseLoop;
 } BorderVert;
 
 typedef struct {
@@ -120,9 +125,10 @@ typedef struct {
 	int32_t count;
 } CompiledBorderTable;
 
-typedef struct {
+typedef struct MergeSendOffArgs {
 	RuvmContext pContext;
 	RuvmMap pMap;
+	struct MergeSendOffArgs *pArgArr;
 	Mesh *pMeshOut;
 	InFaceArr **ppInFaceTable;
 	SendOffArgs *pJobArgs;
@@ -130,13 +136,16 @@ typedef struct {
 	int8_t *pVertSeamTable;
 	bool* pEdgeSeamTable;
 	void *pMutex;
+	UBitField8 *pInVertKeep;
 	CompiledBorderTable *pBorderTable;
 	JobBases *pJobBases;
 	CombineTables *pCTables;
 	int32_t *pJobsCompleted;
+	void *pBarrier;
 	PieceArr *pPieceArrTable;
 	PieceRootsArr *pPieceRootTable;
 	int32_t *pTotalVertTable;
+	int32_t totalVerts;
 	Mesh *pInMesh;
 	int32_t entriesStart;
 	int32_t entriesEnd;
@@ -163,9 +172,10 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs, int32_t loopIndex);
-_Bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);
-_Bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
-_Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
+bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);
+bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
+bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
+int32_t getSegment(const BorderFace *pEntry, int32_t loopIndex);
 int32_t getMapLoop(const BorderFace *pEntry,
                    const RuvmMap pMap, int32_t loopIndex);
 V2_I32 getTileMinFromBoundsEntry(BorderFace *pEntry);

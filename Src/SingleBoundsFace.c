@@ -45,8 +45,8 @@ typedef struct {
 	int32_t *pInFaces;
 	int32_t infoBufSize;
 	int32_t entryCount;
-	_Bool seamFace;
-	_Bool fullSort;
+	bool seamFace;
+	bool fullSort;
 } Vars;
 
 /*
@@ -81,22 +81,17 @@ void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle) {
 void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts) {
 	RUVM_ASSERT("", totalVerts >= 0 && totalVerts < 100000);
-	if (totalVerts > pHandle->size) {
-		if (pHandle->size) {
-			ruvmDestroyMergeBufs(pContext, pHandle);
-		}
-		pHandle->pLoopBuf =
-			pContext->alloc.pMalloc(sizeof(BoundsLoopBufEntry) * (totalVerts + 1));
-		pHandle->pMapLoopBuf =
-			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
-		pHandle->pIndexTable =
-			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
-		pHandle->pSortedVerts =
-			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
-		pHandle->size = totalVerts;
-		pHandle->pIndexTable =
-			pContext->alloc.pMalloc(sizeof(int32_t) * totalVerts);
-	}
+	pHandle->size = totalVerts;
+	pHandle->pLoopBuf =
+		pContext->alloc.pMalloc(sizeof(BoundsLoopBufEntry) * (pHandle->size + 1));
+	pHandle->pMapLoopBuf =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
+	pHandle->pIndexTable =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
+	pHandle->pSortedVerts =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
+	pHandle->pIndexTable =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
 }
 
 static
@@ -145,194 +140,7 @@ void buildApproximateTbnInverse(Vars *pVars) {
 }
 
 static
-void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
-                           BorderFace *pEntry, BufMesh *pBufMesh,
-                           int32_t ruvmEdge, int32_t *pVert,
-                           BorderInInfo *pInInfo, int32_t ruvmFace,
-                           int32_t loop, int32_t loopLocal, int32_t outVert,
-                           Piece *pPieceRoot, V2_I32 tileMin) {
-	V3_F32 posFlat = pBufMesh->mesh.pVerts[*pVert];
-	float w = pBufMesh->pW[loop];
-	V3_F32 projNormal = pBufMesh->pInNormal[loop];
-	V3_F32 pos = _(posFlat V3ADD _(projNormal V3MULS w * pArgs->wScale));
-	V2_F32 fTileMin = {(float)tileMin.d[0], (float)tileMin.d[1]};
-	if (!getIfOnInVert(pEntry, loopLocal) && !pArgs->ppInFaceTable) {
-		V3_F32 uvw;
-		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[loop] V2SUB fTileMin);
-		uvw.d[2] = pBufMesh->pW[loop];
-		RuvmMap pMap = pArgs->pMap;
-		FaceRange mapFace = getFaceRange(&pMap->mesh, ruvmFace, false);
-		V3_F32 normal = {0};
-		V3_F32 usgBc = {0};
-		bool transformed = false;
-		for (int32_t i = 0; i < mapFace.size; ++i) {
-			int32_t mapVert = pMap->mesh.mesh.pLoops[mapFace.start + i];
-			int32_t usgIndex = pMap->mesh.pUsg[mapVert];
-			if (!usgIndex) {
-				continue;
-			}
-			usgIndex = abs(usgIndex) - 1;
-			Usg *pUsg = pMap->usgArr.pArr + usgIndex;
-			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
-				bool flatCutoff = pUsg->pFlatCutoff &&
-					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
-				bool inside = sampleUsg(i, uvw, &posFlat, &transformed,
-				                        &usgBc, mapFace, pMap, pEntry->baseFace,
-				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff, true);
-				if (inside) {
-					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
-					break;
-				}
-			}
-		}
-	}
-	pArgs->pMeshOut->pVerts[outVert] = pos;
-}
-
-static
-void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
-                        BorderFace *pEntry, BufMesh *pBufMesh,
-                        int32_t ruvmEdge, int32_t *pVert,
-                        BorderInInfo *pInInfo, int32_t ruvmFace,
-                        int32_t loop, int32_t loopLocal,
-                        Piece *pPieceRoot, V2_I32 tileMin) {
-	bool realloced = false;
-	int32_t outVert = meshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
-	copyAllAttribs(&pArgs->pMeshOut->mesh.vertAttribs, outVert,
-				   &asMesh(pBufMesh)->mesh.vertAttribs, *pVert);
-	transformDeferredVert(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge, pVert,
-	                      pInInfo, ruvmFace, loop, loopLocal, outVert, pPieceRoot, tileMin);
-	*pVert = outVert;
-	pVertEntry->vert = outVert;
-	pVertEntry->tile = tileMin;
-	pVertEntry->ruvmEdge = ruvmEdge;
-	pVertEntry->loops = 1;
-	pVertEntry->baseEdge = pInInfo->edge;
-	pVertEntry->baseVert = pInInfo->vert;
-	pVertEntry->loopIndex = pInInfo->loop;
-	pVertEntry->ruvmFace = ruvmFace;
-	pVertEntry->loop = loop;
-	pVertEntry->job = pEntry->job;
-}
-
-static void initEdgeTableEntry(MergeSendOffArgs *pArgs, BorderEdge *pSeamEntry,
-                               BufMesh *pBufMesh, int32_t *pEdge,
-							   int32_t inEdge, int32_t mapFace) {
-	RuvmContext pContext = pArgs->pContext;
-	bool realloced = false;
-	int32_t edgeOut = meshAddEdge(&pContext->alloc, pArgs->pMeshOut, &realloced);
-	copyAllAttribs(&pArgs->pMeshOut->mesh.edgeAttribs, edgeOut,
-				   &asMesh(pBufMesh)->mesh.edgeAttribs, *pEdge);
-	*pEdge = edgeOut;
-	pSeamEntry->edge = *pEdge;
-	pSeamEntry->inEdge = inEdge;
-	pSeamEntry->mapFace = mapFace;
-}
-
-static
-void addBorderLoopAndVert(Vars *pVars, int32_t *pVert,
-                          BorderFace *pEntry, int32_t k,
-						  int32_t ruvmLoop, int32_t *pEdge, int32_t loop) {
-	V2_I32 tileMin = getTileMinFromBoundsEntry(pEntry);
-	MergeSendOffArgs *pArgs = pVars->pArgs;
-	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
-	_Bool isOnInVert = getIfOnInVert(pEntry, k);
-	if (!isOnInVert) {
-		inInfo.vert = -1;
-	}
-	int32_t hash;
-	int32_t ruvmEdge;
-	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
-	if (isOnInVert) {
-		hash = ruvmFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
-		ruvmEdge = -1;
-	}
-	else {
-		ruvmEdge = pArgs->pMap->mesh.mesh.pEdges[pVars->ruvmFace.start + ruvmLoop];
-		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, pArgs->pCTables->vertTableSize);
-	}
-	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
-	if (!pVertEntry->loops) {
-		initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-		                   pVert, &inInfo, pEntry->faceIndex, loop, k,
-		                   pVars->pPieceRoot, tileMin);
-	}
-	else {
-		do {
-			//Check vert entry is valid
-			RUVM_ASSERT("", pVertEntry->ruvmEdge >= -1);
-			RUVM_ASSERT("", pVertEntry->ruvmEdge < pArgs->pMap->mesh.mesh.edgeCount);
-			RUVM_ASSERT("", pVertEntry->ruvmFace >= 0);
-			RUVM_ASSERT("", pVertEntry->ruvmFace < pArgs->pMap->mesh.mesh.faceCount);
-			_Bool match;
-			if (isOnInVert) {
-				V2_F32 *pMeshInUvA = pArgs->pJobArgs[0].mesh.pUvs + pVertEntry->loopIndex;
-				V2_F32 *pMeshInUvB = pArgs->pJobArgs[0].mesh.pUvs + inInfo.loop;
-				match = pVertEntry->baseVert == inInfo.vert &&
-						pVertEntry->ruvmFace == pEntry->faceIndex &&
-						pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
-						pMeshInUvA->d[1] == pMeshInUvB->d[1];
-			}
-			else {
-				BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
-				_Bool connected = 
-					_(asMesh(pBufMesh)->pUvs[loop] V2APROXEQL
-					  asMesh(pOtherBufMesh)->pUvs[pVertEntry->loop]);
-				match =  pVertEntry->ruvmEdge == ruvmEdge &&
-					     *(uint32_t *)&pVertEntry->tile.d[0] == tileMin.d[0] &&
-					     *(uint32_t *)&pVertEntry->tile.d[1] == tileMin.d[1] &&
-						 pVertEntry->baseEdge == inInfo.edge &&
-						 connected;
-			}
-			if (match) {
-				//If loop isOnInVert,
-				//then entry must also be an isOnInVert entry.
-				//And if not, then entry must also not be
-				RUVM_ASSERT("", (isOnInVert && pVertEntry->baseVert != -1) ||
-				       (!isOnInVert && pVertEntry->baseVert == -1));
-				*pVert = pVertEntry->vert;
-				break;
-			}
-			if (!pVertEntry->pNext) {
-				pVertEntry = pVertEntry->pNext =
-					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderVert));
-				initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-				                   pVert, &inInfo, pEntry->faceIndex, loop, k,
-				                   pVars->pPieceRoot, tileMin);
-				break;
-			}
-			pVertEntry = pVertEntry->pNext;
-		} while(1);
-	}
-	//TODO debug/ verify border edge implementation is working correctly
-	uint32_t valueToHash = inInfo.edge + pEntry->faceIndex;
-	hash = ruvmFnvHash((uint8_t *)&valueToHash, 4, pArgs->pCTables->edgeTableSize);
-	BorderEdge *pEdgeEntry = pArgs->pCTables->pEdgeTable + hash;
-	if (!pEdgeEntry->valid) {
-		initEdgeTableEntry(pArgs, pEdgeEntry, pBufMesh, pEdge, inInfo.edge,
-		                   pEntry->faceIndex);
-	}
-	else {
-		do {
-			if (pEdgeEntry->inEdge == inInfo.edge &&
-				pEdgeEntry->mapFace == pEntry->faceIndex) {
-				*pEdge = pEdgeEntry->edge;
-				break;
-			}
-			if (!pEdgeEntry->pNext) {
-				pEdgeEntry = pEdgeEntry->pNext =
-					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderEdge));
-				initEdgeTableEntry(pArgs, pEdgeEntry, pBufMesh, pEdge,
-				                   inInfo.edge, pEntry->faceIndex);
-				break;
-			}
-			pEdgeEntry = pEdgeEntry->pNext;
-		} while(1);
-	}
-}
-
-static
-_Bool checkIfDup(Vars *pVars, int32_t ruvmLoop) {
+bool checkIfDup(Vars *pVars, int32_t ruvmLoop) {
 	for (int32_t i = 0; i < pVars->mapLoopBuf.count; ++i) {
 		if (ruvmLoop == pVars->mapLoopBuf.pBuf[i]) {
 			return true;
@@ -344,7 +152,7 @@ _Bool checkIfDup(Vars *pVars, int32_t ruvmLoop) {
 
 static void initOnLineTableEntry(MergeSendOffArgs *pArgs, OnLine *pEntry,
                                  BufMesh *pBufMesh, int32_t base,
-								 _Bool isBaseLoop, int32_t ruvmVert,
+								 bool isBaseLoop, int32_t ruvmVert,
 								 int32_t *pVert) {
 	RuvmContext pContext = pArgs->pContext;
 	bool realloced = false;
@@ -363,7 +171,7 @@ void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
                    BorderFace *pEntry, int32_t *pVert, int32_t k) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
-	_Bool isOnInVert = getIfOnInVert(pEntry, k);
+	bool isOnInVert = getIfOnInVert(pEntry, k);
 	int32_t base = isOnInVert ? inInfo.vert : inInfo.edge;
 	int32_t ruvmVert = pArgs->pMap->mesh.mesh.pLoops[pVars->ruvmFace.start + ruvmLoop];
 	int32_t hash = ruvmFnvHash((uint8_t *)&base, 4, pArgs->pCTables->onLineTableSize);
@@ -375,7 +183,7 @@ void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
 	}
 	else {
 		do {
-			_Bool match = base == pOnLineEntry->baseEdgeOrLoop &&
+			bool match = base == pOnLineEntry->baseEdgeOrLoop &&
 			              ruvmVert == pOnLineEntry->ruvmVert &&
 			              isOnInVert + 1 == pOnLineEntry->type;
 			if (match) {
@@ -409,41 +217,21 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 		FaceRange face = pPiece->bufFace;
 		for (int32_t k = 0; k < face.size; ++k) {
 			//CLOCK_START;
-			if (pPiece->skip >> k & 0x01) {
+			if (!(pPiece->add >> k & 0x01)) {
 				continue;
 			}
 			int32_t vert;
 			int32_t edge;
-			_Bool isRuvm = getIfRuvm(pEntry, k);
+			bool isRuvm = getIfRuvm(pEntry, k);
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
 				
-				if (!pPiece->order[k]) {
-					//was not set skip, and was not given an order, must be interior
-					continue;
-				}
-				//CLOCK_STOP_NO_PRINT;
-				//pTimeSpent[3] += CLOCK_TIME_DIFF(start, stop);
-				//CLOCK_START;
-				vert = bufMeshGetVertIndex(pPiece, pBufMesh, k);
-				RUVM_ASSERT("", vert > asMesh(pBufMesh)->vertBufSize - 1 -
-				       pBufMesh->borderVertCount);
-				RUVM_ASSERT("", vert < asMesh(pBufMesh)->vertBufSize);
-				edge = bufMeshGetEdgeIndex(pPiece, pBufMesh, k);
-				RUVM_ASSERT("", edge > asMesh(pBufMesh)->edgeBufSize - 1 -
-				       pBufMesh->borderEdgeCount);
-				RUVM_ASSERT("", edge < asMesh(pBufMesh)->edgeBufSize);
-				int32_t mapLoop = getMapLoop(pEntry, pArgs->pMap, k);
-				RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pArgs->pMap->mesh.mesh.loopCount);
-				addBorderLoopAndVert(pVars, &vert, pEntry, k, mapLoop,
-									 &edge, face.start - k);
-				//CLOCK_STOP_NO_PRINT;
-				//pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
+				RUVM_ASSERT("marked add but not sort", pPiece->order[k] > 0);
+				vert = pBufMesh->mesh.mesh.pLoops[face.start - k];
+				edge = pBufMesh->mesh.mesh.pEdges[face.start - k];
 			}
 			else {
-				if (!pPiece->order[k]) {
-					return true;
-				}
+				RUVM_ASSERT("ruvm loop has no sort", pPiece->order[k] > 0);
 				//is an ruvm loop (this includes ruvm loops sitting on base edges or verts)
 
 				//add an item to pEntry in mapToMesh, which denotes if an ruvm
@@ -452,7 +240,7 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 				//Just use the base edge as the hash, instead of an ruvm edge (cause there isnt one).
 				//Or just make a new hash table just for ruvm loops with zero dot.
 				//That would probably be cleaner, and more memory concious tbh.
-				_Bool onLine = getIfOnLine(pEntry, k);
+				bool onLine = getIfOnLine(pEntry, k);
 				int32_t mapLoop = getMapLoop(pEntry, pArgs->pMap, k);
 				edge = asMesh(pBufMesh)->mesh.pEdges[face.start - k];
 				if (onLine) {
@@ -486,6 +274,7 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			//}
 			BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
 			RUVM_ASSERT("", pPiece->order[k] > 0);
+			RUVM_ASSERT("", pPiece->order[k] <= pVars->bufSize);
 			pVars->pIndexTable[pPiece->order[k] - 1] = pLoopBuf->count;
 			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
 			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
@@ -498,6 +287,7 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			//CLOCK_STOP_NO_PRINT;
 			//pTimeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 			pVars->loopBuf.count++;
+			RUVM_ASSERT("", pLoopBuf->count <= pVars->bufSize);
 			pVars->infoBufSize++;
 			RUVM_ASSERT("", k >= 0 && k < face.size);
 		}

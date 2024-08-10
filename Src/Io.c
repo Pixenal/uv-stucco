@@ -22,15 +22,6 @@
 #include <AttribUtils.h>
 #include <Error.h>
 
-//TODO add info to header to identify file as an ruvm,
-//to prevent accidentally trying to load a different format
-
-typedef struct {
-	unsigned char *pString;
-	int32_t nextBitIndex;
-	int32_t byteIndex;
-} ByteString;
-
 static int32_t decodeSingleBit(ByteString *byteString) {
 	int32_t value = byteString->pString[byteString->byteIndex];
 	value >>= byteString->nextBitIndex;
@@ -41,7 +32,7 @@ static int32_t decodeSingleBit(ByteString *byteString) {
 	return value;
 }
 
-static void encodeValue(ByteString *byteString, uint8_t *value,
+void encodeValue(ByteString *byteString, uint8_t *value,
                         int32_t lengthInBits, int64_t *pSize) {
 	uint8_t valueBuffer[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	int32_t lengthInBytes = lengthInBits / 8;
@@ -65,7 +56,7 @@ static void encodeValue(ByteString *byteString, uint8_t *value,
 	*pSize -= lengthInBits;
 }
 
-static void encodeString(ByteString *byteString,
+void encodeString(ByteString *byteString,
                          uint8_t *string, int64_t *pSize) {
 	int32_t lengthInBits = (strlen((char *)string) + 1) * 8;
 	int32_t lengthInBytes = lengthInBits / 8;
@@ -78,7 +69,7 @@ static void encodeString(ByteString *byteString,
 	*pSize -= lengthInBits;
 }
 
-static void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
+void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
 	int32_t lengthInBytes = lengthInBits / 8;
 	int32_t bitDifference = lengthInBits - lengthInBytes * 8;
 	lengthInBytes += bitDifference > 0;
@@ -102,7 +93,7 @@ static void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthIn
 	byteString->nextBitIndex %= 8;
 }
 
-static void decodeString(ByteString *byteString, char *string, int32_t maxLen) {
+void decodeString(ByteString *byteString, char *string, int32_t maxLen) {
 	byteString->byteIndex += byteString->nextBitIndex > 0;
 	uint8_t *dataPtr = byteString->pString + byteString->byteIndex;
 	int32_t i = 0;
@@ -181,7 +172,7 @@ typedef struct {
 } MeshSizeInBits;
 
 static getObjDataSize(RuvmObject *pObj,
-                      int32_t *pDataSizeInBits, MeshSizeInBits *pSize) {
+                      int64_t *pDataSizeInBits, MeshSizeInBits *pSize) {
 	pSize->transform = 32 * 16;
 	pSize->type = 8;
 	pSize->dataNames = 16 * 3;

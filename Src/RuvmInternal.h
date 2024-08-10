@@ -27,14 +27,14 @@ typedef struct BorderFace{
 	UBitField64 baseLoop : 22;
 	UBitField64 ruvmLoop : 33;
 	UBitField64 job : 8;
-	uint64_t seam : 1;
 
 	uint64_t tileX : 12;
 	uint64_t tileY : 12;
 	UBitField64 isRuvm : 11;
 	UBitField64 onLine : 11;
 	UBitField64 onInVert : 11;
-	uint64_t hasPreservedEdge : 1;
+
+	UBitField64 segment : 33;
 
 	int32_t faceIndex;
 	int32_t face;

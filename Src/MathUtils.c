@@ -18,8 +18,8 @@ void v4MultiplyEqualMat4x4(V4_F32 *pA, Mat4x4 *pB) {
 	*pA = c;
 }
 
-V3_F32 divideByW(V4_F32 a) {
-	return _(*(V3_F32 *)&a V3DIVS a.d[3]);
+V3_F32 divideByW(V4_F32 *pA) {
+	return _(*(V3_F32 *)pA V3DIVS pA->d[3]);
 }
 
 V3_F32 v3MultiplyScalar(V3_F32 a, float b) {
@@ -134,7 +134,7 @@ float v3TriArea(V3_F32 a, V3_F32 b, V3_F32 c) {
 	return v3Len(cross) / 2.0f;
 }
 
-_Bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold) {
+bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, float threshold) {
 	V3_F32 ac = _(a V3SUB c);
 	V3_F32 bc = _(b V3SUB c);
 	V3_F32 cross = _(ac V3CROSS bc);

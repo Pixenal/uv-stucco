@@ -57,7 +57,7 @@ static
 bool addToHitEdges(RuvmAlloc *pAlloc, HitEdgeTable *pHitEdges,
                    int32_t *pVerts, int32_t a, int32_t b) {
 	uint32_t sum = b < 0 ? a : a + b;
-	int32_t hash = ruvmFnvHash(&sum, 4, pHitEdges->size);
+	int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pHitEdges->size);
 	HitEdge *pEntry = pHitEdges->pTable + hash;
 	if (!pEntry->valid) {
 		initHitEdgeEntry(pEntry, a, b);
@@ -77,6 +77,7 @@ bool addToHitEdges(RuvmAlloc *pAlloc, HitEdgeTable *pHitEdges,
 		}
 		pEntry = pEntry->pNext;
 	} while(pEntry);
+	return true;
 }
 
 static
@@ -88,7 +89,7 @@ bool hitTestTri(RuvmAlloc *pAlloc, V3_F32 point, V3_F32 *pTri,
 		*(V2_F32 *)&pTri[1],
 		*(V2_F32 *)&pTri[2]
 	};
-	V3_F32 bc = cartesianToBarycentric(triV2, &point);
+	V3_F32 bc = cartesianToBarycentric(triV2, (V2_F32 *)&point);
 	if (!v3IsFinite(bc)) {
 		//degenerate
 		return false;
@@ -248,6 +249,7 @@ RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
 		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V3_F32);
 	pCore->loopAttribs.count = 2;
 	setSpecialAttribs(pMesh, 0xe); // 1110 - set pos uvs and normals
+	return RUVM_SUCCESS;
 }
 
 RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmUsg *pUsgArr) {
@@ -410,6 +412,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 		//     Ideally you should be able to do this per usg,
 		//     though you'd need to store usg names for that to work.
 	}
+	return RUVM_SUCCESS;
 }
 
 bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 

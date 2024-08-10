@@ -211,6 +211,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 				}
 			}
 		}
+		RUVM_ASSERT("", result == RUVM_SUCCESS);
 		if (faceTris.pLoops) {
 			vars.alloc.pFree(faceTris.pLoops);
 			faceTris.pLoops = NULL;

@@ -13,6 +13,7 @@ typedef struct {
 	V2_F32 uv;
 	V3_F32 projNormal;
 	V3_F32 projNormalMasked;
+	int32_t segment;
 	float scale;
 	float alpha;
 	int8_t triLoops[3];
@@ -25,9 +26,12 @@ typedef struct {
 	bool transformed;
 } LoopBuf;
 
-typedef struct {
+typedef struct LoopBufWrap {
 	LoopBuf buf[11];
+	struct LoopBufWrap *pNext;
 	int32_t size;
+	int32_t lastInLoop;
+	bool invalid;
 } LoopBufWrap;
 
 typedef struct LocalVert {

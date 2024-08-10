@@ -275,6 +275,7 @@ typedef struct {
 	RuvmObjectType type;
 } RuvmObjectData;
 
+//TODO rename pLoops to pVerts
 typedef struct {
 	RuvmObjectData type;
 	RuvmAttribArray meshAttribs;
@@ -311,6 +312,9 @@ typedef struct {
 	void (*pMutexLock)(void *, void *);
 	void (*pMutexUnlock)(void *, void *);
 	void (*pMutexDestroy)(void *, void *);
+	void (*pBarrierGet)(void *, void **);
+	bool (*pBarrierWait)(void *, void *);
+	void (*pBarrierDestroy)(void *, void *);
 	void (*pDestroy)(void *);
 } RuvmThreadPool;
 

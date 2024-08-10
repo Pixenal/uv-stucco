@@ -48,22 +48,24 @@ int32_t getPixelSize(RuvmImageType type) {
 			return 16;
 		case RUVM_IMAGE_F32:
 			return 16;
+		default:
+			RUVM_ASSERT("", false);
+			return 0;
 	}
 }
 
 void *offsetImagePtr(RuvmImage *pImage, int32_t offset) {
 	switch (pImage->type) {
-		case RUVM_IMAGE_UI8: {
+		case RUVM_IMAGE_UI8:
 			return (uint8_t (*) [4])pImage->pData + offset;
-		}
-		case RUVM_IMAGE_UI16: {
+		case RUVM_IMAGE_UI16:
 			return (uint16_t (*) [4])pImage->pData + offset;
-		 }
-		case RUVM_IMAGE_UI32: {
+		case RUVM_IMAGE_UI32:
 			return (uint32_t (*) [4])pImage->pData + offset;
-		 }
-		case RUVM_IMAGE_F32: {
+		case RUVM_IMAGE_F32:
 			return (Color *)pImage->pData + offset;
-		 }
+		default:
+			RUVM_ASSERT("", false);
+			return NULL;
 	}
 }

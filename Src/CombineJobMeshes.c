@@ -115,16 +115,20 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
 	return inInfo;
 }
 
-_Bool getIfRuvm(const BorderFace *pEntry, const int32_t loopIndex) {
-	return pEntry->isRuvm >> loopIndex & 1;
+bool getIfRuvm(const BorderFace *pEntry, const int32_t loopIndex) {
+	return pEntry->isRuvm >> loopIndex & 0x1;
 }
 
-_Bool getIfOnInVert(const BorderFace *pEntry, const int32_t loopIndex) {
-	return pEntry->onInVert >> loopIndex & 1;
+bool getIfOnInVert(const BorderFace *pEntry, const int32_t loopIndex) {
+	return pEntry->onInVert >> loopIndex & 0x1;
 }
 
-_Bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex) {
-	return pEntry->onLine >> loopIndex & 1;
+bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex) {
+	return pEntry->onLine >> loopIndex & 0x1;
+}
+
+int32_t getSegment(const BorderFace *pEntry, int32_t loopIndex) {
+	return pEntry->segment >> (loopIndex * 3) & 0x7;
 }
 
 int32_t getMapLoop(const BorderFace *pEntry,
@@ -146,8 +150,8 @@ V2_I32 getTileMinFromBoundsEntry(BorderFace *pEntry) {
 
 int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localLoop) {
-	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
-	_Bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
+	bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
+	bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
 	int32_t vert = pBufMesh->mesh.mesh.pLoops[pPiece->bufFace.start - localLoop];
 	if (!isRuvm || isOnLine) {
 		vert = convertBorderVertIndex(pBufMesh, vert).realIndex;
@@ -157,8 +161,8 @@ int32_t bufMeshGetVertIndex(const Piece *pPiece,
 
 int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localLoop) {
-	_Bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
-	_Bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
+	bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
+	bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
 	int32_t edge = pBufMesh->mesh.mesh.pEdges[pPiece->bufFace.start - localLoop];
 	if (!isRuvm || isOnLine) {
 		edge = convertBorderEdgeIndex(pBufMesh, edge).realIndex;
