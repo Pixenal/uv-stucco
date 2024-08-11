@@ -514,10 +514,10 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		ruvmCreateQuadTree(pContext, &squares);
 		RuvmMesh squaresOut = {0};
 		mapToMeshInternal(pContext, &squares, pMeshIn, &squaresOut, pCommonAttribList, &pInFaceTable, 1.0f);
-		//*pMeshOut = squaresOut;
-		//return RUVM_SUCCESS;
 		sampleInAttribsAtUsgOrigins(pMap, pMeshIn, squaresOut.faceCount, pInFaceTable);
 		InFaceTableToHashTable(&pContext->alloc, pMap, squaresOut.faceCount, pInFaceTable);
+		//*pMeshOut = squaresOut;
+		//return RUVM_SUCCESS;
 		ruvmMeshDestroy(pContext, &squaresOut);
 	}
 	mapToMeshInternal(pContext, pMap, pMeshIn, pMeshOut, pCommonAttribList, NULL, wScale);

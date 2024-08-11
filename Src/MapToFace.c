@@ -423,11 +423,6 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 									 FaceRange baseFace, BaseTriVerts *pBaseTri,
 									 MappingJobVars *pVars, V2_F32 tileMin, float wScale) {
 	Mesh *pMapMesh = &pVars->pMap->mesh;
-	if (pMapMesh->pUsg) {
-		for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-
-		}
-	}
 	//replace j, k, l, etc, in code that was moved to a func, but not updated,
 	//eg, the below loop should use i, not j
 	for (int32_t j = 0; j < pLoopBuf->size; ++j) {

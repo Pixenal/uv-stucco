@@ -761,7 +761,8 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 static
 void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
                            int32_t piece, SharedEdgeWrap* pEdgeTable,
-                           int32_t edgeTableSize, bool **ppValid, int32_t *pValidCount) {
+                           int32_t edgeTableSize, bool **ppValid,
+                           int32_t *pValidCount, int32_t *pValidSize) {
 	//TODO first , check if the map face even has any preserve edges,
 	//     no point doing all this if not
 	RuvmAlloc *pAlloc = &pArgs->pContext->alloc;
@@ -769,12 +770,14 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 	Mesh *pMapMesh = &pArgs->pMap->mesh;
 	// Get first not exterior loop
 	// This is done to ensure we don't start inside the face
-	Piece *pPieceRoot = pPieceArr->pArr;
 	Piece *pPiece = pPieceArr->pArr + piece;
+	Piece *pPieceRoot = pPiece;
 	FaceRange mapFace = getFaceRange(&pArgs->pMap->mesh.mesh,
 	                                 pPieceRoot->pEntry->faceIndex, false);
-	int32_t validSize = 8;
-	*ppValid = pAlloc->pCalloc(validSize, sizeof(bool));
+	if (!*ppValid) {
+		*pValidSize = 8;
+		*ppValid = pAlloc->pCalloc(*pValidSize, sizeof(bool));
+	}
 	int32_t stackSize = 8;
 	EdgeStack *pStack = pAlloc->pCalloc(stackSize, sizeof(EdgeStack));
 	pStack[0].pPiece = pPiece;
@@ -786,6 +789,12 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 	//Sorting is not done until later, and order is cleared at the end of this func.
 	int32_t receive = -1;
 	do {
+		if (*pValidCount == *pValidSize) {
+			int32_t oldSize = *pValidSize;
+			*pValidSize *= 2;
+			*ppValid = pAlloc->pRealloc(*ppValid, sizeof(bool) * *pValidSize);
+			memset(*ppValid + oldSize, 0, sizeof(bool) * oldSize);
+		}
 		walkEdgesForPreserve(pStack, &stackPtr, *ppValid, *pValidCount, &receive,
 		                     pArgs, pEdgeTable, edgeTableSize, pPieceRoot,
 		                     &mapFace, &unwind);
@@ -799,13 +808,7 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 			//reset for next preserve tree
 			receive = -1;
 			++*pValidCount;
-			RUVM_ASSERT("", *pValidCount <= validSize);
-			if (*pValidCount == validSize) {
-				int32_t oldSize = validSize;
-				validSize *= 2;
-				*ppValid = pAlloc->pRealloc(*ppValid, sizeof(bool) * validSize);
-				memset(*ppValid + oldSize, 0, sizeof(bool) * oldSize);
-			}
+			RUVM_ASSERT("", *pValidCount <= *pValidSize);
 		}
 	} while(stackPtr >= 0);
 	++*pValidCount;
@@ -969,6 +972,7 @@ void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
 	//Once that's done, a second pass is done with preserve edges
 	bool *pValid = NULL;
 	int32_t validCount = 1; //first is reserved and is always false
+	int32_t validSize = 0;
 	int32_t i = 0;
 	do {
 		if (areNonListedPiecesLinked(pPieceArr)) {
@@ -985,8 +989,9 @@ void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
 				if (hasPreserve && !i) {
 					//check if preserve inMesh edge intersects at least 2
 					//map receiver edges. Edge is only preserved if this is so.
-					validatePreserveEdges(pArgs, pPieceArr, pPieceRoots->count,
-					                      pEdgeTable, edgeTableSize, &pValid, &validCount);
+					validatePreserveEdges(pArgs, pPieceArr, j,
+					                      pEdgeTable, edgeTableSize, &pValid,
+					                      &validCount, &validSize);
 				}
 				++pPieceRoots->count;
 			}
@@ -1092,75 +1097,28 @@ void destroySharedEdgeTable(RuvmAlloc *pAlloc,
 }
 
 static
-void checkIfShouldSkip(MergeSendOffArgs *pArgs, Piece *pPieceRoot, Piece* pPiece, int32_t k) {
-	//bool skip = true;
+void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece *pPieceRoot,
+                              Piece* pPiece, int32_t k) {
 	bool keepInVert = false;
-	//if (pPiece->keepSingle >> k & 1) {
-		//skip = false;
-	//}
-	//else {
 	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, k);
 	bool onInVert = getIfOnInVert(pPiece->pEntry, k);
 	if (onInVert) {
 		keepInVert = indexBitArray(pArgs->pInVertKeep, inInfo.vert);
 		if (keepInVert) {
-			//remove from keepPreserve, and add to keepInternPreserve
-			//UBitField16 mask = -0x1 ^ (0x1 << k);
-			//pPiece->keepPreserve &= mask;
 			pPiece->keepPreserve |= true << k;
 		}
 	}
-	//}
-	//override if keep is set to 1
-	//if (skip && (pPiece->keepOnInVert >> k & 0x1 ||
-	             //pPiece->keepVertPreserve >> k & 0x01 ||
-	             //pPiece->keepSeam >> k & 0x1) ||
-		         //keepInVert) {
-		//skip = false;
-		//if (!pPieceRoot->triangulate) {
-			//pPieceRoot->triangulate = true;
-		//}
-	//}
 }
 
-/*
 static
-bool setDupsToSkip(RuvmMap* pMap, Piece* pPieceRoot, Piece* pPiece, int32_t loop) {
-	int32_t mapLoop = getMapLoop(pPiece->pEntry, pMap, loop);
-	Piece* pOtherPiece = pPieceRoot;
-	do {
-		if (pOtherPiece != pPiece) {
-			for (int32_t i = 0; i < pOtherPiece->bufFace.size; ++i) {
-				if (!getIfRuvm(pOtherPiece->pEntry, i) ||
-				    !getIfOnLine(pOtherPiece->pEntry, i)) {
-					continue;
-				}
-				int32_t otherMapLoop = getMapLoop(pOtherPiece->pEntry, pMap, i);
-				if (otherMapLoop == mapLoop) {
-					pOtherPiece->skip |= 0x01 << i;
-					break;
-				}
-			}
-		}
-		pOtherPiece = pOtherPiece->pNext;
-	} while (pOtherPiece);
-}
-*/
-
-static
-void determineLoopsToSkip(MergeSendOffArgs *pArgs, RuvmMap *pMap, Piece* pPiece) {
+void markKeepInVertsPreserve(MergeSendOffArgs *pArgs, RuvmMap *pMap, Piece* pPiece) {
 	Piece* pPieceRoot = pPiece;
 	do {
 		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
 			if (getIfRuvm(pPiece->pEntry, i)) {
-				//if (getIfOnLine(pPiece->pEntry, i) &&
-					//!(pPiece->skip >> i & 0x01)) {
-					//setDupsToSkip(pMap, pPieceRoot, pPiece, i);
-				//}
 				continue;
 			}
-			checkIfShouldSkip(pArgs, pPieceRoot, pPiece, i);
-			//pPiece->skip |= skip << i;
+			markPreserveIfKeepInVert(pArgs, pPieceRoot, pPiece, i);
 		}
 		pPiece = pPiece->pNext;
 	} while (pPiece);
@@ -1168,53 +1126,27 @@ void determineLoopsToSkip(MergeSendOffArgs *pArgs, RuvmMap *pMap, Piece* pPiece)
 
 static
 int32_t getPieceCount(Piece* pPiece) {
-	int32_t count = 1;
-	Piece* pPieceRoot = pPiece->pNext;
-	while (pPiece) {
+	int32_t count = 0;
+	do {
 		count++;
 		pPiece = pPiece->pNext;
-	};
+	} while(pPiece);
 	return count;
 }
-
-/*
-static
-int32_t getFirstLoopNotSkipped(Piece **ppPiece) {
-	do {
-		for (int32_t i = 0; i < (*ppPiece)->bufFace.size; ++i) {
-			if (!((*ppPiece)->skip >> i & 0x01) || ((*ppPiece)->keepPreserve >> i & 0x1)) {
-				return i;
-			}
-		}
-		*ppPiece = (*ppPiece)->pNext;
-	} while (*ppPiece);
-	return -1;
-}
-*/
 
 static
 void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
                SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize, int32_t *pCount) {
-	/*
-	if (!pPiece->pNext) {
-		//Only one entry, so just use existing order
-		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
-			pPiece->order[i] = i + 1;
-			pPiece->add |= true << i;
-		}
-		return;
-	}
-	*/
 	bool single = false;
 	if (!pPiece->pNext) {
 		single = true;
 	}
 	Mesh* pBufMesh = &pArgs->pJobArgs[0].mesh;
-	// Get first not skipped loop.
-	// This is done to ensure we don't start inside the face
 	Piece* pPieceRoot = pPiece;
 	int32_t loop = 0;
 	if (!single) {
+		// get starting loop
+		// This is done to ensure we don't start inside the face
 		loop = getStartingLoop(&pPiece, pArgs, pPiece, pEdgeTable,
 	                           edgeTableSize);
 	}
@@ -1672,10 +1604,7 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 			Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[j];
 			RUVM_ASSERT("", pPiece->pEntry);
 			bool seamFace = determineIfSeamFace(pArgs->pMap, pPiece);
-			//if (seamFace) {
-				//determineLoopsToKeep(pArgs, pPieceArr, &ruvmFace, pPiece, aproxVertsPerPiece);
-			//}
-			determineLoopsToSkip(pArgs, pArgs->pMap, pPiece);
+			markKeepInVertsPreserve(pArgs, pArgs->pMap, pPiece);
 			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, &totalVerts);
 			if (totalVerts > pArgs->totalVerts) {
 				pArgs->totalVerts = totalVerts;

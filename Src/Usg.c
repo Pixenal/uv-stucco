@@ -363,21 +363,38 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 					V3_F32 bc = getBarycentricInFace(triUvs,
 													 triLoops, inFace.size, pUsg->origin);
 					int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
-					int32_t edge = 0;
+					bool close = false;
 					float dist = .0f;
 					if (!inside) {
 						V3_F32 bcAbs = {fabs(bc.d[0]), fabs(bc.d[1]), fabs(bc.d[2])};
 						V3_F32 closestAbs = {fabs(closestBc.d[0]), fabs(closestBc.d[1]), fabs(closestBc.d[2])};
-						for (edge; edge < 3; ++edge) {
+						for (int32_t edge = 0; edge < 3; ++edge) {
 							int32_t last = edge == 0 ? 2 : edge - 1;
 							int32_t next = (edge + 1) % 3;
 							if (bcAbs.d[edge] < closestDist && bc.d[last] >= .0f && bc.d[next] >= .0f) {
 								dist = bcAbs.d[edge];
+								close = true;
 								break;
 							}
 						}
+						if (!close) {
+							//test tri verts
+							for (int32_t vert = 0; vert < 3; ++vert) {
+								if (bc.d[vert] < .0f) {
+									continue;
+								}
+								int32_t last = vert == 0 ? 2 : vert - 1;
+								int32_t next = (vert + 1) % 3;
+								float thisDist = fabs(1.0f - bc.d[vert]);
+								if (thisDist < closestDist && bc.d[last] < .0f && bc.d[next] < .0f) {
+									dist = thisDist;
+									close = true;
+									break;
+								}
+							}
+						}
 					}
-					if (inside || edge < 3) {
+					if (inside || close) {
 						closestBc = bc;
 						closestFace = inFace;
 						closestFaceLoops[0] = triLoops[0];
