@@ -391,51 +391,18 @@ void setAttribOrigins(AttribArray *pAttribs, RuvmAttribOrigin origin) {
 }
 
 static
-Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshIn,
                          RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList,
                          InFaceArr **ppInFaceTable, float wScale) {
 	CLOCK_INIT;
-	if (!pMeshIn) {
-		printf("Ruvm map to mesh failed, pMeshIn was null\n");
-		return RUVM_ERROR;
-	}
-	if (!pMap) {
-		printf("Ruvm map to mesh failed, pMap was null\n");
-		return RUVM_ERROR;
-	}
-
-	Mesh meshInWrap = {.mesh = *pMeshIn};
-	//TODO replace hard coded names with function parameters.
-	//User can specify which attributes should be treated as vert, uv, and normal.
-	UBitField8 flagsToSet = ppInFaceTable ? 0xe : 0x5e; //if ppInFaceTable don't set preserve
-	setSpecialAttribs(&meshInWrap, flagsToSet);
-
-	if (isMeshInvalid(&meshInWrap)) {
-		return RUVM_ERROR;
-	}
-
-	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
-	//it doesn't matter what it's set to here
-	setAttribOrigins(&meshInWrap.mesh.meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&meshInWrap.mesh.faceAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&meshInWrap.mesh.loopAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&meshInWrap.mesh.edgeAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&meshInWrap.mesh.vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-
-	if (!meshInWrap.mesh.edgeCount) {
-		RUVM_ASSERT("", !meshInWrap.mesh.edgeAttribs.count);
-		RUVM_ASSERT("", !meshInWrap.mesh.edgeAttribs.pArr);
-		buildEdgeList(pContext, &meshInWrap);
-	}
-
 	CLOCK_START;
 	EdgeVerts *pEdgeVerts = {0};
-	printf("EdgeCount: %d\n", meshInWrap.mesh.edgeCount);
-	buildEdgeVertsTable(pContext, &pEdgeVerts, &meshInWrap.mesh);
+	printf("EdgeCount: %d\n", pMeshIn->mesh.edgeCount);
+	buildEdgeVertsTable(pContext, &pEdgeVerts, &pMeshIn->mesh);
 	int8_t *pInVertTable;
 	int8_t *pVertSeamTable;
 	bool *pEdgeSeamTable;
-	buildVertTables(pContext, &meshInWrap, &pInVertTable,
+	buildVertTables(pContext, pMeshIn, &pInVertTable,
 	                &pVertSeamTable, pEdgeVerts, &pEdgeSeamTable);
 	CLOCK_STOP("Edge Table Time");
 
@@ -445,7 +412,7 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	Result jobResult = RUVM_NOT_SET;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, &meshInWrap, pMutex,
+	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, pMeshIn, pMutex,
 	            pEdgeVerts, pInVertTable, pCommonAttribList, &jobResult,
 	            ppInFaceTable != NULL, wScale);
 	CLOCK_STOP("Send Off Time");
@@ -463,7 +430,7 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
 	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
-	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale, &meshInWrap);
+	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale, pMeshIn);
 	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
@@ -508,19 +475,48 @@ void InFaceTableToHashTable(RuvmAlloc *pAlloc,
 Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                      RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList,
                      float wScale) {
+	if (!pMeshIn) {
+		printf("Ruvm map to mesh failed, pMeshIn was null\n");
+		return RUVM_ERROR;
+	}
+	if (!pMap) {
+		printf("Ruvm map to mesh failed, pMap was null\n");
+		return RUVM_ERROR;
+	}
+	Mesh meshInWrap = {.mesh = *pMeshIn};
+	setSpecialAttribs(&meshInWrap, 0x30e); //don't set preserve yet
+	if (isMeshInvalid(&meshInWrap)) {
+		return RUVM_ERROR;
+	}
+	buildTangents(&meshInWrap);
+	//TODO remove this, I dont think it's necessary. Origin is only used in bufmesh
+	//it doesn't matter what it's set to here
+	setAttribOrigins(&meshInWrap.mesh.meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.faceAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.loopAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.edgeAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+
+	if (!meshInWrap.mesh.edgeCount) {
+		RUVM_ASSERT("", !meshInWrap.mesh.edgeAttribs.count);
+		RUVM_ASSERT("", !meshInWrap.mesh.edgeAttribs.pArr);
+		buildEdgeList(pContext, &meshInWrap);
+	}
+
 	InFaceArr *pInFaceTable = NULL;
 	if (pMap->usgArr.count) {
 		MapFile squares = { .mesh = pMap->usgArr.squares };
 		ruvmCreateQuadTree(pContext, &squares);
 		RuvmMesh squaresOut = {0};
-		mapToMeshInternal(pContext, &squares, pMeshIn, &squaresOut, pCommonAttribList, &pInFaceTable, 1.0f);
-		sampleInAttribsAtUsgOrigins(pMap, pMeshIn, squaresOut.faceCount, pInFaceTable);
+		mapToMeshInternal(pContext, &squares, &meshInWrap, &squaresOut, pCommonAttribList, &pInFaceTable, 1.0f);
+		sampleInAttribsAtUsgOrigins(pMap, &meshInWrap, squaresOut.faceCount, pInFaceTable);
 		InFaceTableToHashTable(&pContext->alloc, pMap, squaresOut.faceCount, pInFaceTable);
 		//*pMeshOut = squaresOut;
 		//return RUVM_SUCCESS;
 		ruvmMeshDestroy(pContext, &squaresOut);
 	}
-	mapToMeshInternal(pContext, pMap, pMeshIn, pMeshOut, pCommonAttribList, NULL, wScale);
+	setSpecialAttribs(&meshInWrap, 0x50); //set perserve if present
+	mapToMeshInternal(pContext, pMap, &meshInWrap, pMeshOut, pCommonAttribList, NULL, wScale);
 	if (pMap->usgArr.count) {
 		pContext->alloc.pFree(pMap->usgArr.pInFaceTable);
 		pMap->usgArr.pInFaceTable = NULL;

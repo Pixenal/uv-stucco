@@ -1240,51 +1240,6 @@ void getPieceInFaces(RuvmAlloc *pAlloc, int32_t **ppInFaces,
 }
 
 static
-void transformDeferredVert(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
-                           BorderFace *pEntry, BufMesh *pBufMesh,
-                           int32_t ruvmEdge, int32_t *pVert,
-                           BorderInInfo *pInInfo, int32_t ruvmFace,
-                           int32_t loop, int32_t loopLocal, int32_t outVert,
-                           Piece *pPieceRoot, V2_I32 tileMin) {
-	V3_F32 posFlat = pBufMesh->mesh.pVerts[*pVert];
-	float w = pBufMesh->pW[loop];
-	V3_F32 projNormal = pBufMesh->pInNormal[loop];
-	V3_F32 pos = _(posFlat V3ADD _(projNormal V3MULS w * pArgs->wScale));
-	V2_F32 fTileMin = {(float)tileMin.d[0], (float)tileMin.d[1]};
-	if (!getIfOnInVert(pEntry, loopLocal) && !pArgs->ppInFaceTable) {
-		V3_F32 uvw;
-		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[loop] V2SUB fTileMin);
-		uvw.d[2] = pBufMesh->pW[loop];
-		RuvmMap pMap = pArgs->pMap;
-		FaceRange mapFace = getFaceRange(&pMap->mesh, ruvmFace, false);
-		V3_F32 normal = {0};
-		V3_F32 usgBc = {0};
-		bool transformed = false;
-		for (int32_t i = 0; i < mapFace.size; ++i) {
-			int32_t mapVert = pMap->mesh.mesh.pLoops[mapFace.start + i];
-			int32_t usgIndex = pMap->mesh.pUsg[mapVert];
-			if (!usgIndex) {
-				continue;
-			}
-			usgIndex = abs(usgIndex) - 1;
-			Usg *pUsg = pMap->usgArr.pArr + usgIndex;
-			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
-				bool flatCutoff = pUsg->pFlatCutoff &&
-					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
-				bool inside = sampleUsg(i, uvw, &posFlat, &transformed,
-				                        &usgBc, mapFace, pMap, pEntry->baseFace,
-				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff, true);
-				if (inside) {
-					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
-					break;
-				}
-			}
-		}
-	}
-	pArgs->pMeshOut->pVerts[outVert] = pos;
-}
-
-static
 void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
                         BorderFace *pEntry, BufMesh *pBufMesh,
                         int32_t ruvmEdge, int32_t *pVert,
@@ -1295,8 +1250,6 @@ void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 	int32_t outVert = meshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
 	copyAllAttribs(&pArgs->pMeshOut->mesh.vertAttribs, outVert,
 				   &asMesh(pBufMesh)->mesh.vertAttribs, *pVert);
-	transformDeferredVert(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge, pVert,
-	                      pInInfo, ruvmFace, loop, loopLocal, outVert, pPieceRoot, tileMin);
 	*pVert = outVert;
 	pVertEntry->vert = outVert;
 	pVertEntry->tile = tileMin;
@@ -1563,6 +1516,83 @@ void mergeIntersectionLoops(MergeSendOffArgs *pArgs, bool preserve) {
 }
 
 static
+void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
+                           BufMesh *pBufMesh, FaceRange *pMapFace,
+                           int32_t loopLocal, V2_I32 tileMin) {
+	BorderFace *pEntry = pPiece->pEntry;
+	int32_t loop = pPiece->bufFace.start - loopLocal;
+	int32_t vert = bufMeshGetVertIndex(pPiece, pBufMesh, loopLocal);
+	V3_F32 posFlat = pBufMesh->mesh.pVerts[vert];
+	float w = pBufMesh->pW[loop];
+	V3_F32 projNormal = pBufMesh->pInNormal[loop];
+	V3_F32 inTangent = pBufMesh->pInTangent[loop];
+	float inTSign = pBufMesh->pInTSign[loop];
+	Mat3x3 tbn;
+	*(V3_F32 *)&tbn.d[0] = inTangent;
+	*(V3_F32 *)&tbn.d[1] = _(_(projNormal V3CROSS inTangent) V3MULS inTSign);
+	*(V3_F32 *)&tbn.d[2] = projNormal;
+	V3_F32 pos = _(posFlat V3ADD _(projNormal V3MULS w * pArgs->wScale));
+	V3_F32 normal = {0};
+	V2_F32 fTileMin = {(float)tileMin.d[0], (float)tileMin.d[1]};
+	bool normalTransformed = false;
+	if (!getIfOnInVert(pEntry, loopLocal) && !pArgs->ppInFaceTable) {
+		V3_F32 uvw;
+		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[loop] V2SUB fTileMin);
+		uvw.d[2] = pBufMesh->pW[loop];
+		RuvmMap pMap = pArgs->pMap;
+		V3_F32 usgBc = {0};
+		bool transformed = false;
+		for (int32_t i = 0; i < pMapFace->size; ++i) {
+			int32_t mapVert = pMap->mesh.mesh.pLoops[pMapFace->start + i];
+			int32_t usgIndex = pMap->mesh.pUsg[mapVert];
+			if (!usgIndex) {
+				continue;
+			}
+			usgIndex = abs(usgIndex) - 1;
+			Usg *pUsg = pMap->usgArr.pArr + usgIndex;
+			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
+				bool flatCutoff = pUsg->pFlatCutoff &&
+					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
+				bool inside = sampleUsg(i, uvw, &posFlat, &transformed,
+				                        &usgBc, *pMapFace, pMap, pEntry->baseFace,
+				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff, true,
+				                        &tbn);
+				if (inside) {
+					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
+					if (transformed) {
+						normalTransformed = true;
+						normal = _(pBufMesh->mesh.pNormals[loop] V3MULM3X3 &tbn);
+					}
+					break;
+				}
+			}
+		}
+	}
+	if (!normalTransformed) {
+		normal = _(pBufMesh->mesh.pNormals[loop] V3MULM3X3 &tbn);
+	}
+	pBufMesh->mesh.pVerts[vert] = pos;
+	pBufMesh->mesh.pNormals[loop] = normal;
+}
+
+static
+void transformDefferedLoops(MergeSendOffArgs *pArgs,
+                            FaceRange *pMapFace, Piece *pPiece) {
+	do {
+		BufMesh *pBufMesh = &pArgs->pJobArgs[pPiece->pEntry->job].bufMesh;
+		V2_I32 tileMin = getTileMinFromBoundsEntry(pPiece->pEntry);
+		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
+			if (getIfRuvm(pPiece->pEntry, i) || !(pPiece->add >> i & 0x1)) {
+				continue;
+			}
+			transformDeferredVert(pArgs, pPiece, pBufMesh, pMapFace,
+			                      i, tileMin);
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+}
+
+static
 void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 	CLOCK_INIT;
 	RuvmContext pContext = pArgs->pContext;
@@ -1606,6 +1636,7 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 			bool seamFace = determineIfSeamFace(pArgs->pMap, pPiece);
 			markKeepInVertsPreserve(pArgs, pArgs->pMap, pPiece);
 			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, &totalVerts);
+			transformDefferedLoops(pArgs, &ruvmFace, pPiece);
 			if (totalVerts > pArgs->totalVerts) {
 				pArgs->totalVerts = totalVerts;
 			}

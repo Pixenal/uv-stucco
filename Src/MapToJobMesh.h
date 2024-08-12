@@ -5,10 +5,12 @@
 #include <Utils.h>
 
 typedef struct {
+	Mat3x3 tbn;
 	V3_F32 uvw;
 	V3_F32 loop;
 	V3_F32 loopFlat;
 	V3_F32 normal;
+	V3_F32 inTangent;
 	V3_F32 bc; //barycentric coords
 	V2_F32 uv;
 	V3_F32 projNormal;
@@ -16,6 +18,7 @@ typedef struct {
 	int32_t segment;
 	float scale;
 	float alpha;
+	float inTSign;
 	int8_t triLoops[3];
 	int8_t baseLoop;
 	uint8_t ruvmLoop : 4;

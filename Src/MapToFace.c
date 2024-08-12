@@ -125,8 +125,11 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 	LoopBuf *pLoop = pLoopBuf->buf + i;
 	LoopBuf *pLoopNext = pLoopBuf->buf + iNext;
 	LoopBuf *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
+	float mapAlpha = .0f;
 	calcIntersection(pLoop->loop, pLoopNext->loop, pBaseLoop->vert,
-	                 pBaseLoop->dir, &pNewEntry->loop, NULL, &pNewEntry->alpha);
+	                 pBaseLoop->dir, &pNewEntry->loop, &mapAlpha, &pNewEntry->alpha);
+	pNewEntry->normal = v3Lerp(pLoop->normal, pLoopNext->normal, mapAlpha);
+	pNewEntry->normal = pLoopBuf->buf[i].normal;
 	if (checkIfOnVert(pLoopBuf, i, iNext)) {
 		int32_t lastBaseLoop = flippedWind ?
 			pBaseLoop->index + 1 : pBaseLoop->index - 1;
@@ -144,7 +147,6 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 		pNewEntry->isBaseLoop = false;
 		pNewEntry->preserve = preserve;
 	}
-	pNewEntry->normal = pLoopBuf->buf[i].normal;
 	pNewEntry->isRuvm = false;
 	pNewEntry->ruvmLoop = pLoopBuf->buf[i].ruvmLoop;
 	ptBuf[*pCount] = pNewEntry->alpha;
@@ -420,7 +422,7 @@ V3_F32 getLoopRealNormal(Mesh *pMesh, FaceRange *pFace, int32_t loop) {
 
 static
 void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
-									 FaceRange baseFace, BaseTriVerts *pBaseTri,
+									 FaceRange inFace, BaseTriVerts *pBaseTri,
 									 MappingJobVars *pVars, V2_F32 tileMin, float wScale) {
 	Mesh *pMapMesh = &pVars->pMap->mesh;
 	//replace j, k, l, etc, in code that was moved to a func, but not updated,
@@ -433,63 +435,40 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 		//find enclosing triangle
 		_((V2_F32 *)&pLoop->uvw V2SUBEQL tileMin);
 		V3_F32 vertBc = getBarycentricInFace(pBaseTri->uv, pLoop->triLoops,
-		                                     baseFace.size, *(V2_F32 *)&pLoop->uvw);
+		                                     inFace.size, *(V2_F32 *)&pLoop->uvw);
 		int8_t *pTriLoops = pLoop->triLoops;
 		V3_F32 vertsXyz[3];
 		for (int32_t i = 0; i < 3; ++i) {
 			int32_t vertIndex =
-				pVars->mesh.mesh.pLoops[baseFace.start + pTriLoops[i]];
+				pVars->mesh.mesh.pLoops[inFace.start + pTriLoops[i]];
 			vertsXyz[i] = pVars->mesh.pVerts[vertIndex];
 		}
 		pLoop->bc = vertBc;
-		V3_F32 *pInNormals = pVars->mesh.pNormals;
-		//interpolate normals and scale
-		//TODO replace interpolation in this func with the attrib
-		//     interpolation funcions or macros
-		V3_F32 normal = _(pInNormals[baseFace.start + pTriLoops[0]] V3MULS vertBc.d[0]);
-		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[1]] V3MULS vertBc.d[1]));
-		_(&normal V3ADDEQL _(pInNormals[baseFace.start + pTriLoops[2]] V3MULS vertBc.d[2]));
-		_(&normal V3DIVEQLS vertBc.d[0] + vertBc.d[1] + vertBc.d[2]);
+		pLoop->tbn = getInterpolatedTbn(&pVars->mesh, &inFace, pTriLoops, vertBc);
+		pLoop->inTangent = *(V3_F32 *)&pLoop->tbn.d[0];
+		pLoop->projNormal = *(V3_F32 *)&pLoop->tbn.d[2];
+		pLoop->inTSign = pVars->mesh.pTSigns[inFace.start + pTriLoops[0]];
 		if (pMapMesh->pUsg && pLoop->isRuvm) {
 			V3_F32 usgBc = {0};
 			sampleUsg(pLoop->ruvmLoop, pLoop->uvw, &pLoop->loopFlat,
 			          &pLoop->transformed, &usgBc, ruvmFace, pVars->pMap,
-			          baseFace.index, &pVars->mesh, &normal, tileMin, false, false);
+			          inFace.index, &pVars->mesh, &pLoop->projNormal,
+			          tileMin, false, false, &pLoop->tbn);
 		}
 		if (!pLoop->transformed) {
 			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);
 		}
-		pLoop->projNormal = normal;
-	}
-	for (int32_t j = 0; j < pLoopBuf->size; ++j) {
-		LoopBuf *pLoop = pLoopBuf->buf + j;
 		if (pLoop->isRuvm) {
 			pLoop->loop =
 				_(pLoop->loopFlat V3ADD _(pLoop->projNormal V3MULS pLoop->uvw.d[2] * wScale));
+			pLoopBuf->buf[j].normal = _(pLoopBuf->buf[j].normal V3MULM3X3 &pLoop->tbn);
 		}
 		else {
-			//offset will be deferred to combine stage,
+			//offset and normal transform will be deferred to combine stage,
 			//to allow for interpolation of usg normals.
 			//W will be add to the loop in the add to face function after this func
 			pLoop->loop = pLoop->loopFlat;
 		}
-		//transform normal from tangent space to object space
-		//TODO only multiply by TBN if an option is set to use map normals,
-		//otherwise just use the above interpolated
-		Mat3x3 tbn = pVars->tbn;
-		//uncomment normal once you reenable normal masking based on zup mask
-		//V3_F32 normal;
-		if (pLoopBuf->buf[j].isRuvm) {
-			//normal = pLoopBuf->buf[j].projNormalMasked;
-		}
-		else {
-			//normal = pLoopBuf->buf[j].projNormal;
-		}
-		//TODO your currently using a single tbn per face, which is going to give flat faces on dense maps.
-		//     Generate tangents per vertex, and interpolate across the face, and build a tbn using that instead.
-		//     Presumably using mikktspace.
-		pLoopBuf->buf[j].normal = _(pLoopBuf->buf[j].normal V3MULM3X3 &tbn);
-
 	}
 }
 
@@ -912,7 +891,9 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 		}
 		pBufMesh->pW[loop.realIndex] = pLoopBuf->buf[i].uvw.d[2];
 		pBufMesh->pInNormal[loop.realIndex] = pLoopBuf->buf[i].projNormal;
+		pBufMesh->pInTangent[loop.realIndex] = pLoopBuf->buf[i].inTangent;
 		pBufMesh->pAlpha[loop.realIndex] = pLoopBuf->buf[i].alpha;
+		pBufMesh->pInTSign[loop.realIndex] = pLoopBuf->buf[i].inTSign;
 		asMesh(pBufMesh)->mesh.pLoops[loop.realIndex] = acfVars.vert;
 		asMesh(pBufMesh)->pNormals[loop.realIndex] = pLoopBuf->buf[i].normal;
 		asMesh(pBufMesh)->pUvs[loop.realIndex] = pLoopBuf->buf[i].uv;
@@ -1050,6 +1031,11 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 						onLine = isOnLine(pLoopBuf);
 					}
 					if (pLoopBuf->size >= 3) {
+						//TODO move this after addClippedFaceToBufMesh,
+						//     that way, you can skip merged ruvm verts,
+						//     and you can also remove the use of LoopBuf,
+						//     and turn the func into a generic (generic for BufMesh)
+						//     one that can be used on deffered loops in MergeBoundsFaces.c
 						transformClippedFaceFromUvToXyz(pLoopBuf, ruvmFace, baseFace, &baseTri,
 														pVars, fTileMin, pVars->wScale);
 						int32_t faceIndex = pVars->bufMesh.mesh.mesh.faceCount;

@@ -20,7 +20,9 @@ typedef enum {
 	ATTRIB_SPECIAL_PRESERVE,
 	ATTRIB_SPECIAL_RECEIVE,
 	ATTRIB_SPECIAL_PRESERVE_VERT,
-	ATTRIB_SPECIAL_USG
+	ATTRIB_SPECIAL_USG,
+	ATTRIB_SPECIAL_TANGENTS,
+	ATTRIB_SPECIAL_TSIGNS
 } SpecialAttrib;
 
 int32_t getAttribSize(AttribType type);
@@ -49,7 +51,7 @@ void reallocAttribs(const RuvmAlloc *pAlloc, Mesh *pMesh,
 void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, int32_t start,
 						   int32_t offset, int32_t lenToCopy, int32_t newLen);
-void setSpecialAttribs(Mesh *pMesh, UBitField8 flags);
+void setSpecialAttribs(Mesh *pMesh, UBitField16 flags);
 void allocAttribsFromMeshArr(RuvmAlloc *pAlloc, Mesh *pMeshDest,
                              int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon);
 void initAttrib(RuvmAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,

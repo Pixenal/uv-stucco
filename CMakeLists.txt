@@ -45,9 +45,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(RUVM Src/Alloc.c Src/MergeBoundsFaces.c Src/Io.c Src/MapToFace.c
             Src/QuadTree.c Src/RUVM.c Src/MathUtils.c Src/Utils.c Src/AttribUtils.c
             Src/SingleBoundsFace.c Src/CombineJobMeshes.c Src/MapToJobMesh.c
-            Src/ImageUtils.c Src/Mesh.c ${PLATFORM_SRC_FILES})
+            Src/ImageUtils.c Src/Mesh.c Src/Usg.c Extern/MikkTSpace/mikktspace.c
+			${PLATFORM_SRC_FILES})
 target_include_directories(RUVM PUBLIC Include)
-target_include_directories(RUVM PRIVATE Src)
+target_include_directories(RUVM PRIVATE Src Extern/MikkTSpace)
 message("FIND_ZLIB is " + ${FIND_ZLIB})
 if (FIND_ZLIB)
 	message("Attempting to find zlib")

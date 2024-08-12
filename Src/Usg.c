@@ -322,21 +322,19 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 	return RUVM_SUCCESS;
 }
 
-RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
+RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
                                        int32_t count, InFaceArr *pInFaceTable) {
-	Mesh meshInWrap = {.mesh = *pInMesh};
-	setSpecialAttribs(&meshInWrap, 0x5e); //1011110 - set all except for receive
 	for (int32_t i = 0; i < count; ++i) {
 		Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
 		V3_F32 closestBc = {FLT_MAX, FLT_MAX, FLT_MAX};
 		FaceRange closestFace = {.index = -1};
-		int32_t closestFaceLoops[3] = {0};
+		int8_t closestFaceLoops[3] = {0};
 		float closestDist = FLT_MAX;
 		for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
 			FaceRange inFace =
-				getFaceRange(&meshInWrap.mesh, pInFaceTable[i].pArr[j], false);
+				getFaceRange(&pInMesh->mesh, pInFaceTable[i].pArr[j], false);
 			FaceBounds faceBounds = {0};
-			getFaceBoundsForTileTest(&faceBounds, &meshInWrap, &inFace);
+			getFaceBoundsForTileTest(&faceBounds, pInMesh, &inFace);
 			V2_I32 minTile = faceBounds.min;
 			V2_I32 maxTile = faceBounds.max;
 			for (int32_t l = minTile.d[1]; l <= maxTile.d[1]; ++l) {
@@ -346,7 +344,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 					int8_t triLoops[4] = {0};
 					V2_F32 triUvs[4] = {0};
 					for (int32_t k = 0; k < inFace.size; ++k) {
-						triUvs[k] = meshInWrap.pUvs[inFace.start + k];
+						triUvs[k] = pInMesh->pUvs[inFace.start + k];
 					}
 					//TODO move in uvs to 0 - 1 space if in another tile
 					//(don't move origin, conversion to barycentric causes problems if you do that).
@@ -412,6 +410,10 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 		pInFaceTable[i].tri[0] = closestFace.start + closestFaceLoops[0];
 		pInFaceTable[i].tri[1] = closestFace.start + closestFaceLoops[1];
 		pInFaceTable[i].tri[2] = closestFace.start + closestFaceLoops[2];
+		pInFaceTable[i].tbn = getInterpolatedTbn(pInMesh, &closestFace,
+		                                         closestFaceLoops, closestBc);
+		pInFaceTable[i].normal = *(V3_F32 *)&pInFaceTable[i].tbn.d[2];
+		/*
 		Attrib attrib = {
 			.pData = &pInFaceTable[i].normal,
 			.interpolate = true,
@@ -422,6 +424,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 		                  pInFaceTable[i].tri[1],
 		                  pInFaceTable[i].tri[2],
 		                  closestBc);
+		*/
 		//pInFaceTable[i].tbn = buildFaceTbn(closestFace, &meshInWrap, closestFaceLoops);
 		
 		//TODO support usg for more than just normal maps,
@@ -435,7 +438,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, RuvmMesh *pInMesh,
 bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
                V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
                Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin,
-               bool useFlatCutoff, bool flatCutoffOveride) {
+               bool useFlatCutoff, bool flatCutoffOveride, Mat3x3 *pTbn) {
 	Mesh *pMapMesh = &pMap->mesh;
 	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + ruvmLoop];
 	int32_t usg = pMapMesh->pUsg[mapLoop];
@@ -468,6 +471,7 @@ bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 				//getTriScale(3, &usgTri);
 				*pUsgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&uvw);
 				*pPos = barycentricToCartesian(usgTri.xyz, pUsgBc);
+				*pTbn = pEntry->pEntry->tbn;
 				*pTransformed = true;
 			}
 			//V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, ruvmLoop);

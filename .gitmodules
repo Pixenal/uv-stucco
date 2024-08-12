@@ -1,0 +1,3 @@
+[submodule "MikkTSpace"]
+	path = Extern/MikkTSpace
+	url = https://github.com/mmikk/MikkTSpace

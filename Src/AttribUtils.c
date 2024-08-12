@@ -1995,11 +1995,18 @@ SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 		else if (pAttrib->pData == pMesh->pUsg) {
 			return ATTRIB_SPECIAL_USG;
 		}
+		else if (pAttrib->pData == pMesh->pTangents) {
+			return ATTRIB_SPECIAL_TANGENTS;
+		}
+		else if (pAttrib->pData == pMesh->pTSigns) {
+			return ATTRIB_SPECIAL_TSIGNS;
+		}
 		return ATTRIB_SPECIAL_NONE;
 }
 
 static
 void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
+	//TODO valid isn't used here?
 	bool valid = false;
 	switch (special) {
 		case (ATTRIB_SPECIAL_NONE):
@@ -2031,6 +2038,14 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			break;
 		case (ATTRIB_SPECIAL_USG):
 			pMesh->pUsg = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_TANGENTS):
+			pMesh->pTangents = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_TSIGNS):
+			pMesh->pTSigns = pAttrib->pData;
 			valid = true;
 			break;
 	}
@@ -2087,7 +2102,9 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 	}
 }
 
-void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
+void setSpecialAttribs(Mesh *pMesh, UBitField16 flags) {
+	//TODO replace hard coded names with function parameters.
+	//User can specify which attributes should be treated as vert, uv, and normal.
 	RuvmMesh *pCore = &pMesh->mesh;
 	if (flags >> ATTRIB_SPECIAL_VERTS & 0x01) {
 		pMesh->pVertAttrib = getAttrib("position", &pCore->vertAttribs);
@@ -2127,6 +2144,16 @@ void setSpecialAttribs(Mesh *pMesh, UBitField8 flags) {
 		if (pMesh->pUsgAttrib) {
 			pMesh->pUsg = pMesh->pUsgAttrib->pData;
 		}
+	}
+	if (flags >> ATTRIB_SPECIAL_TANGENTS & 0x01) {
+		pMesh->pTangentAttrib = getAttrib("RuvmTangent", &pCore->loopAttribs);
+		RUVM_ASSERT("", pMesh->pTangentAttrib);
+		pMesh->pTangents = pMesh->pTangentAttrib->pData;
+	}
+	if (flags >> ATTRIB_SPECIAL_TSIGNS & 0x01) {
+		pMesh->pTSignAttrib = getAttrib("RuvmTSign", &pCore->loopAttribs);
+		RUVM_ASSERT("", pMesh->pTSignAttrib);
+		pMesh->pTSigns = pMesh->pTSignAttrib->pData;
 	}
 }
 

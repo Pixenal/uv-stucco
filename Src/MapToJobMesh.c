@@ -38,16 +38,26 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	Attrib *pInNormalAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 1;
 	initAttrib(&pVars->alloc, pInNormalAttrib, "RuvmInNormal", pMesh->loopBufSize, false,
 		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
-	Attrib *pAlphaAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 2;
+	Attrib *pInTangentAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 2;
+	initAttrib(&pVars->alloc, pInTangentAttrib, "RuvmInTangent", pMesh->loopBufSize, false,
+		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
+	Attrib *pAlphaAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 3;
 	initAttrib(&pVars->alloc, pAlphaAttrib, "RuvmAlpha", pMesh->loopBufSize, false,
 		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
-	pMesh->mesh.loopAttribs.count += 3;
+	Attrib *pInTSignAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 4;
+	initAttrib(&pVars->alloc, pInTSignAttrib, "RuvmInTSign", pMesh->loopBufSize, false,
+		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
+	pMesh->mesh.loopAttribs.count += 5;
 	pVars->bufMesh.pWAttrib = pWAttrib;
 	pVars->bufMesh.pW = pWAttrib->pData;
 	pVars->bufMesh.pInNormalAttrib = pInNormalAttrib;
 	pVars->bufMesh.pInNormal = pInNormalAttrib->pData;
+	pVars->bufMesh.pInTangentAttrib = pInTangentAttrib;
+	pVars->bufMesh.pInTangent = pInTangentAttrib->pData;
 	pVars->bufMesh.pAlphaAttrib = pAlphaAttrib;
 	pVars->bufMesh.pAlpha = pAlphaAttrib->pData;
+	pVars->bufMesh.pInTSignAttrib = pInTSignAttrib;
+	pVars->bufMesh.pInTSign = pInTSignAttrib->pData;
 
 	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.loopAttribs);
 	pMesh->pUvs = pMesh->pUvAttrib->pData;
