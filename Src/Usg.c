@@ -323,8 +323,8 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 }
 
 RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
-                                       int32_t count, InFaceArr *pInFaceTable) {
-	for (int32_t i = 0; i < count; ++i) {
+                                       RuvmMesh *pSquares, InFaceArr *pInFaceTable) {
+	for (int32_t i = 0; i < pSquares->faceCount; ++i) {
 		Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
 		V3_F32 closestBc = {FLT_MAX, FLT_MAX, FLT_MAX};
 		FaceRange closestFace = {.index = -1};
@@ -413,6 +413,34 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		pInFaceTable[i].tbn = getInterpolatedTbn(pInMesh, &closestFace,
 		                                         closestFaceLoops, closestBc);
 		pInFaceTable[i].normal = *(V3_F32 *)&pInFaceTable[i].tbn.d[2];
+		//add offset if current position will cause intersections with surface
+		FaceRange face = getFaceRange(pSquares, i, false);
+		int32_t triVerts[3] = {
+			pInMesh->mesh.pLoops[pInFaceTable[i].tri[0]],
+			pInMesh->mesh.pLoops[pInFaceTable[i].tri[1]],
+			pInMesh->mesh.pLoops[pInFaceTable[i].tri[2]]
+		};
+		V3_F32 tri[3] = {
+			pInMesh->pVerts[triVerts[0]],
+			pInMesh->pVerts[triVerts[1]],
+			pInMesh->pVerts[triVerts[2]]
+		};
+		Mesh squaresWrap = {.mesh = *pSquares};
+		setSpecialAttribs(&squaresWrap, 0x02); //set only position
+		// where a is the origin, ab is the normal, and c is the square vert
+		V3_F32 a = barycentricToCartesian(tri, &closestBc);
+		V3_F32 ab = pInFaceTable[i].normal;
+		RUVM_ASSERT("", face.start >= 0 && face.size >= 3);
+		float tMax = -FLT_MAX;
+		for (int32_t j = 0; j < face.size; ++j) {
+			int32_t vert = pSquares->pLoops[face.start + j];
+			V3_F32 ac = _(squaresWrap.pVerts[vert] V3SUB a);
+			float t = _(ab V3DOT ac);
+			if (t > tMax) {
+				tMax = t;
+			}
+		}
+		pInFaceTable[i].offset = tMax > .0f ? tMax : .0f;
 		/*
 		Attrib attrib = {
 			.pData = &pInFaceTable[i].normal,
@@ -471,6 +499,9 @@ bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 				//getTriScale(3, &usgTri);
 				*pUsgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&uvw);
 				*pPos = barycentricToCartesian(usgTri.xyz, pUsgBc);
+				if (pEntry->pEntry->offset) {
+					_(pPos V3ADDEQL _(pEntry->pEntry->normal V3MULS pEntry->pEntry->offset));
+				}
 				*pTbn = pEntry->pEntry->tbn;
 				*pTransformed = true;
 			}

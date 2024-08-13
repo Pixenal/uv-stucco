@@ -19,6 +19,7 @@ typedef struct InFaceArr {
 	int32_t *pArr;
 	int32_t count;
 	int32_t usg;
+	float offset;
 } InFaceArr;
 
 typedef struct UsgInFace {
@@ -41,7 +42,7 @@ RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmUsg *pUsgArr);
 RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
                              RuvmMap pMap, RuvmUsg *pUsgArr);
 RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
-                                       int32_t count, InFaceArr *pInFaceTable);
+                                       RuvmMesh *pSquares, InFaceArr *pInFaceTable);
 bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
                V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
                Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin,

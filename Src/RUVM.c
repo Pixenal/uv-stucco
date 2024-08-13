@@ -509,7 +509,7 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		ruvmCreateQuadTree(pContext, &squares);
 		RuvmMesh squaresOut = {0};
 		mapToMeshInternal(pContext, &squares, &meshInWrap, &squaresOut, pCommonAttribList, &pInFaceTable, 1.0f);
-		sampleInAttribsAtUsgOrigins(pMap, &meshInWrap, squaresOut.faceCount, pInFaceTable);
+		sampleInAttribsAtUsgOrigins(pMap, &meshInWrap, &squaresOut, pInFaceTable);
 		InFaceTableToHashTable(&pContext->alloc, pMap, squaresOut.faceCount, pInFaceTable);
 		//*pMeshOut = squaresOut;
 		//return RUVM_SUCCESS;
