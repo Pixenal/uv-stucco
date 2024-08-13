@@ -1593,6 +1593,20 @@ void transformDefferedLoops(MergeSendOffArgs *pArgs,
 }
 
 static
+void invertWind(Piece *pPiece, int32_t count) {
+	count++;
+	do {
+		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
+			if (!(pPiece->add >> i & 0x1)) {
+				continue;
+			}
+			pPiece->order[i] = count - pPiece->order[i];
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+}
+
+static
 void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 	CLOCK_INIT;
 	RuvmContext pContext = pArgs->pContext;
@@ -1636,6 +1650,9 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 			bool seamFace = determineIfSeamFace(pArgs->pMap, pPiece);
 			markKeepInVertsPreserve(pArgs, pArgs->pMap, pPiece);
 			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, &totalVerts);
+			if (!pPiece->pEntry->inOrient) {
+				invertWind(pPiece, totalVerts);
+			}
 			transformDefferedLoops(pArgs, &ruvmFace, pPiece);
 			if (totalVerts > pArgs->totalVerts) {
 				pArgs->totalVerts = totalVerts;

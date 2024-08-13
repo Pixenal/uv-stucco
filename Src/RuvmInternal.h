@@ -27,6 +27,7 @@ typedef struct BorderFace{
 	UBitField64 baseLoop : 22;
 	UBitField64 ruvmLoop : 33;
 	UBitField64 job : 8;
+	uint64_t inOrient : 1;
 
 	uint64_t tileX : 12;
 	uint64_t tileY : 12;
