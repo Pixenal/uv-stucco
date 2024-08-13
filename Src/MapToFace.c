@@ -297,29 +297,6 @@ void clipRuvmFaceAgainstSingleLoop(MappingJobVars *pVars, LoopBufWrap *pLoopBuf,
 }
 
 static
-int32_t calcFaceWindingDirection(FaceRange face, V2_F32 *pUvs) {
-	V2_F32 centre = {0};
-	for (int32_t i = 0; i < face.size; ++i) {
-		_(&centre V2ADDEQL pUvs[face.start + i]);
-	}
-	_(&centre V2DIVSEQL (float)face.size);
-	return v2WindingCompare(pUvs[face.start],
-	                          pUvs[face.start + 1], centre, 0);
-}
-
-static
-int32_t calcMapFaceWindingDirection(LoopBufWrap *pLoopBuf) {
-	V2_F32 centre = { 0 };
-	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
-		_(&centre V2ADDEQL *(V2_F32 *)&pLoopBuf->buf[i].loop);
-	}
-	_(&centre V2DIVSEQL(float)pLoopBuf->size);
-	//TODO This can fail on concave faces, use average wind instead maybe?
-	return v2WindingCompare(*(V2_F32*)&pLoopBuf->buf[0].loop,
-	                        *(V2_F32*)&pLoopBuf->buf[1].loop, centre, 0);
-}
-
-static
 void loopBufDecrementBaseLoops(LoopBufWrap* pLoopBuf, FaceRange* pBaseFace) {
 	for (int i = 0; i < pLoopBuf->size; ++i) {
 		int8_t* pBaseLoop = &pLoopBuf->buf[i].baseLoop;
@@ -956,8 +933,8 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	degenerate = v3DegenerateTri(baseTri.xyz[0], baseTri.xyz[1],
 	                             baseTri.xyz[2], .0f);
 	if (baseFace.size == 4) {
-		degenerate = v3DegenerateTri(baseTri.xyz[2], baseTri.xyz[3],
-		                             baseTri.xyz[0], .0f);
+		degenerate |= v3DegenerateTri(baseTri.xyz[2], baseTri.xyz[3],
+		                              baseTri.xyz[0], .0f);
 	}
 	if (degenerate) {
 		return RUVM_ERROR;
@@ -996,7 +973,7 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 			}
 			pDpVars->facesNotSkipped++;
 			int32_t faceWindingDir =
-				calcFaceWindingDirection(baseFace, pVars->mesh.pUvs);
+				calcFaceOrientation(&pVars->mesh, &baseFace, true);
 			if (faceWindingDir == 2) {
 				//face is degenerate
 				continue;
@@ -1016,7 +993,8 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 				pLoop->normal =
 					pVars->pMap->mesh.pNormals[ruvmFace.start + k];
 			}
-			int32_t mapFaceWindDir = calcMapFaceWindingDirection(&loopBuf);
+			int32_t mapFaceWindDir =
+				calcFaceOrientation(&pVars->pMap->mesh, &ruvmFace, false);
 
 			LoopBufWrap *pLoopBuf = &loopBuf;
 			int32_t depth = 0;

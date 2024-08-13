@@ -310,23 +310,6 @@ int32_t v2AproxEqual(V2_F32 a, V2_F32 b) {
 	return _(a V2LESSEQL bHigh) && _(a V2GREATEQL bLow);
 }
 
-int32_t v2WindingCompare(V2_F32 a, V2_F32 b, V2_F32 centre, int32_t fallBack) {
-	V2_F32 aDiff = _(a V2SUB centre);
-	V2_F32 bDiff = _(b V2SUB centre);
-	float cross = aDiff.d[0] * bDiff.d[1] - bDiff.d[0] * aDiff.d[1];
-	if (cross != .0f) {
-		return cross > .0f;
-	}
-	if (fallBack) {
-	float aDist = aDiff.d[0] * aDiff.d[0] + aDiff.d[1] * aDiff.d[1];
-	float bDist = bDiff.d[0] * bDiff.d[0] + bDiff.d[1] * bDiff.d[1];
-	return bDist > aDist;
-	}
-	else {
-		return 2;
-	}
-}
-
 int32_t v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, float threshold) {
 	V2_F32 ac = _(a V2SUB c);
 	V2_F32 bc = _(b V2SUB c);
