@@ -761,46 +761,53 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
                           ByteString *dataByteString, RuvmObject **ppObjArr,
                           RuvmUsg **ppUsgArr, RuvmObject **ppFlatCutoffArr,
                           bool forEdit) {
-	*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(RuvmObject));
-	RUVM_ASSERT("", pHeader->usgCount >= 0);
-	bool usesUsg = pHeader->usgCount > 0 && !forEdit;
 	RuvmResult status = RUVM_NOT_SET;
-	for (int32_t i = 0; i < pHeader->objCount; ++i) {
-		//usgUsg is passed here to indicate that an extra vert
-		//attrib should be created. This would be used later to mark a verts
-		//respective usg.
-		status = loadObj(pContext, *ppObjArr + i, dataByteString, usesUsg);
-		if (status != RUVM_SUCCESS) {
-			return status;
+	if (pHeader->objCount) {
+		*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(RuvmObject));
+		RUVM_ASSERT("", pHeader->usgCount >= 0);
+		bool usesUsg = pHeader->usgCount > 0 && !forEdit;
+		for (int32_t i = 0; i < pHeader->objCount; ++i) {
+			//usgUsg is passed here to indicate that an extra vert
+			//attrib should be created. This would be used later to mark a verts
+			//respective usg.
+			status = loadObj(pContext, *ppObjArr + i, dataByteString, usesUsg);
+			if (status != RUVM_SUCCESS) {
+				return status;
+			}
 		}
+	}
+	else {
+		return RUVM_ERROR;
 	}
 
-	*ppUsgArr = pContext->alloc.pCalloc(pHeader->usgCount, sizeof(RuvmUsg));
-	*ppFlatCutoffArr = pContext->alloc.pCalloc(pHeader->flatCutoffCount, sizeof(RuvmObject));
-	for (int32_t i = 0; i < pHeader->flatCutoffCount; ++i) {
-		status = loadObj(pContext, *ppFlatCutoffArr + i, dataByteString, false);
-		if (status != RUVM_SUCCESS) {
-			return status;
+	if (pHeader->usgCount) {
+		*ppUsgArr = pContext->alloc.pCalloc(pHeader->usgCount, sizeof(RuvmUsg));
+		*ppFlatCutoffArr = pContext->alloc.pCalloc(pHeader->flatCutoffCount, sizeof(RuvmObject));
+		for (int32_t i = 0; i < pHeader->flatCutoffCount; ++i) {
+			status = loadObj(pContext, *ppFlatCutoffArr + i, dataByteString, false);
+			if (status != RUVM_SUCCESS) {
+				return status;
+			}
 		}
-	}
-	for (int32_t i = 0; i < pHeader->usgCount; ++i) {
-		//usgs themselves don't need a usg attrib, so false is passed
-		status = loadObj(pContext, &(*ppUsgArr)[i].obj, dataByteString, false);
-		if (status != RUVM_SUCCESS) {
-			return status;
-		}
-		status = isDataNameInvalid(dataByteString, "FC");
-		if (status != RUVM_SUCCESS) {
-			return status;
-		}
-		bool hasFlatCutoff = false;
-		decodeValue(dataByteString, (uint8_t *)&hasFlatCutoff, 8);
-		if (hasFlatCutoff) {
-			int32_t cutoffIndex = 0;
-			decodeValue(dataByteString, (uint8_t *)&cutoffIndex, 32);
-			RUVM_ASSERT("", cutoffIndex >= 0 &&
-			                cutoffIndex < pHeader->flatCutoffCount);
-			(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIndex;
+		for (int32_t i = 0; i < pHeader->usgCount; ++i) {
+			//usgs themselves don't need a usg attrib, so false is passed
+			status = loadObj(pContext, &(*ppUsgArr)[i].obj, dataByteString, false);
+			if (status != RUVM_SUCCESS) {
+				return status;
+			}
+			status = isDataNameInvalid(dataByteString, "FC");
+			if (status != RUVM_SUCCESS) {
+				return status;
+			}
+			bool hasFlatCutoff = false;
+			decodeValue(dataByteString, (uint8_t *)&hasFlatCutoff, 8);
+			if (hasFlatCutoff) {
+				int32_t cutoffIndex = 0;
+				decodeValue(dataByteString, (uint8_t *)&cutoffIndex, 32);
+				RUVM_ASSERT("", cutoffIndex >= 0 &&
+								cutoffIndex < pHeader->flatCutoffCount);
+				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIndex;
+			}
 		}
 	}
 	return RUVM_SUCCESS;

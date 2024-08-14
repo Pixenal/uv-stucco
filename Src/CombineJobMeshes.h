@@ -32,8 +32,11 @@ typedef struct {
 
 typedef struct {
 	int32_t start;
+	int32_t end;
+	int32_t size;
 	int32_t loopLocal;
-	int32_t loop;
+	int32_t edgeLoop;
+	int32_t vertLoop;
 	int32_t edge;
 	int32_t vert;
 } BorderInInfo;

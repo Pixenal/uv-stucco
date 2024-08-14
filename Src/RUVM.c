@@ -157,22 +157,24 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	printf("File loaded. Creating quad tree\n");
 	ruvmCreateQuadTree(pContext, pMap);
 
-	pMap->usgArr.pArr = pContext->alloc.pCalloc(pMap->usgArr.count, sizeof(Usg));
-	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
-		setSpecialAttribs(pUsgArr[i].obj.pData, 0x02); //000010 - set only vert pos
-		pMap->usgArr.pArr[i].origin = *(V2_F32 *)&pUsgArr[i].obj.transform.d[3];
-		pMap->usgArr.pArr[i].pMesh = pUsgArr[i].obj.pData;
-		applyObjTransform(&pUsgArr[i].obj);
-		if (pUsgArr[i].pFlatCutoff) {
-			pMap->usgArr.pArr[i].pFlatCutoff = pUsgArr[i].pFlatCutoff->pData;
-			setSpecialAttribs(pUsgArr[i].pFlatCutoff->pData, 0x02); //000010 - set only vert pos
-			applyObjTransform(pUsgArr[i].pFlatCutoff);
+	if (pMap->usgArr.count) {
+		pMap->usgArr.pArr = pContext->alloc.pCalloc(pMap->usgArr.count, sizeof(Usg));
+		for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
+			setSpecialAttribs(pUsgArr[i].obj.pData, 0x02); //000010 - set only vert pos
+			pMap->usgArr.pArr[i].origin = *(V2_F32 *)&pUsgArr[i].obj.transform.d[3];
+			pMap->usgArr.pArr[i].pMesh = pUsgArr[i].obj.pData;
+			applyObjTransform(&pUsgArr[i].obj);
+			if (pUsgArr[i].pFlatCutoff) {
+				pMap->usgArr.pArr[i].pFlatCutoff = pUsgArr[i].pFlatCutoff->pData;
+				setSpecialAttribs(pUsgArr[i].pFlatCutoff->pData, 0x02); //000010 - set only vert pos
+				applyObjTransform(pUsgArr[i].pFlatCutoff);
+			}
 		}
+		allocUsgSquaresMesh(&pContext->alloc, pMap);
+		fillUsgSquaresMesh(pMap, pUsgArr);
+		assignUsgsToVerts(&pContext->alloc, pMap, pUsgArr);
+		pMap->usgArr.pMemArr = pUsgArr;
 	}
-	allocUsgSquaresMesh(&pContext->alloc, pMap);
-	fillUsgSquaresMesh(pMap, pUsgArr);
-	assignUsgsToVerts(&pContext->alloc, pMap, pUsgArr);
-	pMap->usgArr.pMemArr = pUsgArr;
 
 	*pMapHandle = pMap;
 	//TODO add proper checks, and return RUVM_ERROR if fails.

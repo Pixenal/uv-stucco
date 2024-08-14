@@ -34,6 +34,7 @@ typedef struct BorderFace{
 	UBitField64 isRuvm : 11;
 	UBitField64 onLine : 11;
 	UBitField64 onInVert : 11;
+	uint64_t mapOrient : 1;
 
 	UBitField64 segment : 33;
 

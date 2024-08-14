@@ -98,19 +98,20 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
 	RUVM_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
 	inInfo.loopLocal = pEntry->baseLoop >> loopIndex * 2 & 3;
 	RUVM_ASSERT("", inInfo.loopLocal >= 0);
-	inInfo.start =
-		pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
+	inInfo.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
+	inInfo.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
+	inInfo.size = inInfo.end - inInfo.start;
 	RUVM_ASSERT("", inInfo.start >= 0);
 	RUVM_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.mesh.loopCount);
-	//Check local loop is less than face size
-	RUVM_ASSERT("", inInfo.loopLocal <
-	       pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1] -
-		   inInfo.start);
-	inInfo.loop = inInfo.start + inInfo.loopLocal;
-	RUVM_ASSERT("", inInfo.loop < pJobArgs[pEntry->job].mesh.mesh.loopCount);
-	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.loop];
+	RUVM_ASSERT("", inInfo.loopLocal < inInfo.size);
+	inInfo.edgeLoop = inInfo.start + inInfo.loopLocal;
+	RUVM_ASSERT("", inInfo.edgeLoop < pJobArgs[pEntry->job].mesh.mesh.loopCount);
+	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.edgeLoop];
 	RUVM_ASSERT("", inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
-	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pLoops[inInfo.loop];
+	bool useNextVert = pEntry->inOrient ^ pEntry->mapOrient;
+	inInfo.vertLoop = (inInfo.loopLocal + useNextVert) % inInfo.size;
+	inInfo.vertLoop += inInfo.start;
+	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pLoops[inInfo.vertLoop];
 	RUVM_ASSERT("", inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
 	return inInfo;
 }

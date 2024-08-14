@@ -132,28 +132,14 @@ void addIntersectionToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 	pNewEntry->normal = v3Lerp(pLoop->normal, pLoopNext->normal, mapAlpha);
 	pNewEntry->normal = pLoopBuf->buf[i].normal;
 	if (checkIfOnVert(pLoopBuf, i, iNext)) {
-		int32_t whichVert;
-		if (faceWindDir && mapFaceWindDir) {
-			int32_t lastBaseLoop = pBaseLoop->index - 1;
-			whichVert = pLoopBuf->buf[i].baseLoop == lastBaseLoop;
+		int32_t lastBaseLoop = mapFaceWindDir ?
+			pBaseLoop->index - 1 : pBaseLoop->index + 1;
+		bool whichVert = pLoopBuf->buf[i].baseLoop == lastBaseLoop;
+		if (faceWindDir) {
 			pNewEntry->baseLoop = whichVert ?
 				pBaseLoop->localIndex : pBaseLoop->localIndexNext;
 		}
-		else if (faceWindDir && !mapFaceWindDir) {
-			int32_t lastBaseLoop = pBaseLoop->index + 1;
-			whichVert = pLoopBuf->buf[i].baseLoop == lastBaseLoop;
-			pNewEntry->baseLoop = whichVert ?
-				pBaseLoop->localIndex : pBaseLoop->localIndexNext;
-		}
-		else if (!faceWindDir && mapFaceWindDir) {
-			int32_t lastBaseLoop = pBaseLoop->index - 1;
-			whichVert = pLoopBuf->buf[i].baseLoop == lastBaseLoop;
-			pNewEntry->baseLoop = whichVert ?
-				pBaseLoop->localIndexPrev : pBaseLoop->localIndex;
-		}
-		else if (!faceWindDir && !mapFaceWindDir) {
-			int32_t lastBaseLoop = pBaseLoop->index + 1;
-			whichVert = pLoopBuf->buf[i].baseLoop == lastBaseLoop;
+		else {
 			pNewEntry->baseLoop = whichVert ?
 				pBaseLoop->localIndexPrev : pBaseLoop->localIndex;
 		}
@@ -778,7 +764,7 @@ static
 void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                           BorderFace *pEntry, int32_t ruvmFaceIndex,
                           V2_I32 tile, LoopBufWrap *pLoopBuf, FaceRange baseFace,
-                          bool faceWindDir) {
+                          bool faceWindDir, bool mapFaceWindDir) {
 	pEntry->face = pAcfVars->face;
 	pEntry->faceIndex = ruvmFaceIndex;
 	pEntry->tileX = *(uint64_t *)&tile.d[0];
@@ -786,6 +772,7 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 	pEntry->job = pVars->id;
 	pEntry->baseFace = baseFace.index;
 	pEntry->inOrient = faceWindDir;
+	pEntry->mapOrient = mapFaceWindDir;
 
 	RUVM_ASSERT("", pLoopBuf->size <= 12);
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
@@ -815,7 +802,8 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 static
 void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                           LoopBufWrap *pLoopBuf, int32_t ruvmFaceIndex,
-						  V2_I32 tile, FaceRange baseFace, bool faceWindDir) {
+						  V2_I32 tile, FaceRange baseFace, bool faceWindDir,
+                          bool mapFaceWindDir) {
 	int32_t hash =
 		ruvmFnvHash((uint8_t *)&ruvmFaceIndex, 4, pVars->borderTable.size);
 	BorderBucket *pBucket = pVars->borderTable.pTable + hash;
@@ -823,7 +811,7 @@ void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 	if (!pEntry) {
 		pEntry = pBucket->pEntry = pVars->alloc.pCalloc(1, sizeof(BorderFace));
 		initBorderTableEntry(pVars, pAcfVars, pEntry, ruvmFaceIndex, tile,
-		                     pLoopBuf, baseFace, faceWindDir);
+		                     pLoopBuf, baseFace, faceWindDir, mapFaceWindDir);
 	}
 	else {
 		do {
@@ -833,7 +821,7 @@ void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 				}
 				pEntry = pEntry->pNext = pVars->alloc.pCalloc(1, sizeof(BorderFace));
 				initBorderTableEntry(pVars, pAcfVars, pEntry, ruvmFaceIndex, tile,
-				                     pLoopBuf, baseFace, faceWindDir);
+				                     pLoopBuf, baseFace, faceWindDir, mapFaceWindDir);
 				break;
 			}
 			if (!pBucket->pNext) {
@@ -842,7 +830,7 @@ void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 				pEntry =
 					pBucket->pEntry = pVars->alloc.pCalloc(1, sizeof(BorderFace));
 				initBorderTableEntry(pVars, pAcfVars, pEntry, ruvmFaceIndex, tile,
-				                     pLoopBuf, baseFace, faceWindDir);
+				                     pLoopBuf, baseFace, faceWindDir, mapFaceWindDir);
 				break;
 			}
 			pBucket = pBucket->pNext;
@@ -871,7 +859,7 @@ static
 void addClippedFaceToBufMesh(MappingJobVars *pVars,
                              LoopBufWrap *pLoopBuf, bool edgeFace,
 							 FaceRange ruvmFace, V2_I32 tile, FaceRange baseFace,
-                             bool onLine, bool faceWindDir) {
+                             bool onLine, bool faceWindDir, bool mapFaceWindDir) {
 	bool realloced = false;
 	AddClippedFaceVars acfVars = {0};
 	BufMesh *pBufMesh = &pVars->bufMesh;
@@ -936,7 +924,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars,
 						 pVars->pCommonAttribList->faceCount, &baseFace);
 	if (isBorderFace) {
 		addFaceToBorderTable(pVars, &acfVars, pLoopBuf, ruvmFace.index,
-		                     tile, baseFace, faceWindDir);
+		                     tile, baseFace, faceWindDir, mapFaceWindDir);
 	}
 }
 
@@ -974,6 +962,12 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	if (degenerate) {
 		return RUVM_ERROR;
 	}
+	int32_t faceWindingDir =
+		calcFaceOrientation(&pVars->mesh, &baseFace, true);
+	if (faceWindingDir == 2) {
+		//face is degenerate
+		return RUVM_ERROR;
+	}
 	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.index].cellSize; ++i) {
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount <
@@ -1007,12 +1001,6 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 				continue;
 			}
 			pDpVars->facesNotSkipped++;
-			int32_t faceWindingDir =
-				calcFaceOrientation(&pVars->mesh, &baseFace, true);
-			if (faceWindingDir == 2) {
-				//face is degenerate
-				continue;
-			}
 			LoopBufWrap loopBuf = {0};
 			loopBuf.size = ruvmFace.size;
 			for (int32_t k = 0; k < ruvmFace.size; ++k) {
@@ -1053,7 +1041,8 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 														pVars, fTileMin, pVars->wScale);
 						int32_t faceIndex = pVars->bufMesh.mesh.mesh.faceCount;
 						addClippedFaceToBufMesh(pVars, pLoopBuf, edgeFace,
-												  ruvmFace, tile, baseFace, onLine, faceWindingDir);
+												  ruvmFace, tile, baseFace, onLine,
+						                          faceWindingDir, mapFaceWindDir);
 					}
 				}
 				LoopBufWrap *pNextBuf = pLoopBuf->pNext;
