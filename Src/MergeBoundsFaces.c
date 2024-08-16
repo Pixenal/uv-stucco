@@ -513,8 +513,10 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 		loop = loopNext;
 		loopNext = pItem->loop;
 	}
-	V2_F32 c = pUvStart[-loop];
-	V2_F32 d = pUvStart[-loopNext];
+	V2_I32 tileMin = getTileMinFromBoundsEntry(pItem->pPiece->pEntry);
+	V2_F32 fTileMin = {(float)tileMin.d[0], (float)tileMin.d[1]};
+	V2_F32 c = _(pUvStart[-loop] V2SUB fTileMin);
+	V2_F32 d = _(pUvStart[-loopNext] V2SUB fTileMin);
 	V2_F32 cd = _(d V2SUB c);
 	for (int32_t i = 0; i < pMapFace->size; ++i) {
 		*pMapLoop = pMapFace->start + i;
@@ -877,6 +879,9 @@ void combineConnectedIntoPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges
 	int32_t depth = 0;
 	do {
 		RUVM_ASSERT("", pPiece->edgeCount <= 11);
+		//TODO can you just get the edges in the piece by calling getNeighbourEntry?
+		//     Rather than storing a list of edges in the piece?
+		//     Is there a perf cost?
 		for (int32_t j = 0; j < pPiece->edgeCount; ++j) {
 			EdgeSegmentPair edge = pPiece->edges[j];
 			int32_t hash = ruvmFnvHash((uint8_t *)&edge, 4, tableSize);
