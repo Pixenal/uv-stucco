@@ -52,15 +52,16 @@ typedef struct Piece {
 	BorderFace *pTail;
 	FaceRange bufFace;
 	int32_t edgeCount;
-	EdgeSegmentPair edges[11];
+	EdgeSegmentPair *pEdges;
 	UBitField16 keepSingle;
 	UBitField16 keepSeam;
 	UBitField16 keepPreserve;
 	UBitField16 keepVertPreserve;
 	UBitField16 keepInternPreserve;
 	UBitField16 add;
-	uint8_t order[11];
+	uint8_t *pOrder;
 	int32_t entryIndex;
+	V2_I16 tile;
 	V3_F32 realNormal;
 	bool listed;
 	bool triangulate;
@@ -99,7 +100,7 @@ typedef struct BorderVert {
 	int32_t ruvmFace;
 	int32_t ruvmEdge;
 	int32_t vert;
-	V2_I32 tile;
+	V2_I16 tile;
 	int32_t loops;
 	int32_t baseEdge;
 	int32_t baseVert;
@@ -179,9 +180,9 @@ bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);
 bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
 bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
 int32_t getSegment(const BorderFace *pEntry, int32_t loopIndex);
-int32_t getMapLoop(const BorderFace *pEntry,
-                   const RuvmMap pMap, int32_t loopIndex);
-V2_I32 getTileMinFromBoundsEntry(BorderFace *pEntry);
+int32_t getMapLoop(const BorderFace *pEntry, int32_t loopIndex);
+int32_t getBaseLoop(const BorderFace *pEntry, int32_t loopIndex);
+V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry);
 int32_t bufMeshGetVertIndex(const Piece *pPiece,
                             const BufMesh *pBufMesh, int32_t localLoop);
 int32_t bufMeshGetEdgeIndex(const Piece *pPiece,

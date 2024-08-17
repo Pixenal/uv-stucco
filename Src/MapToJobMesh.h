@@ -15,13 +15,13 @@ typedef struct {
 	V2_F32 uv;
 	V3_F32 projNormal;
 	V3_F32 projNormalMasked;
-	int32_t segment;
 	float scale;
 	float alpha;
 	float inTSign;
 	int8_t triLoops[3];
 	int8_t baseLoop;
-	uint8_t ruvmLoop : 4;
+	int8_t ruvmLoop;
+	int8_t segment;
 	uint8_t onLine : 1;
 	uint8_t isBaseLoop : 1;
 	uint8_t preserve : 1;
@@ -30,11 +30,13 @@ typedef struct {
 } LoopBuf;
 
 typedef struct LoopBufWrap {
-	LoopBuf buf[11];
+	LoopBuf buf[64];
 	struct LoopBufWrap *pNext;
 	int32_t size;
 	int32_t lastInLoop;
 	bool invalid;
+	bool edgeFace;
+	bool onLine;
 } LoopBufWrap;
 
 typedef struct LocalVert {

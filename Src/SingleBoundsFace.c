@@ -212,7 +212,6 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 	do {
 		BorderFace *pEntry = pPiece->pEntry;
 		//Check entry is valid
-		RUVM_ASSERT("", pEntry->baseLoop || pEntry->ruvmLoop || pEntry->onInVert);
 		BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
 		FaceRange face = pPiece->bufFace;
 		for (int32_t k = 0; k < face.size; ++k) {
@@ -226,12 +225,12 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			if (!isRuvm) {
 				//is not an ruvm loop (is an intersection, or base loop))
 				
-				RUVM_ASSERT("marked add but not sort", pPiece->order[k] > 0);
+				RUVM_ASSERT("marked add but not sort", pPiece->pOrder[k] > 0);
 				vert = pBufMesh->mesh.mesh.pLoops[face.start - k];
 				edge = pBufMesh->mesh.mesh.pEdges[face.start - k];
 			}
 			else {
-				RUVM_ASSERT("ruvm loop has no sort", pPiece->order[k] > 0);
+				RUVM_ASSERT("ruvm loop has no sort", pPiece->pOrder[k] > 0);
 				//is an ruvm loop (this includes ruvm loops sitting on base edges or verts)
 
 				//add an item to pEntry in mapToMesh, which denotes if an ruvm
@@ -241,7 +240,7 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 				//Or just make a new hash table just for ruvm loops with zero dot.
 				//That would probably be cleaner, and more memory concious tbh.
 				bool onLine = getIfOnLine(pEntry, k);
-				int32_t mapLoop = getMapLoop(pEntry, pArgs->pMap, k);
+				int32_t mapLoop = getMapLoop(pEntry, k);
 				edge = asMesh(pBufMesh)->mesh.pEdges[face.start - k];
 				if (onLine) {
 					vert = bufMeshGetVertIndex(pPiece, pBufMesh, k);
@@ -273,9 +272,9 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			//if (borderLoop || vertNext >= bufMesh->mesh.vertCount) {
 			//}
 			BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
-			RUVM_ASSERT("", pPiece->order[k] > 0);
-			RUVM_ASSERT("", pPiece->order[k] <= pVars->bufSize);
-			pVars->pIndexTable[pPiece->order[k] - 1] = pLoopBuf->count;
+			RUVM_ASSERT("", pPiece->pOrder[k] > 0);
+			RUVM_ASSERT("", pPiece->pOrder[k] <= pVars->bufSize);
+			pVars->pIndexTable[pPiece->pOrder[k] - 1] = pLoopBuf->count;
 			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
 			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
 			pLoopBuf->pBuf[pLoopBuf->count].bufFace = pEntry->face;
@@ -353,6 +352,15 @@ void destroyEntries(RuvmContext pContext, Piece *pPiece) {
 	do {
 		if (pPiece->pEntry) {
 			pContext->alloc.pFree(pPiece->pEntry);
+			pPiece->pEntry = NULL;
+		}
+		if (pPiece->pOrder) {
+			pContext->alloc.pFree(pPiece->pOrder);
+			pPiece->pOrder = NULL;
+		}
+		if (pPiece->pEdges) {
+			pContext->alloc.pFree(pPiece->pEdges);
+			pPiece->pEdges = NULL;
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);

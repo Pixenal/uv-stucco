@@ -96,7 +96,7 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
 	BorderInInfo inInfo = {0};
 	RUVM_ASSERT("", pEntry->baseFace >= 0);
 	RUVM_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
-	inInfo.loopLocal = pEntry->baseLoop >> loopIndex * 2 & 3;
+	inInfo.loopLocal = getBaseLoop(pEntry, loopIndex);
 	RUVM_ASSERT("", inInfo.loopLocal >= 0);
 	inInfo.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
 	inInfo.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
@@ -117,34 +117,77 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
 }
 
 bool getIfRuvm(const BorderFace *pEntry, const int32_t loopIndex) {
-	return pEntry->isRuvm >> loopIndex & 0x1;
+	switch (pEntry->memType) {
+		case 0:
+			return indexBitArray(&((BorderFaceSmall *)pEntry)->isRuvm, loopIndex, 1);
+		case 1:
+			return indexBitArray(&((BorderFaceMid *)pEntry)->isRuvm, loopIndex, 1);
+		case 2:
+			return indexBitArray(&((BorderFaceLarge *)pEntry)->isRuvm, loopIndex, 1);
+	}
 }
 
 bool getIfOnInVert(const BorderFace *pEntry, const int32_t loopIndex) {
-	return pEntry->onInVert >> loopIndex & 0x1;
+	switch (pEntry->memType) {
+		case 0:
+			return indexBitArray(&((BorderFaceSmall *)pEntry)->onInVert, loopIndex, 1);
+		case 1:
+			return indexBitArray(&((BorderFaceMid *)pEntry)->onInVert, loopIndex, 1);
+		case 2:
+			return indexBitArray(&((BorderFaceLarge *)pEntry)->onInVert, loopIndex, 1);
+	}
 }
 
 bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex) {
-	return pEntry->onLine >> loopIndex & 0x1;
+	switch (pEntry->memType) {
+		case 0:
+			return indexBitArray(&((BorderFaceSmall *)pEntry)->onLine, loopIndex, 1);
+		case 1:
+			return indexBitArray(&((BorderFaceMid *)pEntry)->onLine, loopIndex, 1);
+		case 2:
+			return indexBitArray(&((BorderFaceLarge *)pEntry)->onLine, loopIndex, 1);
+	}
 }
 
 int32_t getSegment(const BorderFace *pEntry, int32_t loopIndex) {
-	return pEntry->segment >> (loopIndex * 3) & 0x7;
+	switch (pEntry->memType) {
+		case 0:
+			return indexBitArray(&((BorderFaceSmall *)pEntry)->segment, loopIndex, 3);
+		case 1:
+			return indexBitArray(&((BorderFaceMid *)pEntry)->segment, loopIndex, 4);
+		case 2:
+			return indexBitArray(&((BorderFaceLarge *)pEntry)->segment, loopIndex, 5);
+	}
 }
 
-int32_t getMapLoop(const BorderFace *pEntry,
-                   const RuvmMap pMap, const int32_t loopIndex) {
-	int32_t mapLoop = pEntry->ruvmLoop >> loopIndex * 3 & 7;
-	RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pMap->mesh.mesh.loopCount);
-	return mapLoop;
+int32_t getMapLoop(const BorderFace *pEntry, const int32_t loopIndex) {
+	switch (pEntry->memType) {
+		case 0:
+			return indexBitArray(&((BorderFaceSmall *)pEntry)->ruvmLoop, loopIndex, 3);
+		case 1:
+			return indexBitArray(&((BorderFaceMid *)pEntry)->ruvmLoop, loopIndex, 4);
+		case 2:
+			return indexBitArray(&((BorderFaceLarge *)pEntry)->ruvmLoop, loopIndex, 5);
+	}
 }
 
-V2_I32 getTileMinFromBoundsEntry(BorderFace *pEntry) {
+int32_t getBaseLoop(const BorderFace *pEntry, int32_t loopIndex) {
+	switch (pEntry->memType) {
+	case 0:
+		return indexBitArray(&((BorderFaceSmall *)pEntry)->baseLoop, loopIndex, 2);
+	case 1:
+		return indexBitArray(&((BorderFaceMid *)pEntry)->baseLoop, loopIndex, 2);
+	case 2:
+		return indexBitArray(&((BorderFaceLarge *)pEntry)->baseLoop, loopIndex, 2);
+	}
+}
+
+V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry) {
 	//tileX and Y are signed, but are stored unsigned in pEntry
-	V2_I32 tileMin = {0};
-	bool sign = pEntry->tileX >> 11 & 0x1;
+	V2_I16 tileMin = {0};
+	bool sign = pEntry->tileX >> RUVM_TILE_MIN_BIT_LEN & 0x1;
 	tileMin.d[0] |= sign ? pEntry->tileX | ~0xfff : pEntry->tileX;
-	sign = pEntry->tileY >> 11 & 0x1;
+	sign = pEntry->tileY >> RUVM_TILE_MIN_BIT_LEN & 0x1;
 	tileMin.d[1] |= sign ? pEntry->tileY | ~0xfff : pEntry->tileY;
 	return tileMin;
 }
