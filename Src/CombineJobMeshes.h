@@ -53,12 +53,12 @@ typedef struct Piece {
 	FaceRange bufFace;
 	int32_t edgeCount;
 	EdgeSegmentPair *pEdges;
-	UBitField16 keepSingle;
-	UBitField16 keepSeam;
-	UBitField16 keepPreserve;
-	UBitField16 keepVertPreserve;
-	UBitField16 keepInternPreserve;
-	UBitField16 add;
+	UBitField64 keepSingle;
+	UBitField64 keepSeam;
+	UBitField64 keepPreserve;
+	UBitField64 keepVertPreserve;
+	UBitField64 keepInternPreserve;
+	UBitField64 add;
 	uint8_t *pOrder;
 	int32_t entryIndex;
 	V2_I16 tile;

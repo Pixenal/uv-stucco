@@ -32,6 +32,9 @@ typedef struct {
 typedef struct LoopBufWrap {
 	LoopBuf buf[64];
 	struct LoopBufWrap *pNext;
+	int32_t *pPendingMerge;
+	int32_t mergeCount;
+	int32_t mergeSize;
 	int32_t size;
 	int32_t lastInLoop;
 	bool invalid;

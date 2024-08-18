@@ -79,6 +79,7 @@ typedef struct {
 typedef struct BorderBucket {
 	struct BorderBucket *pNext;
 	BorderFace *pEntry;
+	BorderFace *pTail;
 } BorderBucket;
 
 typedef struct {
