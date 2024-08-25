@@ -142,11 +142,43 @@ void encodeAttribs(ByteString *pData, AttribArray *pAttribs,
 }
 
 static
+void encodeIndexedAttribs(ByteString *pData, AttribIndexedArr attribs,
+                          int64_t *pSize) {
+	for (int32_t i = 0; i < attribs.count; ++i) {
+		AttribIndexed *pAttrib = attribs.pArr + i;
+		if (pAttrib->type == RUVM_ATTRIB_STRING) {
+			for (int32_t j = 0; j < pAttrib->count; ++j) {
+				void *pString = attribAsVoid(pAttrib, j);
+				encodeString(pData, pString, pSize);
+			}
+		}
+		else {
+			int32_t attribSize = getAttribSize(pAttrib->type) * 8;
+			for (int32_t j = 0; j < pAttrib->count; ++j) {
+				encodeValue(pData, attribAsVoid(pAttrib, j),
+				            attribSize, pSize);
+			}
+		}
+	}
+}
+
+static
 void encodeAttribMeta(ByteString *pData,
                       AttribArray *pAttribs, int64_t *pSize) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		encodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16, pSize);
 		encodeString(pData, (uint8_t *)pAttribs->pArr[i].name, pSize);
+	}
+}
+
+static
+void encodeIndexedAttribMeta(ByteString *pData,
+                             AttribIndexedArr attribs) {
+	int64_t size = 0;
+	for (int32_t i = 0; i < attribs.count; ++i) {
+		encodeValue(pData, (uint8_t *)&attribs.pArr[i].type, 16, &size);
+		encodeValue(pData, (uint8_t *)&attribs.pArr[i].count, 32, &size);
+		encodeString(pData, (uint8_t *)attribs.pArr[i].name, &size);
 	}
 }
 
@@ -409,7 +441,8 @@ void getUniqueFlatCutoffs(RuvmContext pContext, int32_t usgCount,
 
 RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject *pObjArr,
-                             int32_t usgCount, RuvmUsg *pUsgArr) {
+                             int32_t usgCount, RuvmUsg *pUsgArr,
+                             RuvmAttribIndexedArr indexedAttribs) {
 	RuvmResult err = 0;
 	ByteString header = {0};
 	ByteString data = {0};
@@ -423,6 +456,13 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	}
 
 	int64_t dataSizeInBits = 0;
+	int64_t indexedAttribsSize = 0;
+	for (int32_t i = 0; i < indexedAttribs.count; ++i) {
+		AttribIndexed *pAttrib = indexedAttribs.pArr + i;
+		int64_t size = getAttribSize(pAttrib->type) * 8 * pAttrib->count;
+		dataSizeInBits += size;
+		indexedAttribsSize += size;
+	}
 	MeshSizeInBits *pMeshSizes =
 		pContext->alloc.pCalloc(objCount + usgCount * 2, sizeof(MeshSizeInBits));
 	for (int32_t i = 0; i < objCount; ++i) {
@@ -457,6 +497,10 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	data.byteIndex = 0;
 	data.nextBitIndex = 0;
 	data.pString = pContext->alloc.pCalloc(dataSizeInBytes, 1);
+	if (indexedAttribs.count) {
+		encodeIndexedAttribMeta(&data, indexedAttribs);
+		encodeIndexedAttribs(&data, indexedAttribs, &indexedAttribsSize);
+	}
 	for (int32_t i = 0; i < objCount; ++i) {
 		err = encodeObj(&data, pObjArr + i, pMeshSizes + i);
 		if (err != RUVM_SUCCESS) {
@@ -519,6 +563,7 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	                           16 + //version
 	                           64 + //compressed data size
 	                           64 + //uncompressed data size
+                               32 + //indexed attrib count
 	                           32 + //obj count
 	                           32 + //usg count
 	                           32;  //flatten cutoff count
@@ -529,6 +574,7 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	encodeValue(&header, (uint8_t *)&version, 16, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&compressedDataSize, 64, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&dataSize, 64, &headerSizeInBits);
+	encodeValue(&header, (uint8_t *)&indexedAttribs.count, 32, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&objCount, 32, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&usgCount, 32, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&cutoffCount, 32, &headerSizeInBits);
@@ -560,9 +606,29 @@ RuvmResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
 		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
-			if (0 == strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
+			if (!strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
 			    RUVM_ATTRIB_NAME_MAX_LEN)) {
 
+				//dup
+				return RUVM_ERROR;
+			}
+		}
+	}
+	return RUVM_SUCCESS;
+}
+
+static
+RuvmResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
+		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
+		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
+		for (int32_t j = 0; j < i; ++j) {
+			if (!strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
+				RUVM_ATTRIB_NAME_MAX_LEN)) {
+
+				//dup
 				return RUVM_ERROR;
 			}
 		}
@@ -579,9 +645,10 @@ static void decodeAttribs(RuvmContext pContext, ByteString *pData,
 		Attrib* pAttrib = pAttribs->pArr + i;
 		memcpy(stageBuf, stageName, sizeof(stageName));
 		setStageName(pContext, strncat(stageBuf, pAttrib->name, RUVM_STAGE_NAME_LEN - sizeof(stageName)));
-		int32_t attribSize = getAttribSize(pAttrib->type) * 8;
+		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
+		attribSize *= 8;
 		int32_t progressBase = i * pAttribs->count * dataLen;
 		for (int32_t j = 0; j < dataLen; ++j) {
 			void *pAttribData = attribAsVoid(pAttrib, j);
@@ -598,12 +665,35 @@ static void decodeAttribs(RuvmContext pContext, ByteString *pData,
 	stageEndWrap(pContext);
 }
 
-static RuvmHeader decodeRuvmHeader(RuvmContext pContext, ByteString *headerByteString) {
+static
+void decodeIndexedAttribs(RuvmContext pContext, ByteString *pData,
+                          AttribIndexedArr *pAttribs) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		AttribIndexed* pAttrib = pAttribs->pArr + i;
+		int32_t attribSize = getAttribSize(pAttrib->type);
+		pAttrib->pData = pAttrib->count ?
+			pContext->alloc.pCalloc(pAttrib->count, attribSize) : NULL;
+		attribSize *= 8;
+		for (int32_t j = 0; j < pAttrib->count; ++j) {
+			void *pAttribData = attribAsVoid(pAttrib, j);
+			if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
+				decodeString(pData, pAttribData, attribSize);
+			}
+			else {
+				decodeValue(pData, pAttribData, attribSize);
+			}
+		}
+	}
+}
+
+static RuvmHeader decodeRuvmHeader(RuvmContext pContext, ByteString *headerByteString,
+                                   AttribIndexedArr *pIndexedAttribs) {
 	RuvmHeader header = {0};
 	decodeString(headerByteString, (uint8_t*)&header.format, MAP_FORMAT_NAME_MAX_LEN);
 	decodeValue(headerByteString, (uint8_t *)&header.version, 16);
-	decodeValue(headerByteString, (uint8_t *)&header.dataSizeCompressed, 64);
+	decodeValue(headerByteString, (uint8_t *)&header.dataSizeCompressed, 64);;
 	decodeValue(headerByteString, (uint8_t *)&header.dataSize, 64);
+	decodeValue(headerByteString, (uint8_t *)&pIndexedAttribs->count, 32);
 	decodeValue(headerByteString, (uint8_t *)&header.objCount, 32);
 	decodeValue(headerByteString, (uint8_t *)&header.usgCount, 32);
 	decodeValue(headerByteString, (uint8_t *)&header.flatCutoffCount, 32);
@@ -760,8 +850,16 @@ static
 RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
                           ByteString *dataByteString, RuvmObject **ppObjArr,
                           RuvmUsg **ppUsgArr, RuvmObject **ppFlatCutoffArr,
-                          bool forEdit) {
+                          bool forEdit, AttribIndexedArr *pIndexedAttribs) {
 	RuvmResult status = RUVM_NOT_SET;
+	if (pIndexedAttribs && pIndexedAttribs->count) {
+		RUVM_ASSERT("", pIndexedAttribs->count > 0);
+		pIndexedAttribs->pArr =
+			pContext->alloc.pCalloc(pIndexedAttribs->count, sizeof(AttribIndexed));
+		pIndexedAttribs->size = pIndexedAttribs->count;
+		decodeIndexedAttribMeta(dataByteString, pIndexedAttribs);
+		decodeIndexedAttribs(pContext, dataByteString, pIndexedAttribs);
+	}
 	if (pHeader->objCount) {
 		*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(RuvmObject));
 		RUVM_ASSERT("", pHeader->usgCount >= 0);
@@ -817,7 +915,7 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
                             int32_t *pObjCount, RuvmObject **ppObjArr,
                             int32_t *pUsgCount, RuvmUsg **ppUsgArr,
 	                        int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
-                            bool forEdit) {
+                            bool forEdit, RuvmAttribIndexedArr *pIndexedAttribs) {
 	RuvmResult status = RUVM_NOT_SET;
 	ByteString headerByteString = {0};
 	ByteString dataByteString = {0};
@@ -832,7 +930,8 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 	printf("Reading header\n");
 	pContext->io.pRead(pFile, headerByteString.pString, headerSize);
 	printf("Decoding header\n");
-	RuvmHeader header = decodeRuvmHeader(pContext, &headerByteString);
+	RuvmHeader header = decodeRuvmHeader(pContext, &headerByteString,
+	                                     pIndexedAttribs);
 	if (strncmp(header.format,  "RUVM Map File", MAP_FORMAT_NAME_MAX_LEN) ||
 		header.version != RUVM_MAP_VERSION) {
 		return RUVM_ERROR;
@@ -866,7 +965,7 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 	}
 	printf("Decoding data\n");
 	status = decodeRuvmData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr,
-	                        ppFlatCutoffArr, forEdit);
+	                        ppFlatCutoffArr, forEdit, pIndexedAttribs);
 	if (status != RUVM_SUCCESS) {
 		return status;
 	}

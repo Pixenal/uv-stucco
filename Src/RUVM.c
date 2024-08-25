@@ -113,18 +113,20 @@ RuvmResult ruvmContextDestroy(RuvmContext pContext) {
 
 RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject* pObjArr,
-                             int32_t usgCount, RuvmUsg* pUsgArr) {
+                             int32_t usgCount, RuvmUsg* pUsgArr,
+                             RuvmAttribIndexedArr indexedAttribs) {
 	return ruvmWriteRuvmFile(pContext, pName, objCount, pObjArr,
-	                         usgCount, pUsgArr);
+	                         usgCount, pUsgArr, indexedAttribs);
 }
 
 //TODO replace these with RuvmUsg and RuvmObj arr structs, that combine arr and count
 RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
                                   int32_t *pUsgCount, RuvmUsg **ppUsgArr,
-                                  int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr) {
+                                  int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
+                                  RuvmAttribIndexedArr *pIndexedAttribs) {
 	return ruvmLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
-	                        ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr, true);
+	                        ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr, true, pIndexedAttribs);
 }
 
 RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
@@ -138,7 +140,7 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	RuvmObject *pFlatCutoffArr = NULL;
 	status = ruvmLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
 	                          &pMap->usgArr.count, &pUsgArr, &flatCutoffCount,
-	                          &pFlatCutoffArr, false);
+	                          &pFlatCutoffArr, false, &pMap->indexedAttribs);
 	if (status != RUVM_SUCCESS) {
 		return status;
 	}
@@ -150,7 +152,24 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	pMap->mesh.mesh.type.type = RUVM_OBJECT_DATA_MESH_INTERN;
 	mergeObjArr(pContext, &pMap->mesh, objCount, pObjArr, false);
 	setSpecialAttribs(&pMap->mesh, 0xae);
+	//TODO some form of heap corruption when many objects
+	//test with address sanitizer on CircuitPieces.ruvm
 	destroyObjArr(pContext, objCount, pObjArr);
+
+	if (pMap->mesh.pUvAttrib) {
+		//TODO as with all special attributes, allow user to define what should be considered
+		//     the primary UV channel. This especially important for integration with other DCCs
+		if (!strncmp(pMap->mesh.pUvAttrib->name, "UVMap", RUVM_ATTRIB_NAME_MAX_LEN)) {
+			char newName[RUVM_ATTRIB_NAME_MAX_LEN] = "Map_UVMap";
+			memcpy(pMap->mesh.pUvAttrib->name, newName, RUVM_ATTRIB_NAME_MAX_LEN);
+		}
+	}
+
+	//set loop attribs to interpolate by default
+	//TODO make this an option in ui, even for non common attribs
+	for (int32_t i = 0; i < pMap->mesh.mesh.loopAttribs.count; ++i) {
+		pMap->mesh.mesh.loopAttribs.pArr[i].interpolate = true;
+	}
 
 	//the quadtree is created before USGs are assigned to verts,
 	//as the tree's used to speed up the process
@@ -209,9 +228,9 @@ void getCommonAttribs(RuvmContext pContext, AttribArray *pMapAttribs,
 	int32_t count = 0;
 	for (int32_t i = 0; i < pMeshAttribs->count; ++i) {
 		for (int32_t j = 0; j < pMapAttribs->count; ++j) {
-			if (0 == strncmp(pMeshAttribs->pArr[i].name,
-			                 pMapAttribs->pArr[j].name,
-			                 RUVM_ATTRIB_NAME_MAX_LEN)) {
+			if (!strncmp(pMeshAttribs->pArr[i].name,
+			             pMapAttribs->pArr[j].name,
+			             RUVM_ATTRIB_NAME_MAX_LEN)) {
 				count++;
 			}
 		}
@@ -221,9 +240,9 @@ void getCommonAttribs(RuvmContext pContext, AttribArray *pMapAttribs,
 	count = 0;
 	for (int32_t i = 0; i < pMeshAttribs->count; ++i) {
 		for (int32_t j = 0; j < pMapAttribs->count; ++j) {
-			if (0 == strncmp(pMeshAttribs->pArr[i].name,
-			                 pMapAttribs->pArr[j].name,
-			                 RUVM_ATTRIB_NAME_MAX_LEN)) {
+			if (!strncmp(pMeshAttribs->pArr[i].name,
+			             pMapAttribs->pArr[j].name,
+			             RUVM_ATTRIB_NAME_MAX_LEN)) {
 				initCommonAttrib(pContext, *ppCommonAttribs + count,
 				                 pMeshAttribs->pArr + i);
 				count++;
@@ -518,6 +537,13 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		ruvmMeshDestroy(pContext, &squaresOut);
 	}
 	setSpecialAttribs(&meshInWrap, 0x50); //set perserve if present
+
+	//TODO add pass to merge loop attribs split from interpolation.
+	//     interpolation works on rigid stuff like undistorted uvs, but
+	//     falls apart when you squish the uvs.
+	//     Check first to make sure it isn't just a precision issue or something
+	//     before adding this merge thing.
+
 	mapToMeshInternal(pContext, pMap, &meshInWrap, pMeshOut, pCommonAttribList, NULL, wScale);
 	if (pMap->usgArr.count) {
 		pContext->alloc.pFree(pMap->usgArr.pInFaceTable);
@@ -793,4 +819,9 @@ RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmIm
 		pContext->alloc.pFree(args[i].imageBuf.pData);
 	}
 	return RUVM_SUCCESS;
+}
+
+void ruvmMapIndexedAttribsGet(RuvmContext pContext, RuvmMap pMap,
+                              RuvmAttribIndexedArr *pIndexedAttribs) {
+	*pIndexedAttribs = pMap->indexedAttribs;
 }

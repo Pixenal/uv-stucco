@@ -45,6 +45,7 @@ typedef struct {
 	int32_t *pInFaces;
 	int32_t infoBufSize;
 	int32_t entryCount;
+	int32_t bufFace;
 	bool seamFace;
 	bool fullSort;
 } Vars;
@@ -343,7 +344,7 @@ void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
 	copyAllAttribs(&pMeshOut->mesh.faceAttribs,
 				   outFace,
 				   &asMesh(pBufMesh)->mesh.faceAttribs,
-				   pVars->loopBuf.pBuf[0].bufFace);
+				   pVars->bufFace);
 	pMeshOut->mesh.pFaces[outFace] = loopBase;
 }
 
@@ -384,6 +385,9 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	vars.pSortedVertBuf = pMergeBufHandles->pSortedVerts;
 	vars.pInFaces = pInFaces;
 	vars.entryCount = entryCount;
+	BufMesh *pBufMesh = &pArgs->pJobArgs[vars.pPieceRoot->pEntry->job].bufMesh;
+	int32_t bufFaceVirtual = vars.pPieceRoot->pEntry->face;
+	vars.bufFace = convertBorderFaceIndex(pBufMesh, bufFaceVirtual).realIndex;
 	if (!vars.pPieceRoot->pEntry) {
 		return;
 	}

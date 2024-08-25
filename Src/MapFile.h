@@ -25,4 +25,5 @@ typedef struct RuvmMapInternal {
 	QuadTree quadTree;
 	UsgArr usgArr;
 	V2_F32 zBounds;
+	RuvmAttribIndexedArr indexedAttribs;
 } MapFile;

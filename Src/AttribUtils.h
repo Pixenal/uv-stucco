@@ -6,8 +6,10 @@
 #include <Mesh.h>
 
 typedef RuvmAttrib Attrib;
+typedef RuvmAttribIndexed AttribIndexed;
 typedef RuvmAttribType AttribType;
 typedef RuvmAttribArray AttribArray;
+typedef RuvmAttribIndexedArr AttribIndexedArr;
 typedef RuvmAttribOrigin AttribOrigin;
 
 //TODO switch pAttrib pData ptr from void * to uint8_t *?
@@ -38,8 +40,10 @@ RuvmTypeDefault *getTypeDefaultConfig(RuvmTypeDefaultConfig *pConfig,
                                       AttribType type);
 RuvmCommonAttrib *getCommonAttrib(RuvmCommonAttrib *pAttribs, int32_t attribCount,
                                   char *pName);
-void interpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
-                       int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
+void lerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
+                int32_t iSrcA, Attrib *pSrcB, int32_t iSrcB, float alpha);
+void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
+                          int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
 void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
                   Attrib *pB, int32_t iB, RuvmBlendConfig blendConfig);
 void allocAttribs(RuvmAlloc *pAlloc, AttribArray *pDest,

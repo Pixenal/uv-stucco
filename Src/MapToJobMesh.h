@@ -4,7 +4,7 @@
 #include <QuadTree.h>
 #include <Utils.h>
 
-typedef struct {
+typedef struct LoopBuf {
 	Mat3x3 tbn;
 	V3_F32 uvw;
 	V3_F32 loop;
@@ -15,8 +15,11 @@ typedef struct {
 	V2_F32 uv;
 	V3_F32 projNormal;
 	V3_F32 projNormalMasked;
+	int32_t ancestor;
+	int32_t ancestorNext;
 	float scale;
 	float alpha;
+	float mapAlpha;
 	float inTSign;
 	int8_t triLoops[3];
 	int8_t baseLoop;

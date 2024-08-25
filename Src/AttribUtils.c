@@ -68,13 +68,39 @@
 		INDEX_ATTRIB(t,pB,iB,v,c) : e;\
 }
 
-#define INTERPOLATE_SCALAR(t, pD, iD, pS, iA, iB, iC, bc)\
+#define LERP_SCALAR(t, pD, iD, pA, iA, pB, iB, a) { \
+	float aInverse = 1.0f - a; \
+	INDEX_ATTRIB(t, pD, iD, 1, 0) = INDEX_ATTRIB(t, pA, iA, 1, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 1, 0) * a; \
+}
+
+#define LERP_V2(t, pD, iD, pA, iA, pB, iB, a) { \
+	float aInverse = 1.0f - a; \
+	INDEX_ATTRIB(t, pD, iD, 2, 0) = INDEX_ATTRIB(t, pA, iA, 2, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 2, 0) * a; \
+	INDEX_ATTRIB(t, pD, iD, 2, 1) = INDEX_ATTRIB(t, pA, iA, 2, 1) * aInverse + INDEX_ATTRIB(t, pB, iB, 2, 1) * a; \
+}
+
+#define LERP_V3(t, pD, iD, pA, iA, pB, iB, a) { \
+	float aInverse = 1.0f - a; \
+	INDEX_ATTRIB(t, pD, iD, 3, 0) = INDEX_ATTRIB(t, pA, iA, 3, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 3, 0) * a; \
+	INDEX_ATTRIB(t, pD, iD, 3, 1) = INDEX_ATTRIB(t, pA, iA, 3, 1) * aInverse + INDEX_ATTRIB(t, pB, iB, 3, 1) * a; \
+	INDEX_ATTRIB(t, pD, iD, 3, 2) = INDEX_ATTRIB(t, pA, iA, 3, 2) * aInverse + INDEX_ATTRIB(t, pB, iB, 3, 2) * a; \
+}
+
+#define LERP_V4(t, pD, iD, pA, iA, pB, iB, a) { \
+	float aInverse = 1.0f - a; \
+	INDEX_ATTRIB(t, pD, iD, 4, 0) = INDEX_ATTRIB(t, pA, iA, 4, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 0) * a; \
+	INDEX_ATTRIB(t, pD, iD, 4, 1) = INDEX_ATTRIB(t, pA, iA, 4, 1) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 1) * a; \
+	INDEX_ATTRIB(t, pD, iD, 4, 2) = INDEX_ATTRIB(t, pA, iA, 4, 2) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 2) * a; \
+	INDEX_ATTRIB(t, pD, iD, 4, 3) = INDEX_ATTRIB(t, pA, iA, 4, 3) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 3) * a; \
+}
+
+#define TRI_INTERPOLATE_SCALAR(t, pD, iD, pS, iA, iB, iC, bc)\
 	INDEX_ATTRIB(t, pD, iD, 1, 0) = INDEX_ATTRIB(t, pS, iA, 1, 0) * bc.d[0];\
  	INDEX_ATTRIB(t, pD, iD, 1, 0) += INDEX_ATTRIB(t, pS, iB, 1, 0) * bc.d[1];\
 	INDEX_ATTRIB(t, pD, iD, 1, 0) += INDEX_ATTRIB(t, pS, iC, 1, 0) * bc.d[2];\
 	INDEX_ATTRIB(t, pD, iD, 1, 0) /= bc.d[0] + bc.d[1] + bc.d[2];
 
-#define INTERPOLATE_V2(t, pD, iD, pS, iA, iB, iC, bc) {\
+#define TRI_INTERPOLATE_V2(t, pD, iD, pS, iA, iB, iC, bc) {\
 	INDEX_ATTRIB(t,pD,iD,2,0) = INDEX_ATTRIB(t,pS,iA,2,0) * bc.d[0];\
 	INDEX_ATTRIB(t,pD,iD,2,1) = INDEX_ATTRIB(t,pS,iA,2,1) * bc.d[0];\
 	INDEX_ATTRIB(t,pD,iD,2,0) += INDEX_ATTRIB(t,pS,iB,2,0) * bc.d[1];\
@@ -86,7 +112,7 @@
 	INDEX_ATTRIB(t,pD,iD,2,1) /= sum;\
 }
 
-#define INTERPOLATE_V3(t, pD, iD, pS, iA, iB, iC, bc) {\
+#define TRI_INTERPOLATE_V3(t, pD, iD, pS, iA, iB, iC, bc) {\
 	INDEX_ATTRIB(t,pD,iD,3,0) = INDEX_ATTRIB(t,pS,iA,3,0) * bc.d[0];\
 	INDEX_ATTRIB(t,pD,iD,3,1) = INDEX_ATTRIB(t,pS,iA,3,1) * bc.d[0];\
 	INDEX_ATTRIB(t,pD,iD,3,2) = INDEX_ATTRIB(t,pS,iA,3,2) * bc.d[0];\
@@ -102,7 +128,7 @@
 	INDEX_ATTRIB(t,pD,iD,3,2) /= sum;\
 }
 
-#define INTERPOLATE_V4(t, pD, iD, pS, iA, iB, iC, bc) {\
+#define TRI_INTERPOLATE_V4(t, pD, iD, pS, iA, iB, iC, bc) {\
 	INDEX_ATTRIB(t,pD,iD,4,0) = INDEX_ATTRIB(t,pS,iA,4,0) * bc.d[0];\
 	INDEX_ATTRIB(t,pD,iD,4,1) = INDEX_ATTRIB(t,pS,iA,4,1) * bc.d[0];\
 	INDEX_ATTRIB(t,pD,iD,4,2) = INDEX_ATTRIB(t,pS,iA,4,2) * bc.d[0];\
@@ -182,8 +208,8 @@ int32_t getAttribSize(RuvmAttribType type) {
 
 Attrib *getAttrib(char *pName, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		if (0 == strncmp(pName, pAttribs->pArr[i].name,
-		                 RUVM_ATTRIB_NAME_MAX_LEN)) {
+		if (!strncmp(pName, pAttribs->pArr[i].name,
+		             RUVM_ATTRIB_NAME_MAX_LEN)) {
 			return pAttribs->pArr + i;
 		}
 	}
@@ -270,22 +296,22 @@ int32_t copyAttrib(RuvmAttrib *pDest, int32_t iDest,
 	}
 	switch (pSrc->type) {
 		case RUVM_ATTRIB_I8:
-			((int8_t *)pSrc->pData)[iSrc] = ((int8_t *)pDest->pData)[iDest];
+			((int8_t *)pDest->pData)[iDest] = ((int8_t *)pSrc->pData)[iSrc];
 			break;
 		case RUVM_ATTRIB_I16:
-			((int16_t *)pSrc->pData)[iSrc] = ((int16_t *)pDest->pData)[iDest];
+			((int16_t *)pDest->pData)[iDest] = ((int16_t *)pSrc->pData)[iSrc];
 			break;
 		case RUVM_ATTRIB_I32:
-			((int32_t *)pSrc->pData)[iSrc] = ((int32_t *)pDest->pData)[iDest];
+			((int32_t *)pDest->pData)[iDest] = ((int32_t *)pSrc->pData)[iSrc];
 			break;
 		case RUVM_ATTRIB_I64:
-			((int64_t *)pSrc->pData)[iSrc] = ((int64_t *)pDest->pData)[iDest];
+			((int64_t *)pDest->pData)[iDest] = ((int64_t *)pSrc->pData)[iSrc];
 			break;
 		case RUVM_ATTRIB_F32:
-			((float *)pSrc->pData)[iSrc] = ((float *)pDest->pData)[iDest];
+			((float *)pDest->pData)[iDest] = ((float *)pSrc->pData)[iSrc];
 			break;
 		case RUVM_ATTRIB_F64:
-			((double *)pSrc->pData)[iSrc] = ((double *)pDest->pData)[iDest];
+			((double *)pDest->pData)[iDest] = ((double *)pSrc->pData)[iSrc];
 			break;
 		case RUVM_ATTRIB_V2_I8:
 			memcpy(((int8_t (*)[2])pDest->pData)[iDest],
@@ -440,15 +466,110 @@ RuvmCommonAttrib *getCommonAttrib(RuvmCommonAttrib *pAttribs, int32_t attribCoun
 	//because of the below todo:
 	//TODO replace linear search with hash table.
 	for (int32_t i = 0; i < attribCount; ++i) {
-		if (0 == strncmp(pName, pAttribs[i].name, RUVM_ATTRIB_NAME_MAX_LEN)) {
+		if (!strncmp(pName, pAttribs[i].name, RUVM_ATTRIB_NAME_MAX_LEN)) {
 			return pAttribs + i;
 		}
 	}
 	return NULL;
 }
 
-void interpolateAttrib(RuvmAttrib *pDest, int32_t iDest, RuvmAttrib *pSrc,
-                       int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc) {
+void lerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
+                int32_t iSrcA, Attrib *pSrcB, int32_t iSrcB, float alpha) {
+	if (pDest->type != pSrcA->type ||
+		pDest->type != pSrcB->type) {
+		printf("Type mismatch in interpolateAttrib\n");
+		//TODO remove all uses of abort(), and add proper exception handling
+		abort();
+	}
+	AttribType type = pDest->type;
+	switch (type) {
+		case RUVM_ATTRIB_I8:
+			LERP_SCALAR(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			                   iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_I16:
+			LERP_SCALAR(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			                   iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_I32:
+			LERP_SCALAR(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			                   iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_I64:
+			LERP_SCALAR(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			                   iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_F32:
+			LERP_SCALAR(float, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			                   iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_F64:
+			LERP_SCALAR(double, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			                   iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V2_I8:
+			LERP_V2(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V2_I16:
+			LERP_V2(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V2_I32:
+			LERP_V2(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V2_I64:
+			LERP_V2(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V2_F32:
+			LERP_V2(float, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V2_F64:
+			LERP_V2(double, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V3_I8:
+			LERP_V3(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V3_I16:
+			LERP_V3(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V3_I32:
+			LERP_V3(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V3_I64:
+			LERP_V3(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V3_F32:
+			LERP_V3(float, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V3_F64:
+			LERP_V3(double, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V4_I8:
+			//TODO using unsigned here temporarily for vert color
+			//make a proper set of attrib types for unsigned types
+			LERP_V4(uint8_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V4_I16:
+			LERP_V4(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V4_I32:
+			LERP_V4(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V4_I64:
+			LERP_V4(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V4_F32:
+			LERP_V4(float, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_V4_F64:
+			LERP_V4(double, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			break;
+		case RUVM_ATTRIB_STRING:
+			break;
+	}
+}
+
+void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
+                          int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc) {
 	if (pDest->type != pSrc->type) {
 		printf("Type mismatch in interpolateAttrib\n");
 		//TODO remove all uses of abort(), and add proper exception handling
@@ -457,84 +578,84 @@ void interpolateAttrib(RuvmAttrib *pDest, int32_t iDest, RuvmAttrib *pSrc,
 	RuvmAttribType type = pDest->type;
 	switch (type) {
 		case RUVM_ATTRIB_I8:
-			INTERPOLATE_SCALAR(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_I16:
-			INTERPOLATE_SCALAR(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_I32:
-			INTERPOLATE_SCALAR(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_I64:
-			INTERPOLATE_SCALAR(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_F32:
-			INTERPOLATE_SCALAR(float, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(float, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_F64:
-			INTERPOLATE_SCALAR(double, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(double, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_I8:
-			INTERPOLATE_V2(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_I16:
-			INTERPOLATE_V2(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_I32:
-			INTERPOLATE_V2(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_I64:
-			INTERPOLATE_V2(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_F32:
-			INTERPOLATE_V2(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V2_F64:
-			INTERPOLATE_V2(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V3_I8:
-			INTERPOLATE_V3(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V3_I16:
-			INTERPOLATE_V3(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V3_I32:
-			INTERPOLATE_V3(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V3_I64:
-			INTERPOLATE_V3(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V3_F32:
-			INTERPOLATE_V3(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V3_F64:
-			INTERPOLATE_V3(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V4_I8:
 			//TODO using unsigned here temporarily for vert color
 			//make a proper set of attrib types for unsigned types
-			INTERPOLATE_V4(uint8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(uint8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V4_I16:
-			INTERPOLATE_V4(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V4_I32:
-			INTERPOLATE_V4(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V4_I64:
-			INTERPOLATE_V4(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V4_F32:
-			INTERPOLATE_V4(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_V4_F64:
-			INTERPOLATE_V4(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case RUVM_ATTRIB_STRING:
 			break;

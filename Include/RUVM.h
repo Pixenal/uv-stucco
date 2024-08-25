@@ -197,6 +197,19 @@ typedef struct {
 } RuvmAttrib;
 
 typedef struct {
+	void *pData;
+	char name[RUVM_ATTRIB_NAME_MAX_LEN];
+	RuvmAttribType type;
+	int32_t count;
+} RuvmAttribIndexed;
+
+typedef struct {
+	RuvmAttribIndexed *pArr;
+	int32_t count;
+	int32_t size;
+} RuvmAttribIndexedArr;
+
+typedef struct {
 	RuvmAttrib *pArr;
 	int32_t count;
 	int32_t size;
@@ -356,12 +369,14 @@ RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
 RUVM_EXPORT
 RuvmResult ruvmMapFileExport(RuvmContext context, const char *pName,
                              int32_t objCount, RuvmObject* pObjArr,
-                             int32_t usgCount, RuvmUsg* pUsgArr);
+                             int32_t usgCount, RuvmUsg* pUsgArr,
+                             RuvmAttribIndexedArr indexedAttribs);
 RUVM_EXPORT
 RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
                                   int32_t *pUsgCount, RuvmUsg **ppUsgArr,
-                                  int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr);
+                                  int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
+                                  RuvmAttribIndexedArr *pIndexedAttribs);
 RUVM_EXPORT
 RuvmResult ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                            char *filePath);
@@ -395,3 +410,6 @@ RUVM_EXPORT
 RuvmResult ruvmGetAttrib(char *pName, RuvmAttribArray *pAttribs, RuvmAttrib **ppAttrib);
 RUVM_EXPORT
 RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap,  RuvmImage *pImage);
+RUVM_EXPORT
+void ruvmMapIndexedAttribsGet(RuvmContext pContext, RuvmMap pMap,
+                              RuvmAttribIndexedArr *pIndexedAttribs);
