@@ -6,6 +6,7 @@
 
 typedef RuvmResult Result;
 
+//TODO implement RUVM_ERROR() if not debug build
 #define RUVM_ASSERT(message, condition) \
 	if (!(condition)) \
 	printf("RUVM ASSERT in %s, MESSAGE: %s\n", __func__, message); \

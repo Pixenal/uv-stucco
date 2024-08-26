@@ -71,7 +71,8 @@ bool checkIfOnVert(LoopBufWrap *pLoopBuf, int32_t i, int32_t iNext) {
 
 static
 void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
-                        int32_t *pInsideBuf, int32_t i, int32_t iNext, LoopInfo *pBaseLoop,
+                        int32_t *pInsideBuf, int32_t i, int32_t iNext,
+                        int32_t iPrev, LoopInfo *pBaseLoop,
 						IslandIndexPair *pIntersectCache, float *ptBuf,
                         int32_t *pCount, bool faceWindDir) {
 	LoopBuf *pNewEntry = pNewLoopBuf->buf + pNewLoopBuf->size;
@@ -84,8 +85,19 @@ void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 	//but if once, then it's sitting on an edge.
 	if (pInsideBuf[i] < 0) {
 		//is on line
-		pIntersectCache[*pCount].pIsland = pNewLoopBuf;
-		pIntersectCache[*pCount].loop = pNewLoopBuf->size;
+		if ((pInsideBuf[iPrev] == 0 && pInsideBuf[iNext] == 1) ||
+			(pInsideBuf[iPrev] == 1 && pInsideBuf[iNext] == 0)) {
+			//add to intersection but
+			pIntersectCache[*pCount].pIsland = pNewLoopBuf;
+			pIntersectCache[*pCount].loop = pNewLoopBuf->size;
+			LoopBuf *pLoop = pLoopBuf->buf + i;
+			LoopBuf *pLoopNext = pLoopBuf->buf + iNext;
+			calcIntersection(pLoop->loop, pLoopNext->loop, pBaseLoop->vert,
+							 pBaseLoop->dir, NULL, NULL, &pNewEntry->alpha);
+			pNewEntry->alpha *= -1.0f;
+			ptBuf[*pCount] = pNewEntry->alpha;
+			++*pCount;
+		}
 		if (pLoopBuf->buf[i].onLine) {
 			//this loop already resided on a previous base edge,
 			//it must then reside on a base vert, rather than an edge.
@@ -110,15 +122,6 @@ void addInsideLoopToBuf(LoopBufWrap *pNewLoopBuf, LoopBufWrap *pLoopBuf,
 		}
 		pNewLoopBuf->onLine = true;
 		pNewEntry->onLine = 1;
-		LoopBuf *pLoop = pLoopBuf->buf + i;
-		LoopBuf *pLoopNext = pLoopBuf->buf + iNext;
-		calcIntersection(pLoop->loop, pLoopNext->loop, pBaseLoop->vert,
-						 pBaseLoop->dir, NULL, NULL, &pNewEntry->alpha);
-		if (true) {
-			pNewEntry->alpha *= -1.0f;
-		}
-		ptBuf[*pCount] = pNewEntry->alpha;
-		++*pCount;
 	}
 	pNewLoopBuf->size++;
 }
@@ -376,11 +379,12 @@ void clipRuvmFaceAgainstSingleLoop(MappingJobVars *pVars, LoopBufWrap *pLoopBuf,
 	int32_t count = 0;
 	for (int32_t i = 0; i < pLoopBuf->size; ++i) {
 		int32_t iNext = (i + 1) % pLoopBuf->size;
+		int32_t iPrev = i ? i - 1 : pLoopBuf->size - 1;
 		if (pInsideBuf[i]) {
 			//point is inside, or on the line
 			setIsland(&pVars->alloc, &pIsland, pNewLoopBuf, &in,
 			          pBaseLoop->localIndex, mapFaceWindDir);
-			addInsideLoopToBuf(pIsland, pLoopBuf, pInsideBuf, i, iNext,
+			addInsideLoopToBuf(pIsland, pLoopBuf, pInsideBuf, i, iNext, iPrev,
 			                   pBaseLoop, intersectCache, ptBuf, &count,
 			                   faceWindDir);
 		}

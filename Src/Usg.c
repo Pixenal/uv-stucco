@@ -322,6 +322,90 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 	return RUVM_SUCCESS;
 }
 
+static
+RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTable,
+                                 int32_t i, V3_F32 *pClosestBc, FaceRange *pClosestFace,
+                                 int8_t *pClosestFaceLoops, float *pClosestDist) {
+	for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
+		FaceRange inFace =
+			getFaceRange(&pInMesh->mesh, pInFaceTable[i].pArr[j], false);
+		FaceBounds faceBounds = {0};
+		getFaceBoundsForTileTest(&faceBounds, pInMesh, &inFace);
+		V2_I32 minTile = faceBounds.min;
+		V2_I32 maxTile = faceBounds.max;
+		for (int32_t l = minTile.d[1]; l <= maxTile.d[1]; ++l) {
+			for (int32_t m = minTile.d[0]; m <= maxTile.d[0]; ++m) {
+				V2_I32 tileMin = {m, l};
+				V2_F32 fTileMin = {(float)m, (float)l};
+				int8_t triLoops[4] = {0};
+				V2_F32 triUvs[4] = {0};
+				for (int32_t k = 0; k < inFace.size; ++k) {
+					triUvs[k] = pInMesh->pUvs[inFace.start + k];
+				}
+				//TODO move in uvs to 0 - 1 space if in another tile
+				//(don't move origin, conversion to barycentric causes problems if you do that).
+				//Determine how many uv tiles this face spans, then test barycentric for each tile
+				//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
+				int32_t result =
+					checkIfFaceIsInsideTile(inFace.size, triUvs, &faceBounds, tileMin);
+				if (result != 2) {
+					return result;
+				}
+				for (int32_t k = 0; k < inFace.size; ++k) {
+					_(triUvs + k V2SUBEQL fTileMin);
+				}
+				V3_F32 bc = getBarycentricInFace(triUvs,
+													triLoops, inFace.size, pUsg->origin);
+				int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
+				bool close = false;
+				float dist = .0f;
+				if (!inside) {
+					V3_F32 bcAbs = {fabs(bc.d[0]), fabs(bc.d[1]), fabs(bc.d[2])};
+					V3_F32 closestAbs = {fabs(pClosestBc->d[0]), fabs(pClosestBc->d[1]), fabs(pClosestBc->d[2])};
+					for (int32_t edge = 0; edge < 3; ++edge) {
+						int32_t last = edge == 0 ? 2 : edge - 1;
+						int32_t next = (edge + 1) % 3;
+						if (bcAbs.d[edge] < *pClosestDist && bc.d[last] >= .0f && bc.d[next] >= .0f) {
+							dist = bcAbs.d[edge];
+							close = true;
+							break;
+						}
+					}
+					if (!close) {
+						//test tri verts
+						for (int32_t vert = 0; vert < 3; ++vert) {
+							if (bc.d[vert] < .0f) {
+								continue;
+							}
+							int32_t last = vert == 0 ? 2 : vert - 1;
+							int32_t next = (vert + 1) % 3;
+							float thisDist = fabs(1.0f - bc.d[vert]);
+							if (thisDist < *pClosestDist && bc.d[last] < .0f && bc.d[next] < .0f) {
+								dist = thisDist;
+								close = true;
+								break;
+							}
+						}
+					}
+				}
+				if (inside || close) {
+					*pClosestBc = bc;
+					*pClosestFace = inFace;
+					pClosestFaceLoops[0] = triLoops[0];
+					pClosestFaceLoops[1] = triLoops[1];
+					pClosestFaceLoops[2] = triLoops[2];
+					if (inside) {
+						return RUVM_SUCCESS;
+					}
+					*pClosestDist = dist;
+				}
+			}
+		}
+	}
+	RUVM_ASSERT("", pClosestFace->index >= 0);
+	return RUVM_SUCCESS;
+}
+
 RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
                                        RuvmMesh *pSquares, InFaceArr *pInFaceTable) {
 	for (int32_t i = 0; i < pSquares->faceCount; ++i) {
@@ -330,83 +414,12 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		FaceRange closestFace = {.index = -1};
 		int8_t closestFaceLoops[3] = {0};
 		float closestDist = FLT_MAX;
-		for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
-			FaceRange inFace =
-				getFaceRange(&pInMesh->mesh, pInFaceTable[i].pArr[j], false);
-			FaceBounds faceBounds = {0};
-			getFaceBoundsForTileTest(&faceBounds, pInMesh, &inFace);
-			V2_I32 minTile = faceBounds.min;
-			V2_I32 maxTile = faceBounds.max;
-			for (int32_t l = minTile.d[1]; l <= maxTile.d[1]; ++l) {
-				for (int32_t m = minTile.d[0]; m <= maxTile.d[0]; ++m) {
-					V2_I32 tileMin = {m, l};
-					V2_F32 fTileMin = {(float)m, (float)l};
-					int8_t triLoops[4] = {0};
-					V2_F32 triUvs[4] = {0};
-					for (int32_t k = 0; k < inFace.size; ++k) {
-						triUvs[k] = pInMesh->pUvs[inFace.start + k];
-					}
-					//TODO move in uvs to 0 - 1 space if in another tile
-					//(don't move origin, conversion to barycentric causes problems if you do that).
-					//Determine how many uv tiles this face spans, then test barycentric for each tile
-					//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
-					int32_t result =
-						checkIfFaceIsInsideTile(inFace.size, triUvs, &faceBounds, tileMin);
-					if (result != 2) {
-						return result;
-					}
-					for (int32_t k = 0; k < inFace.size; ++k) {
-						_(triUvs + k V2SUBEQL fTileMin);
-					}
-					V3_F32 bc = getBarycentricInFace(triUvs,
-													 triLoops, inFace.size, pUsg->origin);
-					int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
-					bool close = false;
-					float dist = .0f;
-					if (!inside) {
-						V3_F32 bcAbs = {fabs(bc.d[0]), fabs(bc.d[1]), fabs(bc.d[2])};
-						V3_F32 closestAbs = {fabs(closestBc.d[0]), fabs(closestBc.d[1]), fabs(closestBc.d[2])};
-						for (int32_t edge = 0; edge < 3; ++edge) {
-							int32_t last = edge == 0 ? 2 : edge - 1;
-							int32_t next = (edge + 1) % 3;
-							if (bcAbs.d[edge] < closestDist && bc.d[last] >= .0f && bc.d[next] >= .0f) {
-								dist = bcAbs.d[edge];
-								close = true;
-								break;
-							}
-						}
-						if (!close) {
-							//test tri verts
-							for (int32_t vert = 0; vert < 3; ++vert) {
-								if (bc.d[vert] < .0f) {
-									continue;
-								}
-								int32_t last = vert == 0 ? 2 : vert - 1;
-								int32_t next = (vert + 1) % 3;
-								float thisDist = fabs(1.0f - bc.d[vert]);
-								if (thisDist < closestDist && bc.d[last] < .0f && bc.d[next] < .0f) {
-									dist = thisDist;
-									close = true;
-									break;
-								}
-							}
-						}
-					}
-					if (inside || close) {
-						closestBc = bc;
-						closestFace = inFace;
-						closestFaceLoops[0] = triLoops[0];
-						closestFaceLoops[1] = triLoops[1];
-						closestFaceLoops[2] = triLoops[2];
-						if (inside) {
-							break;
-						}
-						closestDist = dist;
-					}
-				}
-			}
+		RuvmResult result = RUVM_NOT_SET;
+		result = getClosestTriToOrigin(pUsg, pInMesh, pInFaceTable, i, &closestBc,
+		                               &closestFace, &closestFaceLoops, &closestDist);
+		if (result != RUVM_SUCCESS) {
+			return result;
 		}
-		RUVM_ASSERT("", closestFace.index >= 0);
 		pInFaceTable[i].tri[0] = closestFace.start + closestFaceLoops[0];
 		pInFaceTable[i].tri[1] = closestFace.start + closestFaceLoops[1];
 		pInFaceTable[i].tri[2] = closestFace.start + closestFaceLoops[2];

@@ -339,6 +339,8 @@ RuvmResult encodeObj(ByteString *pByteString,
 	}
 	encodeDataName(pByteString, "FL", &pSize->dataNames); //face list
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
+		RUVM_ASSERT("", pMesh->pFaces[i] >= 0 &&
+		                pMesh->pFaces[i] < pMesh->loopCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32, &pSize->faceList);
 	}
 	if (isSizeInvalid(pSize->faceList)) {
@@ -351,7 +353,11 @@ RuvmResult encodeObj(ByteString *pByteString,
 	}
 	encodeDataName(pByteString, "LL", &pSize->dataNames); //loop and edge lists
 	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
+		RUVM_ASSERT("", pMesh->pLoops[i] >= 0 &&
+		                pMesh->pLoops[i] < pMesh->vertCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pLoops[i], 32, &pSize->loopList);
+		RUVM_ASSERT("", pMesh->pEdges[i] >= 0 &&
+		                pMesh->pEdges[i] < pMesh->edgeCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32, &pSize->edgeList);
 	}
 	if (isSizeInvalid(pSize->loopList) || isSizeInvalid(pSize->edgeList)) {
@@ -803,6 +809,8 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	stageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		decodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
+		RUVM_ASSERT("", pMesh->pFaces[i] >= 0 &&
+		                pMesh->pFaces[i] < pMesh->loopCount);
 		stageProgressWrap(pContext, i);
 	}
 	stageEndWrap(pContext);
@@ -818,7 +826,11 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	stageBeginWrap(pContext, "Decoding loops", pMesh->loopCount);
 	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
 		decodeValue(pByteString, (uint8_t *)&pMesh->pLoops[i], 32);
+		RUVM_ASSERT("", pMesh->pLoops[i] >= 0 &&
+		                pMesh->pLoops[i] < pMesh->vertCount);
 		decodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
+		RUVM_ASSERT("", pMesh->pEdges[i] >= 0 &&
+		                pMesh->pEdges[i] < pMesh->edgeCount);
 		stageProgressWrap(pContext, i);
 	}
 	stageEndWrap(pContext);
