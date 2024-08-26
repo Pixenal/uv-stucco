@@ -10,6 +10,8 @@
 #include <Mesh.h>
 #include <Error.h>
 
+//t is type, pD is attrib, i is index, v is vector len (scalar is 1, v2 is 2, etc),
+//and c is component (ie, x is 0, y is 1, z is 2, etc)
 #define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->pData)[i][c]
 
 #define BLEND_REPLACE(t, pD, iD, pA, iA, pB, iB, v, c)\
@@ -67,6 +69,9 @@
 	INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pB,iB,v,c) == 1.0 ?\
 		INDEX_ATTRIB(t,pB,iB,v,c) : e;\
 }
+
+#define DIVIDE_BY_SCALAR(t, pAttrib, index, v, c, scalar) \
+	INDEX_ATTRIB(t,pAttrib,index,v,c) /= (t)scalar;
 
 #define LERP_SCALAR(t, pD, iD, pA, iA, pB, iB, a) { \
 	float aInverse = 1.0f - a; \
@@ -667,6 +672,7 @@ static void appendOnNonString() {
 	abort();
 }
 
+//TODO this name should not be plural
 void blendAttribs(RuvmAttrib *pD, int32_t iD, RuvmAttrib *pA, int32_t iA,
                   RuvmAttrib *pB, int32_t iB, RuvmBlendConfig blendConfig) {
 	RuvmAttribType type = pD->type;
@@ -2029,6 +2035,122 @@ void blendAttribs(RuvmAttrib *pD, int32_t iD, RuvmAttrib *pA, int32_t iA,
 			break;
 		case RUVM_ATTRIB_STRING:
 			//TODO add string append
+			break;
+	}
+}
+
+void divideAttribByScalarInt(Attrib *pAttrib, int32_t index, uint64_t scalar) {
+	switch (pAttrib->type) {
+		case RUVM_ATTRIB_I8:
+			DIVIDE_BY_SCALAR(int8_t, pAttrib, index, 1, 0, scalar);
+			break;
+		case RUVM_ATTRIB_I16:
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 1, 0, scalar);
+			break;
+		case RUVM_ATTRIB_I32:
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 1, 0, scalar);
+			break;
+		case RUVM_ATTRIB_I64:
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 1, 0, scalar);
+			break;
+		case RUVM_ATTRIB_F32:
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 1, 0, scalar);
+			break;
+		case RUVM_ATTRIB_F64:
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 1, 0, scalar);
+			break;
+		case RUVM_ATTRIB_V2_I8:
+			DIVIDE_BY_SCALAR(int8_t, pAttrib, index, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(int8_t, pAttrib, index, 2, 1, scalar);
+			break;
+		case RUVM_ATTRIB_V2_I16:
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 2, 1, scalar);
+			break;
+		case RUVM_ATTRIB_V2_I32:
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 2, 1, scalar);
+			break;
+		case RUVM_ATTRIB_V2_I64:
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 2, 1, scalar);
+			break;
+		case RUVM_ATTRIB_V2_F32:
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 2, 1, scalar);
+			break;
+		case RUVM_ATTRIB_V2_F64:
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 2, 1, scalar);
+			break;
+		case RUVM_ATTRIB_V3_I8:
+			DIVIDE_BY_SCALAR(int8_t, pAttrib, index, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(int8_t, pAttrib, index, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(int8_t, pAttrib, index, 3, 2, scalar);
+			break;
+		case RUVM_ATTRIB_V3_I16:
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 3, 2, scalar);
+			break;
+		case RUVM_ATTRIB_V3_I32:
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 3, 2, scalar);
+			break;
+		case RUVM_ATTRIB_V3_I64:
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 3, 2, scalar);
+			break;
+		case RUVM_ATTRIB_V3_F32:
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 3, 2, scalar);
+			break;
+		case RUVM_ATTRIB_V3_F64:
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 3, 2, scalar);
+			break;
+		case RUVM_ATTRIB_V4_I8:
+			DIVIDE_BY_SCALAR(uint8_t, pAttrib, index, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(uint8_t, pAttrib, index, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(uint8_t, pAttrib, index, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(uint8_t, pAttrib, index, 4, 3, scalar);
+			break;
+		case RUVM_ATTRIB_V4_I16:
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(int16_t, pAttrib, index, 4, 3, scalar);
+			break;
+		case RUVM_ATTRIB_V4_I32:
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(int32_t, pAttrib, index, 4, 3, scalar);
+			break;
+		case RUVM_ATTRIB_V4_I64:
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(int64_t, pAttrib, index, 4, 3, scalar);
+			break;
+		case RUVM_ATTRIB_V4_F32:
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(float, pAttrib, index, 4, 3, scalar);
+			break;
+		case RUVM_ATTRIB_V4_F64:
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(double, pAttrib, index, 4, 3, scalar);
+			break;
+		case RUVM_ATTRIB_STRING:
+			RUVM_ASSERT("Can't divide a string by 1", false);
 			break;
 	}
 }

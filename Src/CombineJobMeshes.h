@@ -108,6 +108,7 @@ typedef struct BorderVert {
 	int32_t loop;
 	int8_t job;
 	bool keepBaseLoop;
+	bool divided;
 } BorderVert;
 
 typedef struct {
@@ -151,6 +152,7 @@ typedef struct MergeSendOffArgs {
 	int32_t *pTotalVertTable;
 	int32_t totalVerts;
 	Mesh *pInMesh;
+	int32_t *pLoopMergeTable;
 	int32_t entriesStart;
 	int32_t entriesEnd;
 	int32_t job;

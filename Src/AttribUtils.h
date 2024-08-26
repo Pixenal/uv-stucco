@@ -11,6 +11,7 @@ typedef RuvmAttribType AttribType;
 typedef RuvmAttribArray AttribArray;
 typedef RuvmAttribIndexedArr AttribIndexedArr;
 typedef RuvmAttribOrigin AttribOrigin;
+typedef RuvmBlendConfig BlendConfig;
 
 //TODO switch pAttrib pData ptr from void * to uint8_t *?
 
@@ -46,6 +47,7 @@ void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
                           int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
 void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
                   Attrib *pB, int32_t iB, RuvmBlendConfig blendConfig);
+void divideAttribByScalarInt(Attrib *pAttrib, int32_t index, uint64_t scalar);
 void allocAttribs(RuvmAlloc *pAlloc, AttribArray *pDest,
                   int32_t srcCount, Mesh **ppSrcArr,
 				  int32_t dataLen, RuvmDomain domain, bool setCommon);

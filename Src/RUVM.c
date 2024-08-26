@@ -538,12 +538,6 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	}
 	setSpecialAttribs(&meshInWrap, 0x50); //set perserve if present
 
-	//TODO add pass to merge loop attribs split from interpolation.
-	//     interpolation works on rigid stuff like undistorted uvs, but
-	//     falls apart when you squish the uvs.
-	//     Check first to make sure it isn't just a precision issue or something
-	//     before adding this merge thing.
-
 	mapToMeshInternal(pContext, pMap, &meshInWrap, pMeshOut, pCommonAttribList, NULL, wScale);
 	if (pMap->usgArr.count) {
 		pContext->alloc.pFree(pMap->usgArr.pInFaceTable);
