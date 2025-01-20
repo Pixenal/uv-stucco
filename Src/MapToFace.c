@@ -561,13 +561,25 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 		                                     inFace.size, *(V2_F32 *)&pLoop->uvw);
 		int8_t *pTriLoops = pLoop->triLoops;
 		V3_F32 vertsXyz[3];
+		int32_t inVerts[3];
 		for (int32_t i = 0; i < 3; ++i) {
-			int32_t vertIndex =
+			inVerts[i] =
 				pVars->mesh.mesh.pLoops[inFace.start + pTriLoops[i]];
-			vertsXyz[i] = pVars->mesh.pVerts[vertIndex];
+			vertsXyz[i] = pVars->mesh.pVerts[inVerts[i]];
 		}
 		pLoop->bc = vertBc;
 		pLoop->tbn = getInterpolatedTbn(&pVars->mesh, &inFace, pTriLoops, vertBc);
+		float inVertsWScaleMul = 1.0;
+		if (pVars->mesh.pWScale) {
+			Attrib wScaleWrap = {
+				.pData = &inVertsWScaleMul,
+				.interpolate = true,
+				.type = RUVM_ATTRIB_F32
+			};
+			triInterpolateAttrib(&wScaleWrap, 0, pVars->mesh.pWScaleAttrib,
+								 inVerts[0], inVerts[1], inVerts[2], vertBc);
+		}
+		pLoop->uvw.d[2] *= inVertsWScaleMul;
 		pLoop->inTangent = *(V3_F32 *)&pLoop->tbn.d[0];
 		pLoop->projNormal = *(V3_F32 *)&pLoop->tbn.d[2];
 		pLoop->inTSign = pVars->mesh.pTSigns[inFace.start + pTriLoops[0]];

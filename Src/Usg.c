@@ -150,7 +150,8 @@ bool isPointInsideMesh(RuvmAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh) {
 	//(so flatten point and mesh into 2D (x,y))
 	int32_t wind = 0;
 	HitEdgeTable hitEdges = {0};
-	hitEdges.pTable = pAlloc->pCalloc(pMesh->mesh.edgeCount, sizeof(HitEdge));
+	hitEdges.size = pMesh->mesh.edgeCount;
+	hitEdges.pTable = pAlloc->pCalloc(hitEdges.size, sizeof(HitEdge));
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceRange face = getFaceRange(&pMesh->mesh, i, false);
 		V3_F32 tri[3] = {0};

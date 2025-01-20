@@ -505,7 +505,7 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 		return RUVM_ERROR;
 	}
 	Mesh meshInWrap = {.mesh = *pMeshIn};
-	setSpecialAttribs(&meshInWrap, 0x30e); //don't set preserve yet
+	setSpecialAttribs(&meshInWrap, 0x70e); //don't set preserve yet
 	if (isMeshInvalid(&meshInWrap)) {
 		return RUVM_ERROR;
 	}

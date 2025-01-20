@@ -59,6 +59,7 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	pVars->bufMesh.pInTSignAttrib = pInTSignAttrib;
 	pVars->bufMesh.pInTSign = pInTSignAttrib->pData;
 
+	//generalise this
 	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.loopAttribs);
 	pMesh->pUvs = pMesh->pUvAttrib->pData;
 	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.loopAttribs);
@@ -67,6 +68,13 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	pMesh->pVerts = pMesh->pVertAttrib->pData;
 	pMesh->loopBufSize = loopBufSize;
 	pMesh->mesh.type.type = RUVM_OBJECT_DATA_MESH_BUF;
+	pMesh->pWScaleAttrib = getAttrib("RuvmWScale", &pMesh->mesh.vertAttribs);
+	if (pMesh->pWScaleAttrib) {
+		pMesh->pWScale = pMesh->pWScaleAttrib->pData;
+		//temp override to prevent it from being added to out mesh
+		//generaliee this in an 'originOverride' func or something
+		pMesh->pWScaleAttrib->origin = RUVM_ATTRIB_ORIGIN_IGNORE;
+	}
 }
 
 static

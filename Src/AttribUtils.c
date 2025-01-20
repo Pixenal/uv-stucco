@@ -401,8 +401,11 @@ int32_t copyAttrib(RuvmAttrib *pDest, int32_t iDest,
 
 void copyAllAttribs(AttribArray *pDest, int32_t iDest,
                     AttribArray *pSrc, int32_t iSrc) {
-	for (int32_t i = 0; i < pSrc->count; ++i) {
-		copyAttrib(pDest->pArr + i, iDest, pSrc->pArr + i, iSrc);
+	for (int32_t i = 0; i < pDest->count; ++i) {
+		Attrib *pSrcAttrib = getAttrib(pDest->pArr[i].name, pSrc);
+		if (pSrcAttrib) {
+			copyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
+		}
 	}
 }
 
@@ -2244,6 +2247,9 @@ SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 		else if (pAttrib->pData == pMesh->pTSigns) {
 			return ATTRIB_SPECIAL_TSIGNS;
 		}
+		else if (pAttrib->pData == pMesh->pWScale) {
+			return ATTRIB_SPECIAL_WSCALE;
+		}
 		return ATTRIB_SPECIAL_NONE;
 }
 
@@ -2289,6 +2295,10 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			break;
 		case (ATTRIB_SPECIAL_TSIGNS):
 			pMesh->pTSigns = pAttrib->pData;
+			valid = true;
+			break;
+		case (ATTRIB_SPECIAL_WSCALE):
+			pMesh->pWScale = pAttrib->pData;
 			valid = true;
 			break;
 	}
@@ -2346,7 +2356,7 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 }
 
 void setSpecialAttribs(Mesh *pMesh, UBitField16 flags) {
-	//TODO replace hard coded names with function parameters.
+	//TODO replace hard coded attribute names with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
 	RuvmMesh *pCore = &pMesh->mesh;
 	if (flags >> ATTRIB_SPECIAL_VERTS & 0x01) {
@@ -2397,6 +2407,12 @@ void setSpecialAttribs(Mesh *pMesh, UBitField16 flags) {
 		pMesh->pTSignAttrib = getAttrib("RuvmTSign", &pCore->loopAttribs);
 		RUVM_ASSERT("", pMesh->pTSignAttrib);
 		pMesh->pTSigns = pMesh->pTSignAttrib->pData;
+	}
+	if (flags >> ATTRIB_SPECIAL_WSCALE & 0x01) {
+		pMesh->pWScaleAttrib = getAttrib("RuvmWScale", &pCore->vertAttribs);
+		if (pMesh->pWScaleAttrib) {
+			pMesh->pWScale = pMesh->pWScaleAttrib->pData;
+		}
 	}
 }
 
