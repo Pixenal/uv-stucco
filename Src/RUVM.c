@@ -444,8 +444,17 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshIn,
 	if (jobResult != RUVM_SUCCESS) {
 		return jobResult;
 	}
+	bool empty = true;
 	for (int32_t i = 0; i < pContext->threadCount; ++i) {
-		RUVM_ASSERT("", jobArgs[i].bufSize > 0);
+		//RUVM_ASSERT("", jobArgs[i].bufSize > 0);
+		//you'll need to handle this properly when you re-enable multithreading
+		if (jobArgs[i].bufSize > 0) {
+			empty = false;
+			break;
+		}
+	}
+	if (empty) {
+		return RUVM_SUCCESS;
 	}
 
 	CLOCK_START;

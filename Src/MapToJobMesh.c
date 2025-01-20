@@ -246,7 +246,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	}
 	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
 	//vars.alloc.pFree(pCellFaces);
-	if (result == RUVM_SUCCESS) {
+	bool empty = !(vars.bufMesh.mesh.mesh.faceCount || vars.bufMesh.borderFaceCount);
+	if (result == RUVM_SUCCESS && !empty) {
 		bufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
 		pSend->reallocTime = dpVars.reallocTime;
 		pSend->bufSize = vars.bufSize;
@@ -263,7 +264,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
-	RUVM_ASSERT("", pSend->bufSize > 0);
+	RUVM_ASSERT("", pSend->bufSize > 0 || empty);
 	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
 	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
