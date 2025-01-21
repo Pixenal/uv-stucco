@@ -587,8 +587,8 @@ void transformClippedFaceFromUvToXyz(LoopBufWrap *pLoopBuf, FaceRange ruvmFace,
 			V3_F32 usgBc = {0};
 			sampleUsg(pLoop->ruvmLoop, pLoop->uvw, &pLoop->loopFlat,
 			          &pLoop->transformed, &usgBc, ruvmFace, pVars->pMap,
-			          inFace.index, &pVars->mesh, &pLoop->projNormal,
-			          tileMin, false, false, &pLoop->tbn);
+			          inFace.index + pVars->inFaceOffset, &pVars->mesh,
+			          &pLoop->projNormal, tileMin, false, false, &pLoop->tbn);
 		}
 		if (!pLoop->transformed) {
 			pLoop->loopFlat = barycentricToCartesian(vertsXyz, &vertBc);
@@ -1062,7 +1062,7 @@ static
 void addInFace(MappingJobVars *pVars, int32_t face, FaceRange *pBaseFace, FaceRange *pMapFace) {
 	InFaceArr *pInFaceEntry = pVars->pInFaces + face;
 	pInFaceEntry->pArr = pVars->alloc.pMalloc(sizeof(int32_t));
-	*pInFaceEntry->pArr = pBaseFace->index;
+	*pInFaceEntry->pArr = pBaseFace->index + pVars->inFaceOffset;
 	pInFaceEntry->count = 1;
 	pInFaceEntry->usg = pMapFace->index;
 	int32_t faceCount = pVars->bufMesh.mesh.mesh.faceCount;
@@ -1163,6 +1163,9 @@ bool isOnLine(LoopBufWrap *pLoopBuf) {
 Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
                            DebugAndPerfVars *pDpVars,
 					       V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace) {
+	if (baseFace.size < 3 || baseFace.size > 4) {
+		return RUVM_SUCCESS;
+	}
 	FaceBounds bounds = {0};
 	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri = {0};

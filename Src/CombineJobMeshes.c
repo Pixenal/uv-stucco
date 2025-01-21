@@ -10,9 +10,10 @@
 #include <Error.h>
 
 static
-void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable, SendOffArgs *pJobArgs) {
+void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable,
+                           SendOffArgs *pJobArgs, int32_t mapJobsSent) {
 	int32_t face = 0;
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		int32_t faceCount = pJobArgs[i].bufMesh.mesh.mesh.faceCount;
 		for (int32_t j = 0; j < faceCount; ++j) {
 			pInFaceTable[face] = pJobArgs[i].pInFaces[j];
@@ -25,7 +26,8 @@ void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable, SendOf
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh) {
+                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
+                          int32_t mapJobsSent) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	//TODO figure out how to handle edges in local meshes,
@@ -36,7 +38,7 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	pMeshOut->mesh.type.type = RUVM_OBJECT_DATA_MESH_INTERN;
 	MeshCounts totalCount = {0};
 	MeshCounts totalBoundsCount = {0};
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		addToMeshCounts(pContext, &totalCount, &totalBoundsCount,
 		                (Mesh *)&pJobArgs[i].bufMesh);
 	}
@@ -52,31 +54,41 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	pMeshOut->mesh.pEdges =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
 	//only need to use the first buf mesh, as attribs are the same across all jobs
-	Mesh *src = &pJobArgs[0].bufMesh;
+	Mesh *src = NULL;
+	//get first bufmesh that isn't empty
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
+		if (pJobArgs[i].bufSize) {
+			src = &pJobArgs[i].bufMesh;
+			break;
+		}
+	}
 	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false);
 	setSpecialAttribs(pMeshOut, 0xe); //1110 - set only verts, uvs, & normals
 	JobBases *pJobBases =
-		pContext->alloc.pMalloc(sizeof(JobBases) * pContext->threadCount);
+		pContext->alloc.pMalloc(sizeof(JobBases) * mapJobsSent);
 	uint64_t reallocTime = 0;
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		reallocTime += pJobArgs[i].reallocTime;
 		printf("realloc time %lu\n", pJobArgs[i].reallocTime);
 		printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
 		printf("bufSize: %d | ", pJobArgs[i].bufSize);
 		printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
-		pJobBases[i].vertBase = pMeshOut->mesh.vertCount;
-		pJobBases[i].edgeBase = pMeshOut->mesh.edgeCount;
-		copyMesh(&pMeshOut->mesh, &pJobArgs[i].bufMesh.mesh);
+		if (pJobArgs[i].bufSize) { //don't copy if mesh is empty
+			pJobBases[i].vertBase = pMeshOut->mesh.vertCount;
+			pJobBases[i].edgeBase = pMeshOut->mesh.edgeCount;
+			copyMesh(&pMeshOut->mesh, &pJobArgs[i].bufMesh.mesh);
+		}
 	}
 	if (ppInFaceTable) {
 		*ppInFaceTable = pContext->alloc.pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
-		combineJobInFaceLists(pContext, *ppInFaceTable, pJobArgs);
+		combineJobInFaceLists(pContext, *ppInFaceTable, pJobArgs, mapJobsSent);
 	}
 	printf("realloc time total %lu\n", reallocTime);
 	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                     pEdgeVerts, pJobBases, pVertSeamTable,
-	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh);
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh,
+	                     mapJobsSent);
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
 		ruvmMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);
 		pContext->alloc.pFree(pJobArgs[i].borderTable.pTable);

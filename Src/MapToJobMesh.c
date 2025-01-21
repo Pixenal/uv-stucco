@@ -84,6 +84,7 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 	RuvmAlloc *pAlloc = &pVars->alloc;
 	pVars->rawBufSize = pVars->bufSize;
 	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
+	pVars->bufSize += pVars->bufSize % 2; //ensure it's even, so realloc is easier
 	int32_t loopBufSize = pVars->bufSize * 2;
 	pVars->loopBufSize = loopBufSize;
 	pVars->borderTable.pTable =
@@ -167,6 +168,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	vars.pInFaces = pSend->pInFaces;
 	vars.getInFaces = pSend->getInFaces;
 	vars.wScale = pSend->wScale;
+	vars.inFaceOffset = pSend->inFaceOffset;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
@@ -253,7 +255,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		pSend->bufSize = vars.bufSize;
 		pSend->rawBufSize = vars.rawBufSize;
 		pSend->finalBufSize = asMesh(&vars.bufMesh)->faceBufSize;
-		RUVM_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
+		//RUVM_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
 		RUVM_ASSERT("", vars.borderTable.pTable != NULL);
 		printf("borderTable %d\n", vars.borderTable.pTable != NULL);
 		pSend->borderTable.pTable = vars.borderTable.pTable;
@@ -262,16 +264,14 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
 	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
+	pSend->result = result;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
 	RUVM_ASSERT("", pSend->bufSize > 0 || empty);
 	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
 	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
-	++*pSend->pJobsCompleted;
-	if (result != RUVM_SUCCESS || *pSend->pResult == RUVM_NOT_SET) {
-		*pSend->pResult = result;
-	}
+	--*pSend->pActiveJobs;
 	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,
 	                                         pSend->pMutex);
 }

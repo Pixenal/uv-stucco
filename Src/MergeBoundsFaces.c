@@ -1100,11 +1100,13 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 
 static
 void getPieceInFaces(RuvmAlloc *pAlloc, int32_t **ppInFaces,
-                     Piece *pPiece, int32_t pieceCount) {
+                     Piece *pPiece, int32_t pieceCount,
+                     SendOffArgs *pJobArgs) {
 	*ppInFaces = pAlloc->pCalloc(pieceCount, sizeof(int32_t));
 	int32_t i = 0;
 	do {
-		(*ppInFaces)[i] = pPiece->pEntry->baseFace;
+		int32_t offset = pJobArgs[pPiece->pEntry->job].inFaceOffset;
+		(*ppInFaces)[i] = pPiece->pEntry->baseFace + offset;
 		pPiece = pPiece->pNext;
 		i++;
 	} while(pPiece);
@@ -1411,7 +1413,8 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 			int32_t pieceCount = 0; //this is only need if getting in faces
 			if (pArgs->ppInFaceTable) {
 				pieceCount = getPieceCount(pPieceRoot); 
-				getPieceInFaces(&pArgs->pContext->alloc, &pInFaces, pPieceRoot, pieceCount);
+				getPieceInFaces(&pArgs->pContext->alloc, &pInFaces,
+				                pPieceRoot, pieceCount, pArgs->pJobArgs);
 			}
 			int32_t job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
 			RUVM_ASSERT("", job >= 0 && job < pContext->threadCount);
@@ -1442,7 +1445,6 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 		printf("	%lu\n", timeSpent[i]);
 	}
 	printf("\n");
-	++*pArgs->pJobsCompleted;
 }
 
 static
@@ -1547,8 +1549,9 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
 				bool flatCutoff = pUsg->pFlatCutoff &&
 					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
+				int32_t inFaceOffset = pArgs->pJobArgs[pEntry->job].inFaceOffset;
 				bool inside = sampleUsg(i, uvw, &posFlat, &transformed,
-				                        &usgBc, *pMapFace, pMap, pEntry->baseFace,
+				                        &usgBc, *pMapFace, pMap, pEntry->baseFace + inFaceOffset,
 				                        pArgs->pInMesh, &normal, fTileMin, flatCutoff, true,
 				                        &tbn);
 				if (inside) {
@@ -1674,7 +1677,7 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 	bool barrierRet;
 	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
 	if (barrierRet) {
-		for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		for (int32_t i = 0; i < *pArgs->pActiveJobs; ++i) {
 			mergeIntersectionLoops(pArgs->pArgArr + i, false);
 			mergeIntersectionLoops(pArgs->pArgArr + i, true);
 			mergeLoopAttribs(pArgs->pArgArr + i);
@@ -1682,9 +1685,10 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 	}
 	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
 	if (barrierRet) {
-		for (int32_t i = 0; i < pContext->threadCount; ++i) {
+		for (int32_t i = 0; i < *pArgs->pActiveJobs; ++i) {
 			addToOutMesh(pArgs->pArgArr + i);
 		}
+		*pArgs->pActiveJobs = 0;
 	}
 	pContext->alloc.pFree(pArgs->pInVertKeep);
 }
@@ -1692,8 +1696,11 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 static
 void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
                               BorderBucket *pBucket, int32_t faceIndex,
-							  int32_t hash, int32_t job) {
-	for (int32_t j = job + 1; j < pContext->threadCount; ++j) {
+							  int32_t hash, int32_t job, int32_t mapJobsSent) {
+	for (int32_t j = job + 1; j < mapJobsSent; ++j) {
+		if (!pJobArgs[j].bufSize) {
+			continue;
+		}
 		//RUVM_ASSERT("", pJobArgs[j].borderTable.size > 0);
 		//RUVM_ASSERT("", pJobArgs[j].borderTable.pTable != NULL);
 		BorderBucket *pBucketOther = pJobArgs[j].borderTable.pTable + hash;
@@ -1717,10 +1724,14 @@ void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
 static
 void compileBorderTables(RuvmContext pContext, SendOffArgs *pJobArgs,
                          CompiledBorderTable *pBorderTable,
-						 int32_t totalBorderFaces) {
+						 int32_t totalBorderFaces, int32_t mapJobsSent) {
 	pBorderTable->ppTable =
 		pContext->alloc.pMalloc(sizeof(void *) * totalBorderFaces);
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
+		if (!pJobArgs[i].bufSize) {
+			//TODO why is bufsize zero? how? find out
+			continue; //skip if buf mesh is empty
+		}
 		for (int32_t hash = 0; hash < pJobArgs[i].borderTable.size; ++hash) {
 			RUVM_ASSERT("", pJobArgs[i].borderTable.size > 0);
 			RUVM_ASSERT("", pJobArgs[i].borderTable.pTable);
@@ -1731,7 +1742,7 @@ void compileBorderTables(RuvmContext pContext, SendOffArgs *pJobArgs,
 					int32_t faceIndex = pBucket->pEntry->faceIndex;
 					RUVM_ASSERT("", faceIndex >= 0);
 					linkEntriesFromOtherJobs(pContext, pJobArgs, pBucket,
-					                         faceIndex, hash, i);
+					                         faceIndex, hash, i, mapJobsSent);
 					RUVM_ASSERT("", pBorderTable->count >= 0);
 					RUVM_ASSERT("", pBorderTable->count < totalBorderFaces);
 					pBorderTable->ppTable[pBorderTable->count] = pBucket->pEntry;
@@ -1746,7 +1757,7 @@ void compileBorderTables(RuvmContext pContext, SendOffArgs *pJobArgs,
 			} while (pBucket);
 			RUVM_ASSERT("", hash >= 0 && hash < pJobArgs[i].borderTable.size);
 		}
-		RUVM_ASSERT("", i >= 0 && i < pContext->threadCount);
+		RUVM_ASSERT("", i >= 0 && i < mapJobsSent);
 	}
 }
 
@@ -1801,13 +1812,16 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 					  Mesh *pMeshOut, SendOffArgs *pMapJobArgs,
 					  EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
 					  CombineTables *pCTables, JobBases *pJobBases,
-					  int32_t *pJobsCompleted, void *pMutex, bool *pEdgeSeamTable,
+					  int32_t *pActiveJobs, void *pMutex, bool *pEdgeSeamTable,
                       InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh, void *pBarrier) {
 	int32_t entriesPerJob = pBorderTable->count / pContext->threadCount;
+	bool singleThread = !entriesPerJob;
 	void *jobArgPtrs[MAX_THREADS];
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	*pActiveJobs = singleThread ? 1 : pContext->threadCount;
+	pContext->threadPool.pBarrierGet(pContext->pThreadPoolHandle, &pBarrier, *pActiveJobs);
+	for (int32_t i = 0; i < *pActiveJobs; ++i) {
 		int32_t entriesStart = entriesPerJob * i;
-		int32_t entriesEnd = i == pContext->threadCount - 1 ?
+		int32_t entriesEnd = i == *pActiveJobs - 1 ?
 			pBorderTable->count : entriesStart + entriesPerJob;
 		//TODO make a struct for these common variables, like pContext,
 		//pMap, pEdgeVerts, etc, so you don't need to move them
@@ -1827,7 +1841,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 		pMergeJobArgs[i].pJobBases = pJobBases;
 		pMergeJobArgs[i].pCTables = pCTables;
 		pMergeJobArgs[i].job = i;
-		pMergeJobArgs[i].pJobsCompleted = pJobsCompleted;
+		pMergeJobArgs[i].pActiveJobs = pActiveJobs;
 		pMergeJobArgs[i].pBarrier = pBarrier;
 		pMergeJobArgs[i].pMutex = pMutex;
 		pMergeJobArgs[i].wScale = wScale;
@@ -1836,7 +1850,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 		jobArgPtrs[i] = pMergeJobArgs + i;
 	}
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
-	                                       pContext->threadCount,
+	                                       *pActiveJobs,
 										   mergeAndCopyEdgeFaces, jobArgPtrs);
 }
 
@@ -1844,44 +1858,44 @@ void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
                           bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
-                          float wScale, Mesh *pInMesh) {
+                          float wScale, Mesh *pInMesh, int32_t mapJobsSent) {
 	int32_t totalBorderFaces = 0;
 	int32_t totalBorderEdges = 0;
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		totalBorderFaces += pJobArgs[i].bufMesh.borderFaceCount;
 		totalBorderEdges += pJobArgs[i].bufMesh.borderEdgeCount;
-		RUVM_ASSERT("", i < pContext->threadCount);
+		RUVM_ASSERT("", i < mapJobsSent);
 	}
 	RUVM_ASSERT("", totalBorderFaces >= 0 && totalBorderFaces < 100000000);
 	RUVM_ASSERT("", totalBorderEdges >= 0 && totalBorderEdges < 100000000);
 	CompiledBorderTable borderTable = {0};
 	//compile border table entries from all jobs, into a single table
-	compileBorderTables(pContext, pJobArgs, &borderTable, totalBorderFaces);
+	compileBorderTables(pContext, pJobArgs, &borderTable,
+	                    totalBorderFaces, mapJobsSent);
 	//tables used for merging mesh mesh data correctly
 	CombineTables cTables = {0};
 	allocCombineTables(&pContext->alloc, &cTables, totalBorderFaces,
 	                   totalBorderEdges);
 	for (int32_t i = 0; i < pJobArgs[0].mesh.mesh.vertCount; ++i) {
 		int32_t preserve = pJobArgs[0].pInVertTable[i];
-		for (int32_t j = 1; j < pContext->threadCount; ++j) {
+		for (int32_t j = 1; j < mapJobsSent; ++j) {
 			preserve |= pJobArgs[j].pInVertTable[i];
-			RUVM_ASSERT("", j >= 0 && j < pContext->threadCount);
+			RUVM_ASSERT("", j >= 0 && j < mapJobsSent);
 		}
 		pJobArgs[0].pInVertTable[i] = preserve;
 		RUVM_ASSERT("", i >= 0 && i < pJobArgs[0].mesh.mesh.vertCount);
 	}
 	MergeSendOffArgs mergeJobArgs[MAX_THREADS];
-	int32_t jobsCompleted = 0;
+	int32_t activeJobs = 0;
 	int32_t fence = 0;
 	void *pMutex = NULL;
 	void *pBarrier = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	pContext->threadPool.pBarrierGet(pContext->pThreadPoolHandle, &pBarrier);
 	sendOffMergeJobs(pContext, &borderTable, mergeJobArgs, pMap, pMeshOut,
 	                 pJobArgs, pEdgeVerts, pVertSeamTable, &cTables, pJobBases,
-					 &jobsCompleted, pMutex, pEdgeSeamTable, ppInFaceTable,
+					 &activeJobs, pMutex, pEdgeSeamTable, ppInFaceTable,
 	                 wScale, pInMesh, pBarrier);
-	waitForJobs(pContext, &jobsCompleted, pMutex);
+	waitForJobs(pContext, &activeJobs, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	pContext->threadPool.pBarrierDestroy(pContext->pThreadPoolHandle, pBarrier);
 	pContext->alloc.pFree(borderTable.ppTable);

@@ -321,11 +321,12 @@ typedef struct {
 	void (*pInit)(void **, int32_t *, RuvmAlloc *);
 	void (*pJobStackGetJob)(void *, void (**)(void *), void **);
 	int32_t (*pJobStackPushJobs)(void *, int32_t, void(*)(void *), void **);
+	bool (*pGetAndDoJob)(void *);
 	void (*pMutexGet)(void *, void **);
 	void (*pMutexLock)(void *, void *);
 	void (*pMutexUnlock)(void *, void *);
 	void (*pMutexDestroy)(void *, void *);
-	void (*pBarrierGet)(void *, void **);
+	void (*pBarrierGet)(void *, void **, int32_t);
 	bool (*pBarrierWait)(void *, void *);
 	void (*pBarrierDestroy)(void *, void *);
 	void (*pDestroy)(void *);

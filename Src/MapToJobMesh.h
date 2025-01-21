@@ -89,6 +89,7 @@ typedef struct {
 	int32_t rawBufSize;
 	int32_t finalBufSize;
 	int32_t loopBufSize;
+	int32_t inFaceOffset;
 	float wScale;
 } MappingJobVars;
 

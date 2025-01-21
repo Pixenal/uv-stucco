@@ -145,7 +145,7 @@ typedef struct MergeSendOffArgs {
 	CompiledBorderTable *pBorderTable;
 	JobBases *pJobBases;
 	CombineTables *pCTables;
-	int32_t *pJobsCompleted;
+	int32_t *pActiveJobs;
 	void *pBarrier;
 	PieceArr *pPieceArrTable;
 	PieceRootsArr *pPieceRootTable;
@@ -163,7 +163,7 @@ void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
                           bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
-                          float wScale, Mesh *pInMesh);
+                          float wScale, Mesh *pInMesh, int32_t mapJobsSent);
 void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
 void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
@@ -175,7 +175,8 @@ void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
 void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh);
+                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
+                          int32_t mapJobsSent);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs, int32_t loopIndex);
 bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);

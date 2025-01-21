@@ -291,41 +291,43 @@ RuvmResult ruvmDestroyCommonAttribs(RuvmContext pContext,
 
 static
 void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
-                 int32_t *pJobsCompleted, Mesh *pMesh, void *pMutex,
+                 int32_t *pActiveJobs, int32_t *pMapJobsSent, Mesh *pMesh, void *pMutex,
                  EdgeVerts *pEdgeVerts, int8_t *pInVertTable,
-				 RuvmCommonAttribList *pCommonAttribList, Result *pJobResult,
+				 RuvmCommonAttribList *pCommonAttribList,
 	             bool getInFaces, float wScale) {
 	//struct timeval start, stop;
 	//CLOCK_START;
 	int32_t facesPerThread = pMesh->mesh.faceCount / pContext->threadCount;
+	bool singleThread = !facesPerThread;
 	void *jobArgPtrs[MAX_THREADS];
-	int32_t borderTableSize = pMap->mesh.mesh.faceCount / 5;
+	int32_t borderTableSize = pMap->mesh.mesh.faceCount / 5 + 2; //+ 2 incase is 0
 	printf("fromjobsendoff: BorderTableSize: %d\n", borderTableSize);
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	*pActiveJobs = singleThread ? 1 : pContext->threadCount;
+	for (int32_t i = 0; i < *pActiveJobs; ++i) {
 		int32_t meshStart = facesPerThread * i;
-		int32_t meshEnd = i == pContext->threadCount - 1 ?
+		int32_t meshEnd = i == *pActiveJobs - 1 ?
 			pMesh->mesh.faceCount : meshStart + facesPerThread;
 		Mesh meshPart = *pMesh;
 		meshPart.mesh.pFaces += meshStart;
 		meshPart.mesh.faceCount = meshEnd - meshStart;
+		pJobArgs[i].inFaceOffset = meshStart;
 		pJobArgs[i].pInVertTable = pInVertTable;
 		pJobArgs[i].pEdgeVerts = pEdgeVerts;
 		pJobArgs[i].pMap = pMap;
 		pJobArgs[i].borderTable.size = borderTableSize;
 		pJobArgs[i].mesh = meshPart;
-		pJobArgs[i].pJobsCompleted = pJobsCompleted;
+		pJobArgs[i].pActiveJobs = pActiveJobs;
 		pJobArgs[i].id = i;
 		pJobArgs[i].pContext = pContext;
 		pJobArgs[i].pMutex = pMutex;
 		pJobArgs[i].pCommonAttribList = pCommonAttribList;
-		pJobArgs[i].pResult = pJobResult;
 		pJobArgs[i].getInFaces = getInFaces;
 		pJobArgs[i].wScale = wScale;
 		jobArgPtrs[i] = pJobArgs + i;
 	}
+	*pMapJobsSent = *pActiveJobs;
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
-	                                       pContext->threadCount,
-	                                       ruvmMapToJobMesh, jobArgPtrs);
+	                                       *pActiveJobs, ruvmMapToJobMesh, jobArgPtrs);
 	//CLOCK_STOP("send off jobs");
 }
 
@@ -429,38 +431,44 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshIn,
 
 	CLOCK_START;
 	SendOffArgs jobArgs[MAX_THREADS] = {0};
-	int32_t jobsCompleted = 0;
-	Result jobResult = RUVM_NOT_SET;
+	int32_t activeJobs = 0;
+	int32_t mapJobsSent = 0;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	sendOffJobs(pContext, pMap, jobArgs, &jobsCompleted, pMeshIn, pMutex,
-	            pEdgeVerts, pInVertTable, pCommonAttribList, &jobResult,
+	sendOffJobs(pContext, pMap, jobArgs, &activeJobs, &mapJobsSent, pMeshIn, pMutex,
+	            pEdgeVerts, pInVertTable, pCommonAttribList,
 	            ppInFaceTable != NULL, wScale);
+	if (!mapJobsSent) {
+		//no jobs sent
+		//implement an RUVM_CANCELLED status
+		return RUVM_SUCCESS;
+	}
 	CLOCK_STOP("Send Off Time");
 	CLOCK_START;
-	waitForJobs(pContext, &jobsCompleted, pMutex);
+	waitForJobs(pContext, &activeJobs, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	CLOCK_STOP("Waiting Time");
-	if (jobResult != RUVM_SUCCESS) {
-		return jobResult;
-	}
+	Result jobResult = RUVM_SUCCESS;
 	bool empty = true;
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		//RUVM_ASSERT("", jobArgs[i].bufSize > 0);
 		//you'll need to handle this properly when you re-enable multithreading
 		if (jobArgs[i].bufSize > 0) {
 			empty = false;
-			break;
+		}
+		if (jobArgs[i].result != RUVM_SUCCESS) {
+			jobResult = RUVM_ERROR;
 		}
 	}
-	if (empty) {
-		return RUVM_SUCCESS;
+	if (empty || jobResult != RUVM_SUCCESS) {
+		return jobResult;
 	}
 
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
 	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
-	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale, pMeshIn);
+	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale,
+	                     pMeshIn, mapJobsSent);
 	CLOCK_STOP("Combine time");
 	pContext->alloc.pFree(pEdgeVerts);
 	pContext->alloc.pFree(pInVertTable);
@@ -639,7 +647,7 @@ typedef struct {
 	RuvmImage imageBuf;
 	RuvmMap pMap;
 	RuvmContext pContext;
-	int32_t *pJobsCompleted;
+	int32_t *pActiveJobs;
 	void *pMutex;
 	int32_t bufOffset;
 	int32_t pixelCount;
@@ -763,7 +771,7 @@ static void ruvmRenderJob(void *pArgs) {
 	*(RenderArgs *)pArgs = vars;
 	RuvmThreadPool *pThreadPool = &vars.pContext->threadPool;
 	pThreadPool->pMutexLock(vars.pContext->pThreadPoolHandle, vars.pMutex);
-	++*vars.pJobsCompleted;
+	--*vars.pActiveJobs;
 	pThreadPool->pMutexUnlock(vars.pContext->pThreadPoolHandle, vars.pMutex);
 }
 
@@ -786,36 +794,39 @@ RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmIm
 	V2_F32 zBounds = getZBounds(pMap);
 	int32_t pixelCount = pImage->res * pImage->res;
 	int32_t pixelsPerJob = pixelCount / pContext->threadCount;
+	bool singleThread = !pixelsPerJob;
 	void *pMutex = NULL;
 	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	int32_t jobsCompleted = 0;
+	int32_t activeJobs = 0;
 	void *jobArgPtrs[MAX_THREADS];
 	RenderArgs args[MAX_THREADS];
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	activeJobs = singleThread ? 1 : pContext->threadCount;
+	for (int32_t i = 0; i < activeJobs; ++i) {
 		args[i].bufOffset = i * pixelsPerJob;
 		args[i].imageBuf.res = pImage->res;
 		args[i].imageBuf.type = pImage->type;
 		args[i].pContext = pContext;
-		args[i].pixelCount = i == pContext->threadCount - 1 ?
+		args[i].pixelCount = i == activeJobs - 1 ?
 			pixelCount - args[i].bufOffset : pixelsPerJob;
 		args[i].pMap = pMap;
 		args[i].zBounds = zBounds;
 		args[i].pMutex = pMutex;
-		args[i].pJobsCompleted = &jobsCompleted;
+		args[i].pActiveJobs = &activeJobs;
 		args[i].id = i;
 		jobArgPtrs[i] = args + i;
 	}
+	int32_t jobCount = activeJobs;
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
-	                                       pContext->threadCount,
+	                                       activeJobs,
 	                                       ruvmRenderJob, jobArgPtrs);
 	CLOCK_INIT;
 	CLOCK_START;
-	waitForJobs(pContext, &jobsCompleted, pMutex);
+	waitForJobs(pContext, &activeJobs, pMutex);
 	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
 	CLOCK_STOP("CREATE_IMAGE");
 	int32_t pixelSize = getPixelSize(pImage->type);
 	pImage->pData = pContext->alloc.pMalloc(pixelCount * pixelSize);
-	for (int32_t i = 0; i < pContext->threadCount; ++i) {
+	for (int32_t i = 0; i < jobCount; ++i) {
 		void *pImageOffset = offsetImagePtr(pImage, i * pixelsPerJob);
 		int32_t bytesToCopy = pixelSize * args[i].pixelCount;
 		memcpy(pImageOffset, args[i].imageBuf.pData, bytesToCopy);

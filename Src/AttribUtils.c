@@ -2342,14 +2342,16 @@ void reallocAndMoveAttribs(const RuvmAlloc *pAlloc, BufMesh *pMesh,
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData =
 			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
-		memmove(attribAsVoid(pAttrib, start + offset),
-				attribAsVoid(pAttrib, start), attribSize * lenToCopy);
-		int8_t newFirstElement =
-			*(int8_t *)attribAsVoid(pAttrib, start + offset);
-		int8_t newLastElement =
-			*(int8_t *)attribAsVoid(pAttrib, start + offset + lenToCopy - 1);
-		RUVM_ASSERT("", newFirstElement == oldFirstElement);
-		RUVM_ASSERT("", newLastElement == oldLastElement);
+		if (lenToCopy) {
+			memmove(attribAsVoid(pAttrib, start + offset),
+					attribAsVoid(pAttrib, start), attribSize * lenToCopy);
+			int8_t newFirstElement =
+				*(int8_t *)attribAsVoid(pAttrib, start + offset);
+			int8_t newLastElement =
+				*(int8_t *)attribAsVoid(pAttrib, start + offset + lenToCopy - 1);
+			RUVM_ASSERT("", newFirstElement == oldFirstElement);
+			RUVM_ASSERT("", newLastElement == oldLastElement);
+		}
 		reassignIfSpecial((Mesh *)pMesh, pAttrib, special);
 		RUVM_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
