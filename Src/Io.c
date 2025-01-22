@@ -1,10 +1,9 @@
-//TODO these should be prefixed with RUVM_
+//TODO these should be prefixed with STUC_
 #define VERT_ATTRIBUTE_AMOUNT 3
 #define LOOP_ATTRIBUTE_AMOUNT 3
 #define ENCODE_DECODE_BUFFER_LENGTH 34
-#define MAP_FORMAT_NAME_MAX_LEN 14
-#define RUVM_MAP_VERSION 100
-#define RUVM_FLAT_CUTOFF_HEADER_SIZE 56
+#define STUC_MAP_VERSION 100
+#define STUC_FLAT_CUTOFF_HEADER_SIZE 56
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -125,7 +124,7 @@ static
 void encodeAttribs(ByteString *pData, AttribArray *pAttribs,
                    int32_t dataLen, int64_t *pSize) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
+		if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < dataLen; ++j) {
 				void *pString = attribAsVoid(pAttribs->pArr + i, j);
 				encodeString(pData, pString, pSize);
@@ -146,7 +145,7 @@ void encodeIndexedAttribs(ByteString *pData, AttribIndexedArr attribs,
                           int64_t *pSize) {
 	for (int32_t i = 0; i < attribs.count; ++i) {
 		AttribIndexed *pAttrib = attribs.pArr + i;
-		if (pAttrib->type == RUVM_ATTRIB_STRING) {
+		if (pAttrib->type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
 				void *pString = attribAsVoid(pAttrib, j);
 				encodeString(pData, pString, pSize);
@@ -203,15 +202,15 @@ typedef struct {
 	int64_t edgeList;
 } MeshSizeInBits;
 
-static getObjDataSize(RuvmObject *pObj,
+static getObjDataSize(StucObject *pObj,
                       int64_t *pDataSizeInBits, MeshSizeInBits *pSize) {
 	pSize->transform = 32 * 16;
 	pSize->type = 8;
 	pSize->dataNames = 16 * 3;
 	if (!checkIfMesh(pObj->pData)) {
-		return RUVM_SUCCESS;
+		return STUC_SUCCESS;
 	}
-	RuvmMesh *pMesh = pObj->pData;
+	StucMesh *pMesh = pObj->pData;
 	pSize->dataNames += 16 * 9;
 
 	//calculate total size of attribute header info
@@ -247,7 +246,7 @@ static getObjDataSize(RuvmObject *pObj,
 	pSize->faceList = 32 * (int64_t)pMesh->faceCount;
 	pSize->cornerList = 32 * (int64_t)pMesh->cornerCount;
 	pSize->edgeList = 32 * (int64_t)pMesh->cornerCount;
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
 static
@@ -268,8 +267,8 @@ bool isSizeInvalid(int64_t size) {
 }
 
 static
-RuvmResult encodeObj(ByteString *pByteString,
-                     RuvmObject *pObj, MeshSizeInBits *pSize) {
+StucResult encodeObj(ByteString *pByteString,
+                     StucObject *pObj, MeshSizeInBits *pSize) {
 	//encode obj header
 	encodeDataName(pByteString, "OS", &pSize->dataNames); //object start
 	encodeDataName(pByteString, "XF", &pSize->dataNames); //transform/ xform
@@ -279,110 +278,110 @@ RuvmResult encodeObj(ByteString *pByteString,
 		encodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32, &pSize->transform);
 	}
 	if (isSizeInvalid(pSize->transform)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "OT", &pSize->dataNames); //object type
 	encodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8, &pSize->type);
 	if (!checkIfMesh(pObj->pData)) {
 		if (isSizeInvalid(pSize->dataNames)) {
-			return RUVM_ERROR;
+			return STUC_ERROR;
 		}
-		return RUVM_SUCCESS;
+		return STUC_SUCCESS;
 	}
-	RuvmMesh *pMesh = pObj->pData;
+	StucMesh *pMesh = pObj->pData;
 	encodeDataName(pByteString, "HD", &pSize->dataNames); //header
 	encodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count,
 	            32, &pSize->attribCounts);
 	encodeAttribMeta(pByteString, &pMesh->meshAttribs, &pSize->meshAttribMeta);
 	if (isSizeInvalid(pSize->meshAttribMeta)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count,
 	            32, &pSize->attribCounts);
 	encodeAttribMeta(pByteString, &pMesh->faceAttribs, &pSize->faceAttribMeta);
 	if (isSizeInvalid(pSize->faceAttribMeta)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count,
 	            32, &pSize->attribCounts);
 	encodeAttribMeta(pByteString, &pMesh->cornerAttribs, &pSize->cornerAttribMeta);
 	if (isSizeInvalid(pSize->cornerAttribMeta)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count,
 	            32, &pSize->attribCounts);
 	encodeAttribMeta(pByteString, &pMesh->edgeAttribs, &pSize->edgeAttribMeta);
 	if (isSizeInvalid(pSize->edgeAttribMeta)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count,
 	            32, &pSize->attribCounts);
 	encodeAttribMeta(pByteString, &pMesh->vertAttribs, &pSize->vertAttribMeta);
 	if (isSizeInvalid(pSize->vertAttribMeta)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	if (isSizeInvalid(pSize->attribCounts)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32, &pSize->listCounts);
 	encodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32, &pSize->listCounts);
 	encodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32, &pSize->listCounts);
 	encodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32, &pSize->listCounts);
 	if (isSizeInvalid(pSize->listCounts)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	//encode data
 	encodeDataName(pByteString, "MA", &pSize->dataNames); //mesh attribs
 	encodeAttribs(pByteString, &pMesh->meshAttribs, 1, &pSize->meshAttribs);
 	if (isSizeInvalid(pSize->meshAttribs)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "FL", &pSize->dataNames); //face list
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
-		RUVM_ASSERT("", pMesh->pFaces[i] >= 0 &&
+		STUC_ASSERT("", pMesh->pFaces[i] >= 0 &&
 		                pMesh->pFaces[i] < pMesh->cornerCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32, &pSize->faceList);
 	}
 	if (isSizeInvalid(pSize->faceList)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "FA", &pSize->dataNames); //face attribs
 	encodeAttribs(pByteString, &pMesh->faceAttribs, pMesh->faceCount, &pSize->faceAttribs);
 	if (isSizeInvalid(pSize->faceAttribs)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "LL", &pSize->dataNames); //corner and edge lists
 	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
-		RUVM_ASSERT("", pMesh->pCorners[i] >= 0 &&
+		STUC_ASSERT("", pMesh->pCorners[i] >= 0 &&
 		                pMesh->pCorners[i] < pMesh->vertCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32, &pSize->cornerList);
-		RUVM_ASSERT("", pMesh->pEdges[i] >= 0 &&
+		STUC_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32, &pSize->edgeList);
 	}
 	if (isSizeInvalid(pSize->cornerList) || isSizeInvalid(pSize->edgeList)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "LA", &pSize->dataNames); //corner attribs
 	encodeAttribs(pByteString, &pMesh->cornerAttribs, pMesh->cornerCount, &pSize->cornerAttribs);
 	if (isSizeInvalid(pSize->cornerAttribs)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "EA", &pSize->dataNames); //edge attribs
 	encodeAttribs(pByteString, &pMesh->edgeAttribs, pMesh->edgeCount, &pSize->edgeAttribs);
 	if (isSizeInvalid(pSize->edgeAttribs)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "VA", &pSize->dataNames); //vert attribs
 	encodeAttribs(pByteString, &pMesh->vertAttribs, pMesh->vertCount, &pSize->vertAttribs);
 	if (isSizeInvalid(pSize->vertAttribs)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	encodeDataName(pByteString, "OE", &pSize->dataNames); //object end
 	if (isSizeInvalid(pSize->dataNames)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
 static
@@ -428,9 +427,9 @@ int32_t addUniqToPtrArr(void *pPtr, int32_t *pCount, void **ppArr) {
 }
 
 static
-void getUniqueFlatCutoffs(RuvmContext pContext, int32_t usgCount,
-                          RuvmUsg *pUsgArr, int32_t *pCutoffCount,
-                          RuvmObject ***pppCutoffs, int32_t **ppIndices) {
+void getUniqueFlatCutoffs(StucContext pContext, int32_t usgCount,
+                          StucUsg *pUsgArr, int32_t *pCutoffCount,
+                          StucObject ***pppCutoffs, int32_t **ppIndices) {
 	*ppIndices = pContext->alloc.pCalloc(usgCount, sizeof(int32_t));
 	*pppCutoffs = pContext->alloc.pCalloc(usgCount, sizeof(void *));
 	*pCutoffCount = 0;
@@ -445,16 +444,16 @@ void getUniqueFlatCutoffs(RuvmContext pContext, int32_t usgCount,
 		pContext->alloc.pRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
 }
 
-RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
-                             int32_t objCount, RuvmObject *pObjArr,
-                             int32_t usgCount, RuvmUsg *pUsgArr,
-                             RuvmAttribIndexedArr indexedAttribs) {
-	RuvmResult err = 0;
+StucResult stucWriteStucFile(StucContext pContext, const char *pName,
+                             int32_t objCount, StucObject *pObjArr,
+                             int32_t usgCount, StucUsg *pUsgArr,
+                             StucAttribIndexedArr indexedAttribs) {
+	StucResult err = 0;
 	ByteString header = {0};
 	ByteString data = {0};
 
 	int32_t *pCutoffIndices = NULL;
-	RuvmObject **ppCutoffs = NULL;
+	StucObject **ppCutoffs = NULL;
 	int32_t cutoffCount = 0;
 	if (usgCount) {
 		getUniqueFlatCutoffs(pContext, usgCount, pUsgArr, &cutoffCount, &ppCutoffs,
@@ -473,7 +472,7 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 		pContext->alloc.pCalloc(objCount + usgCount * 2, sizeof(MeshSizeInBits));
 	for (int32_t i = 0; i < objCount; ++i) {
 		err = getObjDataSize(pObjArr + i, &dataSizeInBits, pMeshSizes + i);
-		if (err != RUVM_SUCCESS) {
+		if (err != STUC_SUCCESS) {
 			return err;
 		}
 		dataSizeInBits += sumOfMeshSize(pMeshSizes + i);
@@ -481,7 +480,7 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	int32_t sizesIdx = objCount;
 	for (int32_t i = 0; i < cutoffCount; ++i) {
 		err = getObjDataSize(ppCutoffs[i], &dataSizeInBits, pMeshSizes + sizesIdx);
-		if (err != RUVM_SUCCESS) {
+		if (err != STUC_SUCCESS) {
 			return err;
 		}
 		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIdx);
@@ -489,11 +488,11 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	}
 	for (int32_t i = 0; i < usgCount; ++i) {
 		err = getObjDataSize(&pUsgArr[i].obj, &dataSizeInBits, pMeshSizes + sizesIdx);
-		if (err != RUVM_SUCCESS) {
+		if (err != STUC_SUCCESS) {
 			return err;
 		}
 		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIdx);
-		dataSizeInBits += RUVM_FLAT_CUTOFF_HEADER_SIZE;
+		dataSizeInBits += STUC_FLAT_CUTOFF_HEADER_SIZE;
 		if (!pUsgArr[i].pFlatCutoff) {
 			dataSizeInBits -= sizeof(int32_t); //no index
 		}
@@ -509,25 +508,25 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	}
 	for (int32_t i = 0; i < objCount; ++i) {
 		err = encodeObj(&data, pObjArr + i, pMeshSizes + i);
-		if (err != RUVM_SUCCESS) {
+		if (err != STUC_SUCCESS) {
 			return err;
 		}
 	}
 	sizesIdx = objCount;
 	for (int32_t i = 0; i < cutoffCount; ++i) {
 		err = encodeObj(&data, ppCutoffs[i], pMeshSizes + sizesIdx);
-		if (err != RUVM_SUCCESS) {
+		if (err != STUC_SUCCESS) {
 			return err;
 		}
 		sizesIdx++;
 	}
 	for (int32_t i = 0; i < usgCount; ++i) {
 		err = encodeObj(&data, &pUsgArr[i].obj, pMeshSizes + sizesIdx);
-		if (err != RUVM_SUCCESS) {
+		if (err != STUC_SUCCESS) {
 			return err;
 		}
 		bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
-		int64_t fcHeaderSize = RUVM_FLAT_CUTOFF_HEADER_SIZE;
+		int64_t fcHeaderSize = STUC_FLAT_CUTOFF_HEADER_SIZE;
 		encodeDataName(&data, "FC", &fcHeaderSize); //flatten cut-off
 		encodeValue(&data, (uint8_t *)&hasFlatCutoff, 8, &fcHeaderSize);
 		if (hasFlatCutoff) {
@@ -549,22 +548,22 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	int32_t zResult = compress(compressedData, &uCompressedDataSize, data.pString, dataSize);
 	switch(zResult) {
 		case Z_OK:
-			printf("Successfully compressed RUVM data\n");
+			printf("Successfully compressed STUC data\n");
 			break;
 		case Z_MEM_ERROR:
-			printf("Failed to compress RUVM data, memory error\n");
+			printf("Failed to compress STUC data, memory error\n");
 			break;
 		case Z_BUF_ERROR:
-			printf("Failed to compress RUVM data, output buffer too small\n");
+			printf("Failed to compress STUC data, output buffer too small\n");
 			break;
 	}
 	int64_t compressedDataSize = uCompressedDataSize;
 	printf("Compressed data is %lu long\n", compressedDataSize);
 
 	//encode header
-	const char *format = "RUVM Map File";
+	const char *format = "UV Stucco Map File";
 	int32_t formatLen = strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
-	RUVM_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN)
+	STUC_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN)
 	int64_t headerSizeInBits = 8 * (formatLen + 1) +
 	                           16 + //version
 	                           64 + //compressed data size
@@ -576,7 +575,7 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	int64_t headerSizeInBytes = headerSizeInBits / 8 + 2;
 	header.pString = pContext->alloc.pCalloc(headerSizeInBytes, 1);
 	encodeString(&header, (uint8_t *)format, &headerSizeInBits);
-	int32_t version = RUVM_MAP_VERSION;
+	int32_t version = STUC_MAP_VERSION;
 	encodeValue(&header, (uint8_t *)&version, 16, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&compressedDataSize, 64, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&dataSize, 64, &headerSizeInBits);
@@ -585,7 +584,7 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	encodeValue(&header, (uint8_t *)&usgCount, 32, &headerSizeInBits);
 	encodeValue(&header, (uint8_t *)&cutoffCount, 32, &headerSizeInBits);
 	if (isSizeInvalid(headerSizeInBits)) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 
 	//TODO CRC for uncompressed data
@@ -601,30 +600,30 @@ RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
 	pContext->alloc.pFree(header.pString);
 	pContext->alloc.pFree(data.pString);
 
-	printf("Finished RUVM export\n");
-	return RUVM_SUCCESS;
+	printf("Finished STUC export\n");
+	return STUC_SUCCESS;
 }
 
 static
-RuvmResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
+StucResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
 		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
 		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
 			if (!strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
-			    RUVM_ATTRIB_NAME_MAX_LEN)) {
+			    STUC_ATTRIB_NAME_MAX_LEN)) {
 
 				//dup
-				return RUVM_ERROR;
+				return STUC_ERROR;
 			}
 		}
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
 static
-RuvmResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs) {
+StucResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
 		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
@@ -632,25 +631,25 @@ RuvmResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs
 		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
 			if (!strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
-				RUVM_ATTRIB_NAME_MAX_LEN)) {
+				STUC_ATTRIB_NAME_MAX_LEN)) {
 
 				//dup
-				return RUVM_ERROR;
+				return STUC_ERROR;
 			}
 		}
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
-static void decodeAttribs(RuvmContext pContext, ByteString *pData,
+static void decodeAttribs(StucContext pContext, ByteString *pData,
                           AttribArray *pAttribs, int32_t dataLen) {
 	stageBeginWrap(pContext, "", pAttribs->count * dataLen);
 	const char stageName[] = "Deconding attrib ";
-	char stageBuf[RUVM_STAGE_NAME_LEN] = {0};
+	char stageBuf[STUC_STAGE_NAME_LEN] = {0};
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		Attrib* pAttrib = pAttribs->pArr + i;
 		memcpy(stageBuf, stageName, sizeof(stageName));
-		setStageName(pContext, strncat(stageBuf, pAttrib->name, RUVM_STAGE_NAME_LEN - sizeof(stageName)));
+		setStageName(pContext, strncat(stageBuf, pAttrib->name, STUC_STAGE_NAME_LEN - sizeof(stageName)));
 		int32_t attribSize = getAttribSize(pAttrib->type);
 		pAttrib->pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
@@ -658,7 +657,7 @@ static void decodeAttribs(RuvmContext pContext, ByteString *pData,
 		int32_t progressBase = i * pAttribs->count * dataLen;
 		for (int32_t j = 0; j < dataLen; ++j) {
 			void *pAttribData = attribAsVoid(pAttrib, j);
-			if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
+			if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
 				decodeString(pData, pAttribData, attribSize);
 			}
 			else {
@@ -666,13 +665,13 @@ static void decodeAttribs(RuvmContext pContext, ByteString *pData,
 			}
 			stageProgressWrap(pContext, j + progressBase);
 		}
-		memset(stageBuf, 0, RUVM_STAGE_NAME_LEN);
+		memset(stageBuf, 0, STUC_STAGE_NAME_LEN);
 	}
 	stageEndWrap(pContext);
 }
 
 static
-void decodeIndexedAttribs(RuvmContext pContext, ByteString *pData,
+void decodeIndexedAttribs(StucContext pContext, ByteString *pData,
                           AttribIndexedArr *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		AttribIndexed* pAttrib = pAttribs->pArr + i;
@@ -682,7 +681,7 @@ void decodeIndexedAttribs(RuvmContext pContext, ByteString *pData,
 		attribSize *= 8;
 		for (int32_t j = 0; j < pAttrib->count; ++j) {
 			void *pAttribData = attribAsVoid(pAttrib, j);
-			if (pAttribs->pArr[i].type == RUVM_ATTRIB_STRING) {
+			if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
 				decodeString(pData, pAttribData, attribSize);
 			}
 			else {
@@ -692,9 +691,9 @@ void decodeIndexedAttribs(RuvmContext pContext, ByteString *pData,
 	}
 }
 
-static RuvmHeader decodeRuvmHeader(RuvmContext pContext, ByteString *headerByteString,
+static StucHeader decodeStucHeader(StucContext pContext, ByteString *headerByteString,
                                    AttribIndexedArr *pIndexedAttribs) {
-	RuvmHeader header = {0};
+	StucHeader header = {0};
 	decodeString(headerByteString, (uint8_t*)&header.format, MAP_FORMAT_NAME_MAX_LEN);
 	decodeValue(headerByteString, (uint8_t *)&header.version, 16);
 	decodeValue(headerByteString, (uint8_t *)&header.dataSizeCompressed, 64);;
@@ -708,7 +707,7 @@ static RuvmHeader decodeRuvmHeader(RuvmContext pContext, ByteString *headerByteS
 }
 
 static
-RuvmResult isDataNameInvalid(ByteString *pByteString, char *pName) {
+StucResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 	//ensure string is aligned with byte (we need to do this manually,
 	//as decodeValue is being used instead of decodeString, given there's
 	//only 2 characters)
@@ -717,68 +716,68 @@ RuvmResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 	char dataName[2] = {0};
 	decodeValue(pByteString, (uint8_t *)&dataName, 16);
 	if (dataName[0] != pName[0] || dataName[1] != pName[1]) {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 	else {
-		return RUVM_SUCCESS;
+		return STUC_SUCCESS;
 	}
 }
 
 static
-RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteString, bool usesUsg) {
-	createMesh(pContext, pObj, RUVM_OBJECT_DATA_MESH_INTERN);
-	RuvmMesh *pMesh = pObj->pData;
+StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteString, bool usesUsg) {
+	createMesh(pContext, pObj, STUC_OBJECT_DATA_MESH_INTERN);
+	StucMesh *pMesh = pObj->pData;
 
-	RuvmResult err = RUVM_NOT_SET;
+	StucResult err = STUC_NOT_SET;
 
 	err = isDataNameInvalid(pByteString, "OS"); //transform/ xform and type
-	RUVM_ERROR("Data name did not match 'OS'", err);
+	STUC_ERROR("Data name did not match 'OS'", err);
 	err = isDataNameInvalid(pByteString, "XF"); //transform/ xform and type
-	RUVM_ERROR("Data name did not match 'XF'", err);
+	STUC_ERROR("Data name did not match 'XF'", err);
 	for (int32_t i = 0; i < 16; ++i) {
 		int32_t x = i % 4;
 		int32_t y = i / 4;
 		decodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
 	}
 	err = isDataNameInvalid(pByteString, "OT"); //object type
-	RUVM_ERROR("Data name did not match 'OT'", err);
+	STUC_ERROR("Data name did not match 'OT'", err);
 	decodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8);
 	if (!checkIfMesh(pObj->pData)) {
-		err = RUVM_ERROR;
-		RUVM_ERROR("Object is not a mesh", err);
+		err = STUC_ERROR;
+		STUC_ERROR("Object is not a mesh", err);
 	}
 
 	err = isDataNameInvalid(pByteString, "HD"); //header
-	RUVM_ERROR("Data name did not match 'HD'", err);
+	STUC_ERROR("Data name did not match 'HD'", err);
 	decodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
 	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
-		pContext->alloc.pCalloc(pMesh->meshAttribs.count, sizeof(RuvmAttrib)) : NULL;
+		pContext->alloc.pCalloc(pMesh->meshAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->meshAttribs);
-	RUVM_ERROR("Failed to decode mesh attrib meta", err);
+	STUC_ERROR("Failed to decode mesh attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
 	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
-		pContext->alloc.pCalloc(pMesh->faceAttribs.count, sizeof(RuvmAttrib)) : NULL;
+		pContext->alloc.pCalloc(pMesh->faceAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->faceAttribs);
-	RUVM_ERROR("Failed to decode face attrib meta", err);
+	STUC_ERROR("Failed to decode face attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
 	pMesh->cornerAttribs.pArr = pMesh->cornerAttribs.count ?
-		pContext->alloc.pCalloc(pMesh->cornerAttribs.count, sizeof(RuvmAttrib)) : NULL;
+		pContext->alloc.pCalloc(pMesh->cornerAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->cornerAttribs);
-	RUVM_ERROR("Failed to decode corner attrib meta", err);
+	STUC_ERROR("Failed to decode corner attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
 	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
-		pContext->alloc.pCalloc(pMesh->edgeAttribs.count, sizeof(RuvmAttrib)) : NULL;
+		pContext->alloc.pCalloc(pMesh->edgeAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->edgeAttribs);
-	RUVM_ERROR("Failed to decode edge meta", err);
+	STUC_ERROR("Failed to decode edge meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
 	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
-		pContext->alloc.pCalloc(pMesh->vertAttribs.count + usesUsg, sizeof(RuvmAttrib)) : NULL;
+		pContext->alloc.pCalloc(pMesh->vertAttribs.count + usesUsg, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->vertAttribs);
-	RUVM_ERROR("Failed to decode vert attrib meta", err);
+	STUC_ERROR("Failed to decode vert attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
 	decodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32);
@@ -789,10 +788,10 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	if (usesUsg) {
 		Attrib *usgAttrib = pMesh->vertAttribs.pArr + pMesh->vertAttribs.count;
 		usgAttrib->pData = pContext->alloc.pCalloc(pMesh->vertCount, sizeof(int32_t));
-		strncpy(usgAttrib->name, "RuvmUsg", RUVM_ATTRIB_NAME_MAX_LEN);
-		usgAttrib->origin = RUVM_ATTRIB_ORIGIN_MAP;
+		strncpy(usgAttrib->name, "StucUsg", STUC_ATTRIB_NAME_MAX_LEN);
+		usgAttrib->origin = STUC_ATTRIB_ORIGIN_MAP;
 		usgAttrib->interpolate = true;
-		usgAttrib->type = RUVM_ATTRIB_I32;
+		usgAttrib->type = STUC_ATTRIB_I32;
 	}
 
 	//TODO add short headers (like 2 or 4 bytes) to the start of each
@@ -800,72 +799,72 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	//So one for faces, corners, edges, etc
 
 	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
-	RUVM_ERROR("Data name did not match 'MA'", err);
+	STUC_ERROR("Data name did not match 'MA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->meshAttribs, 1);
 	stageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FL"); //face list
-	RUVM_ERROR("Data name did not match 'FL'", err);
+	STUC_ERROR("Data name did not match 'FL'", err);
 	pMesh->pFaces = pContext->alloc.pCalloc(pMesh->faceCount + 1, sizeof(int32_t));
 	stageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		decodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
-		RUVM_ASSERT("", pMesh->pFaces[i] >= 0 &&
+		STUC_ASSERT("", pMesh->pFaces[i] >= 0 &&
 		                pMesh->pFaces[i] < pMesh->cornerCount);
 		stageProgressWrap(pContext, i);
 	}
 	stageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FA"); //face attribs
-	RUVM_ERROR("Data name did not match 'FA'", err);
+	STUC_ERROR("Data name did not match 'FA'", err);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->cornerCount;
 	decodeAttribs(pContext, pByteString, &pMesh->faceAttribs, pMesh->faceCount);
 
 	err = isDataNameInvalid(pByteString, "LL"); //corner and edge lists
-	RUVM_ERROR("Data name did not match 'LL'", err);
+	STUC_ERROR("Data name did not match 'LL'", err);
 	pMesh->pCorners = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
 	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
 	stageBeginWrap(pContext, "Decoding corners", pMesh->cornerCount);
 	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
 		decodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
-		RUVM_ASSERT("", pMesh->pCorners[i] >= 0 &&
+		STUC_ASSERT("", pMesh->pCorners[i] >= 0 &&
 		                pMesh->pCorners[i] < pMesh->vertCount);
 		decodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
-		RUVM_ASSERT("", pMesh->pEdges[i] >= 0 &&
+		STUC_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
 		stageProgressWrap(pContext, i);
 	}
 	stageEndWrap(pContext);
 
 	err = isDataNameInvalid(pByteString, "LA"); //corner attribs
-	RUVM_ERROR("Data name did not match 'LA'", err);
+	STUC_ERROR("Data name did not match 'LA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->cornerAttribs, pMesh->cornerCount);
 	err = isDataNameInvalid(pByteString, "EA"); //edge attribs
-	RUVM_ERROR("Data name did not match 'EA'", err);
+	STUC_ERROR("Data name did not match 'EA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
 	err = isDataNameInvalid(pByteString, "VA"); //vert attribs
-	RUVM_ERROR("Data name did not match 'VA'", err);
+	STUC_ERROR("Data name did not match 'VA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->vertAttribs, pMesh->vertCount);
 
 	err = isDataNameInvalid(pByteString, "OE"); //obj end
-	RUVM_ERROR("Data name did not match 'OE'", err);
+	STUC_ERROR("Data name did not match 'OE'", err);
 	if (usesUsg) {
 		pMesh->vertAttribs.count++;
 	}
-	//TODO add RUVM_ERROR and RUVM_RETURN to all functions that return RuvmResult
-	RUVM_RETURN(err,
+	//TODO add STUC_ERROR and STUC_RETURN to all functions that return StucResult
+	STUC_RETURN(err,
 		//if error:
-		uvsMeshDestroy(pContext, pMesh);
+		stucMeshDestroy(pContext, pMesh);
 		pContext->alloc.pFree(pMesh);
 	);
 }
 
 static
-RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
-                          ByteString *dataByteString, RuvmObject **ppObjArr,
-                          RuvmUsg **ppUsgArr, RuvmObject **ppFlatCutoffArr,
+StucResult decodeStucData(StucContext pContext, StucHeader *pHeader,
+                          ByteString *dataByteString, StucObject **ppObjArr,
+                          StucUsg **ppUsgArr, StucObject **ppFlatCutoffArr,
                           bool forEdit, AttribIndexedArr *pIndexedAttribs) {
-	RuvmResult status = RUVM_NOT_SET;
+	StucResult status = STUC_NOT_SET;
 	if (pIndexedAttribs && pIndexedAttribs->count) {
-		RUVM_ASSERT("", pIndexedAttribs->count > 0);
+		STUC_ASSERT("", pIndexedAttribs->count > 0);
 		pIndexedAttribs->pArr =
 			pContext->alloc.pCalloc(pIndexedAttribs->count, sizeof(AttribIndexed));
 		pIndexedAttribs->size = pIndexedAttribs->count;
@@ -873,40 +872,40 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
 		decodeIndexedAttribs(pContext, dataByteString, pIndexedAttribs);
 	}
 	if (pHeader->objCount) {
-		*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(RuvmObject));
-		RUVM_ASSERT("", pHeader->usgCount >= 0);
+		*ppObjArr = pContext->alloc.pCalloc(pHeader->objCount, sizeof(StucObject));
+		STUC_ASSERT("", pHeader->usgCount >= 0);
 		bool usesUsg = pHeader->usgCount > 0 && !forEdit;
 		for (int32_t i = 0; i < pHeader->objCount; ++i) {
 			//usgUsg is passed here to indicate that an extra vert
 			//attrib should be created. This would be used later to mark a verts
 			//respective usg.
 			status = loadObj(pContext, *ppObjArr + i, dataByteString, usesUsg);
-			if (status != RUVM_SUCCESS) {
+			if (status != STUC_SUCCESS) {
 				return status;
 			}
 		}
 	}
 	else {
-		return RUVM_ERROR;
+		return STUC_ERROR;
 	}
 
 	if (pHeader->usgCount) {
-		*ppUsgArr = pContext->alloc.pCalloc(pHeader->usgCount, sizeof(RuvmUsg));
-		*ppFlatCutoffArr = pContext->alloc.pCalloc(pHeader->flatCutoffCount, sizeof(RuvmObject));
+		*ppUsgArr = pContext->alloc.pCalloc(pHeader->usgCount, sizeof(StucUsg));
+		*ppFlatCutoffArr = pContext->alloc.pCalloc(pHeader->flatCutoffCount, sizeof(StucObject));
 		for (int32_t i = 0; i < pHeader->flatCutoffCount; ++i) {
 			status = loadObj(pContext, *ppFlatCutoffArr + i, dataByteString, false);
-			if (status != RUVM_SUCCESS) {
+			if (status != STUC_SUCCESS) {
 				return status;
 			}
 		}
 		for (int32_t i = 0; i < pHeader->usgCount; ++i) {
 			//usgs themselves don't need a usg attrib, so false is passed
 			status = loadObj(pContext, &(*ppUsgArr)[i].obj, dataByteString, false);
-			if (status != RUVM_SUCCESS) {
+			if (status != STUC_SUCCESS) {
 				return status;
 			}
 			status = isDataNameInvalid(dataByteString, "FC");
-			if (status != RUVM_SUCCESS) {
+			if (status != STUC_SUCCESS) {
 				return status;
 			}
 			bool hasFlatCutoff = false;
@@ -914,39 +913,39 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
 			if (hasFlatCutoff) {
 				int32_t cutoffIdx = 0;
 				decodeValue(dataByteString, (uint8_t *)&cutoffIdx, 32);
-				RUVM_ASSERT("", cutoffIdx >= 0 &&
+				STUC_ASSERT("", cutoffIdx >= 0 &&
 								cutoffIdx < pHeader->flatCutoffCount);
 				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIdx;
 			}
 		}
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
-RuvmResult uvsLoadRuvmFile(RuvmContext pContext, char *filePath,
-                            int32_t *pObjCount, RuvmObject **ppObjArr,
-                            int32_t *pUsgCount, RuvmUsg **ppUsgArr,
-	                        int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
-                            bool forEdit, RuvmAttribIndexedArr *pIndexedAttribs) {
-	RuvmResult status = RUVM_NOT_SET;
+StucResult stucLoadStucFile(StucContext pContext, char *filePath,
+                            int32_t *pObjCount, StucObject **ppObjArr,
+                            int32_t *pUsgCount, StucUsg **ppUsgArr,
+	                        int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
+                            bool forEdit, StucAttribIndexedArr *pIndexedAttribs) {
+	StucResult status = STUC_NOT_SET;
 	ByteString headerByteString = {0};
 	ByteString dataByteString = {0};
 	void *pFile;
-	printf("Loading RUVM file: %s\n", filePath);
+	printf("Loading STUC file: %s\n", filePath);
 	pContext->io.pOpen(&pFile, filePath, 1, &pContext->alloc);
 	int16_t headerSize = 0;
 	pContext->io.pRead(pFile, (uint8_t *)&headerSize, 2);
-	printf("Ruvm File Header Size: %d\n", headerSize);
+	printf("Stuc File Header Size: %d\n", headerSize);
 	printf("Header is %d bytes\n", headerSize);
 	headerByteString.pString = pContext->alloc.pMalloc(headerSize);
 	printf("Reading header\n");
 	pContext->io.pRead(pFile, headerByteString.pString, headerSize);
 	printf("Decoding header\n");
-	RuvmHeader header = decodeRuvmHeader(pContext, &headerByteString,
+	StucHeader header = decodeStucHeader(pContext, &headerByteString,
 	                                     pIndexedAttribs);
-	if (strncmp(header.format,  "RUVM Map File", MAP_FORMAT_NAME_MAX_LEN) ||
-		header.version != RUVM_MAP_VERSION) {
-		return RUVM_ERROR;
+	if (strncmp(header.format,  "UV Stucco Map File", MAP_FORMAT_NAME_MAX_LEN) ||
+		header.version != STUC_MAP_VERSION) {
+		return STUC_ERROR;
 	}
 	uint8_t *dataByteStringRaw = pContext->alloc.pMalloc(header.dataSize);
 	unsigned long dataSizeUncompressed = header.dataSize;
@@ -962,23 +961,23 @@ RuvmResult uvsLoadRuvmFile(RuvmContext pContext, char *filePath,
 	pContext->alloc.pFree(dataByteStringRaw);
 	switch(zResult) {
 		case Z_OK:
-			printf("Successfully decompressed RUVM file data\n");
+			printf("Successfully decompressed STUC file data\n");
 			break;
 		case Z_MEM_ERROR:
-			printf("Failed to decompress RUVM file data. Memory error\n");
+			printf("Failed to decompress STUC file data. Memory error\n");
 			break;
 		case Z_BUF_ERROR:
-			printf("Failed to decompress RUVM file data. Buffer was too small\n");
+			printf("Failed to decompress STUC file data. Buffer was too small\n");
 			break;
 	}
 	if (dataSizeUncompressed != header.dataSize) {
-		printf("Failed to load RUVM file. Decompressed data size doesn't match header description\n");
-		return RUVM_ERROR;
+		printf("Failed to load STUC file. Decompressed data size doesn't match header description\n");
+		return STUC_ERROR;
 	}
 	printf("Decoding data\n");
-	status = decodeRuvmData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr,
+	status = decodeStucData(pContext, &header, &dataByteString, ppObjArr, ppUsgArr,
 	                        ppFlatCutoffArr, forEdit, pIndexedAttribs);
-	if (status != RUVM_SUCCESS) {
+	if (status != STUC_SUCCESS) {
 		return status;
 	}
 	pContext->alloc.pFree(headerByteString.pString);
@@ -986,10 +985,10 @@ RuvmResult uvsLoadRuvmFile(RuvmContext pContext, char *filePath,
 	*pObjCount = header.objCount;
 	*pUsgCount = header.usgCount;
 	*pFlatCutoffCount = header.flatCutoffCount;
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
-void uvsIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {
+void stucIoSetCustom(StucContext pContext, StucIo *pIo) {
 	if (!pIo->pOpen || !pIo->pClose || !pIo->pWrite || !pIo->pRead) {
 		printf("Failed to set custom IO. One or more functions were NULL");
 		abort();
@@ -997,9 +996,9 @@ void uvsIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {
 	pContext->io = *pIo;
 }
 
-void uvsIoSetDefault(RuvmContext pContext) {
-	pContext->io.pOpen = uvsPlatformFileOpen;
-	pContext->io.pClose = uvsPlatformFileClose;
-	pContext->io.pWrite = uvsPlatformFileWrite;
-    pContext->io.pRead = uvsPlatformFileRead;
+void stucIoSetDefault(StucContext pContext) {
+	pContext->io.pOpen = stucPlatformFileOpen;
+	pContext->io.pClose = stucPlatformFileClose;
+	pContext->io.pWrite = stucPlatformFileWrite;
+    pContext->io.pRead = stucPlatformFileRead;
 }

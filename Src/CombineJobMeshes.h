@@ -1,6 +1,6 @@
 #pragma once
-#include <RUVM.h>
-#include <RuvmInternal.h>
+#include <UvStucco.h>
+#include <UvStuccoIntern.h>
 #include <Utils.h>
 #include <Mesh.h>
 #include <QuadTree.h>
@@ -87,7 +87,7 @@ typedef struct {
 typedef struct OnLine {
 	struct OnLine *pNext;
 	int32_t baseEdgeOrCorner;
-	int32_t uvsVert;
+	int32_t stucVert;
 	int32_t outVert;
 	int32_t type;
 } OnLine;
@@ -95,8 +95,8 @@ typedef struct OnLine {
 typedef struct BorderVert {
 	struct BorderVert *pNext;
 	int32_t entryIdx;
-	int32_t uvsFace;
-	int32_t uvsEdge;
+	int32_t stucFace;
+	int32_t stucEdge;
 	int32_t vert;
 	V2_I16 tile;
 	int32_t corners;
@@ -129,8 +129,8 @@ typedef struct {
 } CompiledBorderTable;
 
 typedef struct MergeSendOffArgs {
-	RuvmContext pContext;
-	RuvmMap pMap;
+	StucContext pContext;
+	StucMap pMap;
 	struct MergeSendOffArgs *pArgArr;
 	Mesh *pMeshOut;
 	InFaceArr **ppInFaceTable;
@@ -157,27 +157,27 @@ typedef struct MergeSendOffArgs {
 	float wScale;
 } MergeSendOffArgs;
 
-void uvsMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
+void stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
                           bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
                           float wScale, Mesh *pInMesh, int32_t mapJobsSent);
-void uvsAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
+void stucAllocMergeBufs(StucContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
-void uvsMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
+void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
                                int32_t entryIdx, PieceArr *pPieceArr,
-							   FaceRange *pRuvmFace,
+							   FaceRange *pStucFace,
 							   MergeBufHandles *pMergeBufHandles,
                                int32_t *pInFaces, int32_t entryCount);
-void uvsDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
-void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
+void stucDestroyMergeBufs(StucContext pContext, MergeBufHandles *pHandle);
+void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
                           InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
                           int32_t mapJobsSent);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs, int32_t cornerIdx);
-bool getIfRuvm(const BorderFace *pEntry, int32_t cornerIdx);
+bool getIfStuc(const BorderFace *pEntry, int32_t cornerIdx);
 bool getIfOnInVert(const BorderFace *pEntry, int32_t cornerIdx);
 bool getIfOnLine(const BorderFace *pEntry, int32_t cornerIdx);
 int32_t getSegment(const BorderFace *pEntry, int32_t cornerIdx);

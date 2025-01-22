@@ -31,7 +31,7 @@ to find the one with the desired inFace.
 Best case scenario, the usg entry is placed in a bucket with entries of different usg indices, allowing for a quick match and no searching inFace lists).
 
 Now, run the main mapToMesh as usual.
-When projecting from uvw to xyz, check if the uvs vert is part of a usg.
+When projecting from uvw to xyz, check if the stuc vert is part of a usg.
 If it is, then index the aformentioned table, and use the cached normal for projection.
 Keep in mind you'll also need to handle interpolation of intersection points and base corners.
 */
@@ -54,10 +54,10 @@ static initHitEdgeEntry(HitEdge *pEntry, int32_t a, int32_t b) {
 }
 
 static
-bool addToHitEdges(RuvmAlloc *pAlloc, HitEdgeTable *pHitEdges,
+bool addToHitEdges(StucAlloc *pAlloc, HitEdgeTable *pHitEdges,
                    int32_t *pVerts, int32_t a, int32_t b) {
 	uint32_t sum = b < 0 ? a : a + b;
-	int32_t hash = uvsFnvHash((uint8_t *)&sum, 4, pHitEdges->size);
+	int32_t hash = stucFnvHash((uint8_t *)&sum, 4, pHitEdges->size);
 	HitEdge *pEntry = pHitEdges->pTable + hash;
 	if (!pEntry->valid) {
 		initHitEdgeEntry(pEntry, a, b);
@@ -81,7 +81,7 @@ bool addToHitEdges(RuvmAlloc *pAlloc, HitEdgeTable *pHitEdges,
 }
 
 static
-bool hitTestTri(RuvmAlloc *pAlloc, V3_F32 point, V3_F32 *pTri,
+bool hitTestTri(StucAlloc *pAlloc, V3_F32 point, V3_F32 *pTri,
                 int32_t *pVerts, HitEdgeTable *pHitEdges) {
 	//add bounding squares to speed up tests maybe?
 	V2_F32 triV2[3] = {
@@ -145,7 +145,7 @@ void getTri(V3_F32 *pTri, int32_t *pVerts, Mesh *pMesh, FaceRange *pFace,
 
 }
 
-bool isPointInsideMesh(RuvmAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh) {
+bool isPointInsideMesh(StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh) {
 	//winding number test, with ray aligned with z axis
 	//(so flatten point and mesh into 2D (x,y))
 	int32_t wind = 0;
@@ -198,21 +198,21 @@ void getUsgBoundsSquare(Mesh *pMesh, Mesh *pSrcMesh) {
 			max.d[1] = vert.d[1];
 		}
 	}
-	V3_F32 uvs[4] = {
+	V3_F32 stuc[4] = {
 		{min.d[0], min.d[1]},
 		{max.d[0], min.d[1]},
 		{max.d[0], max.d[1]},
 		{min.d[0], max.d[1]}
 	};
-	RuvmMesh *pCore = &pMesh->mesh;
+	StucMesh *pCore = &pMesh->mesh;
 	pCore->pFaces[pCore->faceCount] = pCore->cornerCount;
 	for (int32_t i = 0; i < 4; ++i) {
 		pCore->pCorners[pCore->cornerCount] = pCore->vertCount;
 		pCore->pEdges[pCore->cornerCount] = pCore->edgeCount;
-		pMesh->pVerts[pCore->vertCount] = uvs[i];
-		//can probably delete the uvs once the groups are set,
+		pMesh->pVerts[pCore->vertCount] = stuc[i];
+		//can probably delete the stuc once the groups are set,
 		//they're only used for that
-		pMesh->pUvs[pCore->cornerCount] = *(V2_F32 *)&uvs[i];
+		pMesh->pStuc[pCore->cornerCount] = *(V2_F32 *)&stuc[i];
 		pCore->cornerCount++;
 		pCore->edgeCount++;
 		pCore->vertCount++;
@@ -221,10 +221,10 @@ void getUsgBoundsSquare(Mesh *pMesh, Mesh *pSrcMesh) {
 	pCore->pFaces[pCore->faceCount] = pCore->cornerCount;
 }
 
-RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
+StucResult allocUsgSquaresMesh(StucAlloc *pAlloc, StucMap pMap) {
 	Mesh *pMesh = &pMap->usgArr.squares;
-	RuvmMesh *pCore = &pMesh->mesh;
-	pCore->type.type = RUVM_OBJECT_DATA_MESH_INTERN;
+	StucMesh *pCore = &pMesh->mesh;
+	pCore->type.type = STUC_OBJECT_DATA_MESH_INTERN;
 	int32_t usgCount = pMap->usgArr.count;
 	pMesh->faceBufSize = usgCount + 1;
 	pMesh->cornerBufSize = usgCount * 4;
@@ -233,36 +233,36 @@ RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
 	pCore->pFaces = pAlloc->pCalloc(pMesh->faceBufSize, sizeof(int32_t));
 	pCore->pCorners = pAlloc->pCalloc(pMesh->cornerBufSize * 4, sizeof(int32_t));
 	pCore->pEdges = pAlloc->pCalloc(pMesh->edgeBufSize * 4, sizeof(int32_t));
-	pCore->vertAttribs.pArr = pAlloc->pCalloc(1, sizeof(RuvmAttrib));
-	char posName[RUVM_ATTRIB_NAME_MAX_LEN] = "position";
+	pCore->vertAttribs.pArr = pAlloc->pCalloc(1, sizeof(StucAttrib));
+	char posName[STUC_ATTRIB_NAME_MAX_LEN] = "position";
 	Attrib *pPosAttrib = pCore->vertAttribs.pArr;
 	initAttrib(pAlloc, pPosAttrib, posName, pMesh->vertBufSize, true,
-		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V3_F32);
+		STUC_ATTRIB_ORIGIN_MAP, STUC_ATTRIB_V3_F32);
 	pCore->vertAttribs.count = 1;
-	pCore->cornerAttribs.pArr = pAlloc->pCalloc(2, sizeof(RuvmAttrib));
-	char uvName[RUVM_ATTRIB_NAME_MAX_LEN] = "UVMap";
+	pCore->cornerAttribs.pArr = pAlloc->pCalloc(2, sizeof(StucAttrib));
+	char uvName[STUC_ATTRIB_NAME_MAX_LEN] = "UVMap";
 	Attrib *pUvAttrib = pCore->cornerAttribs.pArr;
 	initAttrib(pAlloc, pUvAttrib, uvName, pMesh->cornerBufSize, true,
-		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V2_F32);
-	char normalName[RUVM_ATTRIB_NAME_MAX_LEN] = "normal";
+		STUC_ATTRIB_ORIGIN_MAP, STUC_ATTRIB_V2_F32);
+	char normalName[STUC_ATTRIB_NAME_MAX_LEN] = "normal";
 	Attrib *pNormalAttrib = pCore->cornerAttribs.pArr + 1;
 	initAttrib(pAlloc, pNormalAttrib, normalName, pMesh->cornerBufSize, true,
-		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V3_F32);
+		STUC_ATTRIB_ORIGIN_MAP, STUC_ATTRIB_V3_F32);
 	pCore->cornerAttribs.count = 2;
-	setSpecialAttribs(pMesh, 0xe); // 1110 - set pos uvs and normals
-	return RUVM_SUCCESS;
+	setSpecialAttribs(pMesh, 0xe); // 1110 - set pos stuc and normals
+	return STUC_SUCCESS;
 }
 
-RuvmResult fillUsgSquaresMesh(RuvmMap pMap, RuvmUsg *pUsgArr) {
+StucResult fillUsgSquaresMesh(StucMap pMap, StucUsg *pUsgArr) {
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pUsgMesh = (Mesh *)pUsgArr[i].obj.pData;
 		getUsgBoundsSquare(&pMap->usgArr.squares, pUsgMesh);
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
-RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
-                             RuvmMap pMap, RuvmUsg *pUsgArr) {
+StucResult assignUsgsToVerts(StucAlloc *pAlloc,
+                             StucMap pMap, StucUsg *pUsgArr) {
 	Mesh *pSquares = &pMap->usgArr.squares;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
@@ -277,8 +277,8 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 			// v v v
 			int32_t cellIdx = faceCellsTable.pFaceCells[i].pCells[j];
 			Cell *pCell = pMap->quadTree.cellTable.pArr + cellIdx;
-			RUVM_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
-			RUVM_ASSERT("", pCell->initialized % 2 == pCell->initialized);
+			STUC_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
+			STUC_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 			int32_t *pCellFaces;
 			Range range = {0};
 			if (faceCellsTable.pFaceCells[i].pCellType[j]) {
@@ -296,15 +296,15 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 			// ^ ^ ^
 
 			for (int32_t k = range.start; k < range.end; ++k) {
-				FaceRange uvsFace = getFaceRange(&pMap->mesh.mesh, pCellFaces[k], false);
+				FaceRange stucFace = getFaceRange(&pMap->mesh.mesh, pCellFaces[k], false);
 				//the uv of corners 0 and 2 can be treated and min and max for the bounding square
-				V2_F32 min = pSquares->pUvs[squaresFace.start];
-				V2_F32 max = pSquares->pUvs[squaresFace.start + 2];
-				if (!checkFaceIsInBounds(min, max, uvsFace, &pMap->mesh)) {
+				V2_F32 min = pSquares->pStuc[squaresFace.start];
+				V2_F32 max = pSquares->pStuc[squaresFace.start + 2];
+				if (!checkFaceIsInBounds(min, max, stucFace, &pMap->mesh)) {
 					continue;
 				}
-				for (int32_t l = 0; l < uvsFace.size; ++l) {
-					int32_t vertIdx = pMap->mesh.mesh.pCorners[uvsFace.start + l];
+				for (int32_t l = 0; l < stucFace.size; ++l) {
+					int32_t vertIdx = pMap->mesh.mesh.pCorners[stucFace.start + l];
 					V3_F32 vert = pMap->mesh.pVerts[vertIdx];
 					if (isPointInsideMesh(pAlloc, vert, pMesh)) {
 						pMap->mesh.pUsg[vertIdx] = i + 1;
@@ -318,14 +318,14 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 				}
 			}
 		}
-		uvsDestroyFaceCellsEntry(pAlloc, i, &faceCellsTable);
+		stucDestroyFaceCellsEntry(pAlloc, i, &faceCellsTable);
 	}
-	uvsDestroyFaceCellsTable(pAlloc, &faceCellsTable);
-	return RUVM_SUCCESS;
+	stucDestroyFaceCellsTable(pAlloc, &faceCellsTable);
+	return STUC_SUCCESS;
 }
 
 static
-RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTable,
+StucResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTable,
                                  int32_t i, V3_F32 *pClosestBc, FaceRange *pClosestFace,
                                  int8_t *pClosestFaceCorners, float *pClosestDist) {
 	for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
@@ -340,23 +340,23 @@ RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 				V2_I32 tileMin = {m, l};
 				V2_F32 fTileMin = {(float)m, (float)l};
 				int8_t triCorners[4] = {0};
-				V2_F32 triUvs[4] = {0};
+				V2_F32 triStuc[4] = {0};
 				for (int32_t k = 0; k < inFace.size; ++k) {
-					triUvs[k] = pInMesh->pUvs[inFace.start + k];
+					triStuc[k] = pInMesh->pStuc[inFace.start + k];
 				}
-				//TODO move in uvs to 0 - 1 space if in another tile
+				//TODO move in stuc to 0 - 1 space if in another tile
 				//(don't move origin, conversion to barycentric causes problems if you do that).
 				//Determine how many uv tiles this face spans, then test barycentric for each tile
 				//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
 				int32_t result =
-					checkIfFaceIsInsideTile(inFace.size, triUvs, &faceBounds, tileMin);
+					checkIfFaceIsInsideTile(inFace.size, triStuc, &faceBounds, tileMin);
 				if (result != 2) {
 					return result;
 				}
 				for (int32_t k = 0; k < inFace.size; ++k) {
-					_(triUvs + k V2SUBEQL fTileMin);
+					_(triStuc + k V2SUBEQL fTileMin);
 				}
-				V3_F32 bc = getBarycentricInFace(triUvs,
+				V3_F32 bc = getBarycentricInFace(triStuc,
 													triCorners, inFace.size, pUsg->origin);
 				int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
 				bool close = false;
@@ -397,29 +397,29 @@ RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 					pClosestFaceCorners[1] = triCorners[1];
 					pClosestFaceCorners[2] = triCorners[2];
 					if (inside) {
-						return RUVM_SUCCESS;
+						return STUC_SUCCESS;
 					}
 					*pClosestDist = dist;
 				}
 			}
 		}
 	}
-	RUVM_ASSERT("", pClosestFace->idx >= 0);
-	return RUVM_SUCCESS;
+	STUC_ASSERT("", pClosestFace->idx >= 0);
+	return STUC_SUCCESS;
 }
 
-RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
-                                       RuvmMesh *pSquares, InFaceArr *pInFaceTable) {
+StucResult sampleInAttribsAtUsgOrigins(StucMap pMap, Mesh *pInMesh,
+                                       StucMesh *pSquares, InFaceArr *pInFaceTable) {
 	for (int32_t i = 0; i < pSquares->faceCount; ++i) {
 		Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
 		V3_F32 closestBc = {FLT_MAX, FLT_MAX, FLT_MAX};
 		FaceRange closestFace = {.idx = -1};
 		int8_t closestFaceCorners[3] = {0};
 		float closestDist = FLT_MAX;
-		RuvmResult result = RUVM_NOT_SET;
+		StucResult result = STUC_NOT_SET;
 		result = getClosestTriToOrigin(pUsg, pInMesh, pInFaceTable, i, &closestBc,
 		                               &closestFace, &closestFaceCorners, &closestDist);
-		if (result != RUVM_SUCCESS) {
+		if (result != STUC_SUCCESS) {
 			return result;
 		}
 		pInFaceTable[i].tri[0] = closestFace.start + closestFaceCorners[0];
@@ -445,7 +445,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		// where a is the origin, ab is the normal, and c is the square vert
 		V3_F32 a = barycentricToCartesian(tri, &closestBc);
 		V3_F32 ab = pInFaceTable[i].normal;
-		RUVM_ASSERT("", face.start >= 0 && face.size >= 3);
+		STUC_ASSERT("", face.start >= 0 && face.size >= 3);
 		float tMax = -FLT_MAX;
 		for (int32_t j = 0; j < face.size; ++j) {
 			int32_t vert = pSquares->pCorners[face.start + j];
@@ -460,7 +460,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		Attrib attrib = {
 			.pData = &pInFaceTable[i].normal,
 			.interpolate = true,
-			.type = RUVM_ATTRIB_V3_F32
+			.type = STUC_ATTRIB_V3_F32
 		};
 		interpolateAttrib(&attrib, 0, meshInWrap.pNormalAttrib,
 		                  pInFaceTable[i].tri[0],
@@ -475,21 +475,21 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		//     Ideally you should be able to do this per usg,
 		//     though you'd need to store usg names for that to work.
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
-bool sampleUsg(int32_t uvsCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
-               V3_F32 *pUsgBc, FaceRange uvsFace, RuvmMap pMap, int32_t inFace,
+bool sampleUsg(int32_t stucCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
+               V3_F32 *pUsgBc, FaceRange stucFace, StucMap pMap, int32_t inFace,
                Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin,
                bool useFlatCutoff, bool flatCutoffOveride, Mat3x3 *pTbn) {
 	Mesh *pMapMesh = &pMap->mesh;
-	int32_t mapCorner = pMapMesh->mesh.pCorners[uvsFace.start + uvsCorner];
+	int32_t mapCorner = pMapMesh->mesh.pCorners[stucFace.start + stucCorner];
 	int32_t usg = pMapMesh->pUsg[mapCorner];
 	if (usg) {
 		bool flatCutoff = flatCutoffOveride ? useFlatCutoff : usg < 0;
 		usg = abs(usg) - 1;
 		uint32_t sum = usg + inFace;
-		int32_t hash = uvsFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
+		int32_t hash = stucFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
 		UsgInFace* pEntry = pMap->usgArr.pInFaceTable + hash;
 		do {
 			if (pEntry->face == inFace && pEntry->pEntry && pEntry->pEntry->usg == usg) {
@@ -497,13 +497,13 @@ bool sampleUsg(int32_t uvsCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 			}
 			pEntry = pEntry->pNext;
 		} while(pEntry);
-		//RUVM_ASSERT("", pEntry);
+		//STUC_ASSERT("", pEntry);
 		if (pEntry) {
 			if (flatCutoff) {
 				BaseTriVerts usgTri = {
-					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
-							pInMesh->pUvs[pEntry->pEntry->tri[1]],
-							pInMesh->pUvs[pEntry->pEntry->tri[2]]},
+					.uv = {pInMesh->pStuc[pEntry->pEntry->tri[0]],
+							pInMesh->pStuc[pEntry->pEntry->tri[1]],
+							pInMesh->pStuc[pEntry->pEntry->tri[2]]},
 					.xyz = {pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[0]]],
 							pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[1]]],
 							pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[2]]]}
@@ -520,7 +520,7 @@ bool sampleUsg(int32_t uvsCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 				*pTbn = pEntry->pEntry->tbn;
 				*pTransformed = true;
 			}
-			//V3_F32 mapRealNormal = getCornerRealNormal(pMapMesh, &uvsFace, uvsCorner);
+			//V3_F32 mapRealNormal = getCornerRealNormal(pMapMesh, &stucFace, stucCorner);
 			//V3_F32 up = { .0f, .0f, 1.0f };
 			//float upMask = abs(_(mapRealNormal V3DOT up));
 			//pCorner->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));

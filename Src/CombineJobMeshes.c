@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <RUVM.h>
+#include <UvStucco.h>
 #include <Context.h>
 #include <CombineJobMeshes.h>
 #include <AttribUtils.h>
@@ -10,7 +10,7 @@
 #include <Error.h>
 
 static
-void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable,
+void combineJobInFaceLists(StucContext pContext, InFaceArr *pInFaceTable,
                            SendOffArgs *pJobArgs, int32_t mapJobsSent) {
 	int32_t face = 0;
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
@@ -23,7 +23,7 @@ void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable,
 	}
 }
 
-void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
+void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
                           InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
@@ -35,7 +35,7 @@ void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	//and figure out edges in border faces after jobs are finished?
 	//You'll need to provide functionality for interpolating and blending
 	//edge data, so keep that in mind.
-	pMeshOut->mesh.type.type = RUVM_OBJECT_DATA_MESH_INTERN;
+	pMeshOut->mesh.type.type = STUC_OBJECT_DATA_MESH_INTERN;
 	MeshCounts totalCount = {0};
 	MeshCounts totalBoundsCount = {0};
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
@@ -63,7 +63,7 @@ void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 		}
 	}
 	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false);
-	setSpecialAttribs(pMeshOut, 0xe); //1110 - set only verts, uvs, & normals
+	setSpecialAttribs(pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
 	JobBases *pJobBases =
 		pContext->alloc.pMalloc(sizeof(JobBases) * mapJobsSent);
 	uint64_t reallocTime = 0;
@@ -84,13 +84,13 @@ void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 		combineJobInFaceLists(pContext, *ppInFaceTable, pJobArgs, mapJobsSent);
 	}
 	printf("realloc time total %lu\n", reallocTime);
-	uvsMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
+	stucMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                     pEdgeVerts, pJobBases, pVertSeamTable,
 	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh,
 	                     mapJobsSent);
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
-		uvsMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);
+		stucMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);
 		pContext->alloc.pFree(pJobArgs[i].borderTable.pTable);
 	}
 	pContext->alloc.pFree(pJobBases);
@@ -106,36 +106,36 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs,
 								  const int32_t cornerIdx) {
 	BorderInInfo inInfo = {0};
-	RUVM_ASSERT("", pEntry->baseFace >= 0);
-	RUVM_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
+	STUC_ASSERT("", pEntry->baseFace >= 0);
+	STUC_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
 	inInfo.cornerLocal = getBaseCorner(pEntry, cornerIdx);
-	RUVM_ASSERT("", inInfo.cornerLocal >= 0);
+	STUC_ASSERT("", inInfo.cornerLocal >= 0);
 	inInfo.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
 	inInfo.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
 	inInfo.size = inInfo.end - inInfo.start;
-	RUVM_ASSERT("", inInfo.start >= 0);
-	RUVM_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.mesh.cornerCount);
-	RUVM_ASSERT("", inInfo.cornerLocal < inInfo.size);
+	STUC_ASSERT("", inInfo.start >= 0);
+	STUC_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.mesh.cornerCount);
+	STUC_ASSERT("", inInfo.cornerLocal < inInfo.size);
 	inInfo.edgeCorner = inInfo.start + inInfo.cornerLocal;
-	RUVM_ASSERT("", inInfo.edgeCorner < pJobArgs[pEntry->job].mesh.mesh.cornerCount);
+	STUC_ASSERT("", inInfo.edgeCorner < pJobArgs[pEntry->job].mesh.mesh.cornerCount);
 	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.edgeCorner];
-	RUVM_ASSERT("", inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
+	STUC_ASSERT("", inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
 	bool useNextVert = pEntry->inOrient ^ pEntry->mapOrient;
 	inInfo.vertCorner = (inInfo.cornerLocal + useNextVert) % inInfo.size;
 	inInfo.vertCorner += inInfo.start;
 	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pCorners[inInfo.vertCorner];
-	RUVM_ASSERT("", inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
+	STUC_ASSERT("", inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
 	return inInfo;
 }
 
-bool getIfRuvm(const BorderFace *pEntry, const int32_t cornerIdx) {
+bool getIfStuc(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->isRuvm, cornerIdx, 1);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->isStuc, cornerIdx, 1);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->isRuvm, cornerIdx, 1);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->isStuc, cornerIdx, 1);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->isRuvm, cornerIdx, 1);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->isStuc, cornerIdx, 1);
 	}
 }
 
@@ -175,11 +175,11 @@ int32_t getSegment(const BorderFace *pEntry, int32_t cornerIdx) {
 int32_t getMapCorner(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->uvsCorner, cornerIdx, 3);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->stucCorner, cornerIdx, 3);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->uvsCorner, cornerIdx, 4);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->stucCorner, cornerIdx, 4);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->uvsCorner, cornerIdx, 5);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->stucCorner, cornerIdx, 5);
 	}
 }
 
@@ -197,19 +197,19 @@ int32_t getBaseCorner(const BorderFace *pEntry, int32_t cornerIdx) {
 V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry) {
 	//tileX and Y are signed, but are stored unsigned in pEntry
 	V2_I16 tileMin = {0};
-	bool sign = pEntry->tileX >> RUVM_TILE_MIN_BIT_LEN & 0x1;
+	bool sign = pEntry->tileX >> STUC_TILE_MIN_BIT_LEN & 0x1;
 	tileMin.d[0] |= sign ? pEntry->tileX | ~0xfff : pEntry->tileX;
-	sign = pEntry->tileY >> RUVM_TILE_MIN_BIT_LEN & 0x1;
+	sign = pEntry->tileY >> STUC_TILE_MIN_BIT_LEN & 0x1;
 	tileMin.d[1] |= sign ? pEntry->tileY | ~0xfff : pEntry->tileY;
 	return tileMin;
 }
 
 int32_t bufMeshGetVertIdx(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localCorner) {
-	bool isRuvm = getIfRuvm(pPiece->pEntry, localCorner);
+	bool isStuc = getIfStuc(pPiece->pEntry, localCorner);
 	bool isOnLine = getIfOnLine(pPiece->pEntry, localCorner);
 	int32_t vert = pBufMesh->mesh.mesh.pCorners[pPiece->bufFace.start - localCorner];
-	if (!isRuvm || isOnLine) {
+	if (!isStuc || isOnLine) {
 		vert = convertBorderVertIdx(pBufMesh, vert).realIdx;
 	}
 	return vert;
@@ -217,10 +217,10 @@ int32_t bufMeshGetVertIdx(const Piece *pPiece,
 
 int32_t bufMeshGetEdgeIdx(const Piece *pPiece,
                             const BufMesh *pBufMesh, const int32_t localCorner) {
-	bool isRuvm = getIfRuvm(pPiece->pEntry, localCorner);
+	bool isStuc = getIfStuc(pPiece->pEntry, localCorner);
 	bool isOnLine = getIfOnLine(pPiece->pEntry, localCorner);
 	int32_t edge = pBufMesh->mesh.mesh.pEdges[pPiece->bufFace.start - localCorner];
-	if (!isRuvm || isOnLine) {
+	if (!isStuc || isOnLine) {
 		edge = convertBorderEdgeIdx(pBufMesh, edge).realIdx;
 	}
 	return edge;

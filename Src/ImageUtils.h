@@ -1,7 +1,7 @@
 #pragma once
-#include <RuvmInternal.h>
-#include <RUVM.h>
+#include <UvStuccoIntern.h>
+#include <UvStucco.h>
 
-void setPixelColor(RuvmImage *pImage, int32_t index, Color *pColor);
-int32_t getPixelSize(RuvmImageType type);
-void *offsetImagePtr(RuvmImage *pImage, int32_t offset);
+void setPixelColor(StucImage *pImage, int32_t index, Color *pColor);
+int32_t getPixelSize(StucImageType type);
+void *offsetImagePtr(StucImage *pImage, int32_t offset);

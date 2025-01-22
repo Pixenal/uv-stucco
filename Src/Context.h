@@ -1,14 +1,14 @@
 #pragma once
-#include <RUVM.h>
+#include <UvStucco.h>
 
-typedef struct RuvmContextInternal {
+typedef struct StucContextInternal {
 	void *pCustom;
-	RuvmThreadPool threadPool;
-	RuvmAlloc alloc;
-	RuvmIo io;
+	StucThreadPool threadPool;
+	StucAlloc alloc;
+	StucIo io;
 	void *pThreadPoolHandle;
 	int32_t threadCount;
-	RuvmTypeDefaultConfig typeDefaults;
-	RuvmStageReport stageReport;
+	StucTypeDefaultConfig typeDefaults;
+	StucStageReport stageReport;
 	int32_t stageInterval;
-} RuvmContextInternal;
+} StucContextInternal;

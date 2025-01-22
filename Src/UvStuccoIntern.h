@@ -8,7 +8,7 @@
 #include <Usg.h>
 #include <Error.h>
 
-#define RUVM_TILE_MIN_BIT_LEN 11
+#define STUC_TILE_MIN_BIT_LEN 11
 
 typedef uint64_t UBitField64;
 typedef uint32_t UBitField32;
@@ -29,8 +29,8 @@ typedef struct BorderFace {
 	int32_t faceIdx;
 	int32_t face;
 	int32_t baseFace;
-	uint32_t tileX : RUVM_TILE_MIN_BIT_LEN;
-	uint32_t tileY : RUVM_TILE_MIN_BIT_LEN;
+	uint32_t tileX : STUC_TILE_MIN_BIT_LEN;
+	uint32_t tileY : STUC_TILE_MIN_BIT_LEN;
 	UBitField32 job : 6;
 	uint32_t inOrient : 1;
 	uint32_t mapOrient : 1;
@@ -43,9 +43,9 @@ typedef struct {
 	BorderFace header;
 	//these are indexed as multichar bit arrays
 	UBitField8 baseCorner[4];
-	UBitField8 uvsCorner[6];
+	UBitField8 stucCorner[6];
 	UBitField8 segment[6];
-	UBitField8 isRuvm[2];
+	UBitField8 isStuc[2];
 	UBitField8 onLine[2];
 	UBitField8 onInVert[2];
 } BorderFaceSmall;
@@ -56,9 +56,9 @@ typedef struct {
 	BorderFace header;
 
 	UBitField8 baseCorner[7];
-	UBitField8 uvsCorner[13];
+	UBitField8 stucCorner[13];
 	UBitField8 segment[13];
-	UBitField8 isRuvm[4];
+	UBitField8 isStuc[4];
 	UBitField8 onLine[4];
 	UBitField8 onInVert[4];
 } BorderFaceMid;
@@ -69,9 +69,9 @@ typedef struct {
 	BorderFace header;
 
 	UBitField8 baseCorner[13];
-	UBitField8 uvsCorner[32];
+	UBitField8 stucCorner[32];
 	UBitField8 segment[32];
-	UBitField8 isRuvm[7];
+	UBitField8 isStuc[7];
 	UBitField8 onLine[7];
 	UBitField8 onInVert[7];
 } BorderFaceLarge;
@@ -94,15 +94,15 @@ typedef struct {
 typedef struct {
 	Mesh mesh;
 	BufMesh bufMesh;
-	RuvmMap pMap;
+	StucMap pMap;
 	InFaceArr *pInFaces;
 	bool getInFaces;
 	uint64_t reallocTime;
 	Result result;
-	RuvmContext pContext;
+	StucContext pContext;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
-	RuvmCommonAttribList *pCommonAttribList;
+	StucCommonAttribList *pCommonAttribList;
 	int32_t *pActiveJobs;
 	void *pMutex;
 	int32_t bufSize;

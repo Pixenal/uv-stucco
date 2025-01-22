@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <RUVM.h>
+#include <UvStucco.h>
 #include <MapToJobMesh.h>
 #include <MapFile.h>
 #include <Context.h>
@@ -12,10 +12,10 @@
 
 static
 void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
-	RuvmMap pMap = pVars->pMap;
-	RuvmMesh *pMeshIn = &pVars->mesh.mesh;
+	StucMap pMap = pVars->pMap;
+	StucMesh *pMeshIn = &pVars->mesh.mesh;
 	Mesh *pMesh = asMesh(&pVars->bufMesh);
-	RuvmAlloc *pAlloc = &pVars->alloc;
+	StucAlloc *pAlloc = &pVars->alloc;
 	pMesh->faceBufSize = pVars->bufSize;
 	pMesh->cornerBufSize = pVars->cornerBufSize;
 	pMesh->edgeBufSize = pVars->cornerBufSize;
@@ -33,20 +33,20 @@ void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 		pVars->alloc.pRealloc(pMesh->mesh.cornerAttribs.pArr,
 	                          pMesh->mesh.cornerAttribs.size * sizeof(Attrib));
 	Attrib *pWAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count;
-	initAttrib(&pVars->alloc, pWAttrib, "RuvmW", pMesh->cornerBufSize, false,
-	           RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
+	initAttrib(&pVars->alloc, pWAttrib, "StucW", pMesh->cornerBufSize, false,
+	           STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_F32);
 	Attrib *pInNormalAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 1;
-	initAttrib(&pVars->alloc, pInNormalAttrib, "RuvmInNormal", pMesh->cornerBufSize, false,
-		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
+	initAttrib(&pVars->alloc, pInNormalAttrib, "StucInNormal", pMesh->cornerBufSize, false,
+		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_V3_F32);
 	Attrib *pInTangentAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 2;
-	initAttrib(&pVars->alloc, pInTangentAttrib, "RuvmInTangent", pMesh->cornerBufSize, false,
-		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
+	initAttrib(&pVars->alloc, pInTangentAttrib, "StucInTangent", pMesh->cornerBufSize, false,
+		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_V3_F32);
 	Attrib *pAlphaAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 3;
-	initAttrib(&pVars->alloc, pAlphaAttrib, "RuvmAlpha", pMesh->cornerBufSize, false,
-		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
+	initAttrib(&pVars->alloc, pAlphaAttrib, "StucAlpha", pMesh->cornerBufSize, false,
+		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_F32);
 	Attrib *pInTSignAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 4;
-	initAttrib(&pVars->alloc, pInTSignAttrib, "RuvmInTSign", pMesh->cornerBufSize, false,
-		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
+	initAttrib(&pVars->alloc, pInTSignAttrib, "StucInTSign", pMesh->cornerBufSize, false,
+		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_F32);
 	pMesh->mesh.cornerAttribs.count += 5;
 	pVars->bufMesh.pWAttrib = pWAttrib;
 	pVars->bufMesh.pW = pWAttrib->pData;
@@ -61,19 +61,19 @@ void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 
 	//generalise this
 	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.cornerAttribs);
-	pMesh->pUvs = pMesh->pUvAttrib->pData;
+	pMesh->pStuc = pMesh->pUvAttrib->pData;
 	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.cornerAttribs);
 	pMesh->pNormals = pMesh->pNormalAttrib->pData;
 	pMesh->pVertAttrib = getAttrib("position", &pMesh->mesh.vertAttribs);
 	pMesh->pVerts = pMesh->pVertAttrib->pData;
 	pMesh->cornerBufSize = cornerBufSize;
-	pMesh->mesh.type.type = RUVM_OBJECT_DATA_MESH_BUF;
-	pMesh->pWScaleAttrib = getAttrib("RuvmWScale", &pMesh->mesh.vertAttribs);
+	pMesh->mesh.type.type = STUC_OBJECT_DATA_MESH_BUF;
+	pMesh->pWScaleAttrib = getAttrib("StucWScale", &pMesh->mesh.vertAttribs);
 	if (pMesh->pWScaleAttrib) {
 		pMesh->pWScale = pMesh->pWScaleAttrib->pData;
 		//temp override to prevent it from being added to out mesh
 		//generaliee this in an 'originOverride' func or something
-		pMesh->pWScaleAttrib->origin = RUVM_ATTRIB_ORIGIN_IGNORE;
+		pMesh->pWScaleAttrib->origin = STUC_ATTRIB_ORIGIN_IGNORE;
 	}
 }
 
@@ -81,7 +81,7 @@ static
 void allocBufMeshAndTables(MappingJobVars *pVars,
                            FaceCellsTable *pFaceCellsTable) {
 	//struct timeval start, stop;
-	RuvmAlloc *pAlloc = &pVars->alloc;
+	StucAlloc *pAlloc = &pVars->alloc;
 	pVars->rawBufSize = pVars->bufSize;
 	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
 	pVars->bufSize += pVars->bufSize % 2; //ensure it's even, so realloc is easier
@@ -106,16 +106,16 @@ static
 Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
                        FaceCellsTable *pFaceCellsTable,
 					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
-	Result result = RUVM_NOT_SET;
+	Result result = STUC_NOT_SET;
 	FaceBounds *pFaceBounds = &pFaceCellsTable->pFaceCells[rawFace].faceBounds;
 	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
-			RUVM_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
+			STUC_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
 			V2_F32 fTileMin = {k, j};
 			V2_I32 tile = {k, j};
-			result = uvsMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
+			result = stucMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
 			                             fTileMin, tile, *pBaseFace);
-			if (result != RUVM_SUCCESS) {
+			if (result != STUC_SUCCESS) {
 				return result;
 			}
 		}
@@ -124,7 +124,7 @@ Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
 }
 
 static
-void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
+void destroyMappingTables(StucAlloc *pAlloc, LocalTables *pLocalTables) {
 	for (int32_t i = 0; i < pLocalTables->vertTableSize; ++i) {
 		LocalVert *pEntry = pLocalTables->pVertTable + i;
 		if (!pEntry->cornerSize) {
@@ -153,9 +153,9 @@ void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 	pAlloc->pFree(pLocalTables->pEdgeTable);
 }
 
-void uvsMapToJobMesh(void *pVarsPtr) {
+void stucMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_INIT;
-	Result result = RUVM_NOT_SET;
+	Result result = STUC_NOT_SET;
 	SendOffArgs *pSend = pVarsPtr;
 	MappingJobVars vars = {0};
 	vars.pEdgeVerts = pSend->pEdgeVerts;
@@ -196,7 +196,7 @@ void uvsMapToJobMesh(void *pVarsPtr) {
 	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
 		// copy faces over to a new contiguous array
 		//CLOCK_START;
-		//uvsLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
+		//stucLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
@@ -209,7 +209,7 @@ void uvsMapToJobMesh(void *pVarsPtr) {
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
 		if (baseFace.size > 4) {
-			faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pUvs,
+			faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pStuc,
 			                           NULL, 1);
 		}
 		if (baseFace.size <= 4) {
@@ -226,12 +226,12 @@ void uvsMapToJobMesh(void *pVarsPtr) {
 				baseFace.size = baseFace.end - baseFace.start;
 				result = mapPerTile(&vars, &baseFace, &faceCellsTable,
 				                    &dpVars, i);
-				if (result != RUVM_SUCCESS) {
+				if (result != STUC_SUCCESS) {
 					break;
 				}
 			}
 		}
-		RUVM_ASSERT("", result == RUVM_SUCCESS);
+		STUC_ASSERT("", result == STUC_SUCCESS);
 		if (faceTris.pCorners) {
 			vars.alloc.pFree(faceTris.pCorners);
 			faceTris.pCorners = NULL;
@@ -239,35 +239,35 @@ void uvsMapToJobMesh(void *pVarsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		uvsDestroyFaceCellsEntry(&vars.alloc, i, &faceCellsTable);
+		stucDestroyFaceCellsEntry(&vars.alloc, i, &faceCellsTable);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
-		if (result != RUVM_SUCCESS) {
+		if (result != STUC_SUCCESS) {
 			break;
 		}
 	}
 	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
 	//vars.alloc.pFree(pCellFaces);
 	bool empty = !(vars.bufMesh.mesh.mesh.faceCount || vars.bufMesh.borderFaceCount);
-	if (result == RUVM_SUCCESS && !empty) {
+	if (result == STUC_SUCCESS && !empty) {
 		bufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
 		pSend->reallocTime = dpVars.reallocTime;
 		pSend->bufSize = vars.bufSize;
 		pSend->rawBufSize = vars.rawBufSize;
 		pSend->finalBufSize = asMesh(&vars.bufMesh)->faceBufSize;
-		//RUVM_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
-		RUVM_ASSERT("", vars.borderTable.pTable != NULL);
+		//STUC_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
+		STUC_ASSERT("", vars.borderTable.pTable != NULL);
 		printf("borderTable %d\n", vars.borderTable.pTable != NULL);
 		pSend->borderTable.pTable = vars.borderTable.pTable;
 		pSend->bufMesh = vars.bufMesh;
 		pSend->pInFaces = vars.pInFaces;
 	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
-	uvsDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
+	stucDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
 	pSend->result = result;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
-	RUVM_ASSERT("", pSend->bufSize > 0 || empty);
+	STUC_ASSERT("", pSend->bufSize > 0 || empty);
 	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
 	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);

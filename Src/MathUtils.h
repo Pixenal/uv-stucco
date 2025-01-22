@@ -1,35 +1,35 @@
 #pragma once
 
-#include <RUVM.h>
+#include <UvStucco.h>
 
 #define FLOAT_EQUAL_MARGIN .000002f
 
-#define RUVM_IDENT_MAT4X4 {1.0, .0, .0, .0,\
+#define STUC_IDENT_MAT4X4 {1.0, .0, .0, .0,\
                            .0, 1.0, .0, .0,\
                            .0, .0, 1.0, .0,\
                            .0, .0, .0, 1.0}
 
-static Ruvm_M4x4_F32 identM4x4 = RUVM_IDENT_MAT4X4;
+static Stuc_M4x4_F32 identM4x4 = STUC_IDENT_MAT4X4;
 
-typedef Ruvm_V2_I8 V2_I8;
-typedef Ruvm_V2_I16 V2_I16;
-typedef Ruvm_V2_I32 V2_I32;
-typedef Ruvm_V2_I64 V2_I64;
-typedef Ruvm_V2_F32 V2_F32;
-typedef Ruvm_V2_F64 V2_F64;
-typedef Ruvm_V3_I8 V3_I8;
-typedef Ruvm_V3_I16 V3_I16;
-typedef Ruvm_V3_I32 V3_I32;
-typedef Ruvm_V3_I64 V3_I64;
-typedef Ruvm_V3_F32 V3_F32;
-typedef Ruvm_V3_F64 V3_F64;
-typedef Ruvm_V4_I8 V4_I8;
-typedef Ruvm_V4_I16 V4_I16;
-typedef Ruvm_V4_I32 V4_I32;
-typedef Ruvm_V4_I64 V4_I64;
-typedef Ruvm_V4_F32 V4_F32;
-typedef Ruvm_V4_F64 V4_F64;
-typedef Ruvm_String String;
+typedef Stuc_V2_I8 V2_I8;
+typedef Stuc_V2_I16 V2_I16;
+typedef Stuc_V2_I32 V2_I32;
+typedef Stuc_V2_I64 V2_I64;
+typedef Stuc_V2_F32 V2_F32;
+typedef Stuc_V2_F64 V2_F64;
+typedef Stuc_V3_I8 V3_I8;
+typedef Stuc_V3_I16 V3_I16;
+typedef Stuc_V3_I32 V3_I32;
+typedef Stuc_V3_I64 V3_I64;
+typedef Stuc_V3_F32 V3_F32;
+typedef Stuc_V3_F64 V3_F64;
+typedef Stuc_V4_I8 V4_I8;
+typedef Stuc_V4_I16 V4_I16;
+typedef Stuc_V4_I32 V4_I32;
+typedef Stuc_V4_I64 V4_I64;
+typedef Stuc_V4_F32 V4_F32;
+typedef Stuc_V4_F64 V4_F64;
+typedef Stuc_String String;
 
 typedef struct {
 	float d[2][3];
@@ -43,7 +43,7 @@ typedef struct {
 	float d[3][3];
 } Mat3x3;
 
-typedef Ruvm_M4x4_F32 Mat4x4;
+typedef Stuc_M4x4_F32 Mat4x4;
 
 V2_I32 v2FloorAssign(V2_F32 *pA);
 

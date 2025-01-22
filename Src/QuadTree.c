@@ -10,7 +10,6 @@
 #include <MapFile.h>
 #include <MathUtils.h>
 #include <Utils.h>
-#include <MapFile.h>
 #include <Error.h>
 
 typedef struct {
@@ -21,35 +20,35 @@ static
 void calcCellBounds(Cell *cell) {
 	float xSide = (float)(cell->localIdx % 2);
 	float ySide = (float)(((cell->localIdx + 2) / 2) % 2);
-	RUVM_ASSERT("", isfinite(xSide) && isfinite(ySide));
+	STUC_ASSERT("", isfinite(xSide) && isfinite(ySide));
 	cell->boundsMin.d[0] = xSide * .5;
 	cell->boundsMin.d[1] = ySide * .5;
 	cell->boundsMax.d[0] = 1.0 - (1.0 - xSide) * .5;
 	cell->boundsMax.d[1] = 1.0 - (1.0 - ySide) * .5;
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	RUVM_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
-	RUVM_ASSERT("", _(cell->boundsMax V2LESSEQL one));
+	STUC_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
+	STUC_ASSERT("", _(cell->boundsMax V2LESSEQL one));
 }
 
 static
-void addCellToEncasingCells(RuvmMap pMap, Cell *cell,
+void addCellToEncasingCells(StucMap pMap, Cell *cell,
                             EncasingCells *pEncasingCells, int32_t edge) {
-	RUVM_ASSERT("", edge % 2 == edge);
-	RUVM_ASSERT("", cell->initialized % 2 == cell->initialized);
+	STUC_ASSERT("", edge % 2 == edge);
+	STUC_ASSERT("", cell->initialized % 2 == cell->initialized);
 	int32_t faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
-	RUVM_ASSERT("", faceSize >= 0 && faceSize < 100000000);
-	RUVM_ASSERT("", pEncasingCells->faceTotal >= 0);
+	STUC_ASSERT("", faceSize >= 0 && faceSize < 100000000);
+	STUC_ASSERT("", pEncasingCells->faceTotal >= 0);
 	pEncasingCells->faceTotal += faceSize;
 	int32_t dupIdx = -1;
 	for (int32_t i = 0; i < pEncasingCells->cellSize; ++i) {
-		RUVM_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->pCells[i]].localIdx >= 0);
-		RUVM_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->pCells[i]].localIdx < 4);
+		STUC_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->pCells[i]].localIdx >= 0);
+		STUC_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->pCells[i]].localIdx < 4);
 		if (pEncasingCells->pCells[i] == cell->cellIdx) {
 			dupIdx = i;
 			break;
 		}
-		RUVM_ASSERT("", i >= 0 && i < pEncasingCells->cellSize);
+		STUC_ASSERT("", i >= 0 && i < pEncasingCells->cellSize);
 	}
 	if (dupIdx >= 0) {
 		if (!pEncasingCells->pCellType[dupIdx] && edge) {
@@ -64,12 +63,12 @@ void addCellToEncasingCells(RuvmMap pMap, Cell *cell,
 }
 
 static
-int32_t findFaceQuadrantUv(RuvmAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
+int32_t findFaceQuadrantUv(StucAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
                            V2_F32 midPoint, V2_I32 *commonSides, V2_I32 *signs) {
 	commonSides->d[0] = commonSides->d[1] = 1;
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * vertCount);
 	for (int32_t i = 0; i < vertCount; ++i) {
-		RUVM_ASSERT("", v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
+		STUC_ASSERT("", v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
 		pSides[i].d[0] = pVerts[i].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pVerts[i].d[1] < midPoint.d[1];
 		for (int32_t j = 0; j < i; ++j) {
@@ -77,14 +76,14 @@ int32_t findFaceQuadrantUv(RuvmAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
 	}
-	RUVM_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
-	RUVM_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
+	STUC_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
+	STUC_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
 	if (!commonSides->d[0] && !commonSides->d[1]) {
 		pAlloc->pFree(pSides);
 		return 0;
 	}
-	RUVM_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
-	RUVM_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
+	STUC_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
+	STUC_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
 	signs->d[0] = pSides[0].d[0];
 	signs->d[1] = pSides[0].d[1];
 	pAlloc->pFree(pSides);
@@ -97,14 +96,14 @@ int32_t findFaceQuadrantUv(RuvmAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
 }
 
 static
-int32_t findFaceQuadrant(RuvmAlloc* pAlloc, FaceRange *pFace,
+int32_t findFaceQuadrant(StucAlloc* pAlloc, FaceRange *pFace,
                          Mesh* pMesh, V2_F32 midPoint,
                          V2_I32* commonSides, V2_I32* signs) {
 	commonSides->d[0] = commonSides->d[1] = 1;
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * pFace->size);
 	for (int32_t i = 0; i < pFace->size; ++i) {
 		int32_t vertIdx = pMesh->mesh.pCorners[pFace->start + i];
-		RUVM_ASSERT("", v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIdx]));
+		STUC_ASSERT("", v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIdx]));
 		pSides[i].d[0] = pMesh->pVerts[vertIdx].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pMesh->pVerts[vertIdx].d[1] < midPoint.d[1];
 		for (int32_t j = 0; j < i; ++j) {
@@ -112,14 +111,14 @@ int32_t findFaceQuadrant(RuvmAlloc* pAlloc, FaceRange *pFace,
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
 	}
-	RUVM_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
-	RUVM_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
+	STUC_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
+	STUC_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
 	if (!commonSides->d[0] && !commonSides->d[1]) {
 		pAlloc->pFree(pSides);
 		return 0;
 	}
-	RUVM_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
-	RUVM_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
+	STUC_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
+	STUC_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
 	signs->d[0] = pSides[0].d[0];
 	signs->d[1] = pSides[0].d[1];
 	pAlloc->pFree(pSides);
@@ -134,7 +133,7 @@ int32_t findFaceQuadrant(RuvmAlloc* pAlloc, FaceRange *pFace,
 static
 void getChildrenFromResult(int32_t result, Children* pChildren,
                            V2_I32* pCommonSides, V2_I32* pSigns) {
-	RUVM_ASSERT("", result >= 0 && result <= 2);
+	STUC_ASSERT("", result >= 0 && result <= 2);
 	switch (result) {
 		case 0: {
 			//addCellToEncasingCells(cell, pEncasingCells, 0);
@@ -171,16 +170,16 @@ void getChildrenFromResult(int32_t result, Children* pChildren,
 }
 
 static
-void findEncasingChildCells(RuvmAlloc *pAlloc, Cell *pCell, Children *pChildren,
+void findEncasingChildCells(StucAlloc *pAlloc, Cell *pCell, Children *pChildren,
                             int32_t *pCellStackPtr, int32_t vertCount,
 							V2_F32 *pVerts, V2_I32 *pTileMin) {
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	RUVM_ASSERT("", _(pCell->boundsMin V2GREATEQL zero));
-	RUVM_ASSERT("", _(pCell->boundsMax V2LESSEQL one));
+	STUC_ASSERT("", _(pCell->boundsMin V2GREATEQL zero));
+	STUC_ASSERT("", _(pCell->boundsMax V2LESSEQL one));
 	V2_F32 midPoint = _(_(pCell->boundsMax V2SUB pCell->boundsMin) V2MULS .5);
 	_(&midPoint V2ADDEQL pCell->boundsMin);
-	RUVM_ASSERT("", v2IsFinite(midPoint));
+	STUC_ASSERT("", v2IsFinite(midPoint));
 	V2_I32 signs;
 	V2_I32 commonSides;
 	midPoint.d[0] += (float)pTileMin->d[0];
@@ -191,34 +190,34 @@ void findEncasingChildCells(RuvmAlloc *pAlloc, Cell *pCell, Children *pChildren,
 	getChildrenFromResult(result, pChildren + *pCellStackPtr, &commonSides, &signs);
 }
 
-void uvsGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCells,
+void stucGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCells,
                              int32_t vertCount, V2_F32 *pVerts, V2_I32 tileMin) {
 	QuadTree *pTree = &pState->pMap->quadTree;
 	Cell *cellStack[16];
 	Children children[16];
 	Cell *pRootCell = pState->pMap->quadTree.pRootCell;
-	RUVM_ASSERT("", pRootCell->cellIdx == 0 && pRootCell->localIdx == 0);
+	STUC_ASSERT("", pRootCell->cellIdx == 0 && pRootCell->localIdx == 0);
 	cellStack[0] = pRootCell;
 	pState->pCellInits[0] = 0;
 	int32_t cellStackPtr = 0;
 	for (int32_t i = 0; i < 4; ++i) {
-		RUVM_ASSERT("", pRootCell->pChildren[i].localIdx >= 0);
-		RUVM_ASSERT("", pRootCell->pChildren[i].localIdx < 4);
+		STUC_ASSERT("", pRootCell->pChildren[i].localIdx >= 0);
+		STUC_ASSERT("", pRootCell->pChildren[i].localIdx < 4);
 		pState->pCellInits[pRootCell->pChildren[i].cellIdx] = 0;
-		RUVM_ASSERT("", i >= 0 && i < 4);
+		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 	do {
-		RUVM_ASSERT("", cellStackPtr >= 0 && cellStackPtr < 16);
+		STUC_ASSERT("", cellStackPtr >= 0 && cellStackPtr < 16);
 		Cell *cell = cellStack[cellStackPtr];
-		RUVM_ASSERT("", cell->localIdx >= 0 && cell->localIdx < 4);
-		RUVM_ASSERT("", cell->cellIdx >= 0 && cell->cellIdx < pTree->cellCount);
-		RUVM_ASSERT("", (cell->pChildren && cell->faceSize > 0) || !cell->pChildren);
-		RUVM_ASSERT("", cell->initialized % 2 == cell->initialized);
+		STUC_ASSERT("", cell->localIdx >= 0 && cell->localIdx < 4);
+		STUC_ASSERT("", cell->cellIdx >= 0 && cell->cellIdx < pTree->cellCount);
+		STUC_ASSERT("", (cell->pChildren && cell->faceSize > 0) || !cell->pChildren);
+		STUC_ASSERT("", cell->initialized % 2 == cell->initialized);
 		if (!cell->pChildren) {
-			RUVM_ASSERT("", !cell->edgeFaceSize);
+			STUC_ASSERT("", !cell->edgeFaceSize);
 			addCellToEncasingCells(pState->pMap, cell, pEncasingCells, 0);
 			cellStackPtr--;
-			RUVM_ASSERT("", !pState->pCellInits[cell->cellIdx]);
+			STUC_ASSERT("", !pState->pCellInits[cell->cellIdx]);
 			pState->pCellInits[cell->cellIdx] = 1;
 			continue;
 		}
@@ -230,7 +229,7 @@ void uvsGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCell
 					nextChild = i;
 					break;
 				}
-				RUVM_ASSERT("", i >= 0 && i < 4);
+				STUC_ASSERT("", i >= 0 && i < 4);
 			}
 			if (nextChild == -1) {
 				cellStackPtr--;
@@ -240,15 +239,15 @@ void uvsGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCell
 			cellStack[cellStackPtr] = cell->pChildren + nextChild;
 			continue;
 		}
-		RUVM_ASSERT("", vertCount >= 0 && vertCount < 10000);
+		STUC_ASSERT("", vertCount >= 0 && vertCount < 10000);
 		findEncasingChildCells(pState->pAlloc, cell, children, &cellStackPtr,
 		                       vertCount, pVerts, &tileMin);
 		addCellToEncasingCells(pState->pMap, cell, pEncasingCells, 1);
-		RUVM_ASSERT("", !pState->pCellInits[cell->cellIdx]);
+		STUC_ASSERT("", !pState->pCellInits[cell->cellIdx]);
 		pState->pCellInits[cell->cellIdx] = 1;
 		for (int32_t i = 0; i < 4; ++i) {
 			pState->pCellInits[cell->pChildren[i].cellIdx] = 0;
-			RUVM_ASSERT("", i >= 0 && i < 4);
+			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		int32_t nextChild = 0;
 		for (int32_t i = 0; i < 4; ++i) {
@@ -256,7 +255,7 @@ void uvsGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCell
 				nextChild = i;
 				break;
 			}
-			RUVM_ASSERT("", i >= 0 && i < 4);
+			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		cellStackPtr++;
 		cellStack[cellStackPtr] = cell->pChildren + nextChild;
@@ -312,12 +311,12 @@ int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
 		}
 	}
 	//find fully encasing cell using clipped face
-	uvsGetAllEncasingCells(pState, pCellsBuf, vertCount, pVerts, tileMin);
+	stucGetAllEncasingCells(pState, pCellsBuf, vertCount, pVerts, tileMin);
 	return 0;
 }
 
 static
-int32_t checkBranchCellIsLinked(RuvmMap pMap, EncasingCells *pCellsBuf,
+int32_t checkBranchCellIsLinked(StucMap pMap, EncasingCells *pCellsBuf,
                                 int32_t idx, Range *pRange) {
 	int32_t linked = 0;
 	int32_t cellIdx = pCellsBuf->pCells[idx];
@@ -347,7 +346,7 @@ int32_t checkBranchCellIsLinked(RuvmMap pMap, EncasingCells *pCellsBuf,
 }
 
 static
-void removeNonLinkedBranchCells(RuvmMap pMap, EncasingCells *pCellsBuf) {
+void removeNonLinkedBranchCells(StucMap pMap, EncasingCells *pCellsBuf) {
 	for (int32_t i = 0; i < pCellsBuf->cellSize;) {
 		if (!pCellsBuf->pCellType[i]) {
 			i++;
@@ -372,7 +371,7 @@ void removeNonLinkedBranchCells(RuvmMap pMap, EncasingCells *pCellsBuf) {
 }
 
 static
-void copyCellsIntoTotalList(RuvmAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
+void copyCellsIntoTotalList(StucAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
                             EncasingCells *pCellsBuf, int32_t faceIdx) {
 	FaceCells *pEntry = pFaceCellsTable->pFaceCells + faceIdx;
 	pFaceCellsTable->cellFacesTotal += pCellsBuf->faceTotalNoDup;
@@ -445,24 +444,24 @@ void recordCellsInTable(QuadTreeSearch *pState, FaceCellsTable *pFaceCellsTable,
 	}
 }
 
-void uvsInitFaceCellsTable(RuvmAlloc *pAlloc, FaceCellsTable *pTable,
+void stucInitFaceCellsTable(StucAlloc *pAlloc, FaceCellsTable *pTable,
                             int32_t faceCount) {
 	pTable->pFaceCells = pAlloc->pMalloc(sizeof(FaceCells) * faceCount);
 }
 
-void uvsDestroyFaceCellsTable(RuvmAlloc *pAlloc,
+void stucDestroyFaceCellsTable(StucAlloc *pAlloc,
                                FaceCellsTable *pFaceCellsTable) {
 	pAlloc->pFree(pFaceCellsTable->pFaceCells);
 }
 
-void uvsDestroyFaceCellsEntry(RuvmAlloc *pAlloc, int32_t i,
+void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, int32_t i,
                                FaceCellsTable *pFaceCellsTable) {
 	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCells);
 	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCellType);
 	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pRanges);
 }
 
-void uvsInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pState) {
+void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pState) {
 	pState->pAlloc = pAlloc;
 	pState->pMap = pMap;
 	pState->pCellInits = pAlloc->pMalloc(pMap->quadTree.cellCount);
@@ -471,14 +470,14 @@ void uvsInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pSta
 	pState->pCellType = pAlloc->pMalloc(pMap->quadTree.cellCount);
 }
 
-void uvsDestroyQuadTreeSearch(QuadTreeSearch *pState) {
+void stucDestroyQuadTreeSearch(QuadTreeSearch *pState) {
 	pState->pAlloc->pFree(pState->pCellFlags);
 	pState->pAlloc->pFree(pState->pCellInits);
 	pState->pAlloc->pFree(pState->pCells);
 	pState->pAlloc->pFree(pState->pCellType);
 }
 
-void uvsGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
+void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
 							   FaceBounds *pFaceBounds, int32_t faceIdx) {
 	EncasingCells cellsBuf = {0};
@@ -521,7 +520,7 @@ void uvsGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 	                       faceIdx);
 }
 
-void uvsLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
+void stucLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
                             int32_t faceIdx) {
 	int32_t facesNextIdx = 0;
 	for (int32_t j = 0; j < pFaceCells[faceIdx].cellSize; ++j) {
@@ -539,7 +538,7 @@ void uvsLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
 	}
 }
 
-Cell *uvsFindEncasingCell(Cell *rootCell, V2_F32 pos) {
+Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos) {
 	V2_F32 cellBoundsMin = {.d[0] = .0, .d[1] = .0};
 	V2_F32 cellBoundsMax = {.d[0] = 1.0, .d[1] = 1.0};
 	Cell *cell = rootCell;
@@ -569,8 +568,8 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPtr) {
 	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	RUVM_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
-	RUVM_ASSERT("", _(cell->boundsMax V2LESSEQL one));
+	STUC_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
+	STUC_ASSERT("", _(cell->boundsMax V2LESSEQL one));
 }
 
 static
@@ -589,15 +588,15 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRa
 			}
 			pRange->end = i;
 		}
-		RUVM_ASSERT("", i >= 0 && i < pAncestor->edgeFaceSize);
+		STUC_ASSERT("", i >= 0 && i < pAncestor->edgeFaceSize);
 	}
-	RUVM_ASSERT("", pRange->start >= 0 && pRange->end <= pAncestor->edgeFaceSize);
+	STUC_ASSERT("", pRange->start >= 0 && pRange->end <= pAncestor->edgeFaceSize);
 	pRange->end++;
 	return linked;
 }
 
 static
-void addLinkEdgesToCells(RuvmContext pContext, int32_t parentCell,
+void addLinkEdgesToCells(StucContext pContext, int32_t parentCell,
                          Mesh *pMesh, CellTable *pTable, int32_t *pCellStack,
 						 int32_t cellStackPtr) {
 	int32_t buf[32];
@@ -606,20 +605,20 @@ void addLinkEdgesToCells(RuvmContext pContext, int32_t parentCell,
 	for (int32_t i = 0; i < 4; ++i) {
 		bufSize = 0;
 		Cell *pChild = pTable->pArr[parentCell].pChildren + i;
-		RUVM_ASSERT("", pChild->initialized == 0);
-		RUVM_ASSERT("", pChild->localIdx >= 0 && pChild->localIdx < 4);
+		STUC_ASSERT("", pChild->initialized == 0);
+		STUC_ASSERT("", pChild->localIdx >= 0 && pChild->localIdx < 4);
 		for (int32_t j = 0; j <= cellStackPtr; ++j) {
 			Cell *pAncestor = pTable->pArr + pCellStack[j];
-			RUVM_ASSERT("", pAncestor->initialized % 2 == pAncestor->initialized);
-			RUVM_ASSERT("", pAncestor->localIdx >= 0);
-			RUVM_ASSERT("", pAncestor->localIdx < 4);
+			STUC_ASSERT("", pAncestor->initialized % 2 == pAncestor->initialized);
+			STUC_ASSERT("", pAncestor->localIdx >= 0);
+			STUC_ASSERT("", pAncestor->localIdx < 4);
 			Range range = {0};
 			if (checkIfLinkedEdge(pChild, pAncestor, pMesh, &range)) {
 				buf[bufSize] = pAncestor->cellIdx;
 				rangeBuf[bufSize] = range;
 				bufSize++;
 			}
-			RUVM_ASSERT("", j >= 0 && j <= cellStackPtr);
+			STUC_ASSERT("", j >= 0 && j <= cellStackPtr);
 		}
 		if (bufSize) {
 			pChild->pLinkEdges =
@@ -631,13 +630,13 @@ void addLinkEdgesToCells(RuvmContext pContext, int32_t parentCell,
 				memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
 			pChild->linkEdgeSize = bufSize;
 		}
-		RUVM_ASSERT("", i >= 0 && i < 4);
+		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 }
 
 /*
 static
-void getDupEdgeFaces(RuvmContext pContext, Cell **pCellStack,
+void getDupEdgeFaces(StucContext pContext, Cell **pCellStack,
                      int32_t cellStackPtr, Mesh *pMesh, int8_t *pFaceFlag) {
 	Cell* pCell = pCellStack[cellStackPtr];
 	int32_t ancestors[256];
@@ -698,13 +697,13 @@ void getDupEdgeFaces(RuvmContext pContext, Cell **pCellStack,
 */
 
 static
-void addEnclosedVertsToCell(RuvmContext pContext, int32_t parentCellIdx,
+void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
                             Mesh *pMesh, CellTable* pTable, int8_t *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
 	Cell* pParentCell = pTable->pArr + parentCellIdx;
 	V2_F32 midPoint = pParentCell->pChildren[1].boundsMin;
-	RUVM_ASSERT("", v2IsFinite(midPoint));
+	STUC_ASSERT("", v2IsFinite(midPoint));
 	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
 		FaceRange face = getFaceRange(&pMesh->mesh, pParentCell->pFaces[i], false);
 		V2_I32 signs;
@@ -716,31 +715,31 @@ void addEnclosedVertsToCell(RuvmContext pContext, int32_t parentCellIdx,
 			int32_t childIdx = signs.d[0] + signs.d[1] * 2;
 			Cell *pChild = pParentCell->pChildren + childIdx;
 			pFaceFlag[i] = childIdx + 1;
-			RUVM_ASSERT("", pChild->faceSize >= 0);
-			RUVM_ASSERT("", pChild->faceSize <= pParentCell->faceSize);
+			STUC_ASSERT("", pChild->faceSize >= 0);
+			STUC_ASSERT("", pChild->faceSize <= pParentCell->faceSize);
 			pChild->faceSize++;
 		}
 		else {
 			pFaceFlag[i] = -1;
-			RUVM_ASSERT("", pParentCell->edgeFaceSize >= 0);
-			RUVM_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
+			STUC_ASSERT("", pParentCell->edgeFaceSize >= 0);
+			STUC_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 			pParentCell->edgeFaceSize++;
 		}
-		RUVM_ASSERT("", i >= 0 && i < pParentCell->faceSize);
+		STUC_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
 	for (int32_t i = 0; i < 4; ++i) {
 		Cell *cell = pParentCell->pChildren + i;
-		RUVM_ASSERT("", cell->initialized == 0 && cell->localIdx == i);
-		RUVM_ASSERT("", cell->faceSize >= 0);
-		RUVM_ASSERT("", cell->faceSize <= pParentCell->faceSize);
+		STUC_ASSERT("", cell->initialized == 0 && cell->localIdx == i);
+		STUC_ASSERT("", cell->faceSize >= 0);
+		STUC_ASSERT("", cell->faceSize <= pParentCell->faceSize);
 		if (cell->faceSize) {
 			cell->pFaces =
 				pContext->alloc.pMalloc(sizeof(int32_t) * cell->faceSize);
 		}
-		RUVM_ASSERT("", i >= 0 && i < 4);
+		STUC_ASSERT("", i >= 0 && i < 4);
 	}
-	RUVM_ASSERT("", pParentCell->edgeFaceSize >= 0);
-	RUVM_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
+	STUC_ASSERT("", pParentCell->edgeFaceSize >= 0);
+	STUC_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 	if (pParentCell->edgeFaceSize) {
 		pParentCell->pEdgeFaces =
 			pContext->alloc.pMalloc(sizeof(int32_t) * pParentCell->edgeFaceSize);
@@ -751,27 +750,27 @@ void addEnclosedVertsToCell(RuvmContext pContext, int32_t parentCellIdx,
 		if (!pFaceFlag[i]) {
 			continue;
 		}
-		RUVM_ASSERT("", pFaceFlag[i] <= 5);
+		STUC_ASSERT("", pFaceFlag[i] <= 5);
 		if (pFaceFlag[i] > 0) {
 			int32_t child = pFaceFlag[i] - 1;
 			Cell *cell = pParentCell->pChildren + child;
-			RUVM_ASSERT("", cell->initialized == 0 && cell->localIdx < 4);
-			RUVM_ASSERT("", cell->faceSize >= 0);
-			RUVM_ASSERT("", cell->faceSize <= pParentCell->faceSize);
+			STUC_ASSERT("", cell->initialized == 0 && cell->localIdx < 4);
+			STUC_ASSERT("", cell->faceSize >= 0);
+			STUC_ASSERT("", cell->faceSize <= pParentCell->faceSize);
 			cell->pFaces[facesSize[child]] = pParentCell->pFaces[i];
 			facesSize[child]++;
 		}
 		else {
-			RUVM_ASSERT("", pFaceFlag[i] == -1);
-			RUVM_ASSERT("", pParentCell->edgeFaceSize >= 0);
-			RUVM_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
+			STUC_ASSERT("", pFaceFlag[i] == -1);
+			STUC_ASSERT("", pParentCell->edgeFaceSize >= 0);
+			STUC_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 			pParentCell->pEdgeFaces[edgeFacesSize] = pParentCell->pFaces[i];
 			edgeFacesSize++;
 		}
 		pFaceFlag[i] = 0;
-		RUVM_ASSERT("", i >= 0 && i < pParentCell->faceSize);
+		STUC_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
-	RUVM_ASSERT("", pParentCell->initialized % 2 == pParentCell->initialized);
+	STUC_ASSERT("", pParentCell->initialized % 2 == pParentCell->initialized);
 }
 
 
@@ -787,13 +786,13 @@ void updateCellPtrs(QuadTree *pTree, Cell *pOldPtr) {
 }
 
 static
-void reallocCellTable(const RuvmContext pContext, QuadTree *pTree,
+void reallocCellTable(const StucContext pContext, QuadTree *pTree,
                       const int32_t sizeDiff) {
 	if (!sizeDiff) {
 		return;
 	}
 	pTree->cellTable.size += sizeDiff;
-	RUVM_ASSERT("", pTree->cellTable.size > 0);
+	STUC_ASSERT("", pTree->cellTable.size > 0);
 	Cell *pOldPtr = pTree->cellTable.pArr;
 	pTree->cellTable.pArr =
 		pContext->alloc.pRealloc(pTree->cellTable.pArr,
@@ -807,48 +806,48 @@ void reallocCellTable(const RuvmContext pContext, QuadTree *pTree,
 }
 
 static
-void allocateChildren(RuvmContext pContext, int32_t parentCell,
-                      int32_t cellStackPtr, RuvmMap pMap) {
+void allocateChildren(StucContext pContext, int32_t parentCell,
+                      int32_t cellStackPtr, StucMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
-	RUVM_ASSERT("", pTree->cellCount > 0);
-	RUVM_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
+	STUC_ASSERT("", pTree->cellCount > 0);
+	STUC_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
 	if (pTree->cellCount + 4 > pTree->cellTable.size) {
 		int32_t sizeIncrease = (pTree->cellTable.size + 4) * 2;
 		reallocCellTable(pContext, pTree, sizeIncrease);
 	}
-	RUVM_ASSERT("", pTree->cellTable.size >= pTree->cellCount + 4);
-	RUVM_ASSERT("", pTree->cellTable.pArr[0].initialized == 1);
-	RUVM_ASSERT("", !pTree->cellTable.pArr[0].cellIdx);
-	RUVM_ASSERT("", !pTree->cellTable.pArr[0].localIdx);
+	STUC_ASSERT("", pTree->cellTable.size >= pTree->cellCount + 4);
+	STUC_ASSERT("", pTree->cellTable.pArr[0].initialized == 1);
+	STUC_ASSERT("", !pTree->cellTable.pArr[0].cellIdx);
+	STUC_ASSERT("", !pTree->cellTable.pArr[0].localIdx);
 	pTree->cellTable.pArr[parentCell].pChildren = pTree->cellTable.pArr + pTree->cellCount;
 	for (int32_t i = 0; i < 4; ++i) {
 		// v for visualizing quadtree v
 		//cell->children[i].cellIdx = rand();
 		Cell *cell = pTree->cellTable.pArr[parentCell].pChildren + i;
-		RUVM_ASSERT("", !cell->initialized);
+		STUC_ASSERT("", !cell->initialized);
 		cell->cellIdx = pMap->quadTree.cellCount;
 		pTree->cellCount++;
 		cell->localIdx = (uint32_t)i;
 		setCellBounds(cell, pTree->cellTable.pArr + parentCell, cellStackPtr);
-		RUVM_ASSERT("", i >= 0 && i < 4);
+		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 	pMap->quadTree.leafCount += 4;
 }
 
 static
-void processCell(RuvmContext pContext, int32_t *pCellStack,
+void processCell(StucContext pContext, int32_t *pCellStack,
                  int32_t *pCellStackPtr, Mesh *pMesh, int8_t *pFaceFlag,
-				 RuvmMap pMap, int32_t *pProgress) {
+				 StucMap pMap, int32_t *pProgress) {
 	QuadTree *pTree = &pMap->quadTree;
 	CellTable *pCellTable = &pTree->cellTable;
 	int32_t cell = pCellStack[*pCellStackPtr];
-	RUVM_ASSERT("", pCellTable->pArr[cell].initialized % 2 ==
+	STUC_ASSERT("", pCellTable->pArr[cell].initialized % 2 ==
 	                pCellTable->pArr[cell].initialized);
-	RUVM_ASSERT("", pCellTable->pArr[cell].cellIdx >= 0 &&
+	STUC_ASSERT("", pCellTable->pArr[cell].cellIdx >= 0 &&
 	                pCellTable->pArr[cell].cellIdx < pTree->cellCount);
-	RUVM_ASSERT("", pCellTable->pArr[cell].localIdx >= 0 &&
+	STUC_ASSERT("", pCellTable->pArr[cell].localIdx >= 0 &&
 	                pCellTable->pArr[cell].localIdx < 4);
-	RUVM_ASSERT("", pCellTable->pArr[cell].faceSize >= 0 &&
+	STUC_ASSERT("", pCellTable->pArr[cell].faceSize >= 0 &&
 	                pCellTable->pArr[cell].faceSize < 100000000);
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
 	int32_t hasChildren = pCellTable->pArr[cell].faceSize > CELL_MAX_VERTS;
@@ -862,10 +861,10 @@ void processCell(RuvmContext pContext, int32_t *pCellStack,
 			addLinkEdgesToCells(pContext, cell, pMesh, &pTree->cellTable,
 			                    pCellStack, *pCellStackPtr);
 		}
-		RUVM_ASSERT("", childSize >= 0);
+		STUC_ASSERT("", childSize >= 0);
 		for (int32_t i = 0; i < 4; ++i) {
 			childSize += (int32_t)pCellTable->pArr[cell].pChildren[i].initialized;
-			RUVM_ASSERT("", i >= 0 && i < 4);
+			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		// If the cell has children, and they are not yet all initialized,
 		// then add the next one to the stack
@@ -890,8 +889,8 @@ int32_t calculateMaxTreeDepth(int32_t vertSize) {
 }
 
 static
-void initRootAndChildren(RuvmContext pContext, int32_t *pCellStack, 
-                         QuadTree *pTree, RuvmMap pMap, Mesh *pMesh,
+void initRootAndChildren(StucContext pContext, int32_t *pCellStack, 
+                         QuadTree *pTree, StucMap pMap, Mesh *pMesh,
 						 int8_t *pFaceFlag) {
 	pTree->maxTreeDepth = 32;
 
@@ -914,9 +913,9 @@ void initRootAndChildren(RuvmContext pContext, int32_t *pCellStack,
 	pCellStack[1] = 1;
 }
 
-void uvsCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
+void stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
-	RUVM_ASSERT("", pMap->mesh.mesh.faceCount > 0);
+	STUC_ASSERT("", pMap->mesh.mesh.faceCount > 0);
 	stageBeginWrap(pContext, "Creating quad tree", pContext->stageReport.outOf);
 	pTree->cellTable.size = pMap->mesh.mesh.faceCount / CELL_MAX_VERTS + 1;
 	pTree->cellTable.pArr =
@@ -936,10 +935,10 @@ void uvsCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 		processCell(pContext, cellStack, &cellStackPtr, pMesh,
 		            pFaceFlag, pMap, &progress);
 	} while(cellStackPtr >= 0);
-	RUVM_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
-	RUVM_ASSERT("", pTree->pRootCell->initialized == 1);
+	STUC_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
+	STUC_ASSERT("", pTree->pRootCell->initialized == 1);
 	int32_t sizeDecrease = pTree->cellCount - pTree->cellTable.size;
-	RUVM_ASSERT("", sizeDecrease < 0);
+	STUC_ASSERT("", sizeDecrease < 0);
 	reallocCellTable(pContext, pTree, sizeDecrease);
 	pContext->alloc.pFree(pFaceFlag);
 	stageEndWrap(pContext);
@@ -947,7 +946,7 @@ void uvsCreateQuadTree(RuvmContext pContext, RuvmMap pMap) {
 	       pTree->cellCount, pTree->leafCount);
 }
 
-void uvsDestroyQuadTree(RuvmContext pContext, QuadTree *pTree) {
+void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree) {
 	for (int32_t i = 0; i < pTree->cellCount; ++i) {
 		Cell *cell = pTree->cellTable.pArr + i;
 		if (cell->pLinkEdges) {
@@ -968,7 +967,7 @@ void uvsDestroyQuadTree(RuvmContext pContext, QuadTree *pTree) {
 
 void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
                               Mesh *pMesh, FaceRange *pFace) {
-	getFaceBounds(pFaceBounds, pMesh->pUvs, *pFace);
+	getFaceBounds(pFaceBounds, pMesh->pStuc, *pFace);
 	pFaceBounds->fMinSmall = pFaceBounds->fMin;
 	pFaceBounds->fMaxSmall = pFaceBounds->fMax;
 	pFaceBounds->min = v2FloorAssign(&pFaceBounds->fMin);
@@ -976,27 +975,27 @@ void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
 	_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
 }
 
-void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
                       Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
 					  int32_t *pAverageMapFacesPerFace) {
 	*pAverageMapFacesPerFace = 0;
-	uvsInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->mesh.faceCount);
+	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->mesh.faceCount);
 	QuadTreeSearch searchState = {0};
-	uvsInitQuadTreeSearch(pAlloc, pMap, &searchState);
+	stucInitQuadTreeSearch(pAlloc, pMap, &searchState);
 	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
 		FaceRange faceInfo = getFaceRange(pMesh, i, false);
 		FaceBounds faceBounds = {0};
 		getFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);
 		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
 		for (int32_t j = 0; j < faceInfo.size; ++j) {
-			pVertBuf[j] = pMesh->pUvs[faceInfo.start + j];
+			pVertBuf[j] = pMesh->pStuc[faceInfo.start + j];
 		}
-		uvsGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
+		stucGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
 			                      pFaceCellsTable, &faceBounds, i);
 		pAlloc->pFree(pVertBuf);
 		*pAverageMapFacesPerFace += pFaceCellsTable->pFaceCells[i].faceSize;
 		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
 	}
 	*pAverageMapFacesPerFace /= pMesh->mesh.faceCount;
-	uvsDestroyQuadTreeSearch(&searchState);
+	stucDestroyQuadTreeSearch(&searchState);
 }

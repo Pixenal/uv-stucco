@@ -6,11 +6,11 @@
 
 typedef struct {
 	HANDLE *pHFile;
-	RuvmAlloc alloc;
+	StucAlloc alloc;
 } PlatformContext;
 
-int32_t uvsPlatformFileOpen(void **file, char *filePath, int32_t action,
-                             RuvmAlloc *pAlloc) {
+int32_t stucPlatformFileOpen(void **file, char *filePath, int32_t action,
+                             StucAlloc *pAlloc) {
 	DWORD access;
 	DWORD disposition;
 	switch (action) {
@@ -39,7 +39,7 @@ int32_t uvsPlatformFileOpen(void **file, char *filePath, int32_t action,
 	return 0;
 }
 
-int32_t uvsPlatformFileWrite(void *file, unsigned char *data, int32_t dataSize) {
+int32_t stucPlatformFileWrite(void *file, unsigned char *data, int32_t dataSize) {
 	PlatformContext *pState = file;
 	DWORD bytesWritten;
 	int32_t returnCode = WriteFile(pState->pHFile, data, dataSize,
@@ -56,7 +56,7 @@ int32_t uvsPlatformFileWrite(void *file, unsigned char *data, int32_t dataSize) 
 	return 0;
 }
 
-int32_t uvsPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRead) {
+int32_t stucPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRead) {
 	PlatformContext *pState = file;
 	DWORD bytesRead;
 	int32_t returnCode = ReadFile(pState->pHFile, data, bytesToRead,
@@ -73,7 +73,7 @@ int32_t uvsPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRead
 	return 0;
 }
 
-int32_t uvsPlatformFileClose(void *file) {
+int32_t stucPlatformFileClose(void *file) {
 	PlatformContext *pState = file;
 	CloseHandle(pState->pHFile);
 	pState->alloc.pFree(pState);

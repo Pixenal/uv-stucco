@@ -64,31 +64,31 @@ typedef struct {
 } FaceCellsTable;
 
 typedef struct {
-	RuvmMap pMap;
-	RuvmAlloc *pAlloc;
+	StucMap pMap;
+	StucAlloc *pAlloc;
 	int32_t *pCells;
 	int8_t *pCellInits;
 	int8_t *pCellFlags;
 	int8_t *pCellType;
 } QuadTreeSearch;
 
-void uvsInitFaceCellsTable(RuvmAlloc *pAlloc, FaceCellsTable *pTable,
+void stucInitFaceCellsTable(StucAlloc *pAlloc, FaceCellsTable *pTable,
                             int32_t faceCount);
-void uvsDestroyFaceCellsTable(RuvmAlloc *pAlloc,
+void stucDestroyFaceCellsTable(StucAlloc *pAlloc,
                                FaceCellsTable *pFaceCellsTable);
-void uvsDestroyFaceCellsEntry(RuvmAlloc *pAlloc, int32_t i,
+void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, int32_t i,
                                FaceCellsTable *pFaceCellsTable);
-void uvsInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pState);
-void uvsGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
+void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pState);
+void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
 							   FaceBounds *pFaceBounds, int32_t tableOffset);
-void uvsLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
+void stucLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
                             int32_t faceIdx);
-void uvsDestroyQuadTreeSearch(QuadTreeSearch *pState);
-Cell *uvsFindEncasingCell(Cell *rootCell, V2_F32 pos);
-void uvsCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
-void uvsDestroyQuadTree(RuvmContext pContext, QuadTree *pTree);
-void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
+void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
+Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
+void stucCreateQuadTree(StucContext pContext, StucMap pMap);
+void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree);
+void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
                       Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
 					  int32_t *pAverageMapFacesPerFace);
 int32_t checkIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,

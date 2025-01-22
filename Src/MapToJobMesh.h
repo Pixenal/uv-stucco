@@ -1,6 +1,6 @@
 #pragma once
-#include <RuvmInternal.h>
-#include <RUVM.h>
+#include <UvStuccoIntern.h>
+#include <UvStucco.h>
 #include <QuadTree.h>
 #include <Utils.h>
 
@@ -23,12 +23,12 @@ typedef struct CornerBuf {
 	float inTSign;
 	int8_t triCorners[3];
 	int8_t baseCorner;
-	int8_t uvsCorner;
+	int8_t stucCorner;
 	int8_t segment;
 	uint8_t onLine : 1;
 	uint8_t isBaseCorner : 1;
 	uint8_t preserve : 1;
-	uint8_t isRuvm : 1;
+	uint8_t isStuc : 1;
 	bool transformed;
 } CornerBuf;
 
@@ -71,16 +71,16 @@ typedef struct {
 typedef struct {
 	BufMesh bufMesh;
 	Mesh mesh;
-	RuvmMap pMap;
+	StucMap pMap;
 	InFaceArr *pInFaces;
 	int32_t inFaceSize;
 	bool getInFaces;
 	DebugAndPerfVars *pDpVars;
-	RuvmAlloc alloc;
+	StucAlloc alloc;
 	LocalTables localTables;
 	Mat3x3 tbn;
 	Mat3x3 tbnInv;
-	RuvmCommonAttribList *pCommonAttribList;
+	StucCommonAttribList *pCommonAttribList;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
 	int8_t *pInVertTable;
@@ -93,7 +93,7 @@ typedef struct {
 	float wScale;
 } MappingJobVars;
 
-void uvsMapToJobMesh(void *pArgsPtr);
-Result uvsMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
+void stucMapToJobMesh(void *pArgsPtr);
+Result stucMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
                          DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace);
