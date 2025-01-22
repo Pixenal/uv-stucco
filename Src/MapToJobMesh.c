@@ -11,43 +11,43 @@
 #include <Error.h>
 
 static
-void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
+void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 	RuvmMap pMap = pVars->pMap;
 	RuvmMesh *pMeshIn = &pVars->mesh.mesh;
 	Mesh *pMesh = asMesh(&pVars->bufMesh);
 	RuvmAlloc *pAlloc = &pVars->alloc;
 	pMesh->faceBufSize = pVars->bufSize;
-	pMesh->loopBufSize = pVars->loopBufSize;
-	pMesh->edgeBufSize = pVars->loopBufSize;
+	pMesh->cornerBufSize = pVars->cornerBufSize;
+	pMesh->edgeBufSize = pVars->cornerBufSize;
 	pMesh->vertBufSize = pVars->bufSize;
 	pMesh->mesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pMesh->faceBufSize);
-	pMesh->mesh.pLoops = pAlloc->pMalloc(sizeof(int32_t) * pMesh->loopBufSize);
+	pMesh->mesh.pCorners = pAlloc->pMalloc(sizeof(int32_t) * pMesh->cornerBufSize);
 	pMesh->mesh.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pMesh->edgeBufSize);
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
 	allocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
 	//create attribs for deffering offset transform until combine stage
 	//make these bufmesh only attribs a part of the special attribs,
 	//you'll need to expand the flags param to a 16 bits
-	pMesh->mesh.loopAttribs.size += 3;
-	pMesh->mesh.loopAttribs.pArr =
-		pVars->alloc.pRealloc(pMesh->mesh.loopAttribs.pArr,
-	                          pMesh->mesh.loopAttribs.size * sizeof(Attrib));
-	Attrib *pWAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count;
-	initAttrib(&pVars->alloc, pWAttrib, "RuvmW", pMesh->loopBufSize, false,
+	pMesh->mesh.cornerAttribs.size += 3;
+	pMesh->mesh.cornerAttribs.pArr =
+		pVars->alloc.pRealloc(pMesh->mesh.cornerAttribs.pArr,
+	                          pMesh->mesh.cornerAttribs.size * sizeof(Attrib));
+	Attrib *pWAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count;
+	initAttrib(&pVars->alloc, pWAttrib, "RuvmW", pMesh->cornerBufSize, false,
 	           RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
-	Attrib *pInNormalAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 1;
-	initAttrib(&pVars->alloc, pInNormalAttrib, "RuvmInNormal", pMesh->loopBufSize, false,
+	Attrib *pInNormalAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 1;
+	initAttrib(&pVars->alloc, pInNormalAttrib, "RuvmInNormal", pMesh->cornerBufSize, false,
 		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
-	Attrib *pInTangentAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 2;
-	initAttrib(&pVars->alloc, pInTangentAttrib, "RuvmInTangent", pMesh->loopBufSize, false,
+	Attrib *pInTangentAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 2;
+	initAttrib(&pVars->alloc, pInTangentAttrib, "RuvmInTangent", pMesh->cornerBufSize, false,
 		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_V3_F32);
-	Attrib *pAlphaAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 3;
-	initAttrib(&pVars->alloc, pAlphaAttrib, "RuvmAlpha", pMesh->loopBufSize, false,
+	Attrib *pAlphaAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 3;
+	initAttrib(&pVars->alloc, pAlphaAttrib, "RuvmAlpha", pMesh->cornerBufSize, false,
 		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
-	Attrib *pInTSignAttrib = pMesh->mesh.loopAttribs.pArr + pMesh->mesh.loopAttribs.count + 4;
-	initAttrib(&pVars->alloc, pInTSignAttrib, "RuvmInTSign", pMesh->loopBufSize, false,
+	Attrib *pInTSignAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 4;
+	initAttrib(&pVars->alloc, pInTSignAttrib, "RuvmInTSign", pMesh->cornerBufSize, false,
 		RUVM_ATTRIB_ORIGIN_IGNORE, RUVM_ATTRIB_F32);
-	pMesh->mesh.loopAttribs.count += 5;
+	pMesh->mesh.cornerAttribs.count += 5;
 	pVars->bufMesh.pWAttrib = pWAttrib;
 	pVars->bufMesh.pW = pWAttrib->pData;
 	pVars->bufMesh.pInNormalAttrib = pInNormalAttrib;
@@ -60,13 +60,13 @@ void allocBufMesh(MappingJobVars *pVars, int32_t loopBufSize) {
 	pVars->bufMesh.pInTSign = pInTSignAttrib->pData;
 
 	//generalise this
-	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.loopAttribs);
+	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.cornerAttribs);
 	pMesh->pUvs = pMesh->pUvAttrib->pData;
-	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.loopAttribs);
+	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.cornerAttribs);
 	pMesh->pNormals = pMesh->pNormalAttrib->pData;
 	pMesh->pVertAttrib = getAttrib("position", &pMesh->mesh.vertAttribs);
 	pMesh->pVerts = pMesh->pVertAttrib->pData;
-	pMesh->loopBufSize = loopBufSize;
+	pMesh->cornerBufSize = cornerBufSize;
 	pMesh->mesh.type.type = RUVM_OBJECT_DATA_MESH_BUF;
 	pMesh->pWScaleAttrib = getAttrib("RuvmWScale", &pMesh->mesh.vertAttribs);
 	if (pMesh->pWScaleAttrib) {
@@ -85,11 +85,11 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 	pVars->rawBufSize = pVars->bufSize;
 	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
 	pVars->bufSize += pVars->bufSize % 2; //ensure it's even, so realloc is easier
-	int32_t loopBufSize = pVars->bufSize * 2;
-	pVars->loopBufSize = loopBufSize;
+	int32_t cornerBufSize = pVars->bufSize * 2;
+	pVars->cornerBufSize = cornerBufSize;
 	pVars->borderTable.pTable =
 		pAlloc->pCalloc(pVars->borderTable.size, sizeof(BorderBucket));
-	allocBufMesh(pVars, loopBufSize);
+	allocBufMesh(pVars, cornerBufSize);
 	//pVars->pInVertTable = pAlloc->pCalloc(pVars->mesh.vertCount, 1);
 	//TODO: maybe reduce further if unifaces if low,
 	//as a larger buf seems more necessary at higher face counts.
@@ -113,7 +113,7 @@ Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
 			RUVM_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
 			V2_F32 fTileMin = {k, j};
 			V2_I32 tile = {k, j};
-			result = ruvmMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
+			result = uvsMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
 			                             fTileMin, tile, *pBaseFace);
 			if (result != RUVM_SUCCESS) {
 				return result;
@@ -127,7 +127,7 @@ static
 void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 	for (int32_t i = 0; i < pLocalTables->vertTableSize; ++i) {
 		LocalVert *pEntry = pLocalTables->pVertTable + i;
-		if (!pEntry->loopSize) {
+		if (!pEntry->cornerSize) {
 			continue;
 		}
 		pEntry = pEntry->pNext;
@@ -139,7 +139,7 @@ void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 	}
 	for (int32_t i = 0; i < pLocalTables->edgeTableSize; ++i) {
 		LocalEdge *pEntry = pLocalTables->pEdgeTable + i;
-		if (!pEntry->loopCount) {
+		if (!pEntry->cornerCount) {
 			continue;
 		}
 		pEntry = pEntry->pNext;
@@ -153,7 +153,7 @@ void destroyMappingTables(RuvmAlloc *pAlloc, LocalTables *pLocalTables) {
 	pAlloc->pFree(pLocalTables->pEdgeTable);
 }
 
-void ruvmMapToJobMesh(void *pVarsPtr) {
+void uvsMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_INIT;
 	Result result = RUVM_NOT_SET;
 	SendOffArgs *pSend = pVarsPtr;
@@ -196,7 +196,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
 		// copy faces over to a new contiguous array
 		//CLOCK_START;
-		//ruvmLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
+		//uvsLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
@@ -204,7 +204,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		baseFace.start = vars.mesh.mesh.pFaces[i];
 		baseFace.end = vars.mesh.mesh.pFaces[i + 1];
 		baseFace.size = baseFace.end - baseFace.start;
-		baseFace.index = i;
+		baseFace.idx = i;
 		vars.tbn = buildFaceTbn(baseFace, &vars.mesh, NULL);
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
@@ -221,8 +221,8 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 			//face is an ngon. ngons are processed per tri
 			for (int32_t j = 0; j < faceTris.triCount; ++j) {
 				int32_t triFaceStart = j * 3;
-				baseFace.start = faceTris.pLoops[triFaceStart];
-				baseFace.end = faceTris.pLoops[triFaceStart + 2];
+				baseFace.start = faceTris.pCorners[triFaceStart];
+				baseFace.end = faceTris.pCorners[triFaceStart + 2];
 				baseFace.size = baseFace.end - baseFace.start;
 				result = mapPerTile(&vars, &baseFace, &faceCellsTable,
 				                    &dpVars, i);
@@ -232,14 +232,14 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 			}
 		}
 		RUVM_ASSERT("", result == RUVM_SUCCESS);
-		if (faceTris.pLoops) {
-			vars.alloc.pFree(faceTris.pLoops);
-			faceTris.pLoops = NULL;
+		if (faceTris.pCorners) {
+			vars.alloc.pFree(faceTris.pCorners);
+			faceTris.pCorners = NULL;
 		}
 		//CLOCK_STOP_NO_PRINT;
 		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		ruvmDestroyFaceCellsEntry(&vars.alloc, i, &faceCellsTable);
+		uvsDestroyFaceCellsEntry(&vars.alloc, i, &faceCellsTable);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		if (result != RUVM_SUCCESS) {
@@ -263,7 +263,7 @@ void ruvmMapToJobMesh(void *pVarsPtr) {
 		pSend->pInFaces = vars.pInFaces;
 	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
-	ruvmDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
+	uvsDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
 	pSend->result = result;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);

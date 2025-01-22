@@ -4,11 +4,11 @@
 #include <QuadTree.h>
 #include <Utils.h>
 
-typedef struct LoopBuf {
+typedef struct CornerBuf {
 	Mat3x3 tbn;
 	V3_F32 uvw;
-	V3_F32 loop;
-	V3_F32 loopFlat;
+	V3_F32 corner;
+	V3_F32 cornerFlat;
 	V3_F32 normal;
 	V3_F32 inTangent;
 	V3_F32 bc; //barycentric coords
@@ -21,34 +21,34 @@ typedef struct LoopBuf {
 	float alpha;
 	float mapAlpha;
 	float inTSign;
-	int8_t triLoops[3];
-	int8_t baseLoop;
-	int8_t ruvmLoop;
+	int8_t triCorners[3];
+	int8_t baseCorner;
+	int8_t uvsCorner;
 	int8_t segment;
 	uint8_t onLine : 1;
-	uint8_t isBaseLoop : 1;
+	uint8_t isBaseCorner : 1;
 	uint8_t preserve : 1;
 	uint8_t isRuvm : 1;
 	bool transformed;
-} LoopBuf;
+} CornerBuf;
 
-typedef struct LoopBufWrap {
-	LoopBuf buf[64];
-	struct LoopBufWrap *pNext;
+typedef struct CornerBufWrap {
+	CornerBuf buf[64];
+	struct CornerBufWrap *pNext;
 	int32_t *pPendingMerge;
 	int32_t mergeCount;
 	int32_t mergeSize;
 	int32_t size;
-	int32_t lastInLoop;
+	int32_t lastInCorner;
 	bool invalid;
 	bool edgeFace;
 	bool onLine;
-} LoopBufWrap;
+} CornerBufWrap;
 
 typedef struct LocalVert {
 	struct LocalVert *pNext;
 	int32_t vert;
-	int32_t loopSize;
+	int32_t cornerSize;
 	int32_t baseFace;
 	int32_t mapVert;
 } LocalVert;
@@ -58,7 +58,7 @@ typedef struct LocalEdge  {
 	int32_t edge;
 	int32_t refFace;
 	int32_t refEdge;
-	int32_t loopCount;
+	int32_t cornerCount;
 } LocalEdge;
 
 typedef struct {
@@ -88,12 +88,12 @@ typedef struct {
 	int32_t bufSize;
 	int32_t rawBufSize;
 	int32_t finalBufSize;
-	int32_t loopBufSize;
+	int32_t cornerBufSize;
 	int32_t inFaceOffset;
 	float wScale;
 } MappingJobVars;
 
-void ruvmMapToJobMesh(void *pArgsPtr);
-Result ruvmMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
+void uvsMapToJobMesh(void *pArgsPtr);
+Result uvsMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
                          DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace);

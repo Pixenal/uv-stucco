@@ -2,11 +2,11 @@
 
 #include <ImageUtils.h>
 
-void setPixelColor(RuvmImage *pImage, int32_t index, Color *pColor) {
+void setPixelColor(RuvmImage *pImage, int32_t idx, Color *pColor) {
 	switch (pImage->type) {
 		case RUVM_IMAGE_UI8: {
 			uint8_t *pPixel =
-				(uint8_t *)((uint8_t (*) [4])pImage->pData + index);
+				(uint8_t *)((uint8_t (*) [4])pImage->pData + idx);
 			pPixel[0] = pColor->d[0] * (float)UINT8_MAX;
 			pPixel[1] = pColor->d[1] * (float)UINT8_MAX;
 			pPixel[2] = pColor->d[2] * (float)UINT8_MAX;
@@ -15,7 +15,7 @@ void setPixelColor(RuvmImage *pImage, int32_t index, Color *pColor) {
 		}
 		case RUVM_IMAGE_UI16: {
 			uint16_t *pPixel =
-				(uint16_t *)((uint16_t (*) [4])pImage->pData + index);
+				(uint16_t *)((uint16_t (*) [4])pImage->pData + idx);
 			pPixel[0] = pColor->d[0] * (float)UINT16_MAX;
 			pPixel[1] = pColor->d[1] * (float)UINT16_MAX;
 			pPixel[2] = pColor->d[2] * (float)UINT16_MAX;
@@ -24,7 +24,7 @@ void setPixelColor(RuvmImage *pImage, int32_t index, Color *pColor) {
 		 }
 		case RUVM_IMAGE_UI32: {
 			uint32_t *pPixel =
-				(uint32_t *)((uint32_t (*) [4])pImage->pData + index);
+				(uint32_t *)((uint32_t (*) [4])pImage->pData + idx);
 			pPixel[0] = pColor->d[0] * (float)UINT32_MAX;
 			pPixel[1] = pColor->d[1] * (float)UINT32_MAX;
 			pPixel[2] = pColor->d[2] * (float)UINT32_MAX;
@@ -32,7 +32,7 @@ void setPixelColor(RuvmImage *pImage, int32_t index, Color *pColor) {
 			return;
 		 }
 		case RUVM_IMAGE_F32: {
-			((Color *)pImage->pData)[index] = *pColor;
+			((Color *)pImage->pData)[idx] = *pColor;
 			return;
 		 }
 	}

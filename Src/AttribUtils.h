@@ -31,10 +31,10 @@ typedef enum {
 
 int32_t getAttribSize(AttribType type);
 RuvmAttrib *getAttrib(char *pName, RuvmAttribArray *pAttribs);
-V3_F32 *attribAsV3(Attrib *pAttrib, int32_t index);
-V2_F32 *attribAsV2(Attrib *pAttrib, int32_t index);
-int32_t *attribAsI32(Attrib *pAttrib, int32_t index);
-void *attribAsVoid(Attrib *pAttrib, int32_t index);
+V3_F32 *attribAsV3(Attrib *pAttrib, int32_t idx);
+V2_F32 *attribAsV2(Attrib *pAttrib, int32_t idx);
+int32_t *attribAsI32(Attrib *pAttrib, int32_t idx);
+void *attribAsVoid(Attrib *pAttrib, int32_t idx);
 int32_t copyAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc, int32_t iSrc);
 void copyAllAttribs(AttribArray *pDest, int32_t iDest,
                     AttribArray *pSrc, int32_t iSrc);
@@ -48,7 +48,7 @@ void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
                           int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
 void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
                   Attrib *pB, int32_t iB, RuvmBlendConfig blendConfig);
-void divideAttribByScalarInt(Attrib *pAttrib, int32_t index, uint64_t scalar);
+void divideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar);
 void allocAttribs(RuvmAlloc *pAlloc, AttribArray *pDest,
                   int32_t srcCount, Mesh **ppSrcArr,
 				  int32_t dataLen, RuvmDomain domain, bool setCommon);

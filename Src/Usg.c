@@ -31,9 +31,9 @@ to find the one with the desired inFace.
 Best case scenario, the usg entry is placed in a bucket with entries of different usg indices, allowing for a quick match and no searching inFace lists).
 
 Now, run the main mapToMesh as usual.
-When projecting from uvw to xyz, check if the ruvm vert is part of a usg.
+When projecting from uvw to xyz, check if the uvs vert is part of a usg.
 If it is, then index the aformentioned table, and use the cached normal for projection.
-Keep in mind you'll also need to handle interpolation of intersection points and base loops.
+Keep in mind you'll also need to handle interpolation of intersection points and base corners.
 */
 
 typedef struct HitEdge {
@@ -57,7 +57,7 @@ static
 bool addToHitEdges(RuvmAlloc *pAlloc, HitEdgeTable *pHitEdges,
                    int32_t *pVerts, int32_t a, int32_t b) {
 	uint32_t sum = b < 0 ? a : a + b;
-	int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pHitEdges->size);
+	int32_t hash = uvsFnvHash((uint8_t *)&sum, 4, pHitEdges->size);
 	HitEdge *pEntry = pHitEdges->pTable + hash;
 	if (!pEntry->valid) {
 		initHitEdgeEntry(pEntry, a, b);
@@ -136,9 +136,9 @@ bool hitTestTri(RuvmAlloc *pAlloc, V3_F32 point, V3_F32 *pTri,
 static
 void getTri(V3_F32 *pTri, int32_t *pVerts, Mesh *pMesh, FaceRange *pFace,
             int32_t a, int32_t b, int32_t c) {
-	pVerts[0] = pMesh->mesh.pLoops[pFace->start + a];
-	pVerts[1] = pMesh->mesh.pLoops[pFace->start + b];
-	pVerts[2] = pMesh->mesh.pLoops[pFace->start + c];
+	pVerts[0] = pMesh->mesh.pCorners[pFace->start + a];
+	pVerts[1] = pMesh->mesh.pCorners[pFace->start + b];
+	pVerts[2] = pMesh->mesh.pCorners[pFace->start + c];
 	pTri[0] = pMesh->pVerts[pVerts[0]];
 	pTri[1] = pMesh->pVerts[pVerts[1]];
 	pTri[2] = pMesh->pVerts[pVerts[2]];
@@ -168,10 +168,10 @@ bool isPointInsideMesh(RuvmAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh) {
 		}
 		else {
 			FaceTriangulated tris = triangulateFace(*pAlloc, face, pMesh->pVerts,
-			                                        pMesh->mesh.pLoops, false);
-			for (int32_t j = 0; j < tris.loopCount; j += 3) {
-				getTri(tri, triVerts, pMesh, &face, tris.pLoops[j],
-				       tris.pLoops[j + 1], tris.pLoops[j + 2]);
+			                                        pMesh->mesh.pCorners, false);
+			for (int32_t j = 0; j < tris.cornerCount; j += 3) {
+				getTri(tri, triVerts, pMesh, &face, tris.pCorners[j],
+				       tris.pCorners[j + 1], tris.pCorners[j + 2]);
 				wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 			}
 		}
@@ -205,20 +205,20 @@ void getUsgBoundsSquare(Mesh *pMesh, Mesh *pSrcMesh) {
 		{min.d[0], max.d[1]}
 	};
 	RuvmMesh *pCore = &pMesh->mesh;
-	pCore->pFaces[pCore->faceCount] = pCore->loopCount;
+	pCore->pFaces[pCore->faceCount] = pCore->cornerCount;
 	for (int32_t i = 0; i < 4; ++i) {
-		pCore->pLoops[pCore->loopCount] = pCore->vertCount;
-		pCore->pEdges[pCore->loopCount] = pCore->edgeCount;
+		pCore->pCorners[pCore->cornerCount] = pCore->vertCount;
+		pCore->pEdges[pCore->cornerCount] = pCore->edgeCount;
 		pMesh->pVerts[pCore->vertCount] = uvs[i];
 		//can probably delete the uvs once the groups are set,
 		//they're only used for that
-		pMesh->pUvs[pCore->loopCount] = *(V2_F32 *)&uvs[i];
-		pCore->loopCount++;
+		pMesh->pUvs[pCore->cornerCount] = *(V2_F32 *)&uvs[i];
+		pCore->cornerCount++;
 		pCore->edgeCount++;
 		pCore->vertCount++;
 	}
 	pCore->faceCount++;
-	pCore->pFaces[pCore->faceCount] = pCore->loopCount;
+	pCore->pFaces[pCore->faceCount] = pCore->cornerCount;
 }
 
 RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
@@ -227,11 +227,11 @@ RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
 	pCore->type.type = RUVM_OBJECT_DATA_MESH_INTERN;
 	int32_t usgCount = pMap->usgArr.count;
 	pMesh->faceBufSize = usgCount + 1;
-	pMesh->loopBufSize = usgCount * 4;
-	pMesh->edgeBufSize = pMesh->loopBufSize;
-	pMesh->vertBufSize = pMesh->loopBufSize;
+	pMesh->cornerBufSize = usgCount * 4;
+	pMesh->edgeBufSize = pMesh->cornerBufSize;
+	pMesh->vertBufSize = pMesh->cornerBufSize;
 	pCore->pFaces = pAlloc->pCalloc(pMesh->faceBufSize, sizeof(int32_t));
-	pCore->pLoops = pAlloc->pCalloc(pMesh->loopBufSize * 4, sizeof(int32_t));
+	pCore->pCorners = pAlloc->pCalloc(pMesh->cornerBufSize * 4, sizeof(int32_t));
 	pCore->pEdges = pAlloc->pCalloc(pMesh->edgeBufSize * 4, sizeof(int32_t));
 	pCore->vertAttribs.pArr = pAlloc->pCalloc(1, sizeof(RuvmAttrib));
 	char posName[RUVM_ATTRIB_NAME_MAX_LEN] = "position";
@@ -239,16 +239,16 @@ RuvmResult allocUsgSquaresMesh(RuvmAlloc *pAlloc, RuvmMap pMap) {
 	initAttrib(pAlloc, pPosAttrib, posName, pMesh->vertBufSize, true,
 		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V3_F32);
 	pCore->vertAttribs.count = 1;
-	pCore->loopAttribs.pArr = pAlloc->pCalloc(2, sizeof(RuvmAttrib));
+	pCore->cornerAttribs.pArr = pAlloc->pCalloc(2, sizeof(RuvmAttrib));
 	char uvName[RUVM_ATTRIB_NAME_MAX_LEN] = "UVMap";
-	Attrib *pUvAttrib = pCore->loopAttribs.pArr;
-	initAttrib(pAlloc, pUvAttrib, uvName, pMesh->loopBufSize, true,
+	Attrib *pUvAttrib = pCore->cornerAttribs.pArr;
+	initAttrib(pAlloc, pUvAttrib, uvName, pMesh->cornerBufSize, true,
 		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V2_F32);
 	char normalName[RUVM_ATTRIB_NAME_MAX_LEN] = "normal";
-	Attrib *pNormalAttrib = pCore->loopAttribs.pArr + 1;
-	initAttrib(pAlloc, pNormalAttrib, normalName, pMesh->loopBufSize, true,
+	Attrib *pNormalAttrib = pCore->cornerAttribs.pArr + 1;
+	initAttrib(pAlloc, pNormalAttrib, normalName, pMesh->cornerBufSize, true,
 		RUVM_ATTRIB_ORIGIN_MAP, RUVM_ATTRIB_V3_F32);
-	pCore->loopAttribs.count = 2;
+	pCore->cornerAttribs.count = 2;
 	setSpecialAttribs(pMesh, 0xe); // 1110 - set pos uvs and normals
 	return RUVM_SUCCESS;
 }
@@ -275,9 +275,9 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 		for (int32_t j = 0; j < faceCellsTable.pFaceCells[i].cellSize; ++j) {
 			//put this cell stuff into a generic function
 			// v v v
-			int32_t cellIndex = faceCellsTable.pFaceCells[i].pCells[j];
-			Cell *pCell = pMap->quadTree.cellTable.pArr + cellIndex;
-			RUVM_ASSERT("", pCell->localIndex >= 0 && pCell->localIndex < 4);
+			int32_t cellIdx = faceCellsTable.pFaceCells[i].pCells[j];
+			Cell *pCell = pMap->quadTree.cellTable.pArr + cellIdx;
+			RUVM_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
 			RUVM_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 			int32_t *pCellFaces;
 			Range range = {0};
@@ -296,38 +296,38 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 			// ^ ^ ^
 
 			for (int32_t k = range.start; k < range.end; ++k) {
-				FaceRange ruvmFace = getFaceRange(&pMap->mesh.mesh, pCellFaces[k], false);
-				//the uv of loops 0 and 2 can be treated and min and max for the bounding square
+				FaceRange uvsFace = getFaceRange(&pMap->mesh.mesh, pCellFaces[k], false);
+				//the uv of corners 0 and 2 can be treated and min and max for the bounding square
 				V2_F32 min = pSquares->pUvs[squaresFace.start];
 				V2_F32 max = pSquares->pUvs[squaresFace.start + 2];
-				if (!checkFaceIsInBounds(min, max, ruvmFace, &pMap->mesh)) {
+				if (!checkFaceIsInBounds(min, max, uvsFace, &pMap->mesh)) {
 					continue;
 				}
-				for (int32_t l = 0; l < ruvmFace.size; ++l) {
-					int32_t vertIndex = pMap->mesh.mesh.pLoops[ruvmFace.start + l];
-					V3_F32 vert = pMap->mesh.pVerts[vertIndex];
+				for (int32_t l = 0; l < uvsFace.size; ++l) {
+					int32_t vertIdx = pMap->mesh.mesh.pCorners[uvsFace.start + l];
+					V3_F32 vert = pMap->mesh.pVerts[vertIdx];
 					if (isPointInsideMesh(pAlloc, vert, pMesh)) {
-						pMap->mesh.pUsg[vertIndex] = i + 1;
+						pMap->mesh.pUsg[vertIdx] = i + 1;
 						if (pFlatCutoff &&
 						    isPointInsideMesh(pAlloc, vert, pFlatCutoff)) {
 
 							//negative indicates the vert is above the cutoff
-							pMap->mesh.pUsg[vertIndex] *= -1;
+							pMap->mesh.pUsg[vertIdx] *= -1;
 						}
 					}
 				}
 			}
 		}
-		ruvmDestroyFaceCellsEntry(pAlloc, i, &faceCellsTable);
+		uvsDestroyFaceCellsEntry(pAlloc, i, &faceCellsTable);
 	}
-	ruvmDestroyFaceCellsTable(pAlloc, &faceCellsTable);
+	uvsDestroyFaceCellsTable(pAlloc, &faceCellsTable);
 	return RUVM_SUCCESS;
 }
 
 static
 RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTable,
                                  int32_t i, V3_F32 *pClosestBc, FaceRange *pClosestFace,
-                                 int8_t *pClosestFaceLoops, float *pClosestDist) {
+                                 int8_t *pClosestFaceCorners, float *pClosestDist) {
 	for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
 		FaceRange inFace =
 			getFaceRange(&pInMesh->mesh, pInFaceTable[i].pArr[j], false);
@@ -339,7 +339,7 @@ RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 			for (int32_t m = minTile.d[0]; m <= maxTile.d[0]; ++m) {
 				V2_I32 tileMin = {m, l};
 				V2_F32 fTileMin = {(float)m, (float)l};
-				int8_t triLoops[4] = {0};
+				int8_t triCorners[4] = {0};
 				V2_F32 triUvs[4] = {0};
 				for (int32_t k = 0; k < inFace.size; ++k) {
 					triUvs[k] = pInMesh->pUvs[inFace.start + k];
@@ -357,7 +357,7 @@ RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 					_(triUvs + k V2SUBEQL fTileMin);
 				}
 				V3_F32 bc = getBarycentricInFace(triUvs,
-													triLoops, inFace.size, pUsg->origin);
+													triCorners, inFace.size, pUsg->origin);
 				int32_t inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
 				bool close = false;
 				float dist = .0f;
@@ -393,9 +393,9 @@ RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 				if (inside || close) {
 					*pClosestBc = bc;
 					*pClosestFace = inFace;
-					pClosestFaceLoops[0] = triLoops[0];
-					pClosestFaceLoops[1] = triLoops[1];
-					pClosestFaceLoops[2] = triLoops[2];
+					pClosestFaceCorners[0] = triCorners[0];
+					pClosestFaceCorners[1] = triCorners[1];
+					pClosestFaceCorners[2] = triCorners[2];
 					if (inside) {
 						return RUVM_SUCCESS;
 					}
@@ -404,7 +404,7 @@ RuvmResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 			}
 		}
 	}
-	RUVM_ASSERT("", pClosestFace->index >= 0);
+	RUVM_ASSERT("", pClosestFace->idx >= 0);
 	return RUVM_SUCCESS;
 }
 
@@ -413,27 +413,27 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 	for (int32_t i = 0; i < pSquares->faceCount; ++i) {
 		Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
 		V3_F32 closestBc = {FLT_MAX, FLT_MAX, FLT_MAX};
-		FaceRange closestFace = {.index = -1};
-		int8_t closestFaceLoops[3] = {0};
+		FaceRange closestFace = {.idx = -1};
+		int8_t closestFaceCorners[3] = {0};
 		float closestDist = FLT_MAX;
 		RuvmResult result = RUVM_NOT_SET;
 		result = getClosestTriToOrigin(pUsg, pInMesh, pInFaceTable, i, &closestBc,
-		                               &closestFace, &closestFaceLoops, &closestDist);
+		                               &closestFace, &closestFaceCorners, &closestDist);
 		if (result != RUVM_SUCCESS) {
 			return result;
 		}
-		pInFaceTable[i].tri[0] = closestFace.start + closestFaceLoops[0];
-		pInFaceTable[i].tri[1] = closestFace.start + closestFaceLoops[1];
-		pInFaceTable[i].tri[2] = closestFace.start + closestFaceLoops[2];
+		pInFaceTable[i].tri[0] = closestFace.start + closestFaceCorners[0];
+		pInFaceTable[i].tri[1] = closestFace.start + closestFaceCorners[1];
+		pInFaceTable[i].tri[2] = closestFace.start + closestFaceCorners[2];
 		pInFaceTable[i].tbn = getInterpolatedTbn(pInMesh, &closestFace,
-		                                         closestFaceLoops, closestBc);
+		                                         closestFaceCorners, closestBc);
 		pInFaceTable[i].normal = *(V3_F32 *)&pInFaceTable[i].tbn.d[2];
 		//add offset if current position will cause intersections with surface
 		FaceRange face = getFaceRange(pSquares, i, false);
 		int32_t triVerts[3] = {
-			pInMesh->mesh.pLoops[pInFaceTable[i].tri[0]],
-			pInMesh->mesh.pLoops[pInFaceTable[i].tri[1]],
-			pInMesh->mesh.pLoops[pInFaceTable[i].tri[2]]
+			pInMesh->mesh.pCorners[pInFaceTable[i].tri[0]],
+			pInMesh->mesh.pCorners[pInFaceTable[i].tri[1]],
+			pInMesh->mesh.pCorners[pInFaceTable[i].tri[2]]
 		};
 		V3_F32 tri[3] = {
 			pInMesh->pVerts[triVerts[0]],
@@ -448,7 +448,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		RUVM_ASSERT("", face.start >= 0 && face.size >= 3);
 		float tMax = -FLT_MAX;
 		for (int32_t j = 0; j < face.size; ++j) {
-			int32_t vert = pSquares->pLoops[face.start + j];
+			int32_t vert = pSquares->pCorners[face.start + j];
 			V3_F32 ac = _(squaresWrap.pVerts[vert] V3SUB a);
 			float t = _(ab V3DOT ac);
 			if (t > tMax) {
@@ -468,7 +468,7 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 		                  pInFaceTable[i].tri[2],
 		                  closestBc);
 		*/
-		//pInFaceTable[i].tbn = buildFaceTbn(closestFace, &meshInWrap, closestFaceLoops);
+		//pInFaceTable[i].tbn = buildFaceTbn(closestFace, &meshInWrap, closestFaceCorners);
 		
 		//TODO support usg for more than just normal maps,
 		//     add a ui to select which attribs should be uniform.
@@ -478,18 +478,18 @@ RuvmResult sampleInAttribsAtUsgOrigins(RuvmMap pMap, Mesh *pInMesh,
 	return RUVM_SUCCESS;
 }
 
-bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
-               V3_F32 *pUsgBc, FaceRange ruvmFace, RuvmMap pMap, int32_t inFace,
+bool sampleUsg(int32_t uvsCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
+               V3_F32 *pUsgBc, FaceRange uvsFace, RuvmMap pMap, int32_t inFace,
                Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin,
                bool useFlatCutoff, bool flatCutoffOveride, Mat3x3 *pTbn) {
 	Mesh *pMapMesh = &pMap->mesh;
-	int32_t mapLoop = pMapMesh->mesh.pLoops[ruvmFace.start + ruvmLoop];
-	int32_t usg = pMapMesh->pUsg[mapLoop];
+	int32_t mapCorner = pMapMesh->mesh.pCorners[uvsFace.start + uvsCorner];
+	int32_t usg = pMapMesh->pUsg[mapCorner];
 	if (usg) {
 		bool flatCutoff = flatCutoffOveride ? useFlatCutoff : usg < 0;
 		usg = abs(usg) - 1;
 		uint32_t sum = usg + inFace;
-		int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
+		int32_t hash = uvsFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
 		UsgInFace* pEntry = pMap->usgArr.pInFaceTable + hash;
 		do {
 			if (pEntry->face == inFace && pEntry->pEntry && pEntry->pEntry->usg == usg) {
@@ -504,9 +504,9 @@ bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
 							pInMesh->pUvs[pEntry->pEntry->tri[1]],
 							pInMesh->pUvs[pEntry->pEntry->tri[2]]},
-					.xyz = {pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[0]]],
-							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[1]]],
-							pInMesh->pVerts[pInMesh->mesh.pLoops[pEntry->pEntry->tri[2]]]}
+					.xyz = {pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[0]]],
+							pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[1]]],
+							pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[2]]]}
 				};
 				_(&usgTri.uv[0] V2SUBEQL tileMin);
 				_(&usgTri.uv[1] V2SUBEQL tileMin);
@@ -520,11 +520,11 @@ bool sampleUsg(int32_t ruvmLoop, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 				*pTbn = pEntry->pEntry->tbn;
 				*pTransformed = true;
 			}
-			//V3_F32 mapRealNormal = getLoopRealNormal(pMapMesh, &ruvmFace, ruvmLoop);
+			//V3_F32 mapRealNormal = getCornerRealNormal(pMapMesh, &uvsFace, uvsCorner);
 			//V3_F32 up = { .0f, .0f, 1.0f };
 			//float upMask = abs(_(mapRealNormal V3DOT up));
-			//pLoop->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
-			//pLoop->projNormalMasked = pEntry->pEntry->normal;
+			//pCorner->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
+			//pCorner->projNormalMasked = pEntry->pEntry->normal;
 			*pNormal = pEntry->pEntry->normal;
 			return true;
 		}

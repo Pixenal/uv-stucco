@@ -18,7 +18,7 @@
 #include <Error.h>
 
 // TODO
-// - Reduce the bits written to the UVGP file for vert and loop indices, based on the total amount, in order to save space.
+// - Reduce the bits written to the UVGP file for vert and corner indices, based on the total amount, in order to save space.
 //   No point storing them as 32 bit if there's only like 4,000 verts
 // - Split compressed data into chunks maybe?
 // - Split whole quadtree into chunks?
@@ -32,12 +32,12 @@
 //TODO a highly distorted meshIn can cause invalid geometry
 //(enough to crash blender). When meshIn is quads atleast
 //(I've not tested with tris). Find out why
-//TODO ruvmPreserve isn't working.
+//TODO uvsPreserve isn't working.
 //TODO add option to vary z projection depth with uv stretch (for wires and such)
-//Add option to mask ruvmpreserve by map edges. Where masking is defined
+//Add option to mask uvspreserve by map edges. Where masking is defined
 //per edge, not per face. An preserve meshin edge must pass through 2 map
 //edges which are marked preserve, for the edge to cut that map face.
-//This will cause there to be gaps in the loop, in cases of diagional meshin
+//This will cause there to be gaps in the corner, in cases of diagional meshin
 //preserve edges. Just triangulate these faces, or leave as an ngon?
 //TODO Add an option for subdivision like smoothing (for instances where
 //the map is higher res than the base mesh). So that the surface can be
@@ -49,7 +49,7 @@
 //TODO add the ability to open map files in dcc, to make edits to mesh, USGs etc
 
 static
-void ruvmSetTypeDefaultConfig(RuvmContext pContext) {
+void uvsSetTypeDefaultConfig(RuvmContext pContext) {
 	RuvmTypeDefaultConfig config = {0};
 	pContext->typeDefaults = config;
 }
@@ -62,30 +62,30 @@ void setDefaultStageReport(RuvmContext pContext) {
 	pContext->stageReport.pEnd = stageEnd;
 }
 
-RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
+RuvmResult uvsContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                            RuvmThreadPool *pThreadPool, RuvmIo *pIo,
 					       RuvmTypeDefaultConfig *pTypeDefaultConfig,
                            RuvmStageReport *pStageReport) {
 	RuvmAlloc alloc;
 	if (pAlloc) {
-		ruvmAllocSetCustom(&alloc, pAlloc);
+		uvsAllocSetCustom(&alloc, pAlloc);
 	}
 	else {
-		ruvmAllocSetDefault(&alloc);
+		uvsAllocSetDefault(&alloc);
 	}
 	*pContext = alloc.pCalloc(1, sizeof(RuvmContextInternal));
 	(*pContext)->alloc = alloc;
 	if (pThreadPool) {
-		ruvmThreadPoolSetCustom(*pContext, pThreadPool);
+		uvsThreadPoolSetCustom(*pContext, pThreadPool);
 	}
 	else {
-		ruvmThreadPoolSetDefault(*pContext);
+		uvsThreadPoolSetDefault(*pContext);
 	}
 	if (pIo) {
-		ruvmIoSetCustom(*pContext, pIo);
+		uvsIoSetCustom(*pContext, pIo);
 	}
 	else {
-		ruvmIoSetDefault(*pContext);
+		uvsIoSetDefault(*pContext);
 	}
 	(*pContext)->threadPool.pInit(&(*pContext)->pThreadPoolHandle,
 	                              &(*pContext)->threadCount,
@@ -94,7 +94,7 @@ RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
 		(*pContext)->typeDefaults = *pTypeDefaultConfig;
 	}
 	else {
-		ruvmSetTypeDefaultConfig(*pContext);
+		uvsSetTypeDefaultConfig(*pContext);
 	}
 	if (pStageReport) {
 		(*pContext)->stageReport = *pStageReport;
@@ -105,31 +105,31 @@ RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmContextDestroy(RuvmContext pContext) {
+RuvmResult uvsContextDestroy(RuvmContext pContext) {
 	pContext->threadPool.pDestroy(pContext->pThreadPoolHandle);
 	pContext->alloc.pFree(pContext);
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmMapFileExport(RuvmContext pContext, const char *pName,
+RuvmResult uvsMapFileExport(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject* pObjArr,
                              int32_t usgCount, RuvmUsg* pUsgArr,
                              RuvmAttribIndexedArr indexedAttribs) {
-	return ruvmWriteRuvmFile(pContext, pName, objCount, pObjArr,
+	return uvsWriteRuvmFile(pContext, pName, objCount, pObjArr,
 	                         usgCount, pUsgArr, indexedAttribs);
 }
 
 //TODO replace these with RuvmUsg and RuvmObj arr structs, that combine arr and count
-RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
+RuvmResult uvsMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
                                   int32_t *pUsgCount, RuvmUsg **ppUsgArr,
                                   int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
                                   RuvmAttribIndexedArr *pIndexedAttribs) {
-	return ruvmLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
+	return uvsLoadRuvmFile(pContext, filePath, pObjCount, ppObjArr, pUsgCount,
 	                        ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr, true, pIndexedAttribs);
 }
 
-RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
+RuvmResult uvsMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
                            char *filePath) {
 	RuvmResult status = RUVM_NOT_SET;
 	RuvmMap pMap = pContext->alloc.pCalloc(1, sizeof(MapFile));
@@ -138,7 +138,7 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	RuvmUsg *pUsgArr = NULL;
 	int32_t flatCutoffCount = 0;
 	RuvmObject *pFlatCutoffArr = NULL;
-	status = ruvmLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
+	status = uvsLoadRuvmFile(pContext, filePath, &objCount, &pObjArr,
 	                          &pMap->usgArr.count, &pUsgArr, &flatCutoffCount,
 	                          &pFlatCutoffArr, false, &pMap->indexedAttribs);
 	if (status != RUVM_SUCCESS) {
@@ -153,7 +153,7 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	mergeObjArr(pContext, &pMap->mesh, objCount, pObjArr, false);
 	setSpecialAttribs(&pMap->mesh, 0xae);
 	//TODO some form of heap corruption when many objects
-	//test with address sanitizer on CircuitPieces.ruvm
+	//test with address sanitizer on CircuitPieces.uvs
 	destroyObjArr(pContext, objCount, pObjArr);
 
 	if (pMap->mesh.pUvAttrib) {
@@ -165,16 +165,16 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 		}
 	}
 
-	//set loop attribs to interpolate by default
+	//set corner attribs to interpolate by default
 	//TODO make this an option in ui, even for non common attribs
-	for (int32_t i = 0; i < pMap->mesh.mesh.loopAttribs.count; ++i) {
-		pMap->mesh.mesh.loopAttribs.pArr[i].interpolate = true;
+	for (int32_t i = 0; i < pMap->mesh.mesh.cornerAttribs.count; ++i) {
+		pMap->mesh.mesh.cornerAttribs.pArr[i].interpolate = true;
 	}
 
 	//the quadtree is created before USGs are assigned to verts,
 	//as the tree's used to speed up the process
 	printf("File loaded. Creating quad tree\n");
-	ruvmCreateQuadTree(pContext, pMap);
+	uvsCreateQuadTree(pContext, pMap);
 
 	if (pMap->usgArr.count) {
 		pMap->usgArr.pArr = pContext->alloc.pCalloc(pMap->usgArr.count, sizeof(Usg));
@@ -201,9 +201,9 @@ RuvmResult ruvmMapFileLoad(RuvmContext pContext, RuvmMap *pMapHandle,
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
-	ruvmDestroyQuadTree(pContext, &pMap->quadTree);
-	ruvmMeshDestroy(pContext, &pMap->mesh.mesh);
+RuvmResult uvsMapFileUnload(RuvmContext pContext, RuvmMap pMap) {
+	uvsDestroyQuadTree(pContext, &pMap->quadTree);
+	uvsMeshDestroy(pContext, &pMap->mesh.mesh);
 	pContext->alloc.pFree(pMap);
 	return RUVM_SUCCESS;
 }
@@ -254,14 +254,14 @@ void getCommonAttribs(RuvmContext pContext, AttribArray *pMapAttribs,
 
 //TODO handle edge case, where attribute share the same name,
 //but have incompatible types. Such as a float and a string.
-RuvmResult ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
+RuvmResult uvsQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
                             RuvmCommonAttribList *pCommonAttribs) {
 	getCommonAttribs(pContext, &pMap->mesh.mesh.meshAttribs, &pMesh->meshAttribs,
 					 &pCommonAttribs->meshCount, &pCommonAttribs->pMesh);
 	getCommonAttribs(pContext, &pMap->mesh.mesh.faceAttribs, &pMesh->faceAttribs,
 					 &pCommonAttribs->faceCount, &pCommonAttribs->pFace);
-	getCommonAttribs(pContext, &pMap->mesh.mesh.loopAttribs, &pMesh->loopAttribs,
-					 &pCommonAttribs->loopCount, &pCommonAttribs->pLoop);
+	getCommonAttribs(pContext, &pMap->mesh.mesh.cornerAttribs, &pMesh->cornerAttribs,
+					 &pCommonAttribs->cornerCount, &pCommonAttribs->pCorner);
 	getCommonAttribs(pContext, &pMap->mesh.mesh.edgeAttribs, &pMesh->edgeAttribs,
 	                 &pCommonAttribs->edgeCount, &pCommonAttribs->pEdge);
 	getCommonAttribs(pContext, &pMap->mesh.mesh.vertAttribs, &pMesh->vertAttribs,
@@ -269,7 +269,7 @@ RuvmResult ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmDestroyCommonAttribs(RuvmContext pContext,
+RuvmResult uvsDestroyCommonAttribs(RuvmContext pContext,
                               RuvmCommonAttribList *pCommonAttribs) {
 	if (pCommonAttribs->pMesh) {
 		pContext->alloc.pFree(pCommonAttribs->pMesh);
@@ -277,8 +277,8 @@ RuvmResult ruvmDestroyCommonAttribs(RuvmContext pContext,
 	if (pCommonAttribs->pFace) {
 		pContext->alloc.pFree(pCommonAttribs->pFace);
 	}
-	if (pCommonAttribs->pLoop) {
-		pContext->alloc.pFree(pCommonAttribs->pLoop);
+	if (pCommonAttribs->pCorner) {
+		pContext->alloc.pFree(pCommonAttribs->pCorner);
 	}
 	if (pCommonAttribs->pEdge) {
 		pContext->alloc.pFree(pCommonAttribs->pEdge);
@@ -327,7 +327,7 @@ void sendOffJobs(RuvmContext pContext, RuvmMap pMap, SendOffArgs *pJobArgs,
 	}
 	*pMapJobsSent = *pActiveJobs;
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
-	                                       *pActiveJobs, ruvmMapToJobMesh, jobArgPtrs);
+	                                       *pActiveJobs, uvsMapToJobMesh, jobArgPtrs);
 	//CLOCK_STOP("send off jobs");
 }
 
@@ -336,7 +336,7 @@ void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts,
                          RuvmMesh *pMesh) {
 	*ppEdgeVerts = pContext->alloc.pMalloc(sizeof(EdgeVerts) * pMesh->edgeCount);
 	memset(*ppEdgeVerts, -1, sizeof(EdgeVerts) * pMesh->edgeCount);
-	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
+	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
 		int32_t edge = pMesh->pEdges[i];
 		int32_t whichVert = (*ppEdgeVerts)[edge].verts[0] >= 0;
 		(*ppEdgeVerts)[edge].verts[whichVert] = i;
@@ -345,16 +345,16 @@ void buildEdgeVertsTable(RuvmContext pContext, EdgeVerts **ppEdgeVerts,
 
 typedef struct {
 	int32_t d[2];
-	int32_t index;
+	int32_t idx;
 } EdgeCache;
 
 static
-void addVertToTableEntry(Mesh *pMesh, FaceRange face, int32_t localLoop,
+void addVertToTableEntry(Mesh *pMesh, FaceRange face, int32_t localCorner,
                          int32_t vert, int32_t edge, EdgeVerts *pEdgeVerts,
 						 int8_t *pVertSeamTable, int8_t *pInVertTable,
 						 EdgeCache *pEdgeCache, bool *pEdgeSeamTable) {
 	//isSeam returns 2 if mesh border, and 1 if uv seam
-	int32_t isSeam = checkIfEdgeIsSeam(edge, face, localLoop, pMesh,
+	int32_t isSeam = checkIfEdgeIsSeam(edge, face, localCorner, pMesh,
 									   pEdgeVerts);
 	if (isSeam) {
 		pVertSeamTable[vert] = isSeam;
@@ -365,9 +365,9 @@ void addVertToTableEntry(Mesh *pMesh, FaceRange face, int32_t localLoop,
 		pEdgeCache[vert].d[0] != edge + 1 &&
 		pEdgeCache[vert].d[1] != edge + 1) {
 		pInVertTable[vert]++;
-		int32_t *pEdgeCacheIndex = &pEdgeCache[vert].index;
-		pEdgeCache[vert].d[*pEdgeCacheIndex] = edge + 1;
-		++*pEdgeCacheIndex;
+		int32_t *pEdgeCacheIdx = &pEdgeCache[vert].idx;
+		pEdgeCache[vert].d[*pEdgeCacheIdx] = edge + 1;
+		++*pEdgeCacheIdx;
 	}
 }
 
@@ -388,11 +388,11 @@ void buildVertTables(RuvmContext pContext, Mesh *pMesh,
 		face.start = pMesh->mesh.pFaces[i];
 		face.end = pMesh->mesh.pFaces[i + 1];
 		face.size = face.end - face.start;
-		face.index = i;
+		face.idx = i;
 		for (int32_t j = 0; j < face.size; ++j) {
-			int32_t loop = face.start + j;
-			int32_t vert = pMesh->mesh.pLoops[loop];
-			int32_t edge = pMesh->mesh.pEdges[loop];
+			int32_t corner = face.start + j;
+			int32_t vert = pMesh->mesh.pCorners[corner];
+			int32_t edge = pMesh->mesh.pEdges[corner];
 			addVertToTableEntry(pMesh, face, j, vert, edge, pEdgeVerts,
 			                    *ppVertSeamTable, *ppInVertTable, pEdgeCache,
 			                    *ppEdgeSeamTable);
@@ -466,7 +466,7 @@ Result mapToMeshInternal(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshIn,
 
 	CLOCK_START;
 	Mesh meshOutWrap = {0};
-	ruvmCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
+	uvsCombineJobMeshes(pContext, pMap, &meshOutWrap, jobArgs, pEdgeVerts,
 	                     pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale,
 	                     pMeshIn, mapJobsSent);
 	CLOCK_STOP("Combine time");
@@ -490,7 +490,7 @@ void InFaceTableToHashTable(RuvmAlloc *pAlloc,
 	for (int32_t i = 0; i < count; ++i) {
 		for (int32_t j = 0; j < pInFaceTable[i].count; ++j) {
 			uint32_t sum = pInFaceTable[i].usg + pInFaceTable[i].pArr[j];
-			int32_t hash = ruvmFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
+			int32_t hash = uvsFnvHash((uint8_t *)&sum, 4, pMap->usgArr.tableSize);
 			UsgInFace *pEntry = *ppHashTable + hash;
 			if (!pEntry->pEntry) {
 				pEntry->pEntry = pInFaceTable + i;
@@ -510,7 +510,7 @@ void InFaceTableToHashTable(RuvmAlloc *pAlloc,
 	}
 }
 
-Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+Result uvsMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                      RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList,
                      float wScale) {
 	if (!pMeshIn) {
@@ -531,7 +531,7 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	//it doesn't matter what it's set to here
 	setAttribOrigins(&meshInWrap.mesh.meshAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
 	setAttribOrigins(&meshInWrap.mesh.faceAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
-	setAttribOrigins(&meshInWrap.mesh.loopAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
+	setAttribOrigins(&meshInWrap.mesh.cornerAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
 	setAttribOrigins(&meshInWrap.mesh.edgeAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
 	setAttribOrigins(&meshInWrap.mesh.vertAttribs, RUVM_ATTRIB_ORIGIN_MESH_IN);
 
@@ -544,14 +544,14 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	InFaceArr *pInFaceTable = NULL;
 	if (pMap->usgArr.count) {
 		MapFile squares = { .mesh = pMap->usgArr.squares };
-		ruvmCreateQuadTree(pContext, &squares);
+		uvsCreateQuadTree(pContext, &squares);
 		RuvmMesh squaresOut = {0};
 		mapToMeshInternal(pContext, &squares, &meshInWrap, &squaresOut, pCommonAttribList, &pInFaceTable, 1.0f);
 		sampleInAttribsAtUsgOrigins(pMap, &meshInWrap, &squaresOut, pInFaceTable);
 		InFaceTableToHashTable(&pContext->alloc, pMap, squaresOut.faceCount, pInFaceTable);
 		//*pMeshOut = squaresOut;
 		//return RUVM_SUCCESS;
-		ruvmMeshDestroy(pContext, &squaresOut);
+		uvsMeshDestroy(pContext, &squaresOut);
 	}
 	setSpecialAttribs(&meshInWrap, 0x50); //set perserve if present
 
@@ -566,21 +566,21 @@ Result ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
 	}
 }
 
-RuvmResult ruvmObjArrDestroy(RuvmContext pContext,
+RuvmResult uvsObjArrDestroy(RuvmContext pContext,
                              int32_t objCount, RuvmObject *pObjArr) {
 	destroyObjArr(pContext, objCount, pObjArr);
 }
 
-RuvmResult ruvmUsgArrDestroy(RuvmContext pContext,
+RuvmResult uvsUsgArrDestroy(RuvmContext pContext,
                                     int32_t count, RuvmUsg *pUsgArr) {
 	for (int32_t i = 0; i < count; ++i) {
-		ruvmMeshDestroy(pContext, pUsgArr[i].obj.pData);
+		uvsMeshDestroy(pContext, pUsgArr[i].obj.pData);
 	}
 	pContext->alloc.pFree(pUsgArr);
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
+RuvmResult uvsMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
 	for (int32_t i = 0; i < pMesh->meshAttribs.count; ++i) {
 		if (pMesh->meshAttribs.pArr[i].pData) {
 			pContext->alloc.pFree(pMesh->meshAttribs.pArr[i].pData);
@@ -600,16 +600,16 @@ RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
 	if (pMesh->faceAttribs.count && pMesh->faceAttribs.pArr) {
 		pContext->alloc.pFree(pMesh->faceAttribs.pArr);
 	}
-	if (pMesh->pLoops) {
-		pContext->alloc.pFree(pMesh->pLoops);
+	if (pMesh->pCorners) {
+		pContext->alloc.pFree(pMesh->pCorners);
 	}
-	for (int32_t i = 0; i < pMesh->loopAttribs.count; ++i) {
-		if (pMesh->loopAttribs.pArr[i].pData) {
-			pContext->alloc.pFree(pMesh->loopAttribs.pArr[i].pData);
+	for (int32_t i = 0; i < pMesh->cornerAttribs.count; ++i) {
+		if (pMesh->cornerAttribs.pArr[i].pData) {
+			pContext->alloc.pFree(pMesh->cornerAttribs.pArr[i].pData);
 		}
 	}
-	if (pMesh->loopAttribs.count && pMesh->loopAttribs.pArr) {
-		pContext->alloc.pFree(pMesh->loopAttribs.pArr);
+	if (pMesh->cornerAttribs.count && pMesh->cornerAttribs.pArr) {
+		pContext->alloc.pFree(pMesh->cornerAttribs.pArr);
 	}
 	if (pMesh->pEdges) {
 		pContext->alloc.pFree(pMesh->pEdges);
@@ -633,12 +633,12 @@ RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh) {
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
+RuvmResult uvsGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize) {
 	*pSize = getAttribSize(pAttrib->type);
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmGetAttrib(char *pName, AttribArray *pAttribs, Attrib **ppAttrib) {
+RuvmResult uvsGetAttrib(char *pName, AttribArray *pAttribs, Attrib **ppAttrib) {
 	*ppAttrib = getAttrib(pName, pAttribs);
 	return RUVM_SUCCESS;
 }
@@ -659,18 +659,18 @@ static void testPixelAgainstFace(RenderArgs *pVars, V2_F32 *pPos, FaceRange *pFa
 	Mesh* pMesh = &pVars->pMap->mesh;
 	V2_F32 verts[4];
 	for (int32_t i = 0; i < pFace->size; ++i) {
-		verts[i] = *(V2_F32 *)(pMesh->pVerts + pMesh->mesh.pLoops[pFace->start + i]);
+		verts[i] = *(V2_F32 *)(pMesh->pVerts + pMesh->mesh.pCorners[pFace->start + i]);
 	}
-	int8_t triLoops[4] = {0};
-	V3_F32 bc = getBarycentricInFace(verts, triLoops, pFace->size, *pPos);
+	int8_t triCorners[4] = {0};
+	V3_F32 bc = getBarycentricInFace(verts, triCorners, pFace->size, *pPos);
 	if (bc.d[0] < -.0001f || bc.d[1] < -.0001f || bc.d[2] < -.0001f ||
 		!v3IsFinite(bc)) {
 		return;
 	}
 	V3_F32 vertsXyz[3];
 	for (int32_t i = 0; i < 3; ++i) {
-		int32_t vertIndex = pMesh->mesh.pLoops[pFace->start + triLoops[i]];
-		vertsXyz[i] = pMesh->pVerts[vertIndex];
+		int32_t vertIdx = pMesh->mesh.pCorners[pFace->start + triCorners[i]];
+		vertsXyz[i] = pMesh->pVerts[vertIdx];
 	}
 	V3_F32 wsPos = barycentricToCartesian(vertsXyz, &bc);
 	//the alpha channel is used as a depth buffer
@@ -700,7 +700,7 @@ static void testPixelAgainstFace(RenderArgs *pVars, V2_F32 *pPos, FaceRange *pFa
 	pColor->d[3] = wsPos.d[2];
 }
 
-static void ruvmRenderJob(void *pArgs) {
+static void uvsRenderJob(void *pArgs) {
 	RenderArgs vars = *(RenderArgs *)pArgs;
 	int32_t dataLen = vars.pixelCount * getPixelSize(vars.imageBuf.type);
 	vars.imageBuf.pData = vars.pContext->alloc.pMalloc(dataLen);
@@ -710,21 +710,21 @@ static void ruvmRenderJob(void *pArgs) {
 	FaceCells faceCells = {0};
 	FaceCellsTable faceCellsTable = {.pFaceCells = &faceCells};
 	QuadTreeSearch searchState = {0};
-	ruvmInitQuadTreeSearch(&vars.pContext->alloc, vars.pMap, &searchState);
+	uvsInitQuadTreeSearch(&vars.pContext->alloc, vars.pMap, &searchState);
 	for (int32_t i = 0; i < vars.pixelCount; ++i) {
 		int32_t iOffset = vars.bufOffset + i;
-		V2_F32 index = {iOffset % vars.imageBuf.res,
+		V2_F32 idx = {iOffset % vars.imageBuf.res,
 		                iOffset / vars.imageBuf.res};
-		V2_F32 pos = {pixelScale * index.d[0] + pixelHalfScale,
-		              pixelScale * index.d[1] + pixelHalfScale};
+		V2_F32 pos = {pixelScale * idx.d[0] + pixelHalfScale,
+		              pixelScale * idx.d[1] + pixelHalfScale};
 		Color color = { 0 };
 		color.d[3] = FLT_MAX * -1.0f;
-		ruvmGetCellsForSingleFace(&searchState, 1, &pos, &faceCellsTable, NULL, 0);
-		int32_t leafIndex = faceCells.pCells[faceCells.cellSize - 1];
-		Cell *pLeaf = vars.pMap->quadTree.cellTable.pArr + leafIndex;
+		uvsGetCellsForSingleFace(&searchState, 1, &pos, &faceCellsTable, NULL, 0);
+		int32_t leafIdx = faceCells.pCells[faceCells.cellSize - 1];
+		Cell *pLeaf = vars.pMap->quadTree.cellTable.pArr + leafIdx;
 		for (int32_t j = 0; j < faceCells.cellSize; ++j) {
-			int32_t cellIndex = faceCells.pCells[j];
-			Cell *pCell = vars.pMap->quadTree.cellTable.pArr + cellIndex;
+			int32_t cellIdx = faceCells.pCells[j];
+			Cell *pCell = vars.pMap->quadTree.cellTable.pArr + cellIdx;
 			int32_t* pCellFaces;
 			Range cellFaceRange = {0};
 			if (faceCells.pCellType[j]) {
@@ -741,18 +741,18 @@ static void ruvmRenderJob(void *pArgs) {
 			}
 			for (int32_t k = cellFaceRange.start; k < cellFaceRange.end; ++k) {
 				FaceRange face = {0};
-				face.index = pCellFaces[k];
-				face.start = pMesh->mesh.pFaces[face.index];
-				face.end = pMesh->mesh.pFaces[face.index + 1];
+				face.idx = pCellFaces[k];
+				face.start = pMesh->mesh.pFaces[face.idx];
+				face.end = pMesh->mesh.pFaces[face.idx + 1];
 				face.size = face.end - face.start;
 				FaceTriangulated faceTris = {0};
 				if (face.size > 4) {
 					faceTris = triangulateFace(vars.pContext->alloc, face,
 					                           pMesh->pVerts,
-					                           pMesh->mesh.pLoops, 0);
+					                           pMesh->mesh.pCorners, 0);
 					for (int32_t l = 0; l < faceTris.triCount; ++l) {
 						FaceRange tri = {0};
-						tri.index = face.index;
+						tri.idx = face.idx;
 						tri.start = l * 3;
 						tri.end = tri.start + 3;
 						tri.size = tri.end - tri.start;
@@ -769,7 +769,7 @@ static void ruvmRenderJob(void *pArgs) {
 		color.d[3] = color.d[3] != FLT_MAX * -1.0f;
 		setPixelColor(&vars.imageBuf, i, &color);
 	}
-	ruvmDestroyQuadTreeSearch(&searchState);
+	uvsDestroyQuadTreeSearch(&searchState);
 	*(RenderArgs *)pArgs = vars;
 	RuvmThreadPool *pThreadPool = &vars.pContext->threadPool;
 	pThreadPool->pMutexLock(vars.pContext->pThreadPoolHandle, vars.pMutex);
@@ -792,7 +792,7 @@ V2_F32 getZBounds(RuvmMap pMap) {
 	return zBounds;
 }
 
-RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *pImage) {
+RuvmResult uvsMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmImage *pImage) {
 	V2_F32 zBounds = getZBounds(pMap);
 	int32_t pixelCount = pImage->res * pImage->res;
 	int32_t pixelsPerJob = pixelCount / pContext->threadCount;
@@ -820,7 +820,7 @@ RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmIm
 	int32_t jobCount = activeJobs;
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
 	                                       activeJobs,
-	                                       ruvmRenderJob, jobArgPtrs);
+	                                       uvsRenderJob, jobArgPtrs);
 	CLOCK_INIT;
 	CLOCK_START;
 	waitForJobs(pContext, &activeJobs, pMutex);
@@ -837,7 +837,7 @@ RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap, RuvmIm
 	return RUVM_SUCCESS;
 }
 
-void ruvmMapIndexedAttribsGet(RuvmContext pContext, RuvmMap pMap,
+void uvsMapIndexedAttribsGet(RuvmContext pContext, RuvmMap pMap,
                               RuvmAttribIndexedArr *pIndexedAttribs) {
 	*pIndexedAttribs = pMap->indexedAttribs;
 }

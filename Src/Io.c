@@ -23,36 +23,36 @@
 #include <Error.h>
 
 static int32_t decodeSingleBit(ByteString *byteString) {
-	int32_t value = byteString->pString[byteString->byteIndex];
-	value >>= byteString->nextBitIndex;
+	int32_t value = byteString->pString[byteString->byteIdx];
+	value >>= byteString->nextBitIdx;
 	value &= 1;
-	byteString->nextBitIndex++;
-	byteString->byteIndex += byteString->nextBitIndex >= 8;
-	byteString->nextBitIndex %= 8;
+	byteString->nextBitIdx++;
+	byteString->byteIdx += byteString->nextBitIdx >= 8;
+	byteString->nextBitIdx %= 8;
 	return value;
 }
 
 void encodeValue(ByteString *byteString, uint8_t *value,
                         int32_t lengthInBits, int64_t *pSize) {
-	uint8_t valueBuffer[ENCODE_DECODE_BUFFER_LENGTH] = {0};
+	uint8_t valueBuf[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	int32_t lengthInBytes = lengthInBits / 8;
 	lengthInBytes += (lengthInBits - lengthInBytes * 8) > 0;
 	for (int32_t i = 1; i <= lengthInBytes; ++i) {
-		valueBuffer[i] = value[i - 1];
+		valueBuf[i] = value[i - 1];
 	}
 	for (int32_t i = lengthInBytes - 1; i >= 1; --i) {
-		valueBuffer[i] <<= byteString->nextBitIndex;
-		uint8_t nextByteCopy = valueBuffer[i - 1];
-		nextByteCopy >>= 8 - byteString->nextBitIndex;
-		valueBuffer[i] |= nextByteCopy;
+		valueBuf[i] <<= byteString->nextBitIdx;
+		uint8_t nextByteCopy = valueBuf[i - 1];
+		nextByteCopy >>= 8 - byteString->nextBitIdx;
+		valueBuf[i] |= nextByteCopy;
 	}
-	int32_t writeUpTo = lengthInBytes + (byteString->nextBitIndex > 0);
+	int32_t writeUpTo = lengthInBytes + (byteString->nextBitIdx > 0);
 	for (int32_t i = 0; i < writeUpTo; ++i) {
-		byteString->pString[byteString->byteIndex + i] |= valueBuffer[i + 1];
+		byteString->pString[byteString->byteIdx + i] |= valueBuf[i + 1];
 	}
-	byteString->nextBitIndex = byteString->nextBitIndex + lengthInBits;
-	byteString->byteIndex += byteString->nextBitIndex / 8;
-	byteString->nextBitIndex %= 8;
+	byteString->nextBitIdx = byteString->nextBitIdx + lengthInBits;
+	byteString->byteIdx += byteString->nextBitIdx / 8;
+	byteString->nextBitIdx %= 8;
 	*pSize -= lengthInBits;
 }
 
@@ -60,11 +60,11 @@ void encodeString(ByteString *byteString,
                          uint8_t *string, int64_t *pSize) {
 	int32_t lengthInBits = (strlen((char *)string) + 1) * 8;
 	int32_t lengthInBytes = lengthInBits / 8;
-	byteString->byteIndex += byteString->nextBitIndex > 0;
-	byteString->nextBitIndex = 0;
+	byteString->byteIdx += byteString->nextBitIdx > 0;
+	byteString->nextBitIdx = 0;
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		byteString->pString[byteString->byteIndex] = string[i];
-		byteString->byteIndex++;
+		byteString->pString[byteString->byteIdx] = string[i];
+		byteString->byteIdx++;
 	}
 	*pSize -= lengthInBits;
 }
@@ -73,36 +73,36 @@ void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
 	int32_t lengthInBytes = lengthInBits / 8;
 	int32_t bitDifference = lengthInBits - lengthInBytes * 8;
 	lengthInBytes += bitDifference > 0;
-	uint8_t buffer[ENCODE_DECODE_BUFFER_LENGTH] = {0};
+	uint8_t buf[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		buffer[i] = byteString->pString[byteString->byteIndex + i];
+		buf[i] = byteString->pString[byteString->byteIdx + i];
 	}
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		buffer[i] >>= byteString->nextBitIndex;
-		uint8_t nextByteCopy = buffer[i + 1];
-		nextByteCopy <<= 8 - byteString->nextBitIndex;
-		buffer[i] |= nextByteCopy;
+		buf[i] >>= byteString->nextBitIdx;
+		uint8_t nextByteCopy = buf[i + 1];
+		nextByteCopy <<= 8 - byteString->nextBitIdx;
+		buf[i] |= nextByteCopy;
 	}
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		value[i] = buffer[i];
+		value[i] = buf[i];
 	}
 	uint8_t mask = UCHAR_MAX >> ((8 - bitDifference) % 8);
 	value[lengthInBytes - 1] &= mask;
-	byteString->nextBitIndex = byteString->nextBitIndex + lengthInBits;
-	byteString->byteIndex += byteString->nextBitIndex / 8;
-	byteString->nextBitIndex %= 8;
+	byteString->nextBitIdx = byteString->nextBitIdx + lengthInBits;
+	byteString->byteIdx += byteString->nextBitIdx / 8;
+	byteString->nextBitIdx %= 8;
 }
 
 void decodeString(ByteString *byteString, char *string, int32_t maxLen) {
-	byteString->byteIndex += byteString->nextBitIndex > 0;
-	uint8_t *dataPtr = byteString->pString + byteString->byteIndex;
+	byteString->byteIdx += byteString->nextBitIdx > 0;
+	uint8_t *dataPtr = byteString->pString + byteString->byteIdx;
 	int32_t i = 0;
 	for (; i < maxLen && dataPtr[i]; ++i) {
 		string[i] = dataPtr[i];
 	}
 	string[i] = 0;
-	byteString->byteIndex += i + 1;
-	byteString->nextBitIndex = 0;
+	byteString->byteIdx += i + 1;
+	byteString->nextBitIdx = 0;
 }
 
 static int32_t getTotalAttribSize(AttribArray *pAttribs) {
@@ -189,17 +189,17 @@ typedef struct {
 	int64_t attribCounts;
 	int64_t meshAttribMeta;
 	int64_t faceAttribMeta;
-	int64_t loopAttribMeta;
+	int64_t cornerAttribMeta;
 	int64_t edgeAttribMeta;
 	int64_t vertAttribMeta;
 	int64_t meshAttribs;
 	int64_t faceAttribs;
-	int64_t loopAttribs;
+	int64_t cornerAttribs;
 	int64_t edgeAttribs;
 	int64_t vertAttribs;
 	int64_t listCounts;
 	int64_t faceList;
-	int64_t loopList;
+	int64_t cornerList;
 	int64_t edgeList;
 } MeshSizeInBits;
 
@@ -217,36 +217,36 @@ static getObjDataSize(RuvmObject *pObj,
 	//calculate total size of attribute header info
 	pSize->meshAttribMeta = getTotalAttribMetaSize(&pMesh->meshAttribs);
 	pSize->faceAttribMeta = getTotalAttribMetaSize(&pMesh->faceAttribs);
-	pSize->loopAttribMeta = getTotalAttribMetaSize(&pMesh->loopAttribs);
+	pSize->cornerAttribMeta = getTotalAttribMetaSize(&pMesh->cornerAttribs);
 	pSize->edgeAttribMeta = getTotalAttribMetaSize(&pMesh->edgeAttribs);
 	pSize->vertAttribMeta = getTotalAttribMetaSize(&pMesh->vertAttribs);
 
 	pSize->attribCounts = 32 + //mesh attrib count
 	                    32 + //face attrib count
-	                    32 + //loop attrib count
+	                    32 + //corner attrib count
 	                    32 + //edge attrib count
 	                    32; //vert attrib count
 	pSize->listCounts = 32 + //face count
-	                  32 + //loop count
+	                  32 + //corner count
 	                  32 + //edge count
 	                  32;  //vert count
 
 	//calculate total size of attribute data
 	int64_t meshAttribSize = getTotalAttribSize(&pMesh->meshAttribs);
 	int64_t faceAttribSize = getTotalAttribSize(&pMesh->faceAttribs);
-	int64_t loopAttribSize = getTotalAttribSize(&pMesh->loopAttribs);
+	int64_t cornerAttribSize = getTotalAttribSize(&pMesh->cornerAttribs);
 	int64_t edgeAttribSize = getTotalAttribSize(&pMesh->edgeAttribs);
 	int64_t vertAttribSize = getTotalAttribSize(&pMesh->vertAttribs);
 
 	pSize->meshAttribs = meshAttribSize;
 	pSize->faceAttribs = faceAttribSize * pMesh->faceCount;
-	pSize->loopAttribs = loopAttribSize * pMesh->loopCount;
+	pSize->cornerAttribs = cornerAttribSize * pMesh->cornerCount;
 	pSize->edgeAttribs = edgeAttribSize * pMesh->edgeCount;
 	pSize->vertAttribs = vertAttribSize * pMesh->vertCount;
 
 	pSize->faceList = 32 * (int64_t)pMesh->faceCount;
-	pSize->loopList = 32 * (int64_t)pMesh->loopCount;
-	pSize->edgeList = 32 * (int64_t)pMesh->loopCount;
+	pSize->cornerList = 32 * (int64_t)pMesh->cornerCount;
+	pSize->edgeList = 32 * (int64_t)pMesh->cornerCount;
 	return RUVM_SUCCESS;
 }
 
@@ -257,8 +257,8 @@ void encodeDataName(ByteString *pByteString, char *pName, int64_t *pSize) {
 	
 	//ensure string is aligned with byte (we need to do this manually,
 	//as encodeValue is being used instead of encodeString)
-	pByteString->byteIndex += pByteString->nextBitIndex > 0;
-	pByteString->nextBitIndex = 0;
+	pByteString->byteIdx += pByteString->nextBitIdx > 0;
+	pByteString->nextBitIdx = 0;
 	encodeValue(pByteString, (uint8_t *)pName, 16, pSize);
 }
 
@@ -303,10 +303,10 @@ RuvmResult encodeObj(ByteString *pByteString,
 	if (isSizeInvalid(pSize->faceAttribMeta)) {
 		return RUVM_ERROR;
 	}
-	encodeValue(pByteString, (uint8_t *)&pMesh->loopAttribs.count,
+	encodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count,
 	            32, &pSize->attribCounts);
-	encodeAttribMeta(pByteString, &pMesh->loopAttribs, &pSize->loopAttribMeta);
-	if (isSizeInvalid(pSize->loopAttribMeta)) {
+	encodeAttribMeta(pByteString, &pMesh->cornerAttribs, &pSize->cornerAttribMeta);
+	if (isSizeInvalid(pSize->cornerAttribMeta)) {
 		return RUVM_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count,
@@ -325,7 +325,7 @@ RuvmResult encodeObj(ByteString *pByteString,
 		return RUVM_ERROR;
 	}
 	encodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32, &pSize->listCounts);
-	encodeValue(pByteString, (uint8_t *)&pMesh->loopCount, 32, &pSize->listCounts);
+	encodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32, &pSize->listCounts);
 	encodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32, &pSize->listCounts);
 	encodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32, &pSize->listCounts);
 	if (isSizeInvalid(pSize->listCounts)) {
@@ -340,7 +340,7 @@ RuvmResult encodeObj(ByteString *pByteString,
 	encodeDataName(pByteString, "FL", &pSize->dataNames); //face list
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		RUVM_ASSERT("", pMesh->pFaces[i] >= 0 &&
-		                pMesh->pFaces[i] < pMesh->loopCount);
+		                pMesh->pFaces[i] < pMesh->cornerCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32, &pSize->faceList);
 	}
 	if (isSizeInvalid(pSize->faceList)) {
@@ -351,21 +351,21 @@ RuvmResult encodeObj(ByteString *pByteString,
 	if (isSizeInvalid(pSize->faceAttribs)) {
 		return RUVM_ERROR;
 	}
-	encodeDataName(pByteString, "LL", &pSize->dataNames); //loop and edge lists
-	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
-		RUVM_ASSERT("", pMesh->pLoops[i] >= 0 &&
-		                pMesh->pLoops[i] < pMesh->vertCount);
-		encodeValue(pByteString, (uint8_t *)&pMesh->pLoops[i], 32, &pSize->loopList);
+	encodeDataName(pByteString, "LL", &pSize->dataNames); //corner and edge lists
+	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
+		RUVM_ASSERT("", pMesh->pCorners[i] >= 0 &&
+		                pMesh->pCorners[i] < pMesh->vertCount);
+		encodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32, &pSize->cornerList);
 		RUVM_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
 		encodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32, &pSize->edgeList);
 	}
-	if (isSizeInvalid(pSize->loopList) || isSizeInvalid(pSize->edgeList)) {
+	if (isSizeInvalid(pSize->cornerList) || isSizeInvalid(pSize->edgeList)) {
 		return RUVM_ERROR;
 	}
-	encodeDataName(pByteString, "LA", &pSize->dataNames); //loop attribs
-	encodeAttribs(pByteString, &pMesh->loopAttribs, pMesh->loopCount, &pSize->loopAttribs);
-	if (isSizeInvalid(pSize->loopAttribs)) {
+	encodeDataName(pByteString, "LA", &pSize->dataNames); //corner attribs
+	encodeAttribs(pByteString, &pMesh->cornerAttribs, pMesh->cornerCount, &pSize->cornerAttribs);
+	if (isSizeInvalid(pSize->cornerAttribs)) {
 		return RUVM_ERROR;
 	}
 	encodeDataName(pByteString, "EA", &pSize->dataNames); //edge attribs
@@ -393,25 +393,25 @@ int64_t sumOfMeshSize(MeshSizeInBits *pSize) {
 		   pSize->attribCounts +
 		   pSize->meshAttribMeta +
 		   pSize->faceAttribMeta +
-		   pSize->loopAttribMeta +
+		   pSize->cornerAttribMeta +
 		   pSize->edgeAttribMeta +
 		   pSize->vertAttribMeta +
 		   pSize->meshAttribs +
 		   pSize->faceAttribs +
-		   pSize->loopAttribs +
+		   pSize->cornerAttribs +
 		   pSize->edgeAttribs +
 		   pSize->vertAttribs +
 		   pSize->listCounts +
 		   pSize->faceList +
-		   pSize->loopList +
+		   pSize->cornerList +
 		   pSize->edgeList;
 }
 
 static
 void addSpacing(ByteString *pByteString, int32_t lenInBits, int64_t *pSize) {
 	int32_t lenInBytes = lenInBits / 8;
-	pByteString->byteIndex += lenInBytes;
-	pByteString->nextBitIndex = lenInBits - lenInBytes * 8;
+	pByteString->byteIdx += lenInBytes;
+	pByteString->nextBitIdx = lenInBits - lenInBytes * 8;
 	*pSize -= lenInBits;
 }
 
@@ -445,7 +445,7 @@ void getUniqueFlatCutoffs(RuvmContext pContext, int32_t usgCount,
 		pContext->alloc.pRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
 }
 
-RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
+RuvmResult uvsWriteRuvmFile(RuvmContext pContext, const char *pName,
                              int32_t objCount, RuvmObject *pObjArr,
                              int32_t usgCount, RuvmUsg *pUsgArr,
                              RuvmAttribIndexedArr indexedAttribs) {
@@ -478,30 +478,30 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 		}
 		dataSizeInBits += sumOfMeshSize(pMeshSizes + i);
 	}
-	int32_t sizesIndex = objCount;
+	int32_t sizesIdx = objCount;
 	for (int32_t i = 0; i < cutoffCount; ++i) {
-		err = getObjDataSize(ppCutoffs[i], &dataSizeInBits, pMeshSizes + sizesIndex);
+		err = getObjDataSize(ppCutoffs[i], &dataSizeInBits, pMeshSizes + sizesIdx);
 		if (err != RUVM_SUCCESS) {
 			return err;
 		}
-		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIndex);
-		sizesIndex++;
+		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIdx);
+		sizesIdx++;
 	}
 	for (int32_t i = 0; i < usgCount; ++i) {
-		err = getObjDataSize(&pUsgArr[i].obj, &dataSizeInBits, pMeshSizes + sizesIndex);
+		err = getObjDataSize(&pUsgArr[i].obj, &dataSizeInBits, pMeshSizes + sizesIdx);
 		if (err != RUVM_SUCCESS) {
 			return err;
 		}
-		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIndex);
+		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIdx);
 		dataSizeInBits += RUVM_FLAT_CUTOFF_HEADER_SIZE;
 		if (!pUsgArr[i].pFlatCutoff) {
 			dataSizeInBits -= sizeof(int32_t); //no index
 		}
-		sizesIndex++;
+		sizesIdx++;
 	}
 	int64_t dataSizeInBytes = dataSizeInBits / 8 + 2;
-	data.byteIndex = 0;
-	data.nextBitIndex = 0;
+	data.byteIdx = 0;
+	data.nextBitIdx = 0;
 	data.pString = pContext->alloc.pCalloc(dataSizeInBytes, 1);
 	if (indexedAttribs.count) {
 		encodeIndexedAttribMeta(&data, indexedAttribs);
@@ -513,16 +513,16 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 			return err;
 		}
 	}
-	sizesIndex = objCount;
+	sizesIdx = objCount;
 	for (int32_t i = 0; i < cutoffCount; ++i) {
-		err = encodeObj(&data, ppCutoffs[i], pMeshSizes + sizesIndex);
+		err = encodeObj(&data, ppCutoffs[i], pMeshSizes + sizesIdx);
 		if (err != RUVM_SUCCESS) {
 			return err;
 		}
-		sizesIndex++;
+		sizesIdx++;
 	}
 	for (int32_t i = 0; i < usgCount; ++i) {
-		err = encodeObj(&data, &pUsgArr[i].obj, pMeshSizes + sizesIndex);
+		err = encodeObj(&data, &pUsgArr[i].obj, pMeshSizes + sizesIdx);
 		if (err != RUVM_SUCCESS) {
 			return err;
 		}
@@ -533,14 +533,14 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 		if (hasFlatCutoff) {
 			encodeValue(&data, (uint8_t *)&pCutoffIndices[i], 32, &fcHeaderSize);
 		}
-		sizesIndex++;
+		sizesIdx++;
 	}
 	pContext->alloc.pFree(pMeshSizes);
 
 	//compress data
 	//TODO convert to use proper zlib inflate and deflate calls
 	//compress and decompress are not context independent iirc
-	int64_t dataSize = data.byteIndex + (data.nextBitIndex > 0);
+	int64_t dataSize = data.byteIdx + (data.nextBitIdx > 0);
 	int64_t dataSizeExtra = dataSize / 1000;
 	dataSizeExtra += ((dataSize * 1000) - dataSize) > 0;
 	dataSizeExtra += 12;
@@ -592,7 +592,7 @@ RuvmResult ruvmWriteRuvmFile(RuvmContext pContext, const char *pName,
 	
 	void *pFile;
 	pContext->io.pOpen(&pFile, pName, 0, &pContext->alloc);
-	headerSizeInBytes = header.byteIndex + (header.nextBitIndex > 0);
+	headerSizeInBytes = header.byteIdx + (header.nextBitIdx > 0);
 	pContext->io.pWrite(pFile, (uint8_t *)&headerSizeInBytes, 2);
 	pContext->io.pWrite(pFile, header.pString, headerSizeInBytes);
 	pContext->io.pWrite(pFile, compressedData, (int32_t)compressedDataSize);
@@ -712,8 +712,8 @@ RuvmResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 	//ensure string is aligned with byte (we need to do this manually,
 	//as decodeValue is being used instead of decodeString, given there's
 	//only 2 characters)
-	pByteString->byteIndex += pByteString->nextBitIndex > 0;
-	pByteString->nextBitIndex = 0;
+	pByteString->byteIdx += pByteString->nextBitIdx > 0;
+	pByteString->nextBitIdx = 0;
 	char dataName[2] = {0};
 	decodeValue(pByteString, (uint8_t *)&dataName, 16);
 	if (dataName[0] != pName[0] || dataName[1] != pName[1]) {
@@ -762,11 +762,11 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	err = decodeAttribMeta(pByteString, &pMesh->faceAttribs);
 	RUVM_ERROR("Failed to decode face attrib meta", err);
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->loopAttribs.count, 32);
-	pMesh->loopAttribs.pArr = pMesh->loopAttribs.count ?
-		pContext->alloc.pCalloc(pMesh->loopAttribs.count, sizeof(RuvmAttrib)) : NULL;
-	err = decodeAttribMeta(pByteString, &pMesh->loopAttribs);
-	RUVM_ERROR("Failed to decode loop attrib meta", err);
+	decodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
+	pMesh->cornerAttribs.pArr = pMesh->cornerAttribs.count ?
+		pContext->alloc.pCalloc(pMesh->cornerAttribs.count, sizeof(RuvmAttrib)) : NULL;
+	err = decodeAttribMeta(pByteString, &pMesh->cornerAttribs);
+	RUVM_ERROR("Failed to decode corner attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
 	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
@@ -781,7 +781,7 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	RUVM_ERROR("Failed to decode vert attrib meta", err);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->loopCount, 32);
+	decodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32);
 	decodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32);
 	decodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32);
 
@@ -797,7 +797,7 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 
 	//TODO add short headers (like 2 or 4 bytes) to the start of each
 	//of these large blocks of data, to better catch corrupt files.
-	//So one for faces, loops, edges, etc
+	//So one for faces, corners, edges, etc
 
 	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
 	RUVM_ERROR("Data name did not match 'MA'", err);
@@ -810,24 +810,24 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		decodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 		RUVM_ASSERT("", pMesh->pFaces[i] >= 0 &&
-		                pMesh->pFaces[i] < pMesh->loopCount);
+		                pMesh->pFaces[i] < pMesh->cornerCount);
 		stageProgressWrap(pContext, i);
 	}
 	stageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FA"); //face attribs
 	RUVM_ERROR("Data name did not match 'FA'", err);
-	pMesh->pFaces[pMesh->faceCount] = pMesh->loopCount;
+	pMesh->pFaces[pMesh->faceCount] = pMesh->cornerCount;
 	decodeAttribs(pContext, pByteString, &pMesh->faceAttribs, pMesh->faceCount);
 
-	err = isDataNameInvalid(pByteString, "LL"); //loop and edge lists
+	err = isDataNameInvalid(pByteString, "LL"); //corner and edge lists
 	RUVM_ERROR("Data name did not match 'LL'", err);
-	pMesh->pLoops = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
-	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->loopCount, sizeof(int32_t));
-	stageBeginWrap(pContext, "Decoding loops", pMesh->loopCount);
-	for (int32_t i = 0; i < pMesh->loopCount; ++i) {
-		decodeValue(pByteString, (uint8_t *)&pMesh->pLoops[i], 32);
-		RUVM_ASSERT("", pMesh->pLoops[i] >= 0 &&
-		                pMesh->pLoops[i] < pMesh->vertCount);
+	pMesh->pCorners = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
+	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
+	stageBeginWrap(pContext, "Decoding corners", pMesh->cornerCount);
+	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
+		decodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
+		RUVM_ASSERT("", pMesh->pCorners[i] >= 0 &&
+		                pMesh->pCorners[i] < pMesh->vertCount);
 		decodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
 		RUVM_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
@@ -835,9 +835,9 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	}
 	stageEndWrap(pContext);
 
-	err = isDataNameInvalid(pByteString, "LA"); //loop attribs
+	err = isDataNameInvalid(pByteString, "LA"); //corner attribs
 	RUVM_ERROR("Data name did not match 'LA'", err);
-	decodeAttribs(pContext, pByteString, &pMesh->loopAttribs, pMesh->loopCount);
+	decodeAttribs(pContext, pByteString, &pMesh->cornerAttribs, pMesh->cornerCount);
 	err = isDataNameInvalid(pByteString, "EA"); //edge attribs
 	RUVM_ERROR("Data name did not match 'EA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
@@ -853,7 +853,7 @@ RuvmResult loadObj(RuvmContext pContext, RuvmObject *pObj, ByteString *pByteStri
 	//TODO add RUVM_ERROR and RUVM_RETURN to all functions that return RuvmResult
 	RUVM_RETURN(err,
 		//if error:
-		ruvmMeshDestroy(pContext, pMesh);
+		uvsMeshDestroy(pContext, pMesh);
 		pContext->alloc.pFree(pMesh);
 	);
 }
@@ -912,18 +912,18 @@ RuvmResult decodeRuvmData(RuvmContext pContext, RuvmHeader *pHeader,
 			bool hasFlatCutoff = false;
 			decodeValue(dataByteString, (uint8_t *)&hasFlatCutoff, 8);
 			if (hasFlatCutoff) {
-				int32_t cutoffIndex = 0;
-				decodeValue(dataByteString, (uint8_t *)&cutoffIndex, 32);
-				RUVM_ASSERT("", cutoffIndex >= 0 &&
-								cutoffIndex < pHeader->flatCutoffCount);
-				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIndex;
+				int32_t cutoffIdx = 0;
+				decodeValue(dataByteString, (uint8_t *)&cutoffIdx, 32);
+				RUVM_ASSERT("", cutoffIdx >= 0 &&
+								cutoffIdx < pHeader->flatCutoffCount);
+				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIdx;
 			}
 		}
 	}
 	return RUVM_SUCCESS;
 }
 
-RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
+RuvmResult uvsLoadRuvmFile(RuvmContext pContext, char *filePath,
                             int32_t *pObjCount, RuvmObject **ppObjArr,
                             int32_t *pUsgCount, RuvmUsg **ppUsgArr,
 	                        int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
@@ -989,7 +989,7 @@ RuvmResult ruvmLoadRuvmFile(RuvmContext pContext, char *filePath,
 	return RUVM_SUCCESS;
 }
 
-void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {
+void uvsIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {
 	if (!pIo->pOpen || !pIo->pClose || !pIo->pWrite || !pIo->pRead) {
 		printf("Failed to set custom IO. One or more functions were NULL");
 		abort();
@@ -997,9 +997,9 @@ void ruvmIoSetCustom(RuvmContext pContext, RuvmIo *pIo) {
 	pContext->io = *pIo;
 }
 
-void ruvmIoSetDefault(RuvmContext pContext) {
-	pContext->io.pOpen = ruvmPlatformFileOpen;
-	pContext->io.pClose = ruvmPlatformFileClose;
-	pContext->io.pWrite = ruvmPlatformFileWrite;
-    pContext->io.pRead = ruvmPlatformFileRead;
+void uvsIoSetDefault(RuvmContext pContext) {
+	pContext->io.pOpen = uvsPlatformFileOpen;
+	pContext->io.pClose = uvsPlatformFileClose;
+	pContext->io.pWrite = uvsPlatformFileWrite;
+    pContext->io.pRead = uvsPlatformFileRead;
 }

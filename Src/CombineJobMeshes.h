@@ -9,22 +9,22 @@ typedef struct {
 	V3_F32 normal;
 	V2_F32 uv;
 	V2_F32 vertBuf;
-	int32_t bufLoop;
+	int32_t bufCorner;
 	int32_t bufFace;
-	int32_t loop;
+	int32_t corner;
 	int32_t edge;
 	int8_t job;
-} BoundsLoopBufEntry;
+} BoundsCornerBufEntry;
 
 typedef struct {
-	BoundsLoopBufEntry* pBuf;
+	BoundsCornerBufEntry* pBuf;
 	int32_t count;
-} BoundsLoopBuf;
+} BoundsCornerBuf;
 
 typedef struct {
-	BoundsLoopBufEntry* pLoopBuf;
-	int32_t *pMapLoopBuf;
-	int32_t *pIndexTable;
+	BoundsCornerBufEntry* pCornerBuf;
+	int32_t *pMapCornerBuf;
+	int32_t *pIdxTable;
 	int32_t *pSortedVerts;
 	int32_t size;
 } MergeBufHandles;
@@ -34,9 +34,9 @@ typedef struct {
 	int32_t start;
 	int32_t end;
 	int32_t size;
-	int32_t loopLocal;
-	int32_t edgeLoop;
-	int32_t vertLoop;
+	int32_t cornerLocal;
+	int32_t edgeCorner;
+	int32_t vertCorner;
 	int32_t edge;
 	int32_t vert;
 } BorderInInfo;
@@ -58,7 +58,7 @@ typedef struct Piece {
 	UBitField64 keepVertPreserve;//
 	UBitField64 add;
 	uint8_t *pOrder;
-	int32_t entryIndex;//
+	int32_t entryIdx;//
 	V2_I16 tile;
 	V3_F32 realNormal;
 	bool listed;
@@ -86,26 +86,26 @@ typedef struct {
 
 typedef struct OnLine {
 	struct OnLine *pNext;
-	int32_t baseEdgeOrLoop;
-	int32_t ruvmVert;
+	int32_t baseEdgeOrCorner;
+	int32_t uvsVert;
 	int32_t outVert;
 	int32_t type;
 } OnLine;
 
 typedef struct BorderVert {
 	struct BorderVert *pNext;
-	int32_t entryIndex;
-	int32_t ruvmFace;
-	int32_t ruvmEdge;
+	int32_t entryIdx;
+	int32_t uvsFace;
+	int32_t uvsEdge;
 	int32_t vert;
 	V2_I16 tile;
-	int32_t loops;
+	int32_t corners;
 	int32_t baseEdge;
 	int32_t baseVert;
-	int32_t loopIndex;
-	int32_t loop;
+	int32_t cornerIdx;
+	int32_t corner;
 	int8_t job;
-	bool keepBaseLoop;
+	bool keepBaseCorner;
 	bool divided;
 } BorderVert;
 
@@ -150,41 +150,41 @@ typedef struct MergeSendOffArgs {
 	int32_t *pTotalVertTable;
 	int32_t totalVerts;
 	Mesh *pInMesh;
-	int32_t *pLoopMergeTable;
+	int32_t *pCornerMergeTable;
 	int32_t entriesStart;
 	int32_t entriesEnd;
 	int32_t job;
 	float wScale;
 } MergeSendOffArgs;
 
-void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
+void uvsMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
                           bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
                           float wScale, Mesh *pInMesh, int32_t mapJobsSent);
-void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
+void uvsAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
-void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
-                               int32_t entryIndex, PieceArr *pPieceArr,
+void uvsMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
+                               int32_t entryIdx, PieceArr *pPieceArr,
 							   FaceRange *pRuvmFace,
 							   MergeBufHandles *pMergeBufHandles,
                                int32_t *pInFaces, int32_t entryCount);
-void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
-void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
+void uvsDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle);
+void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
                           InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
                           int32_t mapJobsSent);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
-                                  const SendOffArgs *pJobArgs, int32_t loopIndex);
-bool getIfRuvm(const BorderFace *pEntry, int32_t loopIndex);
-bool getIfOnInVert(const BorderFace *pEntry, int32_t loopIndex);
-bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex);
-int32_t getSegment(const BorderFace *pEntry, int32_t loopIndex);
-int32_t getMapLoop(const BorderFace *pEntry, int32_t loopIndex);
-int32_t getBaseLoop(const BorderFace *pEntry, int32_t loopIndex);
+                                  const SendOffArgs *pJobArgs, int32_t cornerIdx);
+bool getIfRuvm(const BorderFace *pEntry, int32_t cornerIdx);
+bool getIfOnInVert(const BorderFace *pEntry, int32_t cornerIdx);
+bool getIfOnLine(const BorderFace *pEntry, int32_t cornerIdx);
+int32_t getSegment(const BorderFace *pEntry, int32_t cornerIdx);
+int32_t getMapCorner(const BorderFace *pEntry, int32_t cornerIdx);
+int32_t getBaseCorner(const BorderFace *pEntry, int32_t cornerIdx);
 V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry);
-int32_t bufMeshGetVertIndex(const Piece *pPiece,
-                            const BufMesh *pBufMesh, int32_t localLoop);
-int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
-                            const BufMesh *pBufMesh, int32_t localLoop);
+int32_t bufMeshGetVertIdx(const Piece *pPiece,
+                            const BufMesh *pBufMesh, int32_t localCorner);
+int32_t bufMeshGetEdgeIdx(const Piece *pPiece,
+                            const BufMesh *pBufMesh, int32_t localCorner);

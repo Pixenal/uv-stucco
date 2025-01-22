@@ -6,14 +6,14 @@
 #define CELL_MAX_VERTS 32
 
 typedef struct Cell {
-	uint32_t localIndex;
+	uint32_t localIdx;
 	uint32_t initialized;
 	struct Cell *pChildren;
 	int32_t faceSize;
 	int32_t *pFaces;
 	int32_t edgeFaceSize;
 	int32_t *pEdgeFaces;
-	int32_t cellIndex;
+	int32_t cellIdx;
 	V2_F32 boundsMin;
 	V2_F32 boundsMax;
 	int32_t linkEdgeSize;
@@ -40,7 +40,7 @@ typedef struct {
 
 typedef struct {
 	Range *pRangeBuf;
-	int32_t *ppCells;
+	int32_t *pCells;
 	int32_t cellSize;
 	int32_t faceTotal;
 	int32_t faceTotalNoDup;
@@ -66,28 +66,28 @@ typedef struct {
 typedef struct {
 	RuvmMap pMap;
 	RuvmAlloc *pAlloc;
-	int32_t *ppCells;
+	int32_t *pCells;
 	int8_t *pCellInits;
-	int8_t *pCellTable;
+	int8_t *pCellFlags;
 	int8_t *pCellType;
 } QuadTreeSearch;
 
-void ruvmInitFaceCellsTable(RuvmAlloc *pAlloc, FaceCellsTable *pTable,
+void uvsInitFaceCellsTable(RuvmAlloc *pAlloc, FaceCellsTable *pTable,
                             int32_t faceCount);
-void ruvmDestroyFaceCellsTable(RuvmAlloc *pAlloc,
+void uvsDestroyFaceCellsTable(RuvmAlloc *pAlloc,
                                FaceCellsTable *pFaceCellsTable);
-void ruvmDestroyFaceCellsEntry(RuvmAlloc *pAlloc, int32_t i,
+void uvsDestroyFaceCellsEntry(RuvmAlloc *pAlloc, int32_t i,
                                FaceCellsTable *pFaceCellsTable);
-void ruvmInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pState);
-void ruvmGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
+void uvsInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pState);
+void uvsGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
 							   FaceBounds *pFaceBounds, int32_t tableOffset);
-void ruvmLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
-                            int32_t faceIndex);
-void ruvmDestroyQuadTreeSearch(QuadTreeSearch *pState);
-Cell *ruvmFindEncasingCell(Cell *rootCell, V2_F32 pos);
-void ruvmCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
-void ruvmDestroyQuadTree(RuvmContext pContext, QuadTree *pTree);
+void uvsLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
+                            int32_t faceIdx);
+void uvsDestroyQuadTreeSearch(QuadTreeSearch *pState);
+Cell *uvsFindEncasingCell(Cell *rootCell, V2_F32 pos);
+void uvsCreateQuadTree(RuvmContext pContext, RuvmMap pMap);
+void uvsDestroyQuadTree(RuvmContext pContext, QuadTree *pTree);
 void getEncasingCells(RuvmAlloc *pAlloc, RuvmMap pMap,
                       Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
 					  int32_t *pAverageMapFacesPerFace);

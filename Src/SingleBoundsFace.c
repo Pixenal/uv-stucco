@@ -20,12 +20,12 @@
 typedef struct {
 	int32_t *pBuf;
 	int32_t count;
-} MapLoopBuf;
+} MapCornerBuf;
 
 typedef struct {
-	BoundsLoopBuf loopBuf;
-	MapLoopBuf mapLoopBuf;
-	int32_t *pIndexTable;
+	BoundsCornerBuf cornerBuf;
+	MapCornerBuf mapCornerBuf;
+	int32_t *pIdxTable;
 	int32_t *pIndices;
 	int32_t *pSortedVertBuf;
 	int32_t size;
@@ -33,12 +33,12 @@ typedef struct {
 
 typedef struct {
 	Mat3x3 tbnInv;
-	FaceRange ruvmFace;
+	FaceRange uvsFace;
 	int32_t bufSize;
-	BoundsLoopBuf loopBuf;
-	MapLoopBuf mapLoopBuf;
+	BoundsCornerBuf cornerBuf;
+	MapCornerBuf mapCornerBuf;
 	MergeSendOffArgs *pArgs;
-	int32_t *pIndexTable;
+	int32_t *pIdxTable;
 	int32_t *pSortedVertBuf;
 	PieceArr *pPieceArr;
 	Piece *pPieceRoot;
@@ -51,13 +51,13 @@ typedef struct {
 } Vars;
 
 /*
-static int32_t getEdgeLocalLoop(int32_t *pEdgeLoops, FaceRange *pBaseFace) {
+static int32_t getEdgeLocalCorner(int32_t *pEdgeCorners, FaceRange *pBaseFace) {
 	for (int32_t i = pBaseFace->start; i < pBaseFace->end; ++i) {
-		if (i == pEdgeLoops[0] || i == pEdgeLoops[1]) {
+		if (i == pEdgeCorners[0] || i == pEdgeCorners[1]) {
 			return i;
 		}
 	}
-	printf("Couldn't find loop for edge (winding compare for border face\n)");
+	printf("Couldn't find corner for edge (winding compare for border face\n)");
 	abort();
 }
 
@@ -70,28 +70,28 @@ static void removeEdgeEntryFromList(RuvmContext pContext, SharedEdge *pEntry,
 }
 */
 
-void ruvmDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle) {
+void uvsDestroyMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle) {
 	if (pHandle->size) {
-		pContext->alloc.pFree(pHandle->pLoopBuf);
-		pContext->alloc.pFree(pHandle->pMapLoopBuf);
-		pContext->alloc.pFree(pHandle->pIndexTable);
+		pContext->alloc.pFree(pHandle->pCornerBuf);
+		pContext->alloc.pFree(pHandle->pMapCornerBuf);
+		pContext->alloc.pFree(pHandle->pIdxTable);
 		pContext->alloc.pFree(pHandle->pSortedVerts);
 	}
 }
 
-void ruvmAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
+void uvsAllocMergeBufs(RuvmContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts) {
 	RUVM_ASSERT("", totalVerts >= 0 && totalVerts < 100000);
 	pHandle->size = totalVerts;
-	pHandle->pLoopBuf =
-		pContext->alloc.pMalloc(sizeof(BoundsLoopBufEntry) * (pHandle->size + 1));
-	pHandle->pMapLoopBuf =
+	pHandle->pCornerBuf =
+		pContext->alloc.pMalloc(sizeof(BoundsCornerBufEntry) * (pHandle->size + 1));
+	pHandle->pMapCornerBuf =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
-	pHandle->pIndexTable =
+	pHandle->pIdxTable =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
 	pHandle->pSortedVerts =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
-	pHandle->pIndexTable =
+	pHandle->pIdxTable =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
 }
 
@@ -106,9 +106,9 @@ void buildApproximateTbnInverse(Vars *pVars) {
 		FaceRange face = pPiece->bufFace;
 		Mesh *pMesh = asMesh(pBufMesh);
 		RUVM_ASSERT("", face.size >= 3);
-		V3_F32 vertA = pMesh->pVerts[bufMeshGetVertIndex(pPiece, pBufMesh, 0)];
-		V3_F32 vertB = pMesh->pVerts[bufMeshGetVertIndex(pPiece, pBufMesh, 1)];
-		V3_F32 vertC = pMesh->pVerts[bufMeshGetVertIndex(pPiece, pBufMesh, 2)];
+		V3_F32 vertA = pMesh->pVerts[bufMeshGetVertIdx(pPiece, pBufMesh, 0)];
+		V3_F32 vertB = pMesh->pVerts[bufMeshGetVertIdx(pPiece, pBufMesh, 1)];
+		V3_F32 vertC = pMesh->pVerts[bufMeshGetVertIdx(pPiece, pBufMesh, 2)];
 		RUVM_ASSERT("", v3IsFinite(vertA) && v3IsFinite(vertB) && v3IsFinite(vertC));
 		V3_F32 ab = _(vertB V3SUB vertA);
 		V3_F32 ac = _(vertC V3SUB vertA);
@@ -141,19 +141,19 @@ void buildApproximateTbnInverse(Vars *pVars) {
 }
 
 static
-bool checkIfDup(Vars *pVars, int32_t ruvmLoop) {
-	for (int32_t i = 0; i < pVars->mapLoopBuf.count; ++i) {
-		if (ruvmLoop == pVars->mapLoopBuf.pBuf[i]) {
+bool checkIfDup(Vars *pVars, int32_t uvsCorner) {
+	for (int32_t i = 0; i < pVars->mapCornerBuf.count; ++i) {
+		if (uvsCorner == pVars->mapCornerBuf.pBuf[i]) {
 			return true;
 		}
-		RUVM_ASSERT("", i >= 0 && i < pVars->mapLoopBuf.count);
+		RUVM_ASSERT("", i >= 0 && i < pVars->mapCornerBuf.count);
 	}
 	return false;
 }
 
 static void initOnLineTableEntry(MergeSendOffArgs *pArgs, OnLine *pEntry,
                                  BufMesh *pBufMesh, int32_t base,
-								 bool isBaseLoop, int32_t ruvmVert,
+								 bool isBaseCorner, int32_t uvsVert,
 								 int32_t *pVert) {
 	RuvmContext pContext = pArgs->pContext;
 	bool realloced = false;
@@ -162,30 +162,30 @@ static void initOnLineTableEntry(MergeSendOffArgs *pArgs, OnLine *pEntry,
 				   &asMesh(pBufMesh)->mesh.vertAttribs, *pVert);
 	*pVert = outVert;
 	pEntry->outVert = *pVert;
-	pEntry->baseEdgeOrLoop = base;
-	pEntry->ruvmVert = ruvmVert;
-	pEntry->type = isBaseLoop + 1;
+	pEntry->baseEdgeOrCorner = base;
+	pEntry->uvsVert = uvsVert;
+	pEntry->type = isBaseCorner + 1;
 }
 
 static
-void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
+void addOnLineVert(Vars *pVars, int32_t uvsCorner,
                    BorderFace *pEntry, int32_t *pVert, int32_t k) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	bool isOnInVert = getIfOnInVert(pEntry, k);
 	int32_t base = isOnInVert ? inInfo.vert : inInfo.edge;
-	int32_t ruvmVert = pArgs->pMap->mesh.mesh.pLoops[pVars->ruvmFace.start + ruvmLoop];
-	int32_t hash = ruvmFnvHash((uint8_t *)&base, 4, pArgs->pCTables->onLineTableSize);
+	int32_t uvsVert = pArgs->pMap->mesh.mesh.pCorners[pVars->uvsFace.start + uvsCorner];
+	int32_t hash = uvsFnvHash((uint8_t *)&base, 4, pArgs->pCTables->onLineTableSize);
 	OnLine *pOnLineEntry = pArgs->pCTables->pOnLineTable + hash;
 	if (!pOnLineEntry->type) {
 		initOnLineTableEntry(pArgs, pOnLineEntry,
 							 &pArgs->pJobArgs[pEntry->job].bufMesh,
-							 base, isOnInVert, ruvmVert, pVert);
+							 base, isOnInVert, uvsVert, pVert);
 	}
 	else {
 		do {
-			bool match = base == pOnLineEntry->baseEdgeOrLoop &&
-			              ruvmVert == pOnLineEntry->ruvmVert &&
+			bool match = base == pOnLineEntry->baseEdgeOrCorner &&
+			              uvsVert == pOnLineEntry->uvsVert &&
 			              isOnInVert + 1 == pOnLineEntry->type;
 			if (match) {
 				*pVert = pOnLineEntry->outVert;
@@ -196,7 +196,7 @@ void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
 					pArgs->pContext->alloc.pCalloc(1, sizeof(OnLine));
 				initOnLineTableEntry(pArgs, pOnLineEntry,
 									 &pArgs->pJobArgs[pEntry->job].bufMesh,
-									 base, isOnInVert, ruvmVert, pVert);
+									 base, isOnInVert, uvsVert, pVert);
 				break;
 			}
 			pOnLineEntry = pOnLineEntry->pNext;
@@ -205,7 +205,7 @@ void addOnLineVert(Vars *pVars, int32_t ruvmLoop,
 }
 
 static
-bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
+bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	//CLOCK_INIT;
 	//pieces should be called sub pieces here
@@ -224,70 +224,70 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 			int32_t edge;
 			bool isRuvm = getIfRuvm(pEntry, k);
 			if (!isRuvm) {
-				//is not an ruvm loop (is an intersection, or base loop))
+				//is not an uvs corner (is an intersection, or base corner))
 				
 				RUVM_ASSERT("marked add but not sort", pPiece->pOrder[k] > 0);
-				vert = pBufMesh->mesh.mesh.pLoops[face.start - k];
+				vert = pBufMesh->mesh.mesh.pCorners[face.start - k];
 				edge = pBufMesh->mesh.mesh.pEdges[face.start - k];
 			}
 			else {
-				RUVM_ASSERT("ruvm loop has no sort", pPiece->pOrder[k] > 0);
-				//is an ruvm loop (this includes ruvm loops sitting on base edges or verts)
+				RUVM_ASSERT("uvs corner has no sort", pPiece->pOrder[k] > 0);
+				//is an uvs corner (this includes uvs corners sitting on base edges or verts)
 
-				//add an item to pEntry in mapToMesh, which denotes if an ruvm
-				//loop has a dot of 0 (is on a base edge).
+				//add an item to pEntry in mapToMesh, which denotes if an uvs
+				//corner has a dot of 0 (is on a base edge).
 				//Then add it to the edgetable if so, without calcing a wind of course.
-				//Just use the base edge as the hash, instead of an ruvm edge (cause there isnt one).
-				//Or just make a new hash table just for ruvm loops with zero dot.
+				//Just use the base edge as the hash, instead of an uvs edge (cause there isnt one).
+				//Or just make a new hash table just for uvs corners with zero dot.
 				//That would probably be cleaner, and more memory concious tbh.
 				bool onLine = getIfOnLine(pEntry, k);
-				int32_t mapLoop = getMapLoop(pEntry, k);
+				int32_t mapCorner = getMapCorner(pEntry, k);
 				edge = asMesh(pBufMesh)->mesh.pEdges[face.start - k];
 				if (onLine) {
-					vert = bufMeshGetVertIndex(pPiece, pBufMesh, k);
+					vert = bufMeshGetVertIdx(pPiece, pBufMesh, k);
 					RUVM_ASSERT("", vert > asMesh(pBufMesh)->vertBufSize - 1 -
 						   pBufMesh->borderVertCount);
 					RUVM_ASSERT("", vert < asMesh(pBufMesh)->vertBufSize);
-					addOnLineVert(pVars, mapLoop, pEntry, &vert, k);
+					addOnLineVert(pVars, mapCorner, pEntry, &vert, k);
 				}
 				//the vert and edge indices are local to the buf mesh,
 				//so we need to offset them, so that they point to the
 				//correct position in the out mesh. (these vars are set
 				//when the non-border mesh data is copied
 				else {
-					vert = asMesh(pBufMesh)->mesh.pLoops[face.start - k];
+					vert = asMesh(pBufMesh)->mesh.pCorners[face.start - k];
 					vert += pArgs->pJobBases[pEntry->job].vertBase;
 				}
 				edge += pArgs->pJobBases[pEntry->job].edgeBase;
 				
 				//CLOCK_START;
-				pVars->mapLoopBuf.pBuf[pVars->mapLoopBuf.count] = mapLoop;
-				pVars->mapLoopBuf.count++;
+				pVars->mapCornerBuf.pBuf[pVars->mapCornerBuf.count] = mapCorner;
+				pVars->mapCornerBuf.count++;
 				//CLOCK_STOP_NO_PRINT;
 				//pTimeSpent[5] += CLOCK_TIME_DIFF(start, stop);
 			}
-			//if border loop, or if loop edge has been intersected,
+			//if border corner, or if corner edge has been intersected,
 			//add new edge to mesh
 			//int32_t kNext = (k + 1) % faceSize;
-			//int32_t vertNext = bufMesh->mesh.pLoops[face.start - kNext];
-			//if (borderLoop || vertNext >= bufMesh->mesh.vertCount) {
+			//int32_t vertNext = bufMesh->mesh.pCorners[face.start - kNext];
+			//if (borderCorner || vertNext >= bufMesh->mesh.vertCount) {
 			//}
-			BoundsLoopBuf *pLoopBuf = &pVars->loopBuf;
+			BoundsCornerBuf *pCornerBuf = &pVars->cornerBuf;
 			RUVM_ASSERT("", pPiece->pOrder[k] > 0);
 			RUVM_ASSERT("", pPiece->pOrder[k] <= pVars->bufSize);
-			pVars->pIndexTable[pPiece->pOrder[k] - 1] = pLoopBuf->count;
-			pLoopBuf->pBuf[pLoopBuf->count].job = pEntry->job;
-			pLoopBuf->pBuf[pLoopBuf->count].bufLoop = face.start - k;
-			pLoopBuf->pBuf[pLoopBuf->count].bufFace = pEntry->face;
-			pLoopBuf->pBuf[pLoopBuf->count].loop = vert;
-			pLoopBuf->pBuf[pLoopBuf->count].edge = edge;
-			pLoopBuf->pBuf[pLoopBuf->count].uv =
+			pVars->pIdxTable[pPiece->pOrder[k] - 1] = pCornerBuf->count;
+			pCornerBuf->pBuf[pCornerBuf->count].job = pEntry->job;
+			pCornerBuf->pBuf[pCornerBuf->count].bufCorner = face.start - k;
+			pCornerBuf->pBuf[pCornerBuf->count].bufFace = pEntry->face;
+			pCornerBuf->pBuf[pCornerBuf->count].corner = vert;
+			pCornerBuf->pBuf[pCornerBuf->count].edge = edge;
+			pCornerBuf->pBuf[pCornerBuf->count].uv =
 				asMesh(pBufMesh)->pUvs[face.start - k];
 			//CLOCK_START;
 			//CLOCK_STOP_NO_PRINT;
 			//pTimeSpent[6] += CLOCK_TIME_DIFF(start, stop);
-			pVars->loopBuf.count++;
-			RUVM_ASSERT("", pLoopBuf->count <= pVars->bufSize);
+			pVars->cornerBuf.count++;
+			RUVM_ASSERT("", pCornerBuf->count <= pVars->bufSize);
 			pVars->infoBufSize++;
 			RUVM_ASSERT("", k >= 0 && k < face.size);
 		}
@@ -298,26 +298,26 @@ bool addLoopsToBufAndVertsToMesh(Vars *pVars) {
 
 static
 void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
-                      int32_t count, int32_t *pIndexTable) {
+                      int32_t count, int32_t *pIdxTable) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	Mesh *pMeshOut = pVars->pArgs->pMeshOut;
-	int32_t loopBase = pMeshOut->mesh.loopCount;
+	int32_t cornerBase = pMeshOut->mesh.cornerCount;
 	bool realloced = false;
 	for (int32_t i = 0; i < count; ++i) {
-		int32_t bufIndex = pIndexTable[pIndices[i]];
-		RUVM_ASSERT("", pVars->loopBuf.pBuf[bufIndex].loop >= 0);
-		RUVM_ASSERT("", pVars->loopBuf.pBuf[bufIndex].loop < pMeshOut->mesh.vertCount);
-		int32_t outLoop = meshAddLoop(&pArgs->pContext->alloc, pMeshOut, &realloced);
-		RUVM_ASSERT("", outLoop == loopBase + i);
-		pMeshOut->mesh.pLoops[outLoop] = pVars->loopBuf.pBuf[bufIndex].loop;
-		RUVM_ASSERT("", pVars->loopBuf.pBuf[bufIndex].edge >= 0);
-		RUVM_ASSERT("", pVars->loopBuf.pBuf[bufIndex].edge < pMeshOut->mesh.edgeCount);
-		pMeshOut->mesh.pEdges[outLoop] = pVars->loopBuf.pBuf[bufIndex].edge;
-		int32_t bufLoop = pVars->loopBuf.pBuf[bufIndex].bufLoop;
-		int32_t job = pVars->loopBuf.pBuf[bufIndex].job;
+		int32_t bufIdx = pIdxTable[pIndices[i]];
+		RUVM_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].corner >= 0);
+		RUVM_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].corner < pMeshOut->mesh.vertCount);
+		int32_t outCorner = meshAddCorner(&pArgs->pContext->alloc, pMeshOut, &realloced);
+		RUVM_ASSERT("", outCorner == cornerBase + i);
+		pMeshOut->mesh.pCorners[outCorner] = pVars->cornerBuf.pBuf[bufIdx].corner;
+		RUVM_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].edge >= 0);
+		RUVM_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].edge < pMeshOut->mesh.edgeCount);
+		pMeshOut->mesh.pEdges[outCorner] = pVars->cornerBuf.pBuf[bufIdx].edge;
+		int32_t bufCorner = pVars->cornerBuf.pBuf[bufIdx].bufCorner;
+		int32_t job = pVars->cornerBuf.pBuf[bufIdx].job;
 		BufMesh *pBufMesh = &pArgs->pJobArgs[job].bufMesh;
-		copyAllAttribs(&pMeshOut->mesh.loopAttribs, outLoop,
-					   &asMesh(pBufMesh)->mesh.loopAttribs, bufLoop);
+		copyAllAttribs(&pMeshOut->mesh.cornerAttribs, outCorner,
+					   &asMesh(pBufMesh)->mesh.cornerAttribs, bufCorner);
 		RUVM_ASSERT("", i >= 0 && i < count);
 	}
 	realloced = false;
@@ -338,14 +338,14 @@ void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
 		memcpy(pInFaceEntry->pArr, pVars->pInFaces,
 				sizeof(int32_t) * pVars->entryCount);
 		pInFaceEntry->count = pVars->entryCount;
-		pInFaceEntry->usg = pVars->ruvmFace.index;
+		pInFaceEntry->usg = pVars->uvsFace.idx;
 	}
-	BufMesh *pBufMesh = &pArgs->pJobArgs[pVars->loopBuf.pBuf[0].job].bufMesh;
+	BufMesh *pBufMesh = &pArgs->pJobArgs[pVars->cornerBuf.pBuf[0].job].bufMesh;
 	copyAllAttribs(&pMeshOut->mesh.faceAttribs,
 				   outFace,
 				   &asMesh(pBufMesh)->mesh.faceAttribs,
 				   pVars->bufFace);
-	pMeshOut->mesh.pFaces[outFace] = loopBase;
+	pMeshOut->mesh.pFaces[outFace] = cornerBase;
 }
 
 static
@@ -367,8 +367,8 @@ void destroyEntries(RuvmContext pContext, Piece *pPiece) {
 	} while(pPiece);
 }
 
-void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
-                               int32_t entryIndex, PieceArr *pPieceArr,
+void uvsMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
+                               int32_t entryIdx, PieceArr *pPieceArr,
 							   FaceRange *pRuvmFace,
 							   MergeBufHandles *pMergeBufHandles,
                                int32_t *pInFaces, int32_t entryCount) {
@@ -377,28 +377,28 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	Vars vars = {0};
 	vars.pArgs = pArgs;
 	vars.pPieceArr = pPieceArr;
-	vars.pPieceRoot = pPieceArr->pArr + entryIndex;
+	vars.pPieceRoot = pPieceArr->pArr + entryIdx;
 	vars.bufSize = pMergeBufHandles->size;
-	vars.loopBuf.pBuf = pMergeBufHandles->pLoopBuf;
-	vars.mapLoopBuf.pBuf = pMergeBufHandles->pMapLoopBuf;
-	vars.pIndexTable = pMergeBufHandles->pIndexTable;
+	vars.cornerBuf.pBuf = pMergeBufHandles->pCornerBuf;
+	vars.mapCornerBuf.pBuf = pMergeBufHandles->pMapCornerBuf;
+	vars.pIdxTable = pMergeBufHandles->pIdxTable;
 	vars.pSortedVertBuf = pMergeBufHandles->pSortedVerts;
 	vars.pInFaces = pInFaces;
 	vars.entryCount = entryCount;
 	BufMesh *pBufMesh = &pArgs->pJobArgs[vars.pPieceRoot->pEntry->job].bufMesh;
 	int32_t bufFaceVirtual = vars.pPieceRoot->pEntry->face;
-	vars.bufFace = convertBorderFaceIndex(pBufMesh, bufFaceVirtual).realIndex;
+	vars.bufFace = convertBorderFaceIdx(pBufMesh, bufFaceVirtual).realIdx;
 	if (!vars.pPieceRoot->pEntry) {
 		return;
 	}
-	vars.ruvmFace = *pRuvmFace;
+	vars.uvsFace = *pRuvmFace;
 	CLOCK_STOP_NO_PRINT;
 	pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
 	CLOCK_START;
-	if (addLoopsToBufAndVertsToMesh(&vars)) {
+	if (addCornersToBufAndVertsToMesh(&vars)) {
 		return;
 	}
-	if (vars.loopBuf.count <= 2) {
+	if (vars.cornerBuf.count <= 2) {
 		return;
 	}
 	CLOCK_STOP_NO_PRINT;
@@ -406,31 +406,31 @@ void ruvmMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	CLOCK_START;
 	if (vars.pPieceRoot->triangulate) {
 		FaceRange tempFace = {0};
-		tempFace.end = tempFace.size = vars.loopBuf.count;
-		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
-			int32_t vertIndex = vars.loopBuf.pBuf[vars.pIndexTable[i]].loop;
-			vars.pSortedVertBuf[i] = vertIndex;
-			RUVM_ASSERT("", i >= 0 && i < vars.loopBuf.count);
+		tempFace.end = tempFace.size = vars.cornerBuf.count;
+		for (int32_t i = 0; i < vars.cornerBuf.count; ++i) {
+			int32_t vertIdx = vars.cornerBuf.pBuf[vars.pIdxTable[i]].corner;
+			vars.pSortedVertBuf[i] = vertIdx;
+			RUVM_ASSERT("", i >= 0 && i < vars.cornerBuf.count);
 		}
 		FaceTriangulated tris = {0};
 		tris = triangulateFace(pArgs->pContext->alloc, tempFace, pArgs->pMeshOut->pVerts,
 		                       vars.pSortedVertBuf, false);
 		for (int32_t i = 0; i < tris.triCount; ++i) {
-			addFaceToOutMesh(&vars, tris.pLoops + (i * 3), 3,
-			                 vars.pIndexTable, pInFaces);
+			addFaceToOutMesh(&vars, tris.pCorners + (i * 3), 3,
+			                 vars.pIdxTable, pInFaces);
 			RUVM_ASSERT("", i >= 0 && i < tris.triCount);
 		}
-		pArgs->pContext->alloc.pFree(tris.pLoops);
+		pArgs->pContext->alloc.pFree(tris.pCorners);
 	}
 	else {
-		//RUVM_ASSERT("", vars.loopBuf.count <= 16);
+		//RUVM_ASSERT("", vars.cornerBuf.count <= 16);
 		int32_t *pIndices =
-			pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * vars.loopBuf.count);
-		for (int32_t i = 0; i < vars.loopBuf.count; ++i) {
+			pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * vars.cornerBuf.count);
+		for (int32_t i = 0; i < vars.cornerBuf.count; ++i) {
 			pIndices[i] = i;
 		}
-		addFaceToOutMesh(&vars, pIndices, vars.loopBuf.count,
-		                 vars.pIndexTable, pInFaces);
+		addFaceToOutMesh(&vars, pIndices, vars.cornerBuf.count,
+		                 vars.pIdxTable, pInFaces);
 		pArgs->pContext->alloc.pFree(pIndices);
 	}
 	destroyEntries(pArgs->pContext, vars.pPieceRoot);

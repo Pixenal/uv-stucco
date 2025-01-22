@@ -23,7 +23,7 @@ void combineJobInFaceLists(RuvmContext pContext, InFaceArr *pInFaceTable,
 	}
 }
 
-void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
+void uvsCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
                           InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
@@ -44,15 +44,15 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	}
 	//3 for last face index
 	pMeshOut->faceBufSize = 3 + totalCount.faces + totalBoundsCount.faces / 10;
-	pMeshOut->loopBufSize = 2 + totalCount.loops + totalBoundsCount.loops / 10;
+	pMeshOut->cornerBufSize = 2 + totalCount.corners + totalBoundsCount.corners / 10;
 	pMeshOut->edgeBufSize = 2 + totalCount.edges + totalBoundsCount.edges / 10;
 	pMeshOut->vertBufSize = 2 + totalCount.verts + totalBoundsCount.verts / 10;
 	pMeshOut->mesh.pFaces =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->faceBufSize);
-	pMeshOut->mesh.pLoops =
-		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
+	pMeshOut->mesh.pCorners =
+		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->cornerBufSize);
 	pMeshOut->mesh.pEdges =
-		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->loopBufSize);
+		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->cornerBufSize);
 	//only need to use the first buf mesh, as attribs are the same across all jobs
 	Mesh *src = NULL;
 	//get first bufmesh that isn't empty
@@ -84,13 +84,13 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 		combineJobInFaceLists(pContext, *ppInFaceTable, pJobArgs, mapJobsSent);
 	}
 	printf("realloc time total %lu\n", reallocTime);
-	ruvmMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
+	uvsMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                     pEdgeVerts, pJobBases, pVertSeamTable,
 	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh,
 	                     mapJobsSent);
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
-		ruvmMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);
+		uvsMeshDestroy(pContext, &asMesh(pBufMesh)->mesh);
 		pContext->alloc.pFree(pJobArgs[i].borderTable.pTable);
 	}
 	pContext->alloc.pFree(pJobBases);
@@ -98,99 +98,99 @@ void ruvmCombineJobMeshes(RuvmContext pContext, RuvmMap pMap,  Mesh *pMeshOut,
 	//CLOCK_STOP("moving to work mesh");
 }
 
-//Returns struct containing inMesh loop, edge, vert, and local loop,
-//for the current buf loop in the given border face entry.
-//The start loop of the face is also given.
+//Returns struct containing inMesh corner, edge, vert, and local corner,
+//for the current buf corner in the given border face entry.
+//The start corner of the face is also given.
 //Though for face end, and size, call getFaceRange
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs,
-								  const int32_t loopIndex) {
+								  const int32_t cornerIdx) {
 	BorderInInfo inInfo = {0};
 	RUVM_ASSERT("", pEntry->baseFace >= 0);
 	RUVM_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.mesh.faceCount);
-	inInfo.loopLocal = getBaseLoop(pEntry, loopIndex);
-	RUVM_ASSERT("", inInfo.loopLocal >= 0);
+	inInfo.cornerLocal = getBaseCorner(pEntry, cornerIdx);
+	RUVM_ASSERT("", inInfo.cornerLocal >= 0);
 	inInfo.start = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace];
 	inInfo.end = pJobArgs[pEntry->job].mesh.mesh.pFaces[pEntry->baseFace + 1];
 	inInfo.size = inInfo.end - inInfo.start;
 	RUVM_ASSERT("", inInfo.start >= 0);
-	RUVM_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.mesh.loopCount);
-	RUVM_ASSERT("", inInfo.loopLocal < inInfo.size);
-	inInfo.edgeLoop = inInfo.start + inInfo.loopLocal;
-	RUVM_ASSERT("", inInfo.edgeLoop < pJobArgs[pEntry->job].mesh.mesh.loopCount);
-	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.edgeLoop];
+	RUVM_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.mesh.cornerCount);
+	RUVM_ASSERT("", inInfo.cornerLocal < inInfo.size);
+	inInfo.edgeCorner = inInfo.start + inInfo.cornerLocal;
+	RUVM_ASSERT("", inInfo.edgeCorner < pJobArgs[pEntry->job].mesh.mesh.cornerCount);
+	inInfo.edge = pJobArgs[pEntry->job].mesh.mesh.pEdges[inInfo.edgeCorner];
 	RUVM_ASSERT("", inInfo.edge < pJobArgs[pEntry->job].mesh.mesh.edgeCount);
 	bool useNextVert = pEntry->inOrient ^ pEntry->mapOrient;
-	inInfo.vertLoop = (inInfo.loopLocal + useNextVert) % inInfo.size;
-	inInfo.vertLoop += inInfo.start;
-	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pLoops[inInfo.vertLoop];
+	inInfo.vertCorner = (inInfo.cornerLocal + useNextVert) % inInfo.size;
+	inInfo.vertCorner += inInfo.start;
+	inInfo.vert = pJobArgs[pEntry->job].mesh.mesh.pCorners[inInfo.vertCorner];
 	RUVM_ASSERT("", inInfo.vert < pJobArgs[0].mesh.mesh.vertCount);
 	return inInfo;
 }
 
-bool getIfRuvm(const BorderFace *pEntry, const int32_t loopIndex) {
+bool getIfRuvm(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return indexBitArray(&((BorderFaceSmall *)pEntry)->isRuvm, loopIndex, 1);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->isRuvm, cornerIdx, 1);
 		case 1:
-			return indexBitArray(&((BorderFaceMid *)pEntry)->isRuvm, loopIndex, 1);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->isRuvm, cornerIdx, 1);
 		case 2:
-			return indexBitArray(&((BorderFaceLarge *)pEntry)->isRuvm, loopIndex, 1);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->isRuvm, cornerIdx, 1);
 	}
 }
 
-bool getIfOnInVert(const BorderFace *pEntry, const int32_t loopIndex) {
+bool getIfOnInVert(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return indexBitArray(&((BorderFaceSmall *)pEntry)->onInVert, loopIndex, 1);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->onInVert, cornerIdx, 1);
 		case 1:
-			return indexBitArray(&((BorderFaceMid *)pEntry)->onInVert, loopIndex, 1);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->onInVert, cornerIdx, 1);
 		case 2:
-			return indexBitArray(&((BorderFaceLarge *)pEntry)->onInVert, loopIndex, 1);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->onInVert, cornerIdx, 1);
 	}
 }
 
-bool getIfOnLine(const BorderFace *pEntry, int32_t loopIndex) {
+bool getIfOnLine(const BorderFace *pEntry, int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return indexBitArray(&((BorderFaceSmall *)pEntry)->onLine, loopIndex, 1);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->onLine, cornerIdx, 1);
 		case 1:
-			return indexBitArray(&((BorderFaceMid *)pEntry)->onLine, loopIndex, 1);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->onLine, cornerIdx, 1);
 		case 2:
-			return indexBitArray(&((BorderFaceLarge *)pEntry)->onLine, loopIndex, 1);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->onLine, cornerIdx, 1);
 	}
 }
 
-int32_t getSegment(const BorderFace *pEntry, int32_t loopIndex) {
+int32_t getSegment(const BorderFace *pEntry, int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return indexBitArray(&((BorderFaceSmall *)pEntry)->segment, loopIndex, 3);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->segment, cornerIdx, 3);
 		case 1:
-			return indexBitArray(&((BorderFaceMid *)pEntry)->segment, loopIndex, 4);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->segment, cornerIdx, 4);
 		case 2:
-			return indexBitArray(&((BorderFaceLarge *)pEntry)->segment, loopIndex, 5);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->segment, cornerIdx, 5);
 	}
 }
 
-int32_t getMapLoop(const BorderFace *pEntry, const int32_t loopIndex) {
+int32_t getMapCorner(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return indexBitArray(&((BorderFaceSmall *)pEntry)->ruvmLoop, loopIndex, 3);
+			return idxBitArray(&((BorderFaceSmall *)pEntry)->uvsCorner, cornerIdx, 3);
 		case 1:
-			return indexBitArray(&((BorderFaceMid *)pEntry)->ruvmLoop, loopIndex, 4);
+			return idxBitArray(&((BorderFaceMid *)pEntry)->uvsCorner, cornerIdx, 4);
 		case 2:
-			return indexBitArray(&((BorderFaceLarge *)pEntry)->ruvmLoop, loopIndex, 5);
+			return idxBitArray(&((BorderFaceLarge *)pEntry)->uvsCorner, cornerIdx, 5);
 	}
 }
 
-int32_t getBaseLoop(const BorderFace *pEntry, int32_t loopIndex) {
+int32_t getBaseCorner(const BorderFace *pEntry, int32_t cornerIdx) {
 	switch (pEntry->memType) {
 	case 0:
-		return indexBitArray(&((BorderFaceSmall *)pEntry)->baseLoop, loopIndex, 2);
+		return idxBitArray(&((BorderFaceSmall *)pEntry)->baseCorner, cornerIdx, 2);
 	case 1:
-		return indexBitArray(&((BorderFaceMid *)pEntry)->baseLoop, loopIndex, 2);
+		return idxBitArray(&((BorderFaceMid *)pEntry)->baseCorner, cornerIdx, 2);
 	case 2:
-		return indexBitArray(&((BorderFaceLarge *)pEntry)->baseLoop, loopIndex, 2);
+		return idxBitArray(&((BorderFaceLarge *)pEntry)->baseCorner, cornerIdx, 2);
 	}
 }
 
@@ -204,24 +204,24 @@ V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry) {
 	return tileMin;
 }
 
-int32_t bufMeshGetVertIndex(const Piece *pPiece,
-                            const BufMesh *pBufMesh, const int32_t localLoop) {
-	bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
-	bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
-	int32_t vert = pBufMesh->mesh.mesh.pLoops[pPiece->bufFace.start - localLoop];
+int32_t bufMeshGetVertIdx(const Piece *pPiece,
+                            const BufMesh *pBufMesh, const int32_t localCorner) {
+	bool isRuvm = getIfRuvm(pPiece->pEntry, localCorner);
+	bool isOnLine = getIfOnLine(pPiece->pEntry, localCorner);
+	int32_t vert = pBufMesh->mesh.mesh.pCorners[pPiece->bufFace.start - localCorner];
 	if (!isRuvm || isOnLine) {
-		vert = convertBorderVertIndex(pBufMesh, vert).realIndex;
+		vert = convertBorderVertIdx(pBufMesh, vert).realIdx;
 	}
 	return vert;
 }
 
-int32_t bufMeshGetEdgeIndex(const Piece *pPiece,
-                            const BufMesh *pBufMesh, const int32_t localLoop) {
-	bool isRuvm = getIfRuvm(pPiece->pEntry, localLoop);
-	bool isOnLine = getIfOnLine(pPiece->pEntry, localLoop);
-	int32_t edge = pBufMesh->mesh.mesh.pEdges[pPiece->bufFace.start - localLoop];
+int32_t bufMeshGetEdgeIdx(const Piece *pPiece,
+                            const BufMesh *pBufMesh, const int32_t localCorner) {
+	bool isRuvm = getIfRuvm(pPiece->pEntry, localCorner);
+	bool isOnLine = getIfOnLine(pPiece->pEntry, localCorner);
+	int32_t edge = pBufMesh->mesh.mesh.pEdges[pPiece->bufFace.start - localCorner];
 	if (!isRuvm || isOnLine) {
-		edge = convertBorderEdgeIndex(pBufMesh, edge).realIndex;
+		edge = convertBorderEdgeIdx(pBufMesh, edge).realIdx;
 	}
 	return edge;
 }

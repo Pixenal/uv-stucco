@@ -20,17 +20,17 @@ typedef struct SharedEdge {
 	struct SharedEdge *pNext;
 	void *pLast;
 	int32_t entries[2];
-	int32_t refIndex[2];
+	int32_t refIdx[2];
 	int32_t edge;
 	int32_t validIdx;
-	int16_t loop[2];
+	int16_t corner[2];
 	V2_I16 tile;
 	int8_t receive;
 	int8_t segment;
 	bool checked : 1;
 	bool preserve : 1;
-	bool index : 1;
-	bool altIndex : 1;
+	bool idx : 1;
+	bool altIdx : 1;
 	bool seam : 1;
 	bool removed : 1;
 	bool hasSegment : 1;
@@ -42,25 +42,25 @@ typedef struct {
 } SharedEdgeWrap;
 
 static
-void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryIndex,
-                         int32_t refIndex, bool isPreserve, bool isReceive,
+void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryIdx,
+                         int32_t refIdx, bool isPreserve, bool isReceive,
 						 Piece *pPiece, int32_t i, bool seam, int32_t segment) {
-	RUVM_ASSERT("", baseEdge >= 0 && entryIndex >= 0 && i >= 0);
+	RUVM_ASSERT("", baseEdge >= 0 && entryIdx >= 0 && i >= 0);
 	RUVM_ASSERT("", isPreserve % 2 == isPreserve); //range 0 .. 1
 	RUVM_ASSERT("", isReceive % 2 == isReceive);
 	//TODO do you need to add one to baseEdge?
 	pEntry->edge = baseEdge + 1;
-	pEntry->entries[0] = entryIndex;
-	pEntry->refIndex[0] = refIndex;
+	pEntry->entries[0] = entryIdx;
+	pEntry->refIdx[0] = refIdx;
 	pEntry->receive = isReceive;
 	pEntry->preserve = isPreserve;
 	pEntry->seam = seam;
-	pEntry->loop[0] = i;
+	pEntry->corner[0] = i;
 	pEntry->validIdx = -1;
 	pEntry->segment = segment;
 	pEntry->inOrient = pPiece->pEntry->inOrient;
 	pEntry->tile = pPiece->tile;
-	if (refIndex >= 0 && isReceive) {
+	if (refIdx >= 0 && isReceive) {
 		//pPiece->keepPreserve |= 1 << i;
 	}
 }
@@ -68,17 +68,17 @@ void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryInde
 static
 void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
                                SharedEdgeWrap *pSharedEdges, Piece *pEntries,
-							   int32_t tableSize, int32_t entryIndex,
+							   int32_t tableSize, int32_t entryIdx,
 							   int32_t *pTotalVerts, bool *pHasPreserve) {
 	//CLOCK_INIT;
 	RuvmAlloc *pAlloc = &pArgs->pContext->alloc;
-	RUVM_ASSERT("", (tableSize > 0 && entryIndex >= 0) || entryIndex == 0);
-	Piece *pPiece = pEntries + entryIndex;
+	RUVM_ASSERT("", (tableSize > 0 && entryIdx >= 0) || entryIdx == 0);
+	Piece *pPiece = pEntries + entryIdx;
 	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
 	FaceRange face = getFaceRange(&asMesh(pBufMesh)->mesh, pEntry->face, true);
 	pPiece->bufFace = face;
 	pPiece->pEntry = pEntry;
-	pPiece->entryIndex = entryIndex;
+	pPiece->entryIdx = entryIdx;
 	pPiece->pOrder = pAlloc->pCalloc(face.size, 1);
 	pPiece->pEdges = pAlloc->pCalloc(face.size, sizeof(EdgeSegmentPair));
 	pPiece->tile = getTileMinFromBoundsEntry(pEntry);
@@ -86,35 +86,35 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		RUVM_ASSERT("", pTotalVerts && *pTotalVerts >= 0 && *pTotalVerts < 10000);
 		++*pTotalVerts;
 		//CLOCK_START;
-		//int32_t vert = pBufMesh->mesh.pLoops[face.start - i];
+		//int32_t vert = pBufMesh->mesh.pCorners[face.start - i];
 		bool isRuvm = getIfRuvm(pEntry, i);
 		bool isOnLine = getIfOnLine(pEntry, i);
 		if (isRuvm && !isOnLine) {
-			//ruvm loop - skip
+			//uvs corner - skip
 			continue;
 		}
 		//CLOCK_STOP_NO_PRINT;
 		//pTimeSpent[1] += //CLOCK_TIME_DIFF(start, stop);
 		bool isOnInVert = getIfOnInVert(pEntry, i);
-		//Get in mesh details for current buf loop
+		//Get in mesh details for current buf corner
 		BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, i);
 		int32_t lasti = i ? i - 1 : face.size - 1;
-		if (getBaseLoop(pEntry, i) == getBaseLoop(pEntry, lasti) &&
+		if (getBaseCorner(pEntry, i) == getBaseCorner(pEntry, lasti) &&
 			!(getIfRuvm(pEntry, lasti) && !getIfOnLine(pEntry, lasti))) {
-			//Edge belongs to last loop, not this one
+			//Edge belongs to last corner, not this one
 			continue;
 		}
 		if (isOnInVert &&
 			checkIfVertIsPreserve(&pArgs->pJobArgs[0].mesh, inInfo.vert)) {
 			//This does not necessarily mean this vert will be kept,
-			//only loops encountered in sortLoops func will be kept.
-			//ie, only loops on the exterior. Interior loops are skipped.
+			//only corners encountered in sortCorners func will be kept.
+			//ie, only corners on the exterior. Interior corners are skipped.
 			pPiece->keepVertPreserve |= true << i;
 		}
 		int32_t* pVerts = pArgs->pEdgeVerts[inInfo.edge].verts;
 		RUVM_ASSERT("", pVerts &&
-		                (pVerts[0] == inInfo.edgeLoop ||
-		                 pVerts[1] == inInfo.edgeLoop));
+		                (pVerts[0] == inInfo.edgeCorner ||
+		                 pVerts[1] == inInfo.edgeCorner));
 		if (pVerts[1] < 0) {
 			//no other vert on edge
 			pPiece->hasSeam = true;
@@ -130,16 +130,16 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		if (!pSharedEdges) {
 			//If shared edges if NULL, then there's only 1 border face entry.
 			//So no need for a shared edge table
-			RUVM_ASSERT("", entryIndex == 0);
+			RUVM_ASSERT("", entryIdx == 0);
 			continue;
 		}
 		//CLOCK_START;
 		bool seam = pArgs->pEdgeSeamTable[inInfo.edge];
 		//face is connected
-		pEntries[entryIndex].pEdges[pEntries[entryIndex].edgeCount].edge = inInfo.edge;
+		pEntries[entryIdx].pEdges[pEntries[entryIdx].edgeCount].edge = inInfo.edge;
 		int32_t segment = getSegment(pEntry, i);
-		pEntries[entryIndex].pEdges[pEntries[entryIndex].edgeCount].segment = segment;
-		pEntries[entryIndex].edgeCount++;
+		pEntries[entryIdx].pEdges[pEntries[entryIdx].edgeCount].segment = segment;
+		pEntries[entryIdx].edgeCount++;
 
 		bool isPreserve =
 			checkIfEdgeIsPreserve(&pArgs->pJobArgs[0].mesh, inInfo.edge);
@@ -147,25 +147,25 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			*pHasPreserve = true;
 		}
 		bool isReceive = false;
-		int32_t refIndex = 0; 
+		int32_t refIdx = 0; 
 		if (seam) {
-			refIndex = isOnInVert ? -1 : 1;
+			refIdx = isOnInVert ? -1 : 1;
 		}
 		else if (isPreserve) {
 			if (isOnInVert) {
 				isReceive = true;
-				//negate if base loop
-				refIndex = (inInfo.vert + 1) * -1;
+				//negate if base corner
+				refIdx = (inInfo.vert + 1) * -1;
 			}
 			else {
-				int32_t mapLoop = getMapLoop(pEntry, i);
-				RUVM_ASSERT("", pEntry->faceIndex < pArgs->pMap->mesh.mesh.faceCount);
-				int32_t ruvmFaceStart = pArgs->pMap->mesh.mesh.pFaces[pEntry->faceIndex];
-				RUVM_ASSERT("", ruvmFaceStart < pArgs->pMap->mesh.mesh.loopCount);
-				int32_t ruvmEdge = pArgs->pMap->mesh.mesh.pEdges[ruvmFaceStart + mapLoop];
-				RUVM_ASSERT("", ruvmEdge < pArgs->pMap->mesh.mesh.edgeCount);
-				isReceive = checkIfEdgeIsReceive(&pArgs->pMap->mesh, ruvmEdge);
-				refIndex = ruvmEdge;
+				int32_t mapCorner = getMapCorner(pEntry, i);
+				RUVM_ASSERT("", pEntry->faceIdx < pArgs->pMap->mesh.mesh.faceCount);
+				int32_t uvsFaceStart = pArgs->pMap->mesh.mesh.pFaces[pEntry->faceIdx];
+				RUVM_ASSERT("", uvsFaceStart < pArgs->pMap->mesh.mesh.cornerCount);
+				int32_t uvsEdge = pArgs->pMap->mesh.mesh.pEdges[uvsFaceStart + mapCorner];
+				RUVM_ASSERT("", uvsEdge < pArgs->pMap->mesh.mesh.edgeCount);
+				isReceive = checkIfEdgeIsReceive(&pArgs->pMap->mesh, uvsEdge);
+				refIdx = uvsEdge;
 				if (isReceive) {
 					pPiece->keepPreserve |= true << i;
 				}
@@ -176,47 +176,47 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		//pTimeSpent[2] += //CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
 
-		int32_t hash = ruvmFnvHash((uint8_t *)&inInfo.edge, 4, tableSize);
+		int32_t hash = uvsFnvHash((uint8_t *)&inInfo.edge, 4, tableSize);
 		SharedEdgeWrap *pEdgeEntryWrap = pSharedEdges + hash;
 		SharedEdge *pEdgeEntry = pEdgeEntryWrap->pEntry;
 		if (!pEdgeEntry) {
 			pEdgeEntry = pEdgeEntryWrap->pEntry =
 				pArgs->pContext->alloc.pCalloc(1, sizeof(SharedEdge));
 			pEdgeEntry->pLast = pEdgeEntryWrap;
-			initSharedEdgeEntry(pEdgeEntry, inInfo.edge, entryIndex, refIndex,
+			initSharedEdgeEntry(pEdgeEntry, inInfo.edge, entryIdx, refIdx,
 			                    isPreserve, isReceive, pPiece, i, seam, segment);
 			continue;
 		}
 		do {
 			RUVM_ASSERT("", pEdgeEntry->edge - 1 >= 0);
 			RUVM_ASSERT("", pEdgeEntry->edge - 1 < pArgs->pInMesh->mesh.edgeCount);
-			RUVM_ASSERT("", pEdgeEntry->index % 2 == pEdgeEntry->index); // range 0 .. 1
+			RUVM_ASSERT("", pEdgeEntry->idx % 2 == pEdgeEntry->idx); // range 0 .. 1
 			if (pEdgeEntry->edge == inInfo.edge + 1 &&
 			    pEdgeEntry->segment == segment &&
 				pEdgeEntry->tile.d[0] == pPiece->tile.d[0] &&
 				pEdgeEntry->tile.d[1] == pPiece->tile.d[1]) {
 
-				if (pEdgeEntry->entries[pEdgeEntry->index] != entryIndex) {
+				if (pEdgeEntry->entries[pEdgeEntry->idx] != entryIdx) {
 					//other side of the edge
-					pEdgeEntry->entries[1] = entryIndex;
-					pEdgeEntry->loop[1] = i;
-					pEdgeEntry->index = 1;
-					pEdgeEntry->refIndex[1] = refIndex;
+					pEdgeEntry->entries[1] = entryIdx;
+					pEdgeEntry->corner[1] = i;
+					pEdgeEntry->idx = 1;
+					pEdgeEntry->refIdx[1] = refIdx;
 					if (pEdgeEntry->inOrient != pEntry->inOrient) {
 						pEdgeEntry->removed = true;
 					}
 				}
 				if (!pEdgeEntry->seam &&
-					!pEdgeEntry->altIndex &&
-					isPreserve && pEdgeEntry->refIndex[0] != refIndex) {
+					!pEdgeEntry->altIdx &&
+					isPreserve && pEdgeEntry->refIdx[0] != refIdx) {
 					pEdgeEntry->receive += isReceive;
-					if (refIndex >= 0 && isReceive) {
+					if (refIdx >= 0 && isReceive) {
 						//this is done here (as well as in initSharedEdgeEntry),
-						//in order to avoid duplicate loops being added later on.
-						//Ie, only one loop should be marked keep per vert
+						//in order to avoid duplicate corners being added later on.
+						//Ie, only one corner should be marked keep per vert
 						//pPiece->keepPreserve |= 1 << i;
 					}
-					pEdgeEntry->altIndex = 1;
+					pEdgeEntry->altIdx = 1;
 				}
 				break;
 			}
@@ -225,7 +225,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 					pArgs->pContext->alloc.pCalloc(1, sizeof(SharedEdge));
 				pEdgeEntry->pNext->pLast = pEdgeEntry;
 				pEdgeEntry = pEdgeEntry->pNext;
-				initSharedEdgeEntry(pEdgeEntry, inInfo.edge, entryIndex, refIndex,
+				initSharedEdgeEntry(pEdgeEntry, inInfo.edge, entryIdx, refIdx,
 				                    isPreserve, isReceive, pPiece, i, seam, segment);
 				break;
 			}
@@ -242,7 +242,7 @@ Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
 	RUVM_ASSERT("", pPieceRoot);
 	Piece* pPiece = pPieceRoot;
 	do {
-		if (pPiece->entryIndex == otherPiece) {
+		if (pPiece->entryIdx == otherPiece) {
 			return pPiece;
 		}
 		pPiece = pPiece->pNext;
@@ -253,28 +253,28 @@ Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
 static
 Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
                          int32_t edgeTableSize, Piece *pPiece, Piece *pPieceRoot,
-                         int32_t *pLoop, SharedEdge **ppEdge) {
-	int32_t segment = getSegment(pPiece->pEntry, *pLoop);
-	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, *pLoop);
-	int32_t hash = ruvmFnvHash((uint8_t*)&inInfo.edge, 4, edgeTableSize);
+                         int32_t *pCorner, SharedEdge **ppEdge) {
+	int32_t segment = getSegment(pPiece->pEntry, *pCorner);
+	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, *pCorner);
+	int32_t hash = uvsFnvHash((uint8_t*)&inInfo.edge, 4, edgeTableSize);
 	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
 	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
 	while (pEdgeEntry) {
-		if (pEdgeEntry->index && !pEdgeEntry->removed) {
-			bool loopMatches = *pLoop == pEdgeEntry->loop[0] &&
-							   pPiece->entryIndex == pEdgeEntry->entries[0] ||
-							   *pLoop == pEdgeEntry->loop[1] &&
-							   pPiece->entryIndex == pEdgeEntry->entries[1];
-			if (loopMatches &&
+		if (pEdgeEntry->idx && !pEdgeEntry->removed) {
+			bool cornerMatches = *pCorner == pEdgeEntry->corner[0] &&
+							   pPiece->entryIdx == pEdgeEntry->entries[0] ||
+							   *pCorner == pEdgeEntry->corner[1] &&
+							   pPiece->entryIdx == pEdgeEntry->entries[1];
+			if (cornerMatches &&
 				inInfo.edge + 1 == pEdgeEntry->edge &&
 			    segment == pEdgeEntry->segment &&
 				pPiece->tile.d[0] == pEdgeEntry->tile.d[0] &&
 				pPiece->tile.d[1] == pEdgeEntry->tile.d[1]) {
-				bool which = pEdgeEntry->entries[1] == pPiece->entryIndex;
+				bool which = pEdgeEntry->entries[1] == pPiece->entryIdx;
 				int32_t otherPiece = pEdgeEntry->entries[!which];
 				Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
 				if (pNeighbour) {
-					*pLoop = (pEdgeEntry->loop[!which] + 1) % pNeighbour->bufFace.size;
+					*pCorner = (pEdgeEntry->corner[!which] + 1) % pNeighbour->bufFace.size;
 				}
 				if (ppEdge) {
 					*ppEdge = pEdgeEntry;
@@ -288,12 +288,12 @@ Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
 }
 
 static
-bool isLoopOnExterior(MergeSendOffArgs *pArgs, Piece *pPiece,
+bool isCornerOnExterior(MergeSendOffArgs *pArgs, Piece *pPiece,
                       Piece *pPieceRoot, SharedEdgeWrap *pEdgeTable,
-                      int32_t edgeTableSize, int32_t loop) {
+                      int32_t edgeTableSize, int32_t corner) {
 	if (!getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
-			               pPiece, pPieceRoot, &loop, NULL)) {
-		//loop does not share an edge without any other loop,
+			               pPiece, pPieceRoot, &corner, NULL)) {
+		//corner does not share an edge without any other corner,
 		//must be on outside
 		return true;
 	}
@@ -301,12 +301,12 @@ bool isLoopOnExterior(MergeSendOffArgs *pArgs, Piece *pPiece,
 }
 
 static
-int32_t getStartingLoop(Piece **ppPiece, MergeSendOffArgs *pArgs,
+int32_t getStartingCorner(Piece **ppPiece, MergeSendOffArgs *pArgs,
                         Piece *pPieceRoot, SharedEdgeWrap *pEdgeTable,
                         int32_t edgeTableSize) {
 	do {
 		for (int32_t i = 0; i < (*ppPiece)->bufFace.size; ++i) {
-			if (isLoopOnExterior(pArgs, *ppPiece, pPieceRoot, pEdgeTable,
+			if (isCornerOnExterior(pArgs, *ppPiece, pPieceRoot, pEdgeTable,
 			                     edgeTableSize, i)) {
 				return i;
 			}
@@ -322,41 +322,41 @@ typedef struct {
 	Piece *pStartPiece;
 	SharedEdge *pActiveEdge;
 	SharedEdge *pQuadEdge;
-	int32_t loop;
-	int32_t loopPrev;
-	int32_t startLoop;
+	int32_t corner;
+	int32_t cornerPrev;
+	int32_t startCorner;
 	int32_t validBranches;
 	bool quad;
 } EdgeStack;
 
 static
 bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *pBufMesh, RuvmMap pMap,
-                              FaceRange *pMapFace, int32_t *pMapLoop, bool side) {
+                              FaceRange *pMapFace, int32_t *pMapCorner, bool side) {
 	Mesh *pMapMesh = &pMap->mesh;
 	RUVM_ASSERT("", pItem->pPiece->bufFace.size >= 3);
-	int32_t loopNext = (pItem->loop + 1) % pItem->pPiece->bufFace.size;
+	int32_t cornerNext = (pItem->corner + 1) % pItem->pPiece->bufFace.size;
 	bool isOnInVert;
 	if (side) {
-		isOnInVert = getIfOnInVert(pItem->pPiece->pEntry, loopNext);
+		isOnInVert = getIfOnInVert(pItem->pPiece->pEntry, cornerNext);
 	}
 	else {
-		isOnInVert = getIfOnInVert(pItem->pPiece->pEntry, pItem->loop);
+		isOnInVert = getIfOnInVert(pItem->pPiece->pEntry, pItem->corner);
 	}
 	if (!isOnInVert) {
 		//exterior intersects with a map edge,
 		//so just check if said edge is receive
-		int32_t loop;
+		int32_t corner;
 		if (side) {
-			loop = loopNext;
+			corner = cornerNext;
 		}
 		else {
-			loop = pItem->loop == 0 ?
-				pItem->pPiece->bufFace.size - 1 : pItem->loop - 1;
+			corner = pItem->corner == 0 ?
+				pItem->pPiece->bufFace.size - 1 : pItem->corner - 1;
 		}
-		*pMapLoop = getMapLoop(pItem->pPiece->pEntry, loop);
-		RUVM_ASSERT("", *pMapLoop >= 0 && *pMapLoop < pMapFace->size);
-		*pMapLoop += pMapFace->start;
-		int32_t mapEdge = pMapMesh->mesh.pEdges[*pMapLoop];
+		*pMapCorner = getMapCorner(pItem->pPiece->pEntry, corner);
+		RUVM_ASSERT("", *pMapCorner >= 0 && *pMapCorner < pMapFace->size);
+		*pMapCorner += pMapFace->start;
+		int32_t mapEdge = pMapMesh->mesh.pEdges[*pMapCorner];
 		return pMapMesh->pEdgeReceive[mapEdge];
 	}
 	//exterior does not intersect with a map edge.
@@ -364,27 +364,27 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 	//and use that to see if the base edge would intersect
 	//with a preserve edge, were it to extend out infinitely
 	V2_F32 *pUvStart = pBufMesh->pUvs + pItem->pPiece->bufFace.start;
-	int32_t loop = pItem->loop;
+	int32_t corner = pItem->corner;
 	if (side) {
-		loop = loopNext;
-		loopNext = pItem->loop;
+		corner = cornerNext;
+		cornerNext = pItem->corner;
 	}
 	V2_F32 fTileMin = {(float)pItem->pPiece->tile.d[0],
 	                   (float)pItem->pPiece->tile.d[1]};
-	V2_F32 c = _(pUvStart[-loop] V2SUB fTileMin);
-	V2_F32 d = _(pUvStart[-loopNext] V2SUB fTileMin);
+	V2_F32 c = _(pUvStart[-corner] V2SUB fTileMin);
+	V2_F32 d = _(pUvStart[-cornerNext] V2SUB fTileMin);
 	V2_F32 cd = _(d V2SUB c);
 	for (int32_t i = 0; i < pMapFace->size; ++i) {
-		*pMapLoop = pMapFace->start + i;
-		int32_t mapEdge = pMapMesh->mesh.pEdges[*pMapLoop];
+		*pMapCorner = pMapFace->start + i;
+		int32_t mapEdge = pMapMesh->mesh.pEdges[*pMapCorner];
 		if (!pMapMesh->pEdgeReceive[mapEdge]) {
 			continue;
 		}
 		float t = .0f;
 		int32_t iNext = (i + 1) % pMapFace->size;
-		int32_t mapVert = pMapMesh->mesh.pLoops[*pMapLoop];
-		int32_t mapLoopNext = pMapFace->start + iNext;
-		int32_t mapVertNext = pMapMesh->mesh.pLoops[mapLoopNext];
+		int32_t mapVert = pMapMesh->mesh.pCorners[*pMapCorner];
+		int32_t mapCornerNext = pMapFace->start + iNext;
+		int32_t mapVertNext = pMapMesh->mesh.pCorners[mapCornerNext];
 		//RUVM_ASSERT("", !_(*(V2_F32 *)&pMapMesh->pVerts[mapVert] V2EQL *(V2_F32 *)&pMapMesh->pVerts[mapVertNext]));
 		V3_F32 intersect = {0};
 		bool valid = 
@@ -401,7 +401,7 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 		}
 		//BorderInInfo inInfo =
 		//	getBorderEntryInInfo(pItem->pPiece->pEntry,
-		//	                     pArgs->pJobArgs, loop);
+		//	                     pArgs->pJobArgs, corner);
 		//setBitArr(pArgs->pInVertKeep, inInfo.vert, true);
 		return true;
 	}
@@ -410,11 +410,11 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 
 static
 void pushToEdgeStack(EdgeStack *pStack, int32_t *pStackPtr, int32_t treeCount,
-                     SharedEdge *pEdge, Piece *pPiece, int32_t loop) {
+                     SharedEdge *pEdge, Piece *pPiece, int32_t corner) {
 	pStack[*pStackPtr].pActiveEdge = pEdge;
 	pEdge->validIdx = treeCount;
 	++*pStackPtr;
-	EdgeStack next = {.pPiece = pPiece, .loop = loop};
+	EdgeStack next = {.pPiece = pPiece, .corner = corner};
 	pStack[*pStackPtr] = next;
 }
 
@@ -427,20 +427,20 @@ bool handleExterior(EdgeStack *pStack, int32_t *pStackPtr,
 	EdgeStack *pItem = pStack + *pStackPtr;
 	Mesh *pMapMesh = &pArgs->pMap->mesh;
 	Mesh *pBufMesh = &pArgs->pJobArgs[pItem->pPiece->pEntry->job].bufMesh;
-	int32_t mapLoop = -1;
+	int32_t mapCorner = -1;
 	bool isReceive =
 		checkIfIntersectsReceive(pArgs, pNeighbour, pBufMesh, pArgs->pMap,
-		                         pMapFace, &mapLoop, side);
+		                         pMapFace, &mapCorner, side);
 	if (isReceive) {
 		//preserve edge intersects receive edge. Add to count
-		RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pMapMesh->mesh.loopCount);
+		RUVM_ASSERT("", mapCorner >= 0 && mapCorner < pMapMesh->mesh.cornerCount);
 		RUVM_ASSERT("", *pReceive >= -1 &&
-					    *pReceive < pMapMesh->mesh.loopCount);
+					    *pReceive < pMapMesh->mesh.cornerCount);
 		if (*pReceive == -1) {
 			//start of new preserve tree
-			*pReceive = mapLoop;
+			*pReceive = mapCorner;
 		}
-		else if (!pValid[treeCount] && mapLoop != *pReceive) {
+		else if (!pValid[treeCount] && mapCorner != *pReceive) {
 			pValid[treeCount] = true;
 		}
 		pEdge->validIdx = treeCount;
@@ -455,36 +455,36 @@ SharedEdge *getIfQuadJunc(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
                           int32_t edgeTableSize, Piece *pPieceRoot,
                           EdgeStack *pItem, EdgeStack *pNeighbour) {
 	EdgeStack copy = *pItem;
-	int32_t index = -1;
+	int32_t idx = -1;
 	SharedEdge *cache[4] = {0};
 	EdgeStack retNeighbour = {0};
 	do {
-		copy.loop %= copy.pPiece->bufFace.size;
+		copy.corner %= copy.pPiece->bufFace.size;
 		if (copy.pStartPiece == copy.pPiece &&
-			copy.startLoop == copy.loop) {
-			if (index == 3) {
+			copy.startCorner == copy.corner) {
+			if (idx == 3) {
 				*pNeighbour = retNeighbour;
 				return cache[1];
 			}
 		}
-		else if (index >= 3) {
+		else if (idx >= 3) {
 			break;
 		}
-		index++;
+		idx++;
 		SharedEdge *pEdge = NULL;
-		//Set next loop
-		EdgeStack neighbour = {.loop = copy.loop};
+		//Set next corner
+		EdgeStack neighbour = {.corner = copy.corner};
 		neighbour.pPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
 		                                     copy.pPiece, pPieceRoot,
-		                                     &neighbour.loop, cache + index);
+		                                     &neighbour.corner, cache + idx);
 		if (!neighbour.pPiece) {
 			break;
 		}
-		if (!index) {
+		if (!idx) {
 			retNeighbour = neighbour;
 		}
 		copy.pPiece = neighbour.pPiece;
-		copy.loop = neighbour.loop;
+		copy.corner = neighbour.corner;
 	} while(true);
 	return NULL;
 }
@@ -507,11 +507,11 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 		//branch has returned, and is valid
 		pItem->validBranches++;
 		if (!*pStackPtr) {
-			bool onInVert = getIfOnInVert(pItem->pPiecePrev->pEntry, pItem->loopPrev);
+			bool onInVert = getIfOnInVert(pItem->pPiecePrev->pEntry, pItem->cornerPrev);
 			if (onInVert) {
 				BorderInInfo inInfo =
 					getBorderEntryInInfo(pItem->pPiecePrev->pEntry,
-										 pArgs->pJobArgs, pItem->loopPrev);
+										 pArgs->pJobArgs, pItem->cornerPrev);
 				setBitArr(pArgs->pInVertKeep, inInfo.vert, true, 1);
 			}
 		}
@@ -521,10 +521,10 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 	do {
 		SharedEdge *pEdge = NULL;
 		EdgeStack neighbour = {0};
-		pItem->loop %= pItem->pPiece->bufFace.size;
+		pItem->corner %= pItem->pPiece->bufFace.size;
 		if (!pItem->pStartPiece) {
 			pItem->pStartPiece = pItem->pPiece;
-			pItem->startLoop = pItem->loop;
+			pItem->startCorner = pItem->corner;
 			if (*pStackPtr) {
 				pEdge = 
 					getIfQuadJunc(pArgs, pEdgeTable, edgeTableSize,
@@ -536,35 +536,35 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 		}
 		else if (pItem->quad ||
 		         (pItem->pStartPiece == pItem->pPiece &&
-		          pItem->startLoop == pItem->loop)) {
+		          pItem->startCorner == pItem->corner)) {
 			*pUnwind = !pItem->validBranches;
 			if (!*pUnwind) {
-				bool onInVert = getIfOnInVert(pItem->pPiece->pEntry, pItem->loop);
+				bool onInVert = getIfOnInVert(pItem->pPiece->pEntry, pItem->corner);
 				if (onInVert) {
 					BorderInInfo inInfo =
 						getBorderEntryInInfo(pItem->pPiece->pEntry,
-						                     pArgs->pJobArgs, pItem->loop);
+						                     pArgs->pJobArgs, pItem->corner);
 					setBitArr(pArgs->pInVertKeep, inInfo.vert, true, 1);
 				}
 			}
 			--*pStackPtr;
 			return;
 		}
-		//Set next loop
+		//Set next corner
 		if (!*pStackPtr &&
-		    getIfRuvm(pItem->pPiece->pEntry, pItem->loop) &&
-			!getIfOnLine(pItem->pPiece->pEntry, pItem->loop)) {
+		    getIfRuvm(pItem->pPiece->pEntry, pItem->corner) &&
+			!getIfOnLine(pItem->pPiece->pEntry, pItem->corner)) {
 
-			pItem->loop++;
+			pItem->corner++;
 			continue;
 		}
 		if (!pItem->quad) {
-			neighbour.loop = pItem->loop;
+			neighbour.corner = pItem->corner;
 			neighbour.pPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
 												 pItem->pPiece, pPieceRoot,
-												 &neighbour.loop, &pEdge);
+												 &neighbour.corner, &pEdge);
 			if (!neighbour.pPiece) {
-				pItem->loop++;
+				pItem->corner++;
 				continue;
 			}
 		}
@@ -576,12 +576,12 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 				                pArgs, pMapFace, pEdge, false);
 			}
 			Piece *pPieceNext = pItem->quad ? neighbour.pPiece : pItem->pPiece;
-			int32_t loopNext = pItem->quad ? neighbour.loop : pItem->loop;
-			loopNext = (loopNext + 1) % pPieceNext->bufFace.size;
+			int32_t cornerNext = pItem->quad ? neighbour.corner : pItem->corner;
+			cornerNext = (cornerNext + 1) % pPieceNext->bufFace.size;
 			if (*pReceive != -1) {
 				bool exterior;
-				exterior = isLoopOnExterior(pArgs, pPieceNext, pPieceRoot,
-				                            pEdgeTable, edgeTableSize, loopNext);
+				exterior = isCornerOnExterior(pArgs, pPieceNext, pPieceRoot,
+				                            pEdgeTable, edgeTableSize, cornerNext);
 				if (exterior) {
 					EdgeStack *pItemToTest = pItem->quad ? &neighbour : pItem;
 					handleExterior(pStack, pStackPtr, pItemToTest, pValid, treeCount,
@@ -592,25 +592,25 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 				}
 				else {
 					pushToEdgeStack(pStack, pStackPtr, treeCount, pEdge, pPieceNext,
-									loopNext);
+									cornerNext);
 					ret = true;
 				}
 			}
 		}
 		else if (!*pStackPtr && pEdge->preserve) {
-			bool onInVert = getIfOnInVert(pItem->pPiece->pEntry, pItem->loop);
+			bool onInVert = getIfOnInVert(pItem->pPiece->pEntry, pItem->corner);
 			if (onInVert) {
 				BorderInInfo inInfo =
 					getBorderEntryInInfo(pItem->pPiece->pEntry,
-										 pArgs->pJobArgs, pItem->loop);
+										 pArgs->pJobArgs, pItem->corner);
 				setBitArr(pArgs->pInVertKeep, inInfo.vert, true, 1);
 			}
 		}
 		if (!pItem->quad) {
 			pItem->pPiecePrev = pItem->pPiece;
-			pItem->loopPrev = pItem->loop;
+			pItem->cornerPrev = pItem->corner;
 			pItem->pPiece = neighbour.pPiece;
-			pItem->loop = neighbour.loop;
+			pItem->corner = neighbour.corner;
 		}
 		if (ret) {
 			return;
@@ -622,7 +622,7 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 //     list in each entry whether to keep
 //     (due to bordering a preserve edge)
 //     create the table in the stack walk, then
-//     set preserve in the later validate loop
+//     set preserve in the later validate corner
 static
 void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
                            int32_t piece, SharedEdgeWrap* pEdgeTable,
@@ -633,12 +633,12 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 	RuvmAlloc *pAlloc = &pArgs->pContext->alloc;
 	Mesh *pInMesh = pArgs->pInMesh;
 	Mesh *pMapMesh = &pArgs->pMap->mesh;
-	// Get first not exterior loop
+	// Get first not exterior corner
 	// This is done to ensure we don't start inside the face
 	Piece *pPiece = pPieceArr->pArr + piece;
 	Piece *pPieceRoot = pPiece;
 	FaceRange mapFace = getFaceRange(&pArgs->pMap->mesh.mesh,
-	                                 pPieceRoot->pEntry->faceIndex, false);
+	                                 pPieceRoot->pEntry->faceIdx, false);
 	if (!*ppValid) {
 		*pValidSize = 8;
 		*ppValid = pAlloc->pCalloc(*pValidSize, sizeof(bool));
@@ -647,10 +647,10 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 	EdgeStack *pStack = pAlloc->pCalloc(stackSize, sizeof(EdgeStack));
 	pStack[0].pPiece = pPiece;
 	int32_t stackPtr = 0;
-	pStack[0].loop = getStartingLoop(&pStack[0].pPiece, pArgs, pPiece,
+	pStack[0].corner = getStartingCorner(&pStack[0].pPiece, pArgs, pPiece,
 	                                 pEdgeTable, edgeTableSize);
 	bool unwind = false;
-	//note that order is used here to determine if a loop has already been checked.
+	//note that order is used here to determine if a corner has already been checked.
 	//Sorting is not done until later, and order is cleared at the end of this func.
 	int32_t receive = -1;
 	do {
@@ -740,52 +740,52 @@ void combineConnectedIntoPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges
 		//     Is there a perf cost?
 		for (int32_t j = 0; j < pPiece->edgeCount; ++j) {
 			EdgeSegmentPair edge = pPiece->pEdges[j];
-			int32_t hash = ruvmFnvHash((uint8_t *)&edge, 4, tableSize);
+			int32_t hash = uvsFnvHash((uint8_t *)&edge, 4, tableSize);
 			SharedEdgeWrap *pSharedEdgeWrap = pSharedEdges + hash;
 			SharedEdge *pEdgeEntry = pSharedEdgeWrap->pEntry;
 			while (pEdgeEntry) {
 				if (pEdgeEntry->removed) {}
 				else if (pEdgeEntry->seam) {
-					bool aIsOnInVert = pEdgeEntry->refIndex[0] < 0;
-					bool bIsOnInVert = pEdgeEntry->refIndex[1] < 0;
+					bool aIsOnInVert = pEdgeEntry->refIdx[0] < 0;
+					bool bIsOnInVert = pEdgeEntry->refIdx[1] < 0;
 					if (aIsOnInVert ^ bIsOnInVert) {
-						bool whichLoop = aIsOnInVert;
+						bool whichCorner = aIsOnInVert;
 
-						int32_t loopA = pEdgeEntry->loop[whichLoop];
-						Piece *pPieceA = pPieceArr->pArr + pEdgeEntry->entries[whichLoop];
-						pPieceA->keepSeam |= 1 << loopA;
+						int32_t cornerA = pEdgeEntry->corner[whichCorner];
+						Piece *pPieceA = pPieceArr->pArr + pEdgeEntry->entries[whichCorner];
+						pPieceA->keepSeam |= 1 << cornerA;
 
-						int32_t loopB = pEdgeEntry->loop[!whichLoop];
-						Piece *pPieceB = pPieceArr->pArr + pEdgeEntry->entries[!whichLoop];
-						//Also set adjacent loop
-						int32_t adjLoop = (loopB + 1) % pPieceB->bufFace.size;
-						pPieceB->keepSeam |= 1 << adjLoop;
+						int32_t cornerB = pEdgeEntry->corner[!whichCorner];
+						Piece *pPieceB = pPieceArr->pArr + pEdgeEntry->entries[!whichCorner];
+						//Also set adjacent corner
+						int32_t adjCorner = (cornerB + 1) % pPieceB->bufFace.size;
+						pPieceB->keepSeam |= 1 << adjCorner;
 					}
 				}
 				else if (pEdgeEntry->edge - 1 == pPiece->pEdges[j].edge &&
 				         pEdgeEntry->segment == pPiece->pEdges[j].segment &&
 				         pEdgeEntry->tile.d[0] == pPiece->pEntry->tileX &&
 					     pEdgeEntry->tile.d[1] == pPiece->pEntry->tileY) {
-					RUVM_ASSERT("", pEdgeEntry->entries[0] == pPiece->entryIndex ||
-					       pEdgeEntry->entries[1] == pPiece->entryIndex);
+					RUVM_ASSERT("", pEdgeEntry->entries[0] == pPiece->entryIdx ||
+					       pEdgeEntry->entries[1] == pPiece->entryIdx);
 					int32_t whichEntry =
-						pEdgeEntry->entries[0] == pPiece->entryIndex;
-					int32_t otherEntryIndex = pEdgeEntry->entries[whichEntry];
-					if (pPieceArr->pArr[otherEntryIndex].listed) {
+						pEdgeEntry->entries[0] == pPiece->entryIdx;
+					int32_t otherEntryIdx = pEdgeEntry->entries[whichEntry];
+					if (pPieceArr->pArr[otherEntryIdx].listed) {
 						break;
 					}
 					if (!pPieceRoot->hasSeam &&
-						pPieceArr->pArr[otherEntryIndex].hasSeam) {
+						pPieceArr->pArr[otherEntryIdx].hasSeam) {
 
 						pPieceRoot->hasSeam = true;
 					}
 					//add entry to linked list
-					pTail->pNext = pPieceArr->pArr[otherEntryIndex].pEntry;
+					pTail->pNext = pPieceArr->pArr[otherEntryIdx].pEntry;
 					pTail = pTail->pNext;
 					//add piece to piece linked list
-					pPieceTail->pNext = pPieceArr->pArr + otherEntryIndex;
+					pPieceTail->pNext = pPieceArr->pArr + otherEntryIdx;
 					pPieceTail = pPieceTail->pNext;
-					pPieceArr->pArr[otherEntryIndex].listed = 1;
+					pPieceArr->pArr[otherEntryIdx].listed = 1;
 					break;
 				}
 				pEdgeEntry = pEdgeEntry->pNext;
@@ -794,19 +794,19 @@ void combineConnectedIntoPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges
 		}
 		depth++;
 		if (depth > pPieceArr->count) {
-			//an infinite loop can occur if pNext are not NULL prior to this func
+			//an infinite corner can occur if pNext are not NULL prior to this func
 			//this is checked for, so it shouldn't occur
-			RUVM_ASSERT("Piece list has likely linked in a loop", false);
+			RUVM_ASSERT("Piece list has likely linked in a corner", false);
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
 }
 
 static 
-bool isEntryInPiece(Piece *pPiece, int32_t entryIndex) {
+bool isEntryInPiece(Piece *pPiece, int32_t entryIdx) {
 	RUVM_ASSERT("", pPiece);
 	do {
-		if (pPiece->entryIndex == entryIndex) {
+		if (pPiece->entryIdx == entryIdx) {
 			return true;
 		}
 		pPiece = pPiece->pNext;
@@ -817,14 +817,14 @@ bool isEntryInPiece(Piece *pPiece, int32_t entryIndex) {
 static
 void flipSharedEdgeEntry(SharedEdge *pEntry) {
 	int32_t entryBuf = pEntry->entries[0];
-	int32_t loopBuf = pEntry->loop[0];
-	int32_t refIndexBuf = pEntry->refIndex[0];
+	int32_t cornerBuf = pEntry->corner[0];
+	int32_t refIdxBuf = pEntry->refIdx[0];
 	pEntry->entries[0] = pEntry->entries[1];
 	pEntry->entries[1] = entryBuf;
-	pEntry->loop[0] = pEntry->loop[1];
-	pEntry->loop[1] = loopBuf;
-	pEntry->refIndex[0] = pEntry->refIndex[1];
-	pEntry->refIndex[1] = refIndexBuf;
+	pEntry->corner[0] = pEntry->corner[1];
+	pEntry->corner[1] = cornerBuf;
+	pEntry->refIdx[0] = pEntry->refIdx[1];
+	pEntry->refIdx[1] = refIdxBuf;
 }
 
 static
@@ -847,7 +847,7 @@ void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
 	int32_t i = 0;
 	do {
 		if (areNonListedPiecesLinked(pPieceArr)) {
-			RUVM_ASSERT("Linked pieces here will cause an infinite loop", false);
+			RUVM_ASSERT("Linked pieces here will cause an infinite corner", false);
 			return;
 		}
 		for (int32_t j = 0; j < pPieceArr->count; ++j) {
@@ -906,22 +906,22 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 	pPieceRoots->pArr = pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * entryCount);
 	pPieceArr->pArr = pEntries;
 	pPieceArr->count = entryCount;
-	int32_t entryIndex = 0;
+	int32_t entryIdx = 0;
 	bool hasPreserve = false;
 	//CLOCK_START;
 	do {
 		//If there's only 1 border face entry, then this function will just
 		//initialize the Piece.
 		addEntryToSharedEdgeTable(pArgs, pEntry, *ppSharedEdges, pEntries,
-		                          *pEdgeTableSize, entryIndex, pTotalVerts,
+		                          *pEdgeTableSize, entryIdx, pTotalVerts,
 		                          &hasPreserve);
-		RUVM_ASSERT("", entryIndex < entryCount);
-		entryIndex++;
+		RUVM_ASSERT("", entryIdx < entryCount);
+		entryIdx++;
 		BorderFace *pNextEntry = pEntry->pNext;
 		pEntry->pNext = NULL;
 		pEntry = pNextEntry;
 	} while(pEntry);
-	RUVM_ASSERT("", entryIndex == entryCount);
+	RUVM_ASSERT("", entryIdx == entryCount);
 	
 	//CLOCK_STOP_NO_PRINT;
 	////pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
@@ -974,7 +974,7 @@ void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece *pPieceRoot,
 	BorderInInfo inInfo = getBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, k);
 	bool onInVert = getIfOnInVert(pPiece->pEntry, k);
 	if (onInVert) {
-		keepInVert = indexBitArray(pArgs->pInVertKeep, inInfo.vert, 1);
+		keepInVert = idxBitArray(pArgs->pInVertKeep, inInfo.vert, 1);
 		if (keepInVert) {
 			pPiece->keepPreserve |= true << k;
 		}
@@ -1006,7 +1006,7 @@ int32_t getPieceCount(Piece* pPiece) {
 }
 
 static
-void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
+void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
                SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize, int32_t *pCount) {
 	bool single = false;
 	if (!pPiece->pNext) {
@@ -1014,85 +1014,85 @@ void sortLoops(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 	}
 	Mesh* pBufMesh = &pArgs->pJobArgs[0].mesh;
 	Piece* pPieceRoot = pPiece;
-	int32_t loop = 0;
+	int32_t corner = 0;
 	if (!single) {
-		// get starting loop
+		// get starting corner
 		// This is done to ensure we don't start inside the face
-		loop = getStartingLoop(&pPiece, pArgs, pPiece, pEdgeTable,
+		corner = getStartingCorner(&pPiece, pArgs, pPiece, pEdgeTable,
 	                           edgeTableSize);
 	}
-	RUVM_ASSERT("No valid starting loop found", loop >= 0);
+	RUVM_ASSERT("No valid starting corner found", corner >= 0);
 	bool adj = false;
 	int32_t sort = 1;
 	Piece *pOtherPiece = NULL;
 	if (!single) {
 		pOtherPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
-										pPiece, pPieceRoot, &loop, NULL);
+										pPiece, pPieceRoot, &corner, NULL);
 	}
 	if (!pOtherPiece) {
-			loop++;
+			corner++;
 	}
 	else {
 		adj = true;
 		pPiece = pOtherPiece;
 	}
 	do {
-		loop %= pPiece->bufFace.size;
-		if (pPiece->pOrder[loop]) {
-			//We've done a full loop around
+		corner %= pPiece->bufFace.size;
+		if (pPiece->pOrder[corner]) {
+			//We've done a full corner around
 			break;
 		}
-		//Set next loop
-		if (getIfRuvm(pPiece->pEntry, loop) &&
-			!getIfOnLine(pPiece->pEntry, loop)) {
+		//Set next corner
+		if (getIfRuvm(pPiece->pEntry, corner) &&
+			!getIfOnLine(pPiece->pEntry, corner)) {
 			
-			pPiece->add |= true << loop;
-			pPiece->pOrder[loop] = sort;
+			pPiece->add |= true << corner;
+			pPiece->pOrder[corner] = sort;
 			sort++;
-			loop++;
+			corner++;
 			adj = false;
 			continue;
 		}
-		int32_t otherLoop = loop;
+		int32_t otherCorner = corner;
 		pOtherPiece = NULL;
 		if (!single) {
 			pOtherPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
-											pPiece, pPieceRoot, &otherLoop, NULL);
+											pPiece, pPieceRoot, &otherCorner, NULL);
 		}
 		if (!pOtherPiece) {
 			if (!adj) {
-				pPiece->add |= true << loop;
-				pPiece->pOrder[loop] = sort;
+				pPiece->add |= true << corner;
+				pPiece->pOrder[corner] = sort;
 				//set keep preserve to false if true
-				UBitField16 mask = -0x1 ^ (0x1 << loop);
+				UBitField16 mask = -0x1 ^ (0x1 << corner);
 				pPiece->keepPreserve &= mask;
 				sort++;
 			}
 			else {
-				pPiece->pOrder[loop] = 1;
+				pPiece->pOrder[corner] = 1;
 				adj = false;
 			}
-			loop++;
+			corner++;
 			continue;
 		}
 		else if (!adj) {
-			if (pPiece->keepPreserve >> loop & 0x01 ||
-				(pPiece->keepSeam >> loop & 0x01) ||
-				(pPiece->keepVertPreserve >> loop & 0x01)) {
+			if (pPiece->keepPreserve >> corner & 0x01 ||
+				(pPiece->keepSeam >> corner & 0x01) ||
+				(pPiece->keepVertPreserve >> corner & 0x01)) {
 
-				pPiece->add |= true << loop;
-				pPiece->pOrder[loop] = sort;
+				pPiece->add |= true << corner;
+				pPiece->pOrder[corner] = sort;
 				sort++;
 			}
 			else {
-				pPiece->pOrder[loop] = 1;
+				pPiece->pOrder[corner] = 1;
 			}
 			adj = true;
 		}
 		else {
-			pPiece->pOrder[loop] = 1;
+			pPiece->pOrder[corner] = 1;
 		}
-		loop = otherLoop;
+		corner = otherCorner;
 		pPiece = pOtherPiece;
 	} while(1);
 	*pCount = sort - 1;
@@ -1115,9 +1115,9 @@ void getPieceInFaces(RuvmAlloc *pAlloc, int32_t **ppInFaces,
 static
 void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
                         BorderFace *pEntry, BufMesh *pBufMesh,
-                        int32_t ruvmEdge, int32_t *pVert,
-                        BorderInInfo *pInInfo, int32_t ruvmFace,
-                        int32_t loop, int32_t loopLocal,
+                        int32_t uvsEdge, int32_t *pVert,
+                        BorderInInfo *pInInfo, int32_t uvsFace,
+                        int32_t corner, int32_t cornerLocal,
                         Piece *pPieceRoot, V2_I16 tile) {
 	bool realloced = false;
 	int32_t outVert = meshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
@@ -1126,13 +1126,13 @@ void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 	*pVert = outVert;
 	pVertEntry->vert = outVert;
 	pVertEntry->tile = tile;
-	pVertEntry->ruvmEdge = ruvmEdge;
-	pVertEntry->loops = 1;
+	pVertEntry->uvsEdge = uvsEdge;
+	pVertEntry->corners = 1;
 	pVertEntry->baseEdge = pInInfo->edge;
 	pVertEntry->baseVert = pInInfo->vert;
-	pVertEntry->loopIndex = pInInfo->vertLoop;
-	pVertEntry->ruvmFace = ruvmFace;
-	pVertEntry->loop = loop;
+	pVertEntry->cornerIdx = pInInfo->vertCorner;
+	pVertEntry->uvsFace = uvsFace;
+	pVertEntry->corner = corner;
 	pVertEntry->job = pEntry->job;
 }
 
@@ -1151,7 +1151,7 @@ static void initEdgeTableEntry(MergeSendOffArgs *pArgs, BorderEdge *pSeamEntry,
 }
 
 static
-void blendMergedLoopAttribs(BlendConfig config,
+void blendMergedCornerAttribs(BlendConfig config,
                             AttribArray *pDestArr, int32_t iDest,
                             AttribArray *pSrcArr, int32_t iSrc,
                             Attrib *pDestNormalAttrib) {
@@ -1169,59 +1169,59 @@ void blendMergedLoopAttribs(BlendConfig config,
 }
 
 static
-void divideLoopAttribsByScalar(AttribArray *pLoopAttribs, int32_t loop,
+void divideCornerAttribsByScalar(AttribArray *pCornerAttribs, int32_t corner,
                                int32_t scalar, Attrib *pNormalAttrib) {
-	for (int32_t i = 0; i < pLoopAttribs->count; ++i) {
-		Attrib *pAttrib = pLoopAttribs->pArr + i;
+	for (int32_t i = 0; i < pCornerAttribs->count; ++i) {
+		Attrib *pAttrib = pCornerAttribs->pArr + i;
 		if (pAttrib != pNormalAttrib &&
 			(!pAttrib->origin == RUVM_ATTRIB_ORIGIN_MAP ||
 			!pAttrib->interpolate)) {
 			continue;
 		}
-		divideAttribByScalarInt(pAttrib, loop, scalar);
+		divideAttribByScalarInt(pAttrib, corner, scalar);
 	}
 }
 
 static
-void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
+void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
                           Piece *pPieceRoot, int32_t k, bool addToTables) {
 	BorderFace *pEntry = pPiece->pEntry;
-	RUVM_ASSERT("This should not be called on a map loop", !getIfRuvm(pEntry, k));
+	RUVM_ASSERT("This should not be called on a map corner", !getIfRuvm(pEntry, k));
 	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
-	int32_t loop = pPiece->bufFace.start - k;
-	int32_t vert = bufMeshGetVertIndex(pPiece, pBufMesh, k);
+	int32_t corner = pPiece->bufFace.start - k;
+	int32_t vert = bufMeshGetVertIdx(pPiece, pBufMesh, k);
 	RUVM_ASSERT("", vert > asMesh(pBufMesh)->vertBufSize - 1 -
 		pBufMesh->borderVertCount);
 	RUVM_ASSERT("", vert < asMesh(pBufMesh)->vertBufSize);
-	int32_t edge = bufMeshGetEdgeIndex(pPiece, pBufMesh, k);
+	int32_t edge = bufMeshGetEdgeIdx(pPiece, pBufMesh, k);
 	RUVM_ASSERT("", edge > asMesh(pBufMesh)->edgeBufSize - 1 -
 		pBufMesh->borderEdgeCount);
 	RUVM_ASSERT("", edge < asMesh(pBufMesh)->edgeBufSize);
-	int32_t mapLoop = getMapLoop(pEntry, k);
-	RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pArgs->pMap->mesh.mesh.loopCount);
+	int32_t mapCorner = getMapCorner(pEntry, k);
+	RUVM_ASSERT("", mapCorner >= 0 && mapCorner < pArgs->pMap->mesh.mesh.cornerCount);
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	bool isOnInVert = getIfOnInVert(pEntry, k);
 	if (!isOnInVert) {
 		inInfo.vert = -1;
 	}
 	int32_t hash;
-	int32_t ruvmEdge;
+	int32_t uvsEdge;
 	if (isOnInVert) {
-		hash = ruvmFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
-		ruvmEdge = -1;
+		hash = uvsFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
+		uvsEdge = -1;
 	}
 	else {
-		FaceRange ruvmFace =
-			getFaceRange(&pArgs->pMap->mesh.mesh, pEntry->faceIndex, false);
-		ruvmEdge = pArgs->pMap->mesh.mesh.pEdges[ruvmFace.start + mapLoop];
-		hash = ruvmFnvHash((uint8_t *)&ruvmEdge, 4, pArgs->pCTables->vertTableSize);
+		FaceRange uvsFace =
+			getFaceRange(&pArgs->pMap->mesh.mesh, pEntry->faceIdx, false);
+		uvsEdge = pArgs->pMap->mesh.mesh.pEdges[uvsFace.start + mapCorner];
+		hash = uvsFnvHash((uint8_t *)&uvsEdge, 4, pArgs->pCTables->vertTableSize);
 	}
 	BlendConfig blendConfigAdd = {.blend = RUVM_BLEND_ADD};
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
-	if (!pVertEntry->loops) {
+	if (!pVertEntry->corners) {
 		if (addToTables) {
-			initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-							   &vert, &inInfo, pEntry->faceIndex, loop, k,
+			initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, uvsEdge,
+							   &vert, &inInfo, pEntry->faceIdx, corner, k,
 							   pPieceRoot, pPiece->tile);
 		}
 		else {
@@ -1231,45 +1231,45 @@ void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	else {
 		do {
 			//Check vert entry is valid
-			RUVM_ASSERT("", pVertEntry->ruvmEdge >= -1);
-			RUVM_ASSERT("", pVertEntry->ruvmEdge < pArgs->pMap->mesh.mesh.edgeCount);
-			RUVM_ASSERT("", pVertEntry->ruvmFace >= 0);
-			RUVM_ASSERT("", pVertEntry->ruvmFace < pArgs->pMap->mesh.mesh.faceCount);
+			RUVM_ASSERT("", pVertEntry->uvsEdge >= -1);
+			RUVM_ASSERT("", pVertEntry->uvsEdge < pArgs->pMap->mesh.mesh.edgeCount);
+			RUVM_ASSERT("", pVertEntry->uvsFace >= 0);
+			RUVM_ASSERT("", pVertEntry->uvsFace < pArgs->pMap->mesh.mesh.faceCount);
 			bool match;
 			if (isOnInVert) {
-				V2_F32 *pMeshInUvA = pArgs->pInMesh->pUvs + pVertEntry->loopIndex;
-				V2_F32 *pMeshInUvB = pArgs->pInMesh->pUvs + inInfo.vertLoop;
+				V2_F32 *pMeshInUvA = pArgs->pInMesh->pUvs + pVertEntry->cornerIdx;
+				V2_F32 *pMeshInUvB = pArgs->pInMesh->pUvs + inInfo.vertCorner;
 				match = pVertEntry->baseVert == inInfo.vert &&
-						pVertEntry->ruvmFace == pEntry->faceIndex &&
+						pVertEntry->uvsFace == pEntry->faceIdx &&
 						pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
 						pMeshInUvA->d[1] == pMeshInUvB->d[1];
 			}
 			else {
 				BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
 				bool connected = 
-					_(asMesh(pBufMesh)->pUvs[loop] V2APROXEQL
-					  asMesh(pOtherBufMesh)->pUvs[pVertEntry->loop]);
-				match =  pVertEntry->ruvmEdge == ruvmEdge &&
+					_(asMesh(pBufMesh)->pUvs[corner] V2APROXEQL
+					  asMesh(pOtherBufMesh)->pUvs[pVertEntry->corner]);
+				match =  pVertEntry->uvsEdge == uvsEdge &&
 					     pVertEntry->tile.d[0] == pPiece->tile.d[0] &&
 					     pVertEntry->tile.d[1] == pPiece->tile.d[1] &&
 						 pVertEntry->baseEdge == inInfo.edge &&
 						 connected;
 			}
 			if (match) {
-				//If loop isOnInVert,
+				//If corner isOnInVert,
 				//then entry must also be an isOnInVert entry.
 				//And if not, then entry must also not be
 				RUVM_ASSERT("", (isOnInVert && pVertEntry->baseVert != -1) ||
 				       (!isOnInVert && pVertEntry->baseVert == -1));
 				vert = pVertEntry->vert;
-				pVertEntry->loops++;
+				pVertEntry->corners++;
 				if (isOnInVert) {
 					BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
-					blendMergedLoopAttribs(blendConfigAdd,
-					                       &pOtherBufMesh->mesh.mesh.loopAttribs,
-					                       pVertEntry->loop,
-					                       &pBufMesh->mesh.mesh.loopAttribs,
-					                       loop,
+					blendMergedCornerAttribs(blendConfigAdd,
+					                       &pOtherBufMesh->mesh.mesh.cornerAttribs,
+					                       pVertEntry->corner,
+					                       &pBufMesh->mesh.mesh.cornerAttribs,
+					                       corner,
 					                       pOtherBufMesh->mesh.pNormalAttrib);
 				}
 				break;
@@ -1277,8 +1277,8 @@ void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 			if (!pVertEntry->pNext && addToTables) {
 				pVertEntry = pVertEntry->pNext =
 					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderVert));
-				initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, ruvmEdge,
-				                   &vert, &inInfo, pEntry->faceIndex, loop, k,
+				initVertTableEntry(pArgs, pVertEntry, pEntry, pBufMesh, uvsEdge,
+				                   &vert, &inInfo, pEntry->faceIdx, corner, k,
 				                   pPieceRoot, pPiece->tile);
 				break;
 			}
@@ -1286,16 +1286,16 @@ void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 		} while(pVertEntry);
 	}
 	//TODO debug/ verify border edge implementation is working correctly
-	//TODO why cant you just determine connected edges with the above loop table?
-	//     is a separate table really needed? If you know 2 loops are connected,
+	//TODO why cant you just determine connected edges with the above corner table?
+	//     is a separate table really needed? If you know 2 corners are connected,
 	//     can't you then connect their edges?
-	uint32_t valueToHash = inInfo.edge + pEntry->faceIndex;
-	hash = ruvmFnvHash((uint8_t *)&valueToHash, 4, pArgs->pCTables->edgeTableSize);
+	uint32_t valueToHash = inInfo.edge + pEntry->faceIdx;
+	hash = uvsFnvHash((uint8_t *)&valueToHash, 4, pArgs->pCTables->edgeTableSize);
 	BorderEdge *pEdgeEntry = pArgs->pCTables->pEdgeTable + hash;
 	if (!pEdgeEntry->valid) {
 		if (addToTables) {
 			initEdgeTableEntry(pArgs, pEdgeEntry, pBufMesh, &edge, inInfo.edge,
-							   pEntry->faceIndex);
+							   pEntry->faceIdx);
 		}
 		else {
 			pEdgeEntry = NULL;
@@ -1304,7 +1304,7 @@ void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	else {
 		do {
 			if (pEdgeEntry->inEdge == inInfo.edge &&
-				pEdgeEntry->mapFace == pEntry->faceIndex) {
+				pEdgeEntry->mapFace == pEntry->faceIdx) {
 				edge = pEdgeEntry->edge;
 				break;
 			}
@@ -1312,21 +1312,21 @@ void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 				pEdgeEntry = pEdgeEntry->pNext =
 					pArgs->pContext->alloc.pCalloc(1, sizeof(BorderEdge));
 				initEdgeTableEntry(pArgs, pEdgeEntry, pBufMesh, &edge,
-				                   inInfo.edge, pEntry->faceIndex);
+				                   inInfo.edge, pEntry->faceIdx);
 				break;
 			}
 			pEdgeEntry = pEdgeEntry->pNext;
 		} while(pEdgeEntry);
 	}
 	if (pVertEntry) {
-		pBufMesh->mesh.mesh.pLoops[loop] = vert;
-		pBufMesh->mesh.mesh.pEdges[loop] = 0;
+		pBufMesh->mesh.mesh.pCorners[corner] = vert;
+		pBufMesh->mesh.mesh.pEdges[corner] = 0;
 	}
 	else {
 		//set add to false
 		UBitField16 mask = -0x1 ^ (0x1 << k);
 		pPiece->add &= mask;
-		//correct sort, as this loop will not be kept
+		//correct sort, as this corner will not be kept
 		int32_t sort = pPiece->pOrder[k];
 		pPiece = pPieceRoot;
 		do {
@@ -1341,31 +1341,31 @@ void addBorderLoopAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 }
 
 static
-void mergeAttribsForSingleLoop(MergeSendOffArgs *pArgs,
+void mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs,
                                Piece *pPiece, int32_t k) {
 	BorderFace *pEntry = pPiece->pEntry;
-	RUVM_ASSERT("This should only be called on onInVert loops",
+	RUVM_ASSERT("This should only be called on onInVert corners",
 	            getIfOnInVert(pEntry, k));
-	int32_t mapLoop = getMapLoop(pEntry, k);
-	RUVM_ASSERT("", mapLoop >= 0 && mapLoop < pArgs->pMap->mesh.mesh.loopCount);
+	int32_t mapCorner = getMapCorner(pEntry, k);
+	RUVM_ASSERT("", mapCorner >= 0 && mapCorner < pArgs->pMap->mesh.mesh.cornerCount);
 	BorderInInfo inInfo = getBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	int32_t hash;
-	hash = ruvmFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
+	hash = uvsFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
-	RUVM_ASSERT("No entry was initialized for this loop", pVertEntry->loops);
+	RUVM_ASSERT("No entry was initialized for this corner", pVertEntry->corners);
 
 	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
-	int32_t loop = pPiece->bufFace.start - k;
+	int32_t corner = pPiece->bufFace.start - k;
 
 	BlendConfig blendConfigReplace = {.blend = RUVM_BLEND_REPLACE};
 	do {
-		RUVM_ASSERT("", pVertEntry->ruvmFace >= 0);
-		RUVM_ASSERT("", pVertEntry->ruvmFace < pArgs->pMap->mesh.mesh.faceCount);
+		RUVM_ASSERT("", pVertEntry->uvsFace >= 0);
+		RUVM_ASSERT("", pVertEntry->uvsFace < pArgs->pMap->mesh.mesh.faceCount);
 		bool match;
-		V2_F32 *pMeshInUvA = pArgs->pInMesh->pUvs + pVertEntry->loopIndex;
-		V2_F32 *pMeshInUvB = pArgs->pInMesh->pUvs + inInfo.vertLoop;
+		V2_F32 *pMeshInUvA = pArgs->pInMesh->pUvs + pVertEntry->cornerIdx;
+		V2_F32 *pMeshInUvB = pArgs->pInMesh->pUvs + inInfo.vertCorner;
 		match = pVertEntry->baseVert == inInfo.vert &&
-		        pVertEntry->ruvmFace == pEntry->faceIndex &&
+		        pVertEntry->uvsFace == pEntry->faceIdx &&
 		        pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
 		        pMeshInUvA->d[1] == pMeshInUvB->d[1];
 		if (match) {
@@ -1373,22 +1373,22 @@ void mergeAttribsForSingleLoop(MergeSendOffArgs *pArgs,
 			BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
 			if (!pVertEntry->divided) {
 
-				divideLoopAttribsByScalar(&pOtherBufMesh->mesh.mesh.loopAttribs,
-					                      pVertEntry->loop, pVertEntry->loops,
+				divideCornerAttribsByScalar(&pOtherBufMesh->mesh.mesh.cornerAttribs,
+					                      pVertEntry->corner, pVertEntry->corners,
 				                          pOtherBufMesh->mesh.pNormalAttrib);
 				pVertEntry->divided = true;
 			}
-			blendMergedLoopAttribs(blendConfigReplace,
-					               &pBufMesh->mesh.mesh.loopAttribs,
-					               loop,
-			                       &pOtherBufMesh->mesh.mesh.loopAttribs,
-					               pVertEntry->loop,
+			blendMergedCornerAttribs(blendConfigReplace,
+					               &pBufMesh->mesh.mesh.cornerAttribs,
+					               corner,
+			                       &pOtherBufMesh->mesh.mesh.cornerAttribs,
+					               pVertEntry->corner,
 			                       pBufMesh->mesh.pNormalAttrib);
 			return;
 		}
 		pVertEntry = pVertEntry->pNext;
 	} while(pVertEntry);
-	RUVM_ASSERT("No entry was initialized for this loop", pVertEntry);
+	RUVM_ASSERT("No entry was initialized for this corner", pVertEntry);
 }
 
 static
@@ -1399,14 +1399,14 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 	RuvmAlloc *pAlloc = &pContext->alloc;
 	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
 	MergeBufHandles mergeBufHandles = {0};
-	ruvmAllocMergeBufs(pArgs->pContext, &mergeBufHandles, pArgs->totalVerts);
+	uvsAllocMergeBufs(pArgs->pContext, &mergeBufHandles, pArgs->totalVerts);
 	for (int32_t i = 0; i < count; ++i) {
 		int32_t reali = pArgs->entriesStart + i;
 		CLOCK_START;
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
 		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
-		FaceRange ruvmFace =
-			getFaceRange(&pArgs->pMap->mesh.mesh, pPieceArr->pArr[0].pEntry->faceIndex, false);
+		FaceRange uvsFace =
+			getFaceRange(&pArgs->pMap->mesh.mesh, pPieceArr->pArr[0].pEntry->faceIdx, false);
 		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
 			Piece *pPieceRoot = pPieceArr->pArr + pPieceRoots->pArr[j];
 			int32_t *pInFaces = NULL;
@@ -1418,8 +1418,8 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 			}
 			int32_t job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
 			RUVM_ASSERT("", job >= 0 && job < pContext->threadCount);
-			ruvmMergeSingleBorderFace(pArgs, timeSpent, pPieceRoots->pArr[j], pPieceArr,
-										&ruvmFace, &mergeBufHandles, pInFaces, pieceCount);
+			uvsMergeSingleBorderFace(pArgs, timeSpent, pPieceRoots->pArr[j], pPieceArr,
+										&uvsFace, &mergeBufHandles, pInFaces, pieceCount);
 			if (pInFaces) {
 				pAlloc->pFree(pInFaces);
 			}
@@ -1436,7 +1436,7 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 		timeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 		RUVM_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
 	}
-	ruvmDestroyMergeBufs(pArgs->pContext, &mergeBufHandles);
+	uvsDestroyMergeBufs(pArgs->pContext, &mergeBufHandles);
 	pAlloc->pFree(pArgs->pPieceArrTable);
 	pAlloc->pFree(pArgs->pPieceRootTable);
 	pAlloc->pFree(pArgs->pTotalVertTable);
@@ -1448,7 +1448,7 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 }
 
 static
-void mergeIntersectionLoops(MergeSendOffArgs *pArgs, bool preserve) {
+void mergeIntersectionCorners(MergeSendOffArgs *pArgs, bool preserve) {
 	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
 	for (int32_t i = 0; i < count; ++i) {
 		int32_t reali = pArgs->entriesStart + i;
@@ -1470,9 +1470,9 @@ void mergeIntersectionLoops(MergeSendOffArgs *pArgs, bool preserve) {
 						add = add && !(pPiece->keepPreserve >> k & 0x1);
 					}
 					if (add) {
-						RUVM_ASSERT("loop marked add, but sort didn't touch it?",
+						RUVM_ASSERT("corner marked add, but sort didn't touch it?",
 						            pPiece->pOrder[k] > 0);
-						addBorderLoopAndVert(pArgs, pPiece, pPieceRoot, k, !preserve);
+						addBorderCornerAndVert(pArgs, pPiece, pPieceRoot, k, !preserve);
 					}
 				}
 				pPiece = pPiece->pNext;
@@ -1483,7 +1483,7 @@ void mergeIntersectionLoops(MergeSendOffArgs *pArgs, bool preserve) {
 }
 
 static
-void mergeLoopAttribs(MergeSendOffArgs *pArgs) {
+void mergeCornerAttribs(MergeSendOffArgs *pArgs) {
 	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
 	for (int32_t i = 0; i < count; ++i) {
 		int32_t reali = pArgs->entriesStart + i;
@@ -1498,7 +1498,7 @@ void mergeLoopAttribs(MergeSendOffArgs *pArgs) {
 						!getIfRuvm(pPiece->pEntry, k) &&
 						getIfOnInVert(pPiece->pEntry, k)) {
 
-						mergeAttribsForSingleLoop(pArgs, pPiece, k);
+						mergeAttribsForSingleCorner(pArgs, pPiece, k);
 					}
 				}
 				pPiece = pPiece->pNext;
@@ -1511,15 +1511,15 @@ void mergeLoopAttribs(MergeSendOffArgs *pArgs) {
 static
 void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
                            BufMesh *pBufMesh, FaceRange *pMapFace,
-                           int32_t loopLocal, V2_I16 tile) {
+                           int32_t cornerLocal, V2_I16 tile) {
 	BorderFace *pEntry = pPiece->pEntry;
-	int32_t loop = pPiece->bufFace.start - loopLocal;
-	int32_t vert = bufMeshGetVertIndex(pPiece, pBufMesh, loopLocal);
+	int32_t corner = pPiece->bufFace.start - cornerLocal;
+	int32_t vert = bufMeshGetVertIdx(pPiece, pBufMesh, cornerLocal);
 	V3_F32 posFlat = pBufMesh->mesh.pVerts[vert];
-	float w = pBufMesh->pW[loop];
-	V3_F32 projNormal = pBufMesh->pInNormal[loop];
-	V3_F32 inTangent = pBufMesh->pInTangent[loop];
-	float inTSign = pBufMesh->pInTSign[loop];
+	float w = pBufMesh->pW[corner];
+	V3_F32 projNormal = pBufMesh->pInNormal[corner];
+	V3_F32 inTangent = pBufMesh->pInTangent[corner];
+	float inTSign = pBufMesh->pInTSign[corner];
 	Mat3x3 tbn;
 	*(V3_F32 *)&tbn.d[0] = inTangent;
 	*(V3_F32 *)&tbn.d[1] = _(_(projNormal V3CROSS inTangent) V3MULS inTSign);
@@ -1528,24 +1528,24 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	V3_F32 normal = {0};
 	V2_F32 fTileMin = {(float)tile.d[0], (float)tile.d[1]};
 	bool normalTransformed = false;
-	if (!getIfOnInVert(pEntry, loopLocal) && !pArgs->ppInFaceTable) {
+	if (!getIfOnInVert(pEntry, cornerLocal) && !pArgs->ppInFaceTable) {
 		V3_F32 uvw;
-		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[loop] V2SUB fTileMin);
-		uvw.d[2] = pBufMesh->pW[loop];
+		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[corner] V2SUB fTileMin);
+		uvw.d[2] = pBufMesh->pW[corner];
 		RuvmMap pMap = pArgs->pMap;
 		V3_F32 usgBc = {0};
 		bool transformed = false;
 		for (int32_t i = 0; i < pMapFace->size; ++i) {
-			int32_t mapVert = pMap->mesh.mesh.pLoops[pMapFace->start + i];
+			int32_t mapVert = pMap->mesh.mesh.pCorners[pMapFace->start + i];
 			if (!pMap->mesh.pUsg) {
 				continue;
 			}
-			int32_t usgIndex = pMap->mesh.pUsg[mapVert];
-			if (!usgIndex) {
+			int32_t usgIdx = pMap->mesh.pUsg[mapVert];
+			if (!usgIdx) {
 				continue;
 			}
-			usgIndex = abs(usgIndex) - 1;
-			Usg *pUsg = pMap->usgArr.pArr + usgIndex;
+			usgIdx = abs(usgIdx) - 1;
+			Usg *pUsg = pMap->usgArr.pArr + usgIdx;
 			if (isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
 				bool flatCutoff = pUsg->pFlatCutoff &&
 					isPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
@@ -1558,7 +1558,7 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 					pos = _(posFlat V3ADD _(normal V3MULS w * pArgs->wScale));
 					if (transformed) {
 						normalTransformed = true;
-						normal = _(pBufMesh->mesh.pNormals[loop] V3MULM3X3 &tbn);
+						normal = _(pBufMesh->mesh.pNormals[corner] V3MULM3X3 &tbn);
 					}
 					break;
 				}
@@ -1566,14 +1566,14 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 		}
 	}
 	if (!normalTransformed) {
-		normal = _(pBufMesh->mesh.pNormals[loop] V3MULM3X3 &tbn);
+		normal = _(pBufMesh->mesh.pNormals[corner] V3MULM3X3 &tbn);
 	}
 	pBufMesh->mesh.pVerts[vert] = pos;
-	pBufMesh->mesh.pNormals[loop] = normal;
+	pBufMesh->mesh.pNormals[corner] = normal;
 }
 
 static
-void transformDefferedLoops(MergeSendOffArgs *pArgs,
+void transformDefferedCorners(MergeSendOffArgs *pArgs,
                             FaceRange *pMapFace, Piece *pPiece) {
 	do {
 		BufMesh *pBufMesh = &pArgs->pJobArgs[pPiece->pEntry->job].bufMesh;
@@ -1621,8 +1621,8 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 		compileEntryInfo(pEntry, &entryCount);
 		RUVM_ASSERT("", entryCount);
 		//int32_t seamFace = ;
-		FaceRange ruvmFace =
-			getFaceRange(&pArgs->pMap->mesh.mesh, pEntry->faceIndex, false);
+		FaceRange uvsFace =
+			getFaceRange(&pArgs->pMap->mesh.mesh, pEntry->faceIdx, false);
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
 		pPieceRoots->count = 0;
 		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
@@ -1643,11 +1643,11 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 			Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[j];
 			RUVM_ASSERT("", pPiece->pEntry);
 			markKeepInVertsPreserve(pArgs, pArgs->pMap, pPiece);
-			sortLoops(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, &totalVerts);
+			sortCorners(pArgs, pPiece, pPieceArr, pSharedEdges, edgeTableSize, &totalVerts);
 			if (!pPiece->pEntry->inOrient) {
 				invertWind(pPiece, totalVerts);
 			}
-			transformDefferedLoops(pArgs, &ruvmFace, pPiece);
+			transformDefferedCorners(pArgs, &uvsFace, pPiece);
 			if (totalVerts > pArgs->totalVerts) {
 				pArgs->totalVerts = totalVerts;
 			}
@@ -1678,9 +1678,9 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
 	if (barrierRet) {
 		for (int32_t i = 0; i < *pArgs->pActiveJobs; ++i) {
-			mergeIntersectionLoops(pArgs->pArgArr + i, false);
-			mergeIntersectionLoops(pArgs->pArgArr + i, true);
-			mergeLoopAttribs(pArgs->pArgArr + i);
+			mergeIntersectionCorners(pArgs->pArgArr + i, false);
+			mergeIntersectionCorners(pArgs->pArgArr + i, true);
+			mergeCornerAttribs(pArgs->pArgArr + i);
 		}
 	}
 	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
@@ -1695,7 +1695,7 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 
 static
 void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
-                              BorderBucket *pBucket, int32_t faceIndex,
+                              BorderBucket *pBucket, int32_t faceIdx,
 							  int32_t hash, int32_t job, int32_t mapJobsSent) {
 	for (int32_t j = job + 1; j < mapJobsSent; ++j) {
 		if (!pJobArgs[j].bufSize) {
@@ -1707,7 +1707,7 @@ void linkEntriesFromOtherJobs(RuvmContext pContext, SendOffArgs *pJobArgs,
 		//RUVM_ASSERT("", pBucketOther != NULL);
 		do {
 			if (pBucketOther->pEntry) {
-				if (faceIndex == pBucketOther->pEntry->faceIndex) {
+				if (faceIdx == pBucketOther->pEntry->faceIdx) {
 					BorderFace *pEntry = pBucket->pEntry;
 					while (pEntry->pNext) {
 						pEntry = pEntry->pNext;
@@ -1739,10 +1739,10 @@ void compileBorderTables(RuvmContext pContext, SendOffArgs *pJobArgs,
 			int32_t depth = 0;
 			do {
 				if (pBucket->pEntry) {
-					int32_t faceIndex = pBucket->pEntry->faceIndex;
-					RUVM_ASSERT("", faceIndex >= 0);
+					int32_t faceIdx = pBucket->pEntry->faceIdx;
+					RUVM_ASSERT("", faceIdx >= 0);
 					linkEntriesFromOtherJobs(pContext, pJobArgs, pBucket,
-					                         faceIndex, hash, i, mapJobsSent);
+					                         faceIdx, hash, i, mapJobsSent);
 					RUVM_ASSERT("", pBorderTable->count >= 0);
 					RUVM_ASSERT("", pBorderTable->count < totalBorderFaces);
 					pBorderTable->ppTable[pBorderTable->count] = pBucket->pEntry;
@@ -1854,7 +1854,7 @@ void sendOffMergeJobs(RuvmContext pContext, CompiledBorderTable *pBorderTable,
 										   mergeAndCopyEdgeFaces, jobArgPtrs);
 }
 
-void ruvmMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
+void uvsMergeBorderFaces(RuvmContext pContext, RuvmMap pMap, Mesh *pMeshOut,
                           SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
 					      JobBases *pJobBases, int8_t *pVertSeamTable,
                           bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,

@@ -26,7 +26,7 @@ typedef struct {
 
 typedef struct BorderFace {
 	struct BorderFace *pNext;
-	int32_t faceIndex;
+	int32_t faceIdx;
 	int32_t face;
 	int32_t baseFace;
 	uint32_t tileX : RUVM_TILE_MIN_BIT_LEN;
@@ -37,39 +37,39 @@ typedef struct BorderFace {
 	uint32_t memType : 2;
 } BorderFace;
 
-//max map loops: 8
-//max possible buf loops: 14
+//max map corners: 8
+//max possible buf corners: 14
 typedef struct {
 	BorderFace header;
 	//these are indexed as multichar bit arrays
-	UBitField8 baseLoop[4];
-	UBitField8 ruvmLoop[6];
+	UBitField8 baseCorner[4];
+	UBitField8 uvsCorner[6];
 	UBitField8 segment[6];
 	UBitField8 isRuvm[2];
 	UBitField8 onLine[2];
 	UBitField8 onInVert[2];
 } BorderFaceSmall;
 
-//max map loops: 16
-//max possible buf loops: 26
+//max map corners: 16
+//max possible buf corners: 26
 typedef struct {
 	BorderFace header;
 
-	UBitField8 baseLoop[7];
-	UBitField8 ruvmLoop[13];
+	UBitField8 baseCorner[7];
+	UBitField8 uvsCorner[13];
 	UBitField8 segment[13];
 	UBitField8 isRuvm[4];
 	UBitField8 onLine[4];
 	UBitField8 onInVert[4];
 } BorderFaceMid;
 
-//max map loops 32
-//max possible buf loops: 50
+//max map corners 32
+//max possible buf corners: 50
 typedef struct {
 	BorderFace header;
 
-	UBitField8 baseLoop[13];
-	UBitField8 ruvmLoop[32];
+	UBitField8 baseCorner[13];
+	UBitField8 uvsCorner[32];
 	UBitField8 segment[32];
 	UBitField8 isRuvm[7];
 	UBitField8 onLine[7];

@@ -269,8 +269,8 @@ typedef struct {
 	RuvmCommonAttrib *pMesh;
 	int32_t faceCount;
 	RuvmCommonAttrib *pFace;
-	int32_t loopCount;
-	RuvmCommonAttrib *pLoop;
+	int32_t cornerCount;
+	RuvmCommonAttrib *pCorner;
 	int32_t edgeCount;
 	RuvmCommonAttrib *pEdge;
 	int32_t vertCount;
@@ -288,16 +288,16 @@ typedef struct {
 	RuvmObjectType type;
 } RuvmObjectData;
 
-//TODO rename pLoops to pVerts
+//TODO rename pCorners to pVerts
 typedef struct {
 	RuvmObjectData type;
 	RuvmAttribArray meshAttribs;
 	int32_t faceCount;
 	int32_t *pFaces;
 	RuvmAttribArray faceAttribs;
-	int32_t loopCount;
-	int32_t *pLoops;
-	RuvmAttribArray loopAttribs;
+	int32_t cornerCount;
+	int32_t *pCorners;
+	RuvmAttribArray cornerAttribs;
 	int32_t edgeCount;
 	int32_t *pEdges;
 	RuvmAttribArray edgeAttribs;
@@ -361,56 +361,56 @@ typedef struct RuvmStageReport {
 } RuvmStageReport;
 
 RUVM_EXPORT
-RuvmResult ruvmThreadPoolSetCustom(RuvmContext context, RuvmThreadPool *pThreadPool);
+RuvmResult uvsThreadPoolSetCustom(RuvmContext context, RuvmThreadPool *pThreadPool);
 RUVM_EXPORT
-RuvmResult ruvmContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
+RuvmResult uvsContextInit(RuvmContext *pContext, RuvmAlloc *pAlloc,
                            RuvmThreadPool *pTheadPool, RuvmIo *pIo,
                            RuvmTypeDefaultConfig *pTypeDefaultConfig,
                            RuvmStageReport *pStageReport);
 RUVM_EXPORT
-RuvmResult ruvmMapFileExport(RuvmContext context, const char *pName,
+RuvmResult uvsMapFileExport(RuvmContext context, const char *pName,
                              int32_t objCount, RuvmObject* pObjArr,
                              int32_t usgCount, RuvmUsg* pUsgArr,
                              RuvmAttribIndexedArr indexedAttribs);
 RUVM_EXPORT
-RuvmResult ruvmMapFileLoadForEdit(RuvmContext pContext, char *filePath,
+RuvmResult uvsMapFileLoadForEdit(RuvmContext pContext, char *filePath,
                                   int32_t *pObjCount, RuvmObject **ppObjArr,
                                   int32_t *pUsgCount, RuvmUsg **ppUsgArr,
                                   int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
                                   RuvmAttribIndexedArr *pIndexedAttribs);
 RUVM_EXPORT
-RuvmResult ruvmMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
+RuvmResult uvsMapFileLoad(RuvmContext context, RuvmMap *pMapHandle,
                            char *filePath);
 RUVM_EXPORT
-RuvmResult ruvmMapFileUnload(RuvmContext context, RuvmMap pMap);
+RuvmResult uvsMapFileUnload(RuvmContext context, RuvmMap pMap);
 RUVM_EXPORT
-RuvmResult ruvmQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
+RuvmResult uvsQueryCommonAttribs(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMesh,
                                   RuvmCommonAttribList *pCommonAttribs);
 RUVM_EXPORT
-RuvmResult ruvmDestroyCommonAttribs(RuvmContext pContext,
+RuvmResult uvsDestroyCommonAttribs(RuvmContext pContext,
                                     RuvmCommonAttribList *pCommonAttribs);
 RUVM_EXPORT
-RuvmResult ruvmMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
+RuvmResult uvsMapToMesh(RuvmContext pContext, RuvmMap pMap, RuvmMesh *pMeshIn,
                          RuvmMesh *pMeshOut, RuvmCommonAttribList *pCommonAttribList,
                          float wScale);
 RUVM_EXPORT
-RuvmResult ruvmObjArrDestroy(RuvmContext pContext,
+RuvmResult uvsObjArrDestroy(RuvmContext pContext,
                              int32_t objCount, RuvmObject *pObjArr);
 RUVM_EXPORT
-RuvmResult ruvmUsgArrDestroy(RuvmContext pContext,
+RuvmResult uvsUsgArrDestroy(RuvmContext pContext,
                                     int32_t count, RuvmUsg *pUsgArr);
 RUVM_EXPORT
-RuvmResult ruvmMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh);
+RuvmResult uvsMeshDestroy(RuvmContext pContext, RuvmMesh *pMesh);
 RUVM_EXPORT
-RuvmResult ruvmContextDestroy(RuvmContext pContext);
+RuvmResult uvsContextDestroy(RuvmContext pContext);
 RUVM_EXPORT
-RuvmResult ruvmGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize);
+RuvmResult uvsGetAttribSize(RuvmAttrib *pAttrib, int32_t *pSize);
 //TODO make all functions return error codes, ie, adjust functions like below, which return data,
 //pass as param instead
 RUVM_EXPORT
-RuvmResult ruvmGetAttrib(char *pName, RuvmAttribArray *pAttribs, RuvmAttrib **ppAttrib);
+RuvmResult uvsGetAttrib(char *pName, RuvmAttribArray *pAttribs, RuvmAttrib **ppAttrib);
 RUVM_EXPORT
-RuvmResult ruvmMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap,  RuvmImage *pImage);
+RuvmResult uvsMapFileGenPreviewImage(RuvmContext pContext, RuvmMap pMap,  RuvmImage *pImage);
 RUVM_EXPORT
-void ruvmMapIndexedAttribsGet(RuvmContext pContext, RuvmMap pMap,
+void uvsMapIndexedAttribsGet(RuvmContext pContext, RuvmMap pMap,
                               RuvmAttribIndexedArr *pIndexedAttribs);
