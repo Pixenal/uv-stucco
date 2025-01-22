@@ -39,21 +39,21 @@ typedef struct {
 } QuadTree;
 
 typedef struct {
-	Cell **ppCells;
-	int8_t *pCellType;
 	Range *pRangeBuf;
+	int32_t *ppCells;
 	int32_t cellSize;
 	int32_t faceTotal;
 	int32_t faceTotalNoDup;
+	int8_t *pCellType;
 } EncasingCells;
 
 typedef struct {
-	Cell **pCells;
+	FaceBounds faceBounds;
+	int32_t *pCells;
 	int8_t *pCellType;
 	Range* pRanges;
 	int32_t cellSize;
 	int32_t faceSize;
-	FaceBounds faceBounds;
 } FaceCells;
 
 typedef struct {
@@ -64,12 +64,12 @@ typedef struct {
 } FaceCellsTable;
 
 typedef struct {
-	Cell **ppCells;
+	RuvmMap pMap;
+	RuvmAlloc *pAlloc;
+	int32_t *ppCells;
 	int8_t *pCellInits;
 	int8_t *pCellTable;
 	int8_t *pCellType;
-	RuvmAlloc *pAlloc;
-	RuvmMap pMap;
 } QuadTreeSearch;
 
 void ruvmInitFaceCellsTable(RuvmAlloc *pAlloc, FaceCellsTable *pTable,

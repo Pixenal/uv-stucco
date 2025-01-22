@@ -1208,7 +1208,8 @@ Result ruvmMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
 		RUVM_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount <
 		                asMesh(&pVars->bufMesh)->faceBufSize);
-		Cell* pCell = pFaceCellsTable->pFaceCells[baseFace.index].pCells[i];
+		int32_t cellIndex = pFaceCellsTable->pFaceCells[baseFace.index].pCells[i];
+		Cell *pCell = pVars->pMap->quadTree.cellTable.pArr + cellIndex;
 		RUVM_ASSERT("", pCell->localIndex >= 0 && pCell->localIndex < 4);
 		RUVM_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 		int32_t* pCellFaces;

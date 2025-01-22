@@ -720,9 +720,11 @@ static void ruvmRenderJob(void *pArgs) {
 		Color color = { 0 };
 		color.d[3] = FLT_MAX * -1.0f;
 		ruvmGetCellsForSingleFace(&searchState, 1, &pos, &faceCellsTable, NULL, 0);
-		Cell *pLeaf = faceCells.pCells[faceCells.cellSize - 1];
+		int32_t leafIndex = faceCells.pCells[faceCells.cellSize - 1];
+		Cell *pLeaf = vars.pMap->quadTree.cellTable.pArr + leafIndex;
 		for (int32_t j = 0; j < faceCells.cellSize; ++j) {
-			Cell* pCell = faceCells.pCells[j];
+			int32_t cellIndex = faceCells.pCells[j];
+			Cell *pCell = vars.pMap->quadTree.cellTable.pArr + cellIndex;
 			int32_t* pCellFaces;
 			Range cellFaceRange = {0};
 			if (faceCells.pCellType[j]) {

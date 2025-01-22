@@ -46,21 +46,19 @@ typedef struct {
 	int32_t segment;
 } EdgeSegmentPair;
 
+// // indicates only used in createAndJoinPieces
 typedef struct Piece {
 	struct Piece *pNext;
 	BorderFace *pEntry;
-	BorderFace *pTail;
 	FaceRange bufFace;
-	int32_t edgeCount;
+	int32_t edgeCount;//
 	EdgeSegmentPair *pEdges;
-	UBitField64 keepSingle;
-	UBitField64 keepSeam;
+	UBitField64 keepSeam;//
 	UBitField64 keepPreserve;
-	UBitField64 keepVertPreserve;
-	UBitField64 keepInternPreserve;
+	UBitField64 keepVertPreserve;//
 	UBitField64 add;
 	uint8_t *pOrder;
-	int32_t entryIndex;
+	int32_t entryIndex;//
 	V2_I16 tile;
 	V3_F32 realNormal;
 	bool listed;

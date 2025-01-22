@@ -275,7 +275,8 @@ RuvmResult assignUsgsToVerts(RuvmAlloc *pAlloc,
 		for (int32_t j = 0; j < faceCellsTable.pFaceCells[i].cellSize; ++j) {
 			//put this cell stuff into a generic function
 			// v v v
-			Cell *pCell = faceCellsTable.pFaceCells[i].pCells[j];
+			int32_t cellIndex = faceCellsTable.pFaceCells[i].pCells[j];
+			Cell *pCell = pMap->quadTree.cellTable.pArr + cellIndex;
 			RUVM_ASSERT("", pCell->localIndex >= 0 && pCell->localIndex < 4);
 			RUVM_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 			int32_t *pCellFaces;

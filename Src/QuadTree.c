@@ -10,6 +10,7 @@
 #include <MapFile.h>
 #include <MathUtils.h>
 #include <Utils.h>
+#include <MapFile.h>
 #include <Error.h>
 
 typedef struct {
@@ -32,8 +33,8 @@ void calcCellBounds(Cell *cell) {
 }
 
 static
-void addCellToEncasingCells(Cell *cell, EncasingCells *pEncasingCells,
-                            int32_t edge) {
+void addCellToEncasingCells(RuvmMap pMap, Cell *cell,
+                            EncasingCells *pEncasingCells, int32_t edge) {
 	RUVM_ASSERT("", edge % 2 == edge);
 	RUVM_ASSERT("", cell->initialized % 2 == cell->initialized);
 	int32_t faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
@@ -42,9 +43,9 @@ void addCellToEncasingCells(Cell *cell, EncasingCells *pEncasingCells,
 	pEncasingCells->faceTotal += faceSize;
 	int32_t dupIndex = -1;
 	for (int32_t i = 0; i < pEncasingCells->cellSize; ++i) {
-		RUVM_ASSERT("", pEncasingCells->ppCells[i]->localIndex >= 0);
-		RUVM_ASSERT("", pEncasingCells->ppCells[i]->localIndex < 4);
-		if (pEncasingCells->ppCells[i] == cell) {
+		RUVM_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->ppCells[i]].localIndex >= 0);
+		RUVM_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->ppCells[i]].localIndex < 4);
+		if (pEncasingCells->ppCells[i] == cell->cellIndex) {
 			dupIndex = i;
 			break;
 		}
@@ -56,7 +57,7 @@ void addCellToEncasingCells(Cell *cell, EncasingCells *pEncasingCells,
 		}
 		return;
 	}
-	pEncasingCells->ppCells[pEncasingCells->cellSize] = cell;
+	pEncasingCells->ppCells[pEncasingCells->cellSize] = cell->cellIndex;
 	pEncasingCells->pCellType[pEncasingCells->cellSize] = edge;
 	pEncasingCells->cellSize++;;
 	pEncasingCells->faceTotalNoDup += faceSize;
@@ -215,7 +216,7 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 		RUVM_ASSERT("", cell->initialized % 2 == cell->initialized);
 		if (!cell->pChildren) {
 			RUVM_ASSERT("", !cell->edgeFaceSize);
-			addCellToEncasingCells(cell, pEncasingCells, 0);
+			addCellToEncasingCells(pState->pMap, cell, pEncasingCells, 0);
 			cellStackPtr--;
 			RUVM_ASSERT("", !pState->pCellInits[cell->cellIndex]);
 			pState->pCellInits[cell->cellIndex] = 1;
@@ -242,7 +243,7 @@ void ruvmGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 		RUVM_ASSERT("", vertCount >= 0 && vertCount < 10000);
 		findEncasingChildCells(pState->pAlloc, cell, children, &cellStackPtr,
 		                       vertCount, pVerts, &tileMin);
-		addCellToEncasingCells(cell, pEncasingCells, 1);
+		addCellToEncasingCells(pState->pMap, cell, pEncasingCells, 1);
 		RUVM_ASSERT("", !pState->pCellInits[cell->cellIndex]);
 		pState->pCellInits[cell->cellIndex] = 1;
 		for (int32_t i = 0; i < 4; ++i) {
@@ -316,15 +317,17 @@ int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
 }
 
 static
-int32_t checkBranchCellIsLinked(EncasingCells *pCellsBuffer, int32_t index,
-                                Range *pRange) {
+int32_t checkBranchCellIsLinked(RuvmMap pMap, EncasingCells *pCellsBuffer,
+                                int32_t index, Range *pRange) {
 	int32_t linked = 0;
-	Cell *cell = pCellsBuffer->ppCells[index];
+	int32_t cellIndex = pCellsBuffer->ppCells[index];
+	Cell *cell = pMap->quadTree.cellTable.pArr + cellIndex;
 	for (int32_t j = 0; j < pCellsBuffer->cellSize; ++j) {
 		if (pCellsBuffer->pCellType[j] || index == j) {
 			continue;
 		}
-		Cell *leaf = pCellsBuffer->ppCells[j];
+		int32_t leafIndex = pCellsBuffer->ppCells[j];
+		Cell *leaf = pMap->quadTree.cellTable.pArr + leafIndex;
 		for (int32_t k = 0; k < leaf->linkEdgeSize; ++k) {
 			if (cell->cellIndex == leaf->pLinkEdges[k]) {
 				if (!linked) {
@@ -344,19 +347,20 @@ int32_t checkBranchCellIsLinked(EncasingCells *pCellsBuffer, int32_t index,
 }
 
 static
-void removeNonLinkedBranchCells(EncasingCells *pCellsBuffer) {
+void removeNonLinkedBranchCells(RuvmMap pMap, EncasingCells *pCellsBuffer) {
 	for (int32_t i = 0; i < pCellsBuffer->cellSize;) {
 		if (!pCellsBuffer->pCellType[i]) {
 			i++;
 			continue;
 		}
 		Range range = {.start = INT32_MAX, .end = INT32_MIN};
-		if (checkBranchCellIsLinked(pCellsBuffer, i, &range)) {
+		if (checkBranchCellIsLinked(pMap, pCellsBuffer, i, &range)) {
 			pCellsBuffer->pRangeBuf[i] = range;
 			i++;
 			continue;
 		}
-		Cell *pCell = pCellsBuffer->ppCells[i];
+		int32_t cellIndex = pCellsBuffer->ppCells[i];
+		Cell *pCell = pMap->quadTree.cellTable.pArr + cellIndex;
 		pCellsBuffer->faceTotal -= pCell->edgeFaceSize;
 		pCellsBuffer->faceTotalNoDup -= pCell->edgeFaceSize;
 		for (int32_t j = i; j < pCellsBuffer->cellSize - 1; ++j) {
@@ -372,10 +376,10 @@ void copyCellsIntoTotalList(RuvmAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
                             EncasingCells *pCellsBuffer, int32_t faceIndex) {
 	FaceCells *pEntry = pFaceCellsTable->pFaceCells + faceIndex;
 	pFaceCellsTable->cellFacesTotal += pCellsBuffer->faceTotalNoDup;
-	pEntry->pCells = pAlloc->pMalloc(sizeof(Cell *) * pCellsBuffer->cellSize);
+	pEntry->pCells = pAlloc->pMalloc(sizeof(int32_t) * pCellsBuffer->cellSize);
 	pEntry->pCellType = pAlloc->pMalloc(pCellsBuffer->cellSize);
 	memcpy(pEntry->pCells, pCellsBuffer->ppCells,
-	       sizeof(Cell *) * pCellsBuffer->cellSize);
+	       sizeof(int32_t) * pCellsBuffer->cellSize);
 	memcpy(pEntry->pCellType, pCellsBuffer->pCellType, pCellsBuffer->cellSize);
 	pEntry->cellSize = pCellsBuffer->cellSize;
 	pEntry->faceSize = pCellsBuffer->faceTotalNoDup;
@@ -390,7 +394,11 @@ static
 void recordCellsInTable(QuadTreeSearch *pState, FaceCellsTable *pFaceCellsTable,
                         EncasingCells *pCellsBuffer) {
 	for (int32_t i = 0; i < pCellsBuffer->cellSize; ++i) {
-		Cell *pCell = pCellsBuffer->ppCells[i];
+		int32_t cellIndex = pCellsBuffer->ppCells[i];
+		Cell *pCell = pState->pMap->quadTree.cellTable.pArr + cellIndex;
+		//the celltable in map quadtree != pState->pCellTable, names are coincidence
+		// TODO ^change this
+		
 		//must be != 0, not > 0, so as to catch entries set to -1
 		if (pState->pCellTable[pCell->cellIndex] != 0) {
 			continue;
@@ -462,7 +470,7 @@ void ruvmInitQuadTreeSearch(RuvmAlloc *pAlloc, RuvmMap pMap, QuadTreeSearch *pSt
 	pState->pMap = pMap;
 	pState->pCellInits = pAlloc->pMalloc(pMap->quadTree.cellCount);
 	pState->pCellTable = pAlloc->pCalloc(pMap->quadTree.cellCount, sizeof(int8_t));
-	pState->ppCells = pAlloc->pMalloc(sizeof(void *) * pMap->quadTree.cellCount);
+	pState->ppCells = pAlloc->pMalloc(sizeof(int32_t) * pMap->quadTree.cellCount);
 	pState->pCellType = pAlloc->pMalloc(pMap->quadTree.cellCount);
 }
 
@@ -510,7 +518,7 @@ void ruvmGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 	}
 	cellsBuffer.pRangeBuf =
 		pState->pAlloc->pMalloc(sizeof(Range) * cellsBuffer.cellSize);
-	removeNonLinkedBranchCells(&cellsBuffer);
+	removeNonLinkedBranchCells(pState->pMap, &cellsBuffer);
 	recordCellsInTable(pState, pFaceCellsTable, &cellsBuffer);
 	copyCellsIntoTotalList(pState->pAlloc, pFaceCellsTable, &cellsBuffer,
 	                       faceIndex);
