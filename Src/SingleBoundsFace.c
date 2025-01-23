@@ -340,7 +340,7 @@ void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
 		pInFaceEntry->count = pVars->entryCount;
 		pInFaceEntry->usg = pVars->stucFace.idx;
 	}
-	BufMesh *pBufMesh = &pArgs->pJobArgs[pVars->cornerBuf.pBuf[0].job].bufMesh;
+	BufMesh *pBufMesh = &pArgs->pJobArgs[pVars->pPieceRoot->pEntry->job].bufMesh;
 	copyAllAttribs(&pMeshOut->mesh.faceAttribs,
 				   outFace,
 				   &asMesh(pBufMesh)->mesh.faceAttribs,
