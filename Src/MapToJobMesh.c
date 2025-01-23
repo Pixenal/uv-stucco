@@ -61,7 +61,7 @@ void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 
 	//generalise this
 	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.cornerAttribs);
-	pMesh->pStuc = pMesh->pUvAttrib->pData;
+	pMesh->pUvs = pMesh->pUvAttrib->pData;
 	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.cornerAttribs);
 	pMesh->pNormals = pMesh->pNormalAttrib->pData;
 	pMesh->pVertAttrib = getAttrib("position", &pMesh->mesh.vertAttribs);
@@ -209,8 +209,10 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
 		if (baseFace.size > 4) {
-			faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pStuc,
-			                           NULL, 1);
+			//TODO reimplement at some point
+			// disabled cause current triangulation method is bad
+			//faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pUvs,
+			                           //NULL, 1);
 		}
 		if (baseFace.size <= 4) {
 			//face is a quad, or a tri
@@ -218,7 +220,13 @@ void stucMapToJobMesh(void *pVarsPtr) {
 			                    &dpVars, i);
 		}
 		else {
+			result = STUC_SUCCESS;
 			//face is an ngon. ngons are processed per tri
+			//TODO re-enable when triangulation method is improved.
+			//how will extra in faces be handled (given we're splitting
+			// a face into tris). Will probably need to merge the resulting
+			//clipped faces into a single one in this func?
+			/*
 			for (int32_t j = 0; j < faceTris.triCount; ++j) {
 				int32_t triFaceStart = j * 3;
 				baseFace.start = faceTris.pCorners[triFaceStart];
@@ -230,8 +238,8 @@ void stucMapToJobMesh(void *pVarsPtr) {
 					break;
 				}
 			}
+			*/
 		}
-		STUC_ASSERT("", result == STUC_SUCCESS);
 		if (faceTris.pCorners) {
 			vars.alloc.pFree(faceTris.pCorners);
 			faceTris.pCorners = NULL;

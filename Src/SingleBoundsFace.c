@@ -282,7 +282,7 @@ bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 			pCornerBuf->pBuf[pCornerBuf->count].corner = vert;
 			pCornerBuf->pBuf[pCornerBuf->count].edge = edge;
 			pCornerBuf->pBuf[pCornerBuf->count].uv =
-				asMesh(pBufMesh)->pStuc[face.start - k];
+				asMesh(pBufMesh)->pUvs[face.start - k];
 			//CLOCK_START;
 			//CLOCK_STOP_NO_PRINT;
 			//pTimeSpent[6] += CLOCK_TIME_DIFF(start, stop);

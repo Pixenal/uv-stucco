@@ -476,7 +476,7 @@ void clipStucFaceAgainstBaseFace(MappingJobVars *pVars, FaceRange baseFace,
 		CornerInfo baseCorner = {0};
 		//why is both this and idxLocal local? Shouldn't this be absolute?
 		baseCorner.idx = i;
-		baseCorner.vert = pVars->mesh.pStuc[i + baseFace.start];
+		baseCorner.vert = pVars->mesh.pUvs[i + baseFace.start];
 		int32_t uvNextIdxLocal;
 		int32_t uvPrevIdxLocal;
 		int32_t edgeCorner;
@@ -496,7 +496,7 @@ void clipStucFaceAgainstBaseFace(MappingJobVars *pVars, FaceRange baseFace,
 		STUC_ASSERT("", pEdgeCorners[0] == edgeCorner || pEdgeCorners[1] == edgeCorner);
 		baseCorner.flipEdgeDir = edgeCorner != pEdgeCorners[0];
 		int32_t uvNextIdx = uvNextIdxLocal + baseFace.start;
-		baseCorner.vertNext = pVars->mesh.pStuc[uvNextIdx];
+		baseCorner.vertNext = pVars->mesh.pUvs[uvNextIdx];
 		baseCorner.idxNext = uvNextIdxLocal;
 		baseCorner.localIdx = i;
 		baseCorner.localIdxPrev = uvPrevIdxLocal;
@@ -1117,7 +1117,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 		pBufMesh->pInTSign[corner.realIdx] = pCornerBuf->buf[i].inTSign;
 		asMesh(pBufMesh)->mesh.pCorners[corner.realIdx] = acfVars.vert;
 		asMesh(pBufMesh)->pNormals[corner.realIdx] = pCornerBuf->buf[i].normal;
-		asMesh(pBufMesh)->pStuc[corner.realIdx] = pCornerBuf->buf[i].uv;
+		asMesh(pBufMesh)->pUvs[corner.realIdx] = pCornerBuf->buf[i].uv;
 		blendMapAndInAttribs(&pVars->bufMesh, &asMesh(pBufMesh)->mesh.cornerAttribs,
 							 &pVars->pMap->mesh.mesh.cornerAttribs,
 							 &pVars->mesh.mesh.cornerAttribs,
@@ -1162,38 +1162,43 @@ bool isOnLine(CornerBufWrap *pCornerBuf) {
 	return false;
 }
 
+static
+bool isTriDegenerate(BaseTriVerts *pTri, FaceRange *pFace) {
+	if (v2DegenerateTri(pTri->uv[0], pTri->uv[1], pTri->uv[2], .0f) ||
+		v3DegenerateTri(pTri->xyz[0], pTri->xyz[1], pTri->xyz[2], .0f)) {
+		return true;
+	}
+	if (pFace->size == 4) {
+		if (v2DegenerateTri(pTri->uv[2], pTri->uv[3], pTri->uv[0], .0f) ||
+			v3DegenerateTri(pTri->xyz[2], pTri->xyz[3], pTri->xyz[0], .0f)) {
+			return true;
+		}
+	}
+}
+
 Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
                            DebugAndPerfVars *pDpVars,
 					       V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace) {
-	if (baseFace.size < 3 || baseFace.size > 4) {
-		return STUC_SUCCESS;
-	}
+	STUC_ASSERT("", baseFace.size == 3 || baseFace.size == 4);
 	FaceBounds bounds = {0};
-	getFaceBounds(&bounds, pVars->mesh.pStuc, baseFace);
+	getFaceBounds(&bounds, pVars->mesh.pUvs, baseFace);
 	BaseTriVerts baseTri = {0};
 	pDpVars->facesNotSkipped++;
 	STUC_ASSERT("", baseFace.size >= 3 && baseFace.size <= 4);
 	for (int32_t i = 0; i < baseFace.size; ++i) {
 		int32_t corner = baseFace.start + i;
-		baseTri.uv[i] = _(pVars->mesh.pStuc[corner] V2SUB fTileMin);
+		baseTri.uv[i] = _(pVars->mesh.pUvs[corner] V2SUB fTileMin);
 		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pCorners[corner]];
 	}
 	getTriScale(baseFace.size, &baseTri);
-	bool degenerate;
-	degenerate = v3DegenerateTri(baseTri.xyz[0], baseTri.xyz[1],
-	                             baseTri.xyz[2], .0f);
-	if (baseFace.size == 4) {
-		degenerate |= v3DegenerateTri(baseTri.xyz[2], baseTri.xyz[3],
-		                              baseTri.xyz[0], .0f);
-	}
-	if (degenerate) {
-		return STUC_ERROR;
+	if (isTriDegenerate(&baseTri, &baseFace)) {
+		return STUC_SUCCESS;
 	}
 	int32_t faceWindingDir =
 		calcFaceOrientation(&pVars->mesh, &baseFace, true);
 	if (faceWindingDir == 2) {
 		//face is degenerate
-		return STUC_ERROR;
+		return STUC_SUCCESS;
 	}
 	Segments *pSegments = pVars->alloc.pCalloc(baseFace.size, sizeof(Segments));
 	for (int32_t i = 0; i < baseFace.size; ++i) {

@@ -967,7 +967,7 @@ void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree) {
 
 void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
                               Mesh *pMesh, FaceRange *pFace) {
-	getFaceBounds(pFaceBounds, pMesh->pStuc, *pFace);
+	getFaceBounds(pFaceBounds, pMesh->pUvs, *pFace);
 	pFaceBounds->fMinSmall = pFaceBounds->fMin;
 	pFaceBounds->fMaxSmall = pFaceBounds->fMax;
 	pFaceBounds->min = v2FloorAssign(&pFaceBounds->fMin);
@@ -988,7 +988,7 @@ void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
 		getFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);
 		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
 		for (int32_t j = 0; j < faceInfo.size; ++j) {
-			pVertBuf[j] = pMesh->pStuc[faceInfo.start + j];
+			pVertBuf[j] = pMesh->pUvs[faceInfo.start + j];
 		}
 		stucGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
 			                      pFaceCellsTable, &faceBounds, i);

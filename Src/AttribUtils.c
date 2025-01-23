@@ -2223,7 +2223,7 @@ SpecialAttrib getIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 		if (pAttrib->pData == pMesh->pVerts) {
 			return ATTRIB_SPECIAL_VERTS;
 		}
-		else if (pAttrib->pData == pMesh->pStuc) {
+		else if (pAttrib->pData == pMesh->pUvs) {
 			return ATTRIB_SPECIAL_UVS;
 		}
 		else if (pAttrib->pData == pMesh->pNormals) {
@@ -2266,7 +2266,7 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			valid = true;
 			break;
 		case (ATTRIB_SPECIAL_UVS):
-			pMesh->pStuc = pAttrib->pData;
+			pMesh->pUvs = pAttrib->pData;
 			valid = true;
 			break;
 		case (ATTRIB_SPECIAL_NORMALS):
@@ -2369,7 +2369,7 @@ void setSpecialAttribs(Mesh *pMesh, UBitField16 flags) {
 	if (flags >> ATTRIB_SPECIAL_UVS & 0x01) {
 		pMesh->pUvAttrib = getAttrib("UVMap", &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pUvAttrib);
-		pMesh->pStuc = pMesh->pUvAttrib->pData;
+		pMesh->pUvs = pMesh->pUvAttrib->pData;
 	}
 	if (flags >> ATTRIB_SPECIAL_NORMALS & 0x01) {
 		pMesh->pNormalAttrib = getAttrib("normal", &pCore->cornerAttribs);

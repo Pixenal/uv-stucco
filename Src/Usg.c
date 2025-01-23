@@ -212,7 +212,7 @@ void getUsgBoundsSquare(Mesh *pMesh, Mesh *pSrcMesh) {
 		pMesh->pVerts[pCore->vertCount] = stuc[i];
 		//can probably delete the stuc once the groups are set,
 		//they're only used for that
-		pMesh->pStuc[pCore->cornerCount] = *(V2_F32 *)&stuc[i];
+		pMesh->pUvs[pCore->cornerCount] = *(V2_F32 *)&stuc[i];
 		pCore->cornerCount++;
 		pCore->edgeCount++;
 		pCore->vertCount++;
@@ -298,8 +298,8 @@ StucResult assignUsgsToVerts(StucAlloc *pAlloc,
 			for (int32_t k = range.start; k < range.end; ++k) {
 				FaceRange stucFace = getFaceRange(&pMap->mesh.mesh, pCellFaces[k], false);
 				//the uv of corners 0 and 2 can be treated and min and max for the bounding square
-				V2_F32 min = pSquares->pStuc[squaresFace.start];
-				V2_F32 max = pSquares->pStuc[squaresFace.start + 2];
+				V2_F32 min = pSquares->pUvs[squaresFace.start];
+				V2_F32 max = pSquares->pUvs[squaresFace.start + 2];
 				if (!checkFaceIsInBounds(min, max, stucFace, &pMap->mesh)) {
 					continue;
 				}
@@ -342,7 +342,7 @@ StucResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 				int8_t triCorners[4] = {0};
 				V2_F32 triStuc[4] = {0};
 				for (int32_t k = 0; k < inFace.size; ++k) {
-					triStuc[k] = pInMesh->pStuc[inFace.start + k];
+					triStuc[k] = pInMesh->pUvs[inFace.start + k];
 				}
 				//TODO move in stuc to 0 - 1 space if in another tile
 				//(don't move origin, conversion to barycentric causes problems if you do that).
@@ -501,9 +501,9 @@ bool sampleUsg(int32_t stucCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed,
 		if (pEntry) {
 			if (flatCutoff) {
 				BaseTriVerts usgTri = {
-					.uv = {pInMesh->pStuc[pEntry->pEntry->tri[0]],
-							pInMesh->pStuc[pEntry->pEntry->tri[1]],
-							pInMesh->pStuc[pEntry->pEntry->tri[2]]},
+					.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
+							pInMesh->pUvs[pEntry->pEntry->tri[1]],
+							pInMesh->pUvs[pEntry->pEntry->tri[2]]},
 					.xyz = {pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[0]]],
 							pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[1]]],
 							pInMesh->pVerts[pInMesh->mesh.pCorners[pEntry->pEntry->tri[2]]]}

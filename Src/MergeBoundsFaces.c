@@ -363,7 +363,7 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 	//In this case, we perform an intersect test,
 	//and use that to see if the base edge would intersect
 	//with a preserve edge, were it to extend out infinitely
-	V2_F32 *pUvStart = pBufMesh->pStuc + pItem->pPiece->bufFace.start;
+	V2_F32 *pUvStart = pBufMesh->pUvs + pItem->pPiece->bufFace.start;
 	int32_t corner = pItem->corner;
 	if (side) {
 		corner = cornerNext;
@@ -1237,8 +1237,8 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 			STUC_ASSERT("", pVertEntry->stucFace < pArgs->pMap->mesh.mesh.faceCount);
 			bool match;
 			if (isOnInVert) {
-				V2_F32 *pMeshInUvA = pArgs->pInMesh->pStuc + pVertEntry->cornerIdx;
-				V2_F32 *pMeshInUvB = pArgs->pInMesh->pStuc + inInfo.vertCorner;
+				V2_F32 *pMeshInUvA = pArgs->pInMesh->pUvs + pVertEntry->cornerIdx;
+				V2_F32 *pMeshInUvB = pArgs->pInMesh->pUvs + inInfo.vertCorner;
 				match = pVertEntry->baseVert == inInfo.vert &&
 						pVertEntry->stucFace == pEntry->faceIdx &&
 						pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
@@ -1247,8 +1247,8 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 			else {
 				BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
 				bool connected = 
-					_(asMesh(pBufMesh)->pStuc[corner] V2APROXEQL
-					  asMesh(pOtherBufMesh)->pStuc[pVertEntry->corner]);
+					_(asMesh(pBufMesh)->pUvs[corner] V2APROXEQL
+					  asMesh(pOtherBufMesh)->pUvs[pVertEntry->corner]);
 				match =  pVertEntry->stucEdge == stucEdge &&
 					     pVertEntry->tile.d[0] == pPiece->tile.d[0] &&
 					     pVertEntry->tile.d[1] == pPiece->tile.d[1] &&
@@ -1362,8 +1362,8 @@ void mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs,
 		STUC_ASSERT("", pVertEntry->stucFace >= 0);
 		STUC_ASSERT("", pVertEntry->stucFace < pArgs->pMap->mesh.mesh.faceCount);
 		bool match;
-		V2_F32 *pMeshInUvA = pArgs->pInMesh->pStuc + pVertEntry->cornerIdx;
-		V2_F32 *pMeshInUvB = pArgs->pInMesh->pStuc + inInfo.vertCorner;
+		V2_F32 *pMeshInUvA = pArgs->pInMesh->pUvs + pVertEntry->cornerIdx;
+		V2_F32 *pMeshInUvB = pArgs->pInMesh->pUvs + inInfo.vertCorner;
 		match = pVertEntry->baseVert == inInfo.vert &&
 		        pVertEntry->stucFace == pEntry->faceIdx &&
 		        pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
@@ -1530,7 +1530,7 @@ void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	bool normalTransformed = false;
 	if (!getIfOnInVert(pEntry, cornerLocal) && !pArgs->ppInFaceTable) {
 		V3_F32 uvw;
-		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pStuc[corner] V2SUB fTileMin);
+		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[corner] V2SUB fTileMin);
 		uvw.d[2] = pBufMesh->pW[corner];
 		StucMap pMap = pArgs->pMap;
 		V3_F32 usgBc = {0};
