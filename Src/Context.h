@@ -11,4 +11,5 @@ typedef struct StucContextInternal {
 	StucTypeDefaultConfig typeDefaults;
 	StucStageReport stageReport;
 	int32_t stageInterval;
+	char spAttribs[11][STUC_ATTRIB_NAME_MAX_LEN];
 } StucContextInternal;

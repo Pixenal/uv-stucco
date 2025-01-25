@@ -13,68 +13,25 @@
 static
 void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 	StucMap pMap = pVars->pMap;
-	StucMesh *pMeshIn = &pVars->mesh.mesh;
-	Mesh *pMesh = asMesh(&pVars->bufMesh);
+	StucMesh *pMeshIn = &pVars->mesh.core;
+	Mesh *pMesh = &pVars->bufMesh.mesh;
 	StucAlloc *pAlloc = &pVars->alloc;
 	pMesh->faceBufSize = pVars->bufSize;
 	pMesh->cornerBufSize = pVars->cornerBufSize;
 	pMesh->edgeBufSize = pVars->cornerBufSize;
 	pMesh->vertBufSize = pVars->bufSize;
-	pMesh->mesh.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pMesh->faceBufSize);
-	pMesh->mesh.pCorners = pAlloc->pMalloc(sizeof(int32_t) * pMesh->cornerBufSize);
-	pMesh->mesh.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pMesh->edgeBufSize);
+	pMesh->core.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pMesh->faceBufSize);
+	pMesh->core.pCorners = pAlloc->pMalloc(sizeof(int32_t) * pMesh->cornerBufSize);
+	pMesh->core.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pMesh->edgeBufSize);
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
 	allocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
-	//create attribs for deffering offset transform until combine stage
-	//make these bufmesh only attribs a part of the special attribs,
-	//you'll need to expand the flags param to a 16 bits
-	pMesh->mesh.cornerAttribs.size += 3;
-	pMesh->mesh.cornerAttribs.pArr =
-		pVars->alloc.pRealloc(pMesh->mesh.cornerAttribs.pArr,
-	                          pMesh->mesh.cornerAttribs.size * sizeof(Attrib));
-	Attrib *pWAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count;
-	initAttrib(&pVars->alloc, pWAttrib, "StucW", pMesh->cornerBufSize, false,
-	           STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_F32);
-	Attrib *pInNormalAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 1;
-	initAttrib(&pVars->alloc, pInNormalAttrib, "StucInNormal", pMesh->cornerBufSize, false,
-		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_V3_F32);
-	Attrib *pInTangentAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 2;
-	initAttrib(&pVars->alloc, pInTangentAttrib, "StucInTangent", pMesh->cornerBufSize, false,
-		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_V3_F32);
-	Attrib *pAlphaAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 3;
-	initAttrib(&pVars->alloc, pAlphaAttrib, "StucAlpha", pMesh->cornerBufSize, false,
-		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_F32);
-	Attrib *pInTSignAttrib = pMesh->mesh.cornerAttribs.pArr + pMesh->mesh.cornerAttribs.count + 4;
-	initAttrib(&pVars->alloc, pInTSignAttrib, "StucInTSign", pMesh->cornerBufSize, false,
-		STUC_ATTRIB_ORIGIN_IGNORE, STUC_ATTRIB_F32);
-	pMesh->mesh.cornerAttribs.count += 5;
-	pVars->bufMesh.pWAttrib = pWAttrib;
-	pVars->bufMesh.pW = pWAttrib->pData;
-	pVars->bufMesh.pInNormalAttrib = pInNormalAttrib;
-	pVars->bufMesh.pInNormal = pInNormalAttrib->pData;
-	pVars->bufMesh.pInTangentAttrib = pInTangentAttrib;
-	pVars->bufMesh.pInTangent = pInTangentAttrib->pData;
-	pVars->bufMesh.pAlphaAttrib = pAlphaAttrib;
-	pVars->bufMesh.pAlpha = pAlphaAttrib->pData;
-	pVars->bufMesh.pInTSignAttrib = pInTSignAttrib;
-	pVars->bufMesh.pInTSign = pInTSignAttrib->pData;
+	appendBufOnlySpecialAttribs(&pVars->alloc, &pVars->bufMesh);
+	setSpecialBufAttribs(pMesh, 0x3e); //set all
+	setSpecialAttribs(pVars->pContext, pMesh, 0x40e); //set vert, normal, uv, and w scale
+	setAttribToDontCopy(pVars->pContext, pMesh, 0x400); //set w scale to DONT_COPY
 
-	//generalise this
-	pMesh->pUvAttrib = getAttrib("UVMap", &pMesh->mesh.cornerAttribs);
-	pMesh->pUvs = pMesh->pUvAttrib->pData;
-	pMesh->pNormalAttrib = getAttrib("normal", &pMesh->mesh.cornerAttribs);
-	pMesh->pNormals = pMesh->pNormalAttrib->pData;
-	pMesh->pVertAttrib = getAttrib("position", &pMesh->mesh.vertAttribs);
-	pMesh->pVerts = pMesh->pVertAttrib->pData;
 	pMesh->cornerBufSize = cornerBufSize;
-	pMesh->mesh.type.type = STUC_OBJECT_DATA_MESH_BUF;
-	pMesh->pWScaleAttrib = getAttrib("StucWScale", &pMesh->mesh.vertAttribs);
-	if (pMesh->pWScaleAttrib) {
-		pMesh->pWScale = pMesh->pWScaleAttrib->pData;
-		//temp override to prevent it from being added to out mesh
-		//generaliee this in an 'originOverride' func or something
-		pMesh->pWScaleAttrib->origin = STUC_ATTRIB_ORIGIN_IGNORE;
-	}
+	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
 }
 
 static
@@ -158,8 +115,9 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	Result result = STUC_NOT_SET;
 	SendOffArgs *pSend = pVarsPtr;
 	MappingJobVars vars = {0};
-	vars.pEdgeVerts = pSend->pEdgeVerts;
+	vars.pContext = pSend->pContext;
 	vars.alloc = pSend->pContext->alloc;
+	vars.pEdgeVerts = pSend->pEdgeVerts;
 	vars.id = pSend->id;
 	vars.borderTable.size = pSend->borderTable.size;
 	vars.mesh = pSend->mesh;
@@ -176,7 +134,7 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	                 &averageMapFacesPerFace);
 	//CLOCK_STOP("Get Encasing Cells Time");
 	//CLOCK_START;
-	vars.bufSize = vars.mesh.mesh.faceCount + faceCellsTable.cellFacesTotal;
+	vars.bufSize = vars.mesh.core.faceCount + faceCellsTable.cellFacesTotal;
 	allocBufMeshAndTables(&vars, &faceCellsTable);
 	//CLOCK_STOP("Alloc buffers and tables time");
 	DebugAndPerfVars dpVars = {0};
@@ -193,7 +151,7 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		vars.inFaceSize = 8;
 		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
-	for (int32_t i = 0; i < vars.mesh.mesh.faceCount; ++i) {
+	for (int32_t i = 0; i < vars.mesh.core.faceCount; ++i) {
 		// copy faces over to a new contiguous array
 		//CLOCK_START;
 		//stucLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
@@ -201,8 +159,8 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
 		FaceRange baseFace = {0};
-		baseFace.start = vars.mesh.mesh.pFaces[i];
-		baseFace.end = vars.mesh.mesh.pFaces[i + 1];
+		baseFace.start = vars.mesh.core.pFaces[i];
+		baseFace.end = vars.mesh.core.pFaces[i + 1];
 		baseFace.size = baseFace.end - baseFace.start;
 		baseFace.idx = i;
 		vars.tbn = buildFaceTbn(baseFace, &vars.mesh, NULL);
@@ -256,13 +214,13 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	}
 	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
 	//vars.alloc.pFree(pCellFaces);
-	bool empty = !(vars.bufMesh.mesh.mesh.faceCount || vars.bufMesh.borderFaceCount);
+	bool empty = !(vars.bufMesh.mesh.core.faceCount || vars.bufMesh.borderFaceCount);
 	if (result == STUC_SUCCESS && !empty) {
 		bufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
 		pSend->reallocTime = dpVars.reallocTime;
 		pSend->bufSize = vars.bufSize;
 		pSend->rawBufSize = vars.rawBufSize;
-		pSend->finalBufSize = asMesh(&vars.bufMesh)->faceBufSize;
+		pSend->finalBufSize = &vars.bufMesh.mesh.faceBufSize;
 		//STUC_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
 		STUC_ASSERT("", vars.borderTable.pTable != NULL);
 		printf("borderTable %d\n", vars.borderTable.pTable != NULL);
@@ -276,8 +234,8 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
 	STUC_ASSERT("", pSend->bufSize > 0 || empty);
-	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.mesh.faceCount);
-	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.mesh.faceCount);
+	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.core.faceCount);
+	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.core.faceCount);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
 	--*pSend->pActiveJobs;
 	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,

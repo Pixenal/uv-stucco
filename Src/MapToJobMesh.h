@@ -69,6 +69,7 @@ typedef struct {
 } LocalTables;
 
 typedef struct {
+	StucContext pContext;
 	BufMesh bufMesh;
 	Mesh mesh;
 	StucMap pMap;

@@ -102,7 +102,7 @@ int32_t findFaceQuadrant(StucAlloc* pAlloc, FaceRange *pFace,
 	commonSides->d[0] = commonSides->d[1] = 1;
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * pFace->size);
 	for (int32_t i = 0; i < pFace->size; ++i) {
-		int32_t vertIdx = pMesh->mesh.pCorners[pFace->start + i];
+		int32_t vertIdx = pMesh->core.pCorners[pFace->start + i];
 		STUC_ASSERT("", v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIdx]));
 		pSides[i].d[0] = pMesh->pVerts[vertIdx].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pMesh->pVerts[vertIdx].d[1] < midPoint.d[1];
@@ -577,7 +577,7 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRa
 	int32_t linked = 0;
 	for (int32_t i = 0; i < pAncestor->edgeFaceSize; ++i) {
 		int32_t faceIdx = pAncestor->pEdgeFaces[i];
-		FaceRange face = getFaceRange(&pMesh->mesh, faceIdx, false);
+		FaceRange face = getFaceRange(&pMesh->core, faceIdx, false);
 		//doesn't catch cases where edge intersect with bounds,
 		//replace with a better method
 		if (checkFaceIsInBounds(pChild->boundsMin, pChild->boundsMax,
@@ -657,11 +657,11 @@ void getDupEdgeFaces(StucContext pContext, Cell **pCellStack,
 		ancestorCount++;
 		for (int32_t j = 0; j < pAncestor->edgeFaceSize; ++j) {
 			int32_t face = pAncestor->pEdgeFaces[j];
-			int32_t faceStart = pMesh->mesh.pFaces[face];
-			int32_t faceEnd = pMesh->mesh.pFaces[face + 1];
+			int32_t faceStart = pMesh->core.pFaces[face];
+			int32_t faceEnd = pMesh->core.pFaces[face + 1];
 			int32_t faceCornerSize = faceEnd - faceStart;
 			for (int32_t k = 0; k < faceCornerSize; ++k) {
-				V2_F32* pVert = pMesh->pVerts + pMesh->mesh.pCorners[faceStart + k];
+				V2_F32* pVert = pMesh->pVerts + pMesh->core.pCorners[faceStart + k];
 				if (_(*pVert V2GREAT pCell->boundsMin) &&
 					_(*pVert V2LESS pCell->boundsMax)) {
 					//offset index per cell
@@ -705,7 +705,7 @@ void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
 	V2_F32 midPoint = pParentCell->pChildren[1].boundsMin;
 	STUC_ASSERT("", v2IsFinite(midPoint));
 	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
-		FaceRange face = getFaceRange(&pMesh->mesh, pParentCell->pFaces[i], false);
+		FaceRange face = getFaceRange(&pMesh->core, pParentCell->pFaces[i], false);
 		V2_I32 signs;
 		V2_I32 commonSides;
 		int32_t result =
@@ -900,10 +900,10 @@ void initRootAndChildren(StucContext pContext, int32_t *pCellStack,
 	pCellStack[0] = 0;
 	pTable->pArr[0].boundsMax.d[0] = pTable->pArr[0].boundsMax.d[1] = 1.0f;
 	pTable->pArr[0].initialized = 1;
-	pTable->pArr[0].faceSize = pMesh->mesh.faceCount;
+	pTable->pArr[0].faceSize = pMesh->core.faceCount;
 	pTable->pArr[0].pFaces =
-		pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->mesh.faceCount);
-	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
+		pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->core.faceCount);
+	for (int32_t i = 0; i < pMesh->core.faceCount; ++i) {
 		pTable->pArr[0].pFaces[i] = i;
 	}
 	allocateChildren(pContext, 0, 0, pMap);
@@ -915,16 +915,16 @@ void initRootAndChildren(StucContext pContext, int32_t *pCellStack,
 
 void stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
-	STUC_ASSERT("", pMap->mesh.mesh.faceCount > 0);
+	STUC_ASSERT("", pMap->mesh.core.faceCount > 0);
 	stageBeginWrap(pContext, "Creating quad tree", pContext->stageReport.outOf);
-	pTree->cellTable.size = pMap->mesh.mesh.faceCount / CELL_MAX_VERTS + 1;
+	pTree->cellTable.size = pMap->mesh.core.faceCount / CELL_MAX_VERTS + 1;
 	pTree->cellTable.pArr =
 		pContext->alloc.pCalloc(pTree->cellTable.size, sizeof(Cell));
 	Mesh *pMesh = &pMap->mesh;
 	pTree->cellCount = 0;
 	pTree->leafCount = 0;
 	int8_t *pFaceFlag =
-		pContext->alloc.pCalloc(pMesh->mesh.faceCount, sizeof(int8_t));
+		pContext->alloc.pCalloc(pMesh->core.faceCount, sizeof(int8_t));
 
 	pTree->pRootCell = pTree->cellTable.pArr;
 	int32_t cellStack[256];
@@ -979,10 +979,10 @@ void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
                       Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
 					  int32_t *pAverageMapFacesPerFace) {
 	*pAverageMapFacesPerFace = 0;
-	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->mesh.faceCount);
+	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->core.faceCount);
 	QuadTreeSearch searchState = {0};
 	stucInitQuadTreeSearch(pAlloc, pMap, &searchState);
-	for (int32_t i = 0; i < pMesh->mesh.faceCount; ++i) {
+	for (int32_t i = 0; i < pMesh->core.faceCount; ++i) {
 		FaceRange faceInfo = getFaceRange(pMesh, i, false);
 		FaceBounds faceBounds = {0};
 		getFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);
@@ -996,6 +996,6 @@ void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
 		*pAverageMapFacesPerFace += pFaceCellsTable->pFaceCells[i].faceSize;
 		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
 	}
-	*pAverageMapFacesPerFace /= pMesh->mesh.faceCount;
+	*pAverageMapFacesPerFace /= pMesh->core.faceCount;
 	stucDestroyQuadTreeSearch(&searchState);
 }

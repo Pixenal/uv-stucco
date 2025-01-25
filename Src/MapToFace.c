@@ -490,7 +490,7 @@ void clipStucFaceAgainstBaseFace(MappingJobVars *pVars, FaceRange baseFace,
 			uvPrevIdxLocal = ((i + 1) % baseFace.size);
 			edgeCorner = baseFace.start + uvNextIdxLocal;
 		}
-		baseCorner.edgeIdx = pVars->mesh.mesh.pEdges[edgeCorner];
+		baseCorner.edgeIdx = pVars->mesh.core.pEdges[edgeCorner];
 		//TODO rename verts in pEdgeVerts to corners. They're not verts anymore.
 		int32_t *pEdgeCorners = pVars->pEdgeVerts[baseCorner.edgeIdx].verts;
 		STUC_ASSERT("", pEdgeCorners[0] == edgeCorner || pEdgeCorners[1] == edgeCorner);
@@ -535,9 +535,9 @@ static
 V3_F32 getCornerRealNormal(Mesh *pMesh, FaceRange *pFace, int32_t corner) {
 	int32_t a = corner == 0 ? pFace->size - 1 : corner - 1;
 	int32_t c = (corner + 1) % pFace->size;
-	int32_t aIdx = pMesh->mesh.pCorners[pFace->start + a];
-	int32_t bIdx = pMesh->mesh.pCorners[pFace->start + corner];
-	int32_t cIdx = pMesh->mesh.pCorners[pFace->start + c];
+	int32_t aIdx = pMesh->core.pCorners[pFace->start + a];
+	int32_t bIdx = pMesh->core.pCorners[pFace->start + corner];
+	int32_t cIdx = pMesh->core.pCorners[pFace->start + c];
 	V3_F32 ba = _(pMesh->pVerts[aIdx] V3SUB pMesh->pVerts[bIdx]);
 	V3_F32 bc = _(pMesh->pVerts[cIdx] V3SUB pMesh->pVerts[bIdx]);
 	return v3Normalize(_(ba V3CROSS bc));
@@ -564,7 +564,7 @@ void transformClippedFaceFromUvToXyz(CornerBufWrap *pCornerBuf, FaceRange stucFa
 		int32_t inVerts[3];
 		for (int32_t i = 0; i < 3; ++i) {
 			inVerts[i] =
-				pVars->mesh.mesh.pCorners[inFace.start + pTriCorners[i]];
+				pVars->mesh.core.pCorners[inFace.start + pTriCorners[i]];
 			vertsXyz[i] = pVars->mesh.pVerts[inVerts[i]];
 		}
 		pCorner->bc = vertBc;
@@ -658,9 +658,9 @@ void blendMapAndInAttribs(BufMesh *pBufMesh, AttribArray *pDestAttribs,
 	for (int32_t i = 0; i < pDestAttribs->count; ++i) {
 		StucAttrib *pDestAttrib = pDestAttribs->pArr + i;
 		if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_COMMON) {
-			if (pDestAttrib == asMesh(pBufMesh)->pVertAttrib ||
-			    pDestAttrib == asMesh(pBufMesh)->pUvAttrib ||
-				pDestAttrib == asMesh(pBufMesh)->pNormalAttrib) {
+			if (pDestAttrib == pBufMesh->mesh.pVertAttrib ||
+			    pDestAttrib == pBufMesh->mesh.pUvAttrib ||
+				pDestAttrib == pBufMesh->mesh.pNormalAttrib) {
 
 				continue;
 			}
@@ -713,7 +713,7 @@ void blendMapAndInAttribs(BufMesh *pBufMesh, AttribArray *pDestAttribs,
 		else if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_MAP) {
 			StucAttrib *pMapAttrib = getAttrib(pDestAttribs->pArr[i].name,
 											   pMapAttribs);
-			if (pMapAttrib->interpolate && domain == STUC_DOMAIN_LOOP) {
+			if (pMapAttrib->interpolate && domain == STUC_DOMAIN_CORNER) {
 				StucAttrib *pMapAttrib =
 					getAttrib(pDestAttribs->pArr[i].name, pMapAttribs);
 				//memcpy(attribAsVoid(pDestAttrib, dataIdx),
@@ -806,9 +806,9 @@ void initEdgeTableEntry(MappingJobVars *pVars, LocalEdge *pEntry,
 	BufMeshIdx edge = bufMeshAddEdge(&pVars->alloc, pBufMesh, !isMapEdge, pVars->pDpVars, &realloced);
 	pAcfVars->edge = edge.idx;
 	pEntry->edge = edge.idx;
-	simpleCopyAttribs(&asMesh(pBufMesh)->mesh.edgeAttribs,
-	                  &pVars->pMap->mesh.mesh.edgeAttribs,
-					  &pVars->mesh.mesh.edgeAttribs,
+	simpleCopyAttribs(&pBufMesh->mesh.core.edgeAttribs,
+	                  &pVars->pMap->mesh.core.edgeAttribs,
+					  &pVars->mesh.core.edgeAttribs,
 					  edge.realIdx, refEdge, isMapEdge);
 	pEntry->refEdge = refEdge;
 	pEntry->refFace = refFace;
@@ -820,11 +820,11 @@ int32_t getRefEdge(MappingJobVars *pVars, FaceRange *pStucFace,
 				   int32_t cornerBufIdx) {
 	if (pCornerBuf[cornerBufIdx].isStuc) {
 		int32_t stucCorner = pCornerBuf[cornerBufIdx].stucCorner;
-		return pVars->pMap->mesh.mesh.pEdges[pStucFace->start + stucCorner];
+		return pVars->pMap->mesh.core.pEdges[pStucFace->start + stucCorner];
 	}
 	else {
 		int32_t baseCorner = pCornerBuf[cornerBufIdx].baseCorner;
-		return pVars->mesh.mesh.pEdges[pBaseFace->start + baseCorner];
+		return pVars->mesh.core.pEdges[pBaseFace->start + baseCorner];
 	}
 }
 
@@ -874,12 +874,12 @@ void addNewCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 		bool realloced = false;
 		BufMeshIdx vert = bufMeshAddVert(&pVars->alloc, pBufMesh, true, pVars->pDpVars, &realloced);
 		pAcfVars->vert = vert.idx;
-		asMesh(pBufMesh)->pVerts[vert.realIdx] = pCornerBuf[cornerBufIdx].corner;
+		pBufMesh->mesh.pVerts[vert.realIdx] = pCornerBuf[cornerBufIdx].corner;
 		//temporarily setting mesh data idx to 0, as it's only needed if interpolation is disabled
 		blendMapAndInAttribs(
-			pBufMesh, &asMesh(pBufMesh)->mesh.vertAttribs,
-			&pVars->pMap->mesh.mesh.vertAttribs,
-			&pVars->mesh.mesh.vertAttribs,
+			pBufMesh, &pBufMesh->mesh.core.vertAttribs,
+			&pVars->pMap->mesh.core.vertAttribs,
+			&pVars->mesh.core.vertAttribs,
 			pCornerBuf, cornerBufIdx, vert.realIdx,
 			pCornerBuf[cornerBufIdx].stucCorner, 0,
 			pVars->pCommonAttribList->pVert,
@@ -896,13 +896,13 @@ void initMapVertTableEntry(MappingJobVars *pVars, int32_t cornerBufIdx,
 	bool realloced = false;
 	BufMeshIdx vert = bufMeshAddVert(&pVars->alloc, pBufMesh, false, pVars->pDpVars, &realloced);
 	pAcfVars->vert = vert.idx;
-	asMesh(pBufMesh)->pVerts[vert.realIdx] = pCornerBuf[cornerBufIdx].corner;
+	pBufMesh->mesh.pVerts[vert.realIdx] = pCornerBuf[cornerBufIdx].corner;
 	pEntry->vert = vert.idx;
 	pEntry->mapVert = stucVert;
 	pEntry->baseFace = baseFace.idx;
-	blendMapAndInAttribs(pBufMesh, &asMesh(pBufMesh)->mesh.vertAttribs,
-						 &pVars->pMap->mesh.mesh.vertAttribs,
-						 &pVars->mesh.mesh.vertAttribs,
+	blendMapAndInAttribs(pBufMesh, &pBufMesh->mesh.core.vertAttribs,
+						 &pVars->pMap->mesh.core.vertAttribs,
+						 &pVars->mesh.core.vertAttribs,
 						 pCornerBuf, cornerBufIdx, vert.realIdx,
 						 pCornerBuf[cornerBufIdx].stucCorner, 0,
 						 pVars->pCommonAttribList->pVert,
@@ -916,7 +916,7 @@ void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 						  CornerBuf *pCornerBufEntry, StucAlloc *pAlloc,
 						  FaceRange baseFace, FaceRange *pStucFace) {
 	int32_t stucCorner = pStucFace->start + pCornerBufEntry[cornerBufIdx].stucCorner;
-	uint32_t uStucVert = pVars->pMap->mesh.mesh.pCorners[stucCorner];
+	uint32_t uStucVert = pVars->pMap->mesh.core.pCorners[stucCorner];
 	int32_t hash =
 		stucFnvHash((uint8_t *)&uStucVert, 4, pVars->localTables.vertTableSize);
 	LocalVert *pEntry = pVars->localTables.pVertTable + hash;
@@ -1067,7 +1067,7 @@ void addInFace(MappingJobVars *pVars, int32_t face, FaceRange *pBaseFace, FaceRa
 	*pInFaceEntry->pArr = pBaseFace->idx + pVars->inFaceOffset;
 	pInFaceEntry->count = 1;
 	pInFaceEntry->usg = pMapFace->idx;
-	int32_t faceCount = pVars->bufMesh.mesh.mesh.faceCount;
+	int32_t faceCount = pVars->bufMesh.mesh.core.faceCount;
 	STUC_ASSERT("", faceCount <= pVars->inFaceSize);
 	if (pVars->inFaceSize == faceCount) {
 		pVars->inFaceSize *= 2;
@@ -1115,31 +1115,31 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 		pBufMesh->pInTangent[corner.realIdx] = pCornerBuf->buf[i].inTangent;
 		pBufMesh->pAlpha[corner.realIdx] = pCornerBuf->buf[i].alpha;
 		pBufMesh->pInTSign[corner.realIdx] = pCornerBuf->buf[i].inTSign;
-		asMesh(pBufMesh)->mesh.pCorners[corner.realIdx] = acfVars.vert;
-		asMesh(pBufMesh)->pNormals[corner.realIdx] = pCornerBuf->buf[i].normal;
-		asMesh(pBufMesh)->pUvs[corner.realIdx] = pCornerBuf->buf[i].uv;
-		blendMapAndInAttribs(&pVars->bufMesh, &asMesh(pBufMesh)->mesh.cornerAttribs,
-							 &pVars->pMap->mesh.mesh.cornerAttribs,
-							 &pVars->mesh.mesh.cornerAttribs,
+		pBufMesh->mesh.core.pCorners[corner.realIdx] = acfVars.vert;
+		pBufMesh->mesh.pNormals[corner.realIdx] = pCornerBuf->buf[i].normal;
+		pBufMesh->mesh.pUvs[corner.realIdx] = pCornerBuf->buf[i].uv;
+		blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.core.cornerAttribs,
+							 &pVars->pMap->mesh.core.cornerAttribs,
+							 &pVars->mesh.core.cornerAttribs,
 							 pCornerBuf->buf, i, corner.realIdx,
 							 stucFace.start + pCornerBuf->buf[i].stucCorner,
 							 baseFace.start,
 							 pVars->pCommonAttribList->pCorner,
 							 pVars->pCommonAttribList->cornerCount, &baseFace, &stucFace,
-		                     STUC_DOMAIN_LOOP, pAncestors);
+		                     STUC_DOMAIN_CORNER, pAncestors);
 		addEdge(pVars, i, &pVars->bufMesh, pCornerBuf->buf, &pVars->alloc,
 		        refFace, &acfVars, &baseFace, &stucFace);
-		asMesh(pBufMesh)->mesh.pEdges[corner.realIdx] = acfVars.edge;
+		pBufMesh->mesh.core.pEdges[corner.realIdx] = acfVars.edge;
 	}
 	BufMeshIdx face = bufMeshAddFace(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars, &realloced);
 	if (pVars->getInFaces && !isBorderFace) {
 		addInFace(pVars, face.idx, &baseFace, &stucFace);
 	}
 	acfVars.face = face.idx;
-	asMesh(pBufMesh)->mesh.pFaces[face.realIdx] = acfVars.cornerStart;
-	blendMapAndInAttribs(&pVars->bufMesh, &asMesh(pBufMesh)->mesh.faceAttribs,
-						 &pVars->pMap->mesh.mesh.faceAttribs,
-						 &pVars->mesh.mesh.faceAttribs,
+	pBufMesh->mesh.core.pFaces[face.realIdx] = acfVars.cornerStart;
+	blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.core.faceAttribs,
+						 &pVars->pMap->mesh.core.faceAttribs,
+						 &pVars->mesh.core.faceAttribs,
 						 pCornerBuf->buf, 0, face.realIdx,
 						 stucFace.idx, baseFace.idx,
 						 pVars->pCommonAttribList->pFace,
@@ -1188,7 +1188,7 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	for (int32_t i = 0; i < baseFace.size; ++i) {
 		int32_t corner = baseFace.start + i;
 		baseTri.uv[i] = _(pVars->mesh.pUvs[corner] V2SUB fTileMin);
-		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.mesh.pCorners[corner]];
+		baseTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.core.pCorners[corner]];
 	}
 	getTriScale(baseFace.size, &baseTri);
 	if (isTriDegenerate(&baseTri, &baseFace)) {
@@ -1212,9 +1212,9 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	CornerAncestors ancestors = {.size = 2};
 	ancestors.pArr = pVars->alloc.pMalloc(sizeof(CornerBuf) * ancestors.size);
 	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.idx].cellSize; ++i) {
-		STUC_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount >= 0);
-		STUC_ASSERT("", asMesh(&pVars->bufMesh)->mesh.faceCount <
-		                asMesh(&pVars->bufMesh)->faceBufSize);
+		STUC_ASSERT("", &pVars->bufMesh.mesh.core.faceCount >= 0);
+		STUC_ASSERT("", &pVars->bufMesh.mesh.core.faceCount <
+		                &pVars->bufMesh.mesh.faceBufSize);
 		int32_t cellIdx = pFaceCellsTable->pFaceCells[baseFace.idx].pCells[i];
 		Cell *pCell = pVars->pMap->quadTree.cellTable.pArr + cellIdx;
 		STUC_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
@@ -1238,7 +1238,7 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 		for (int32_t j = range.start; j < range.end; ++j) {
 			pDpVars->totalFacesComp++;
 			FaceRange stucFace =
-				getFaceRange(&pVars->pMap->mesh.mesh, pCellFaces[j], false);
+				getFaceRange(&pVars->pMap->mesh.core, pCellFaces[j], false);
 			if (!checkFaceIsInBounds(_(bounds.fMin V2SUB fTileMin),
 									 _(bounds.fMax V2SUB fTileMin),
 									 stucFace, &pVars->pMap->mesh)) {
@@ -1254,7 +1254,7 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 			CornerBufWrap cornerBuf = {0};
 			cornerBuf.size = stucFace.size;
 			for (int32_t k = 0; k < stucFace.size; ++k) {
-				int32_t vertIdx = pVars->pMap->mesh.mesh.pCorners[stucFace.start + k];
+				int32_t vertIdx = pVars->pMap->mesh.core.pCorners[stucFace.start + k];
 				CornerBuf *pCorner = cornerBuf.buf + k;
 				pCorner->preserve = 0;
 				pCorner->isStuc = 1;
@@ -1296,7 +1296,7 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 						//     one that can be used on deffered corners in MergeBoundsFaces.c
 						transformClippedFaceFromUvToXyz(pCornerBuf, stucFace, baseFace, &baseTri,
 														pVars, fTileMin, pVars->wScale);
-						int32_t faceIdx = pVars->bufMesh.mesh.mesh.faceCount;
+						int32_t faceIdx = pVars->bufMesh.mesh.core.faceCount;
 						addClippedFaceToBufMesh(pVars, pCornerBuf, stucFace, tile,
 						                        baseFace, faceWindingDir,
 						                        mapFaceWindDir, pSegments, &ancestors);

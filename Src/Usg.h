@@ -37,11 +37,11 @@ typedef struct {
 	int32_t count;
 } UsgArr;
 
-StucResult allocUsgSquaresMesh(StucAlloc *pAlloc, StucMap pMap);
+StucResult allocUsgSquaresMesh(StucContext pContext, StucAlloc *pAlloc, StucMap pMap);
 StucResult fillUsgSquaresMesh(StucMap pMap, StucUsg *pUsgArr);
 StucResult assignUsgsToVerts(StucAlloc *pAlloc,
                              StucMap pMap, StucUsg *pUsgArr);
-StucResult sampleInAttribsAtUsgOrigins(StucMap pMap, Mesh *pInMesh,
+StucResult sampleInAttribsAtUsgOrigins(StucContext pContext, StucMap pMap, Mesh *pInMesh,
                                        StucMesh *pSquares, InFaceArr *pInFaceTable);
 bool sampleUsg(int32_t stucCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
                V3_F32 *pUsgBc, FaceRange stucFace, StucMap pMap, int32_t inFace,

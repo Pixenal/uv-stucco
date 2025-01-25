@@ -16,21 +16,31 @@ typedef StucBlendConfig BlendConfig;
 //TODO switch pAttrib pData ptr from void * to uint8_t *?
 
 typedef enum {
-	ATTRIB_SPECIAL_NONE,
-	ATTRIB_SPECIAL_VERTS,
-	ATTRIB_SPECIAL_UVS,
-	ATTRIB_SPECIAL_NORMALS,
-	ATTRIB_SPECIAL_PRESERVE,
-	ATTRIB_SPECIAL_RECEIVE,
-	ATTRIB_SPECIAL_PRESERVE_VERT,
-	ATTRIB_SPECIAL_USG,
-	ATTRIB_SPECIAL_TANGENTS,
-	ATTRIB_SPECIAL_TSIGNS,
-	ATTRIB_SPECIAL_WSCALE
+	STUC_ATTRIB_SP_NONE,
+	STUC_ATTRIB_SP_VERTS,
+	STUC_ATTRIB_SP_UVS,
+	STUC_ATTRIB_SP_NORMALS,
+	STUC_ATTRIB_SP_PRESERVE,
+	STUC_ATTRIB_SP_RECEIVE,
+	STUC_ATTRIB_SP_PRESERVE_VERT,
+	STUC_ATTRIB_SP_USG,
+	STUC_ATTRIB_SP_TANGENTS,
+	STUC_ATTRIB_SP_TSIGNS,
+	STUC_ATTRIB_SP_WSCALE
 } SpecialAttrib;
 
+typedef enum {
+	STUC_ATTRIB_SP_BUF_NONE,
+	STUC_ATTRIB_SP_BUF_W,
+	STUC_ATTRIB_SP_BUF_IN_NORMAL,
+	STUC_ATTRIB_SP_BUF_IN_TANGENT,
+	STUC_ATTRIB_SP_BUF_IN_T_SIGN,
+	STUC_ATTRIB_SP_BUF_ALPHA
+} SpecialBufAttrib;
+
+void setDefaultSpecialAttribNames(StucContext pContext);
 int32_t getAttribSize(AttribType type);
-StucAttrib *getAttrib(char *pName, StucAttribArray *pAttribs);
+StucAttrib *getAttrib(char *pName, AttribArray *pAttribs);
 V3_F32 *attribAsV3(Attrib *pAttrib, int32_t idx);
 V2_F32 *attribAsV2(Attrib *pAttrib, int32_t idx);
 int32_t *attribAsI32(Attrib *pAttrib, int32_t idx);
@@ -52,14 +62,19 @@ void divideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar);
 void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
                   int32_t srcCount, Mesh **ppSrcArr,
 				  int32_t dataLen, StucDomain domain, bool setCommon);
-void castType(void *pValue, StucAttribType type);
 void reallocAttribs(const StucAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, int32_t newLen);
 void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, int32_t start,
 						   int32_t offset, int32_t lenToCopy, int32_t newLen);
-void setSpecialAttribs(Mesh *pMesh, UBitField16 flags);
+void setSpecialAttribs(StucContext pContext, Mesh *pMesh, UBitField16 flags);
+void setSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags);
+void appendBufOnlySpecialAttribs(StucAlloc *pAlloc, BufMesh *pBufMesh);
+void setAttribToDontCopy(StucContext pContext, Mesh *pMesh, UBitField16 flags);
+void setAttribOrigins(AttribArray *pAttribs, AttribOrigin origin);
 void allocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
                              int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon);
 void initAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
                 bool interpolate, AttribOrigin origin, AttribType type);
+void appendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,
+                  int32_t dataLen, bool interpolate, AttribOrigin origin, AttribType type);
