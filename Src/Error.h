@@ -18,9 +18,8 @@ typedef StucResult Result;
 		goto handle_error; \
 	}
 
-#define STUC_RETURN(err, cleanup) \
+#define STUC_CATCH(err, cleanup) \
 	if (err != STUC_SUCCESS) { \
 	handle_error: \
 		##cleanup \
-	} \
-	return err;
+	}

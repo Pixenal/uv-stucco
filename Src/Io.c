@@ -849,12 +849,13 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	if (usesUsg) {
 		pMesh->vertAttribs.count++;
 	}
-	//TODO add STUC_ERROR and STUC_RETURN to all functions that return StucResult
-	STUC_RETURN(err,
+	//TODO add STUC_ERROR and STUC_CATCH to all functions that return StucResult
+	STUC_CATCH(err,
 		//if error:
 		stucMeshDestroy(pContext, pMesh);
 		pContext->alloc.pFree(pMesh);
 	);
+	return err;
 }
 
 static

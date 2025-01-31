@@ -86,7 +86,7 @@ void stucLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
                             int32_t faceIdx);
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
-void stucCreateQuadTree(StucContext pContext, StucMap pMap);
+Result stucCreateQuadTree(StucContext pContext, StucMap pMap);
 void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree);
 void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
                       Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,

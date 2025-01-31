@@ -1,3 +1,7 @@
+#define STUC_CELL_STACK_SIZE 256
+
+//TODO 
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -458,6 +462,9 @@ void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, int32_t i,
                                FaceCellsTable *pFaceCellsTable) {
 	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCells);
 	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCellType);
+	//TODO segfault when mapping a single quad larger than the 0-1 uv tile
+	//i've not really tested the code thats supposed to handle this case,
+	//so no surprise it crashes
 	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pRanges);
 }
 
@@ -704,6 +711,8 @@ void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
 	Cell* pParentCell = pTable->pArr + parentCellIdx;
 	V2_F32 midPoint = pParentCell->pChildren[1].boundsMin;
 	STUC_ASSERT("", v2IsFinite(midPoint));
+	STUC_ASSERT("", midPoint.d[0] < 1.0f && midPoint.d[1] < 1.0f);
+	STUC_ASSERT("", midPoint.d[0] > .0f && midPoint.d[1] > .0f);
 	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
 		FaceRange face = getFaceRange(&pMesh->core, pParentCell->pFaces[i], false);
 		V2_I32 signs;
@@ -889,31 +898,50 @@ int32_t calculateMaxTreeDepth(int32_t vertSize) {
 }
 
 static
-void initRootAndChildren(StucContext pContext, int32_t *pCellStack, 
+Result initRootAndChildren(StucContext pContext, int32_t *pCellStack, 
                          QuadTree *pTree, StucMap pMap, Mesh *pMesh,
 						 int8_t *pFaceFlag) {
-	pTree->maxTreeDepth = 32;
+	pTree->maxTreeDepth = 32; //TODO what is this for again? isn't this obsolete?
 
 	CellTable* pTable = &pTree->cellTable;
-	pTable->pArr[0].cellIdx = 0;
+	Cell *pRoot = pTable->pArr;
+	pRoot->cellIdx = 0;
 	pTree->cellCount = 1;
 	pCellStack[0] = 0;
-	pTable->pArr[0].boundsMax.d[0] = pTable->pArr[0].boundsMax.d[1] = 1.0f;
-	pTable->pArr[0].initialized = 1;
-	pTable->pArr[0].faceSize = pMesh->core.faceCount;
-	pTable->pArr[0].pFaces =
+	pRoot->boundsMax.d[0] = pRoot->boundsMax.d[1] = 1.0f;
+	pRoot->initialized = 1;
+	pRoot->pFaces =
 		pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->core.faceCount);
 	for (int32_t i = 0; i < pMesh->core.faceCount; ++i) {
-		pTable->pArr[0].pFaces[i] = i;
+		FaceRange face = getFaceRange(&pMesh->core, i, false);
+		bool inside = false;
+		for (int32_t j = 0; j < face.size; ++j) {
+			V3_F32 vert = pMesh->pVerts[pMesh->core.pCorners[face.start + j]];
+			if (vert.d[0] > .0f && vert.d[0] < 1.0f &&
+				vert.d[1] > .0f && vert.d[1] < 1.0f) {
+				inside = true;
+				break;
+			}
+		}
+		if (inside) {
+			pRoot->pFaces[pRoot->faceSize] = i;
+			pRoot->faceSize++;
+		}
+	}
+	STUC_ASSERT("", pRoot->faceSize >= 0);
+	if (pRoot->faceSize == 0) {
+		return STUC_ERROR; //all faces are outside of 0-1 tile
 	}
 	allocateChildren(pContext, 0, 0, pMap);
 	addEnclosedVertsToCell(pContext, 0, pMesh, pTable, pFaceFlag);
 	addLinkEdgesToCells(pContext, 0, pMesh, pTable,
 	                    pCellStack, 0);
 	pCellStack[1] = 1;
+	return STUC_SUCCESS;
 }
 
-void stucCreateQuadTree(StucContext pContext, StucMap pMap) {
+Result stucCreateQuadTree(StucContext pContext, StucMap pMap) {
+	Result err = STUC_NOT_SET;
 	QuadTree *pTree = &pMap->quadTree;
 	STUC_ASSERT("", pMap->mesh.core.faceCount > 0);
 	stageBeginWrap(pContext, "Creating quad tree", pContext->stageReport.outOf);
@@ -927,11 +955,14 @@ void stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 		pContext->alloc.pCalloc(pMesh->core.faceCount, sizeof(int8_t));
 
 	pTree->pRootCell = pTree->cellTable.pArr;
-	int32_t cellStack[256];
-	initRootAndChildren(pContext, cellStack, pTree, pMap, pMesh, pFaceFlag);
+	int32_t cellStack[STUC_CELL_STACK_SIZE];
+	err =  initRootAndChildren(pContext, cellStack, pTree,
+	                                         pMap, pMesh, pFaceFlag);
+	STUC_ERROR("All faces were outside 0-1 tile", err);
 	int32_t cellStackPtr = 1;
 	int32_t progress = 0;
 	do {
+		STUC_ASSERT("", cellStackPtr < STUC_CELL_STACK_SIZE);
 		processCell(pContext, cellStack, &cellStackPtr, pMesh,
 		            pFaceFlag, pMap, &progress);
 	} while(cellStackPtr >= 0);
@@ -939,11 +970,13 @@ void stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 	STUC_ASSERT("", pTree->pRootCell->initialized == 1);
 	int32_t sizeDecrease = pTree->cellCount - pTree->cellTable.size;
 	STUC_ASSERT("", sizeDecrease < 0);
-	reallocCellTable(pContext, pTree, sizeDecrease);
-	pContext->alloc.pFree(pFaceFlag);
-	stageEndWrap(pContext);
 	printf("Created quadTree -- cells: %d, leaves: %d\n",
-	       pTree->cellCount, pTree->leafCount);
+		pTree->cellCount, pTree->leafCount);
+	reallocCellTable(pContext, pTree, sizeDecrease);
+	stageEndWrap(pContext);
+	STUC_CATCH(err, ;)
+	pContext->alloc.pFree(pFaceFlag);
+	return err;
 }
 
 void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree) {
