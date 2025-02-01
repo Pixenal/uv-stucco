@@ -348,10 +348,10 @@ StucResult getClosestTriToOrigin(Usg *pUsg, Mesh *pInMesh, InFaceArr *pInFaceTab
 				//(don't move origin, conversion to barycentric causes problems if you do that).
 				//Determine how many uv tiles this face spans, then test barycentric for each tile
 				//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
-				int32_t result =
+				int32_t in =
 					checkIfFaceIsInsideTile(inFace.size, triStuc, &faceBounds, tileMin);
-				if (result != 2) {
-					return result;
+				if (!in) {
+					return STUC_ERROR;
 				}
 				for (int32_t k = 0; k < inFace.size; ++k) {
 					_(triStuc + k V2SUBEQL fTileMin);

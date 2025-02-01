@@ -66,6 +66,7 @@ V3_F32 v3Lerp(V3_F32 a, V3_F32 b, float alpha);
 V3_F32 v3Cross(V3_F32 a, V3_F32 b);
 V3_F32 v3UnitFromPoints(V3_F32 a, V3_F32 b);
 V3_F32 v3MultiplyMat3x3(V3_F32 a, Mat3x3 *pB);
+void v3MultiplyEqualMat3x3(V3_F32 *pA, Mat3x3 *pB);
 V3_F32 v3Normalize(V3_F32 a);
 float v3Dot(V3_F32 a, V3_F32 b);
 int32_t v3IsFinite(V3_F32);
@@ -119,6 +120,7 @@ Mat2x2 mat2x2Invert(Mat2x2 a);
 Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b);
 int32_t mat2x2IsFinite(Mat2x2 *pA);
 Mat3x3 mat3x3FromV3_F32(V3_F32 a, V3_F32 b, V3_F32 c);
+Mat3x3 Mat3x3FromMat4x4(Mat4x4 *pA);
 Mat3x3 mat3x3Invert(Mat3x3 *pA);
 int32_t mat3x3IsFinite(Mat3x3 *pA);
 
@@ -141,6 +143,7 @@ float customFloor(float a);
 #define V3APROXEQL ,3AproxEqual,
 #define V3DOT ,3Dot,
 #define V3MULM3X3 ,3MultiplyMat3x3,
+#define V3MULEQLM3X3 ,3MultiplyEqualMat3x3,
 
 #define V2MUL ,2Multiply,
 #define V2MULEQL ,2MultiplyEqual,

@@ -892,7 +892,8 @@ static
 void initMapVertTableEntry(MappingJobVars *pVars, int32_t cornerBufIdx,
                            AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
 						   CornerBuf *pCornerBuf, LocalVert *pEntry,
-						   FaceRange baseFace, int32_t stucVert, FaceRange *pMapFace) {
+						   FaceRange baseFace, int32_t stucVert, FaceRange *pMapFace,
+                           V2_I32 tile) {
 	bool realloced = false;
 	BufMeshIdx vert = bufMeshAddVert(&pVars->alloc, pBufMesh, false, pVars->pDpVars, &realloced);
 	pAcfVars->vert = vert.idx;
@@ -900,6 +901,7 @@ void initMapVertTableEntry(MappingJobVars *pVars, int32_t cornerBufIdx,
 	pEntry->vert = vert.idx;
 	pEntry->mapVert = stucVert;
 	pEntry->baseFace = baseFace.idx;
+	pEntry->tile = tile;
 	blendMapAndInAttribs(pBufMesh, &pBufMesh->mesh.core.vertAttribs,
 						 &pVars->pMap->mesh.core.vertAttribs,
 						 &pVars->mesh.core.vertAttribs,
@@ -914,7 +916,7 @@ static
 void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
                           AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
 						  CornerBuf *pCornerBufEntry, StucAlloc *pAlloc,
-						  FaceRange baseFace, FaceRange *pStucFace) {
+						  FaceRange baseFace, FaceRange *pStucFace, V2_I32 tile) {
 	int32_t stucCorner = pStucFace->start + pCornerBufEntry[cornerBufIdx].stucCorner;
 	uint32_t uStucVert = pVars->pMap->mesh.core.pCorners[stucCorner];
 	int32_t hash =
@@ -924,12 +926,13 @@ void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 		if (!pEntry->cornerSize) {
 			initMapVertTableEntry(pVars, cornerBufIdx, pAcfVars,
 			                      pBufMesh, pCornerBufEntry, pEntry, baseFace,
-								  uStucVert, pStucFace);
+								  uStucVert, pStucFace, tile);
 			break;
 		}
-		//TODO should you be checking tile here as well?
 		int32_t match = pEntry->mapVert == uStucVert &&
-		                pEntry->baseFace == baseFace.idx;
+		                pEntry->baseFace == baseFace.idx &&
+		                pEntry->tile.d[0] == tile.d[0] &&
+		                pEntry->tile.d[1] == tile.d[1]; //TODO int vector ops don't current have macros
 		if (match) {
 			pAcfVars->vert = pEntry->vert;
 			break;
@@ -938,7 +941,7 @@ void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 			pEntry = pEntry->pNext = pAlloc->pCalloc(1, sizeof(LocalVert));
 			initMapVertTableEntry(pVars, cornerBufIdx, pAcfVars,
 			                      pBufMesh, pCornerBufEntry, pEntry, baseFace,
-								  uStucVert, pStucFace);
+								  uStucVert, pStucFace, tile);
 			break;
 		}
 		pEntry = pEntry->pNext;
@@ -1102,7 +1105,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 		else {
 			addStucCornerAndOrVert(pVars, i, &acfVars, &pVars->bufMesh,
 			                     pCornerBuf->buf, &pVars->alloc, baseFace,
-								 &stucFace);
+								 &stucFace, tile);
 			refFace = baseFace.idx;
 		}
 		BufMeshIdx corner = bufMeshAddCorner(&pVars->alloc, pBufMesh, isBorderFace, pVars->pDpVars, &realloced);

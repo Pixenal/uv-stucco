@@ -33,7 +33,6 @@ typedef struct {
 	int32_t *pEdges;
 	int32_t edgeFaceSize;
 	int32_t *pEdgeFaces;
-	int32_t maxTreeDepth;
 	int32_t cellCount;
 	int32_t leafCount;
 } QuadTree;

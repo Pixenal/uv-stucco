@@ -38,6 +38,9 @@ void calcCellBounds(Cell *cell) {
 static
 void addCellToEncasingCells(StucMap pMap, Cell *cell,
                             EncasingCells *pEncasingCells, int32_t edge) {
+	//if (pCellFlags[cell->cellidx] < 0) {
+		//return;
+	//}
 	STUC_ASSERT("", edge % 2 == edge);
 	STUC_ASSERT("", cell->initialized % 2 == cell->initialized);
 	int32_t faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
@@ -293,27 +296,19 @@ int32_t checkIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
 	int32_t isFullyEnclosed = isInsideBuf[0] && isInsideBuf[1] &&
 								isInsideBuf[2] && isInsideBuf[3];
 	if (isFullyEnclosed) {
-		return 1;
+		return 2;
 	}
 	if (!faceVertInside && !isInside) {
 		//face is not inside current tile
 		return 0;
 	}
-	return 2;
+	return 1;
 }
 
 static
 int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
                                   V2_F32 *pVerts, FaceBounds *pFaceBounds,
 								  EncasingCells *pCellsBuf, V2_I32 tileMin) {
-	//Don't check if in tile, if pFaceBounds is NULL
-	if (pFaceBounds) {
-		int32_t result =
-			checkIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, tileMin);
-		if (result != 2) {
-			return result;
-		}
-	}
 	//find fully encasing cell using clipped face
 	stucGetAllEncasingCells(pState, pCellsBuf, vertCount, pVerts, tileMin);
 	return 0;
@@ -484,6 +479,30 @@ void stucDestroyQuadTreeSearch(QuadTreeSearch *pState) {
 	pState->pAlloc->pFree(pState->pCellType);
 }
 
+static getLinearTileIdx(int32_t x, int32_t y, V2_I32 minTile, V2_I32 maxTile) {
+	return (maxTile.d[0] - minTile.d[0] + 1) * (y - minTile.d[1]) + x - minTile.d[0];
+}
+
+static
+bool getTilesFaceResidesIn(int32_t vertCount, V2_F32 *pVerts,
+                           FaceBounds *pFaceBounds, V2_I32 minTile, V2_I32 maxTile,
+                           bool *pInTileList, int32_t tileCount) {
+	for (int32_t i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
+		for (int32_t j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
+			V2_I32 tile = { j, i };
+			//Don't check if in tile, if pFaceBounds is NULL
+			int32_t in = checkIfFaceIsInsideTile(vertCount, pVerts,
+				                                 pFaceBounds, tile);
+			if (in == 2) {
+				return true;
+			}
+			int32_t tileIdx = getLinearTileIdx(j, i, minTile, maxTile);
+			pInTileList[tileIdx] = in;
+		}
+	}
+	return false;
+}
+
 void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
 							   FaceBounds *pFaceBounds, int32_t faceIdx) {
@@ -498,33 +517,52 @@ void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 		minTile = pFaceBounds->min;
 		maxTile = pFaceBounds->max;
 	}
+	int32_t tileCount = (maxTile.d[0] - minTile.d[0] + 1) *
+	                    (maxTile.d[1] - minTile.d[1] + 1);
+	bool *pInTileList = NULL;
+	bool fullyEnclosed = false;
+	if (pFaceBounds) {
+		pInTileList = pState->pAlloc->pCalloc(tileCount, sizeof(bool));
+		fullyEnclosed =
+			getTilesFaceResidesIn(vertCount, pVerts, pFaceBounds,
+			                      minTile, maxTile, pInTileList, tileCount);
+	}
+	if (fullyEnclosed) {
+		//add only root cell
+		//TODO rename cell->faceSize to faceCount
+		int32_t faceCount = pState->pMap->quadTree.pRootCell->faceSize;
+		pEntry->pCells = pState->pAlloc->pMalloc(sizeof(Cell *));
+		pEntry->pCellType = pState->pAlloc->pMalloc(sizeof(int8_t));
+		pEntry->pRanges = pState->pAlloc->pMalloc(sizeof(Range));
+		pEntry->pCellType[0] = 0;
+		pEntry->pCells[0] = 0;
+		pEntry->cellSize = 1;
+		pEntry->pRanges[0].start = 0;
+		pEntry->pRanges[0].end = faceCount;
+		pEntry->faceSize = faceCount;
+		pFaceCellsTable->cellFacesTotal += faceCount;
+		if (pState->pCellFlags[0] == 0) {
+			pFaceCellsTable->uniqueFaces += faceCount;
+			pState->pCellFlags[0] = -1;
+		}
+		return;
+	}
 	for (int32_t i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
 		for (int32_t j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
-			V2_I32 tileMin = {j, i};
-			//continue until the smallest cell that fully
-			//encloses the face is found (result == 0).
-			//if face fully encloses the while uv tile (result == 1),
-			//then return (root cell will be used).
-			//if the face is not within the current tile,
-			//then skip tile (result == 2).
-			if (getCellsForFaceWithinTile(pState, vertCount, pVerts, pFaceBounds,
-				                          &cellsBuf, tileMin)) {
-				//fully enclosed
-				Cell *rootCell = pState->pMap->quadTree.pRootCell;
-				pEntry->pCells = pState->pAlloc->pMalloc(sizeof(Cell *));
-				*pEntry->pCells = rootCell;
-				pEntry->faceSize = rootCell->faceSize;
-				pFaceCellsTable->cellFacesTotal += rootCell->faceSize;
-				return;
+			V2_I32 tile = { j, i };
+			int32_t tileIdx = getLinearTileIdx(j, i, minTile, maxTile);
+			if (pFaceBounds && !pInTileList[tileIdx]) {
+				continue;
 			}
+			getCellsForFaceWithinTile(pState, vertCount, pVerts, pFaceBounds,
+				                        &cellsBuf, tile);
 		}
 	}
-	cellsBuf.pRangeBuf =
-		pState->pAlloc->pMalloc(sizeof(Range) * cellsBuf.cellSize);
+	cellsBuf.pRangeBuf = pState->pAlloc->pMalloc(sizeof(Range) * cellsBuf.cellSize);
 	removeNonLinkedBranchCells(pState->pMap, &cellsBuf);
 	recordCellsInTable(pState, pFaceCellsTable, &cellsBuf);
 	copyCellsIntoTotalList(pState->pAlloc, pFaceCellsTable, &cellsBuf,
-	                       faceIdx);
+							faceIdx);
 }
 
 void stucLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
@@ -893,16 +931,9 @@ void processCell(StucContext pContext, int32_t *pCellStack,
 }
 
 static
-int32_t calculateMaxTreeDepth(int32_t vertSize) {
-	return log(CELL_MAX_VERTS * vertSize) / log(4) + 2;
-}
-
-static
 Result initRootAndChildren(StucContext pContext, int32_t *pCellStack, 
                          QuadTree *pTree, StucMap pMap, Mesh *pMesh,
 						 int8_t *pFaceFlag) {
-	pTree->maxTreeDepth = 32; //TODO what is this for again? isn't this obsolete?
-
 	CellTable* pTable = &pTree->cellTable;
 	Cell *pRoot = pTable->pArr;
 	pRoot->cellIdx = 0;

@@ -11,11 +11,7 @@ V4_F32 v4MultiplyMat4x4(V4_F32 a, Mat4x4 *pB) {
 }
 
 void v4MultiplyEqualMat4x4(V4_F32 *pA, Mat4x4 *pB) {
-	V4_F32 c;
-	c.d[0] = pA->d[0] * pB->d[0][0] + pA->d[1] * pB->d[1][0] + pA->d[2] * pB->d[2][0] + pA->d[3] * pB->d[3][0];
-	c.d[1] = pA->d[0] * pB->d[0][1] + pA->d[1] * pB->d[1][1] + pA->d[2] * pB->d[2][1] + pA->d[3] * pB->d[3][1];
-	c.d[2] = pA->d[0] * pB->d[0][2] + pA->d[1] * pB->d[1][2] + pA->d[2] * pB->d[2][2] + pA->d[3] * pB->d[3][2];
-	*pA = c;
+	*pA = v4MultiplyMat4x4(*pA, pB);
 }
 
 V3_F32 divideByW(V4_F32 *pA) {
@@ -108,6 +104,10 @@ V3_F32 v3MultiplyMat3x3(V3_F32 a, Mat3x3 *pB) {
 	c.d[1] = a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1];
 	c.d[2] = a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2];
 	return c;
+}
+
+void v3MultiplyEqualMat3x3(V3_F32 *pA, Mat3x3 *pB) {
+	*pA = v3MultiplyMat3x3(*pA, pB);
 }
 
 V3_F32 v3Normalize(V3_F32 a) {
@@ -404,6 +404,15 @@ Mat3x3 mat3x3FromV3_F32(V3_F32 a, V3_F32 b, V3_F32 c) {
 	mat.d[2][1] = c.d[1];
 	mat.d[2][2] = c.d[2];
 	return mat;
+}
+
+Mat3x3 Mat3x3FromMat4x4(Mat4x4 *pA) {
+	Mat3x3 b = {
+		pA->d[0][0], pA->d[0][1], pA->d[0][2],
+		pA->d[1][0], pA->d[1][1], pA->d[1][2],
+		pA->d[2][0], pA->d[2][1], pA->d[2][2]
+	};
+	return b;
 }
 
 Mat3x3 mat3x3Invert(Mat3x3 *pA) {

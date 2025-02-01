@@ -51,6 +51,7 @@ typedef struct LocalVert {
 	int32_t cornerSize;
 	int32_t baseFace;
 	int32_t mapVert;
+	V2_I32 tile;
 } LocalVert;
 
 typedef struct LocalEdge  {
