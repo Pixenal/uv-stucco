@@ -2219,6 +2219,11 @@ void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
 					}
 					continue;
 				}
+				STUC_ASSERT("", pDest->count <= pDest->size);
+				if (pDest->count == pDest->size) {
+					pDest->size *= 2;
+					pDest->pArr = pAlloc->pRealloc(pDest->pArr, pDest->size * sizeof(Attrib));
+				}
 				pDest->pArr[pDest->count].type = pSrc->pArr[j].type;
 				memcpy(pDest->pArr[pDest->count].name, pSrc->pArr[j].name,
 				       STUC_ATTRIB_NAME_MAX_LEN);
@@ -2227,11 +2232,6 @@ void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
 				int32_t attribSize = getAttribSize(pSrc->pArr[j].type);
 				pDest->pArr[pDest->count].pData = pAlloc->pCalloc(dataLen, attribSize);
 				pDest->count++;
-				STUC_ASSERT("", pDest->count <= pDest->size);
-				if (pDest->count == pDest->size) {
-					pDest->size *= 2;
-					pDest->pArr = pAlloc->pRealloc(pDest->pArr, pDest->size * sizeof(Attrib));
-				}
 			}
 		}
 	}

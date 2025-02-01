@@ -1121,6 +1121,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 		pBufMesh->mesh.core.pCorners[corner.realIdx] = acfVars.vert;
 		pBufMesh->mesh.pNormals[corner.realIdx] = pCornerBuf->buf[i].normal;
 		pBufMesh->mesh.pUvs[corner.realIdx] = pCornerBuf->buf[i].uv;
+		//TODO add an intermediate function to shorten the arg lists in blendattrib functions
 		blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.core.cornerAttribs,
 							 &pVars->pMap->mesh.core.cornerAttribs,
 							 &pVars->mesh.core.cornerAttribs,
@@ -1177,6 +1178,7 @@ bool isTriDegenerate(BaseTriVerts *pTri, FaceRange *pFace) {
 			return true;
 		}
 	}
+	return false;
 }
 
 Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
