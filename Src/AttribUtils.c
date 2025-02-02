@@ -257,6 +257,10 @@ int32_t *attribAsI32(Attrib *pAttrib, int32_t idx) {
 	return (int32_t *)pAttrib->pData + idx;
 }
 
+int8_t *attribAsI8(Attrib *pAttrib, int32_t idx) {
+	return (int8_t *)pAttrib->pData + idx;
+}
+
 void *attribAsVoid(Attrib *pAttrib, int32_t idx) {
 	switch (pAttrib->type) {
 		case STUC_ATTRIB_I8:

@@ -204,13 +204,13 @@ typedef struct {
 
 static getObjDataSize(StucObject *pObj,
                       int64_t *pDataSizeInBits, MeshSizeInBits *pSize) {
+	StucMesh *pMesh = pObj->pData;
 	pSize->transform = 32 * 16;
 	pSize->type = 8;
 	pSize->dataNames = 16 * 3;
 	if (!checkIfMesh(pObj->pData)) {
 		return STUC_SUCCESS;
 	}
-	StucMesh *pMesh = pObj->pData;
 	pSize->dataNames += 16 * 9;
 
 	//calculate total size of attribute header info
@@ -270,6 +270,7 @@ static
 StucResult encodeObj(ByteString *pByteString,
                      StucObject *pObj, MeshSizeInBits *pSize) {
 	//encode obj header
+	StucMesh *pMesh = pObj->pData;
 	encodeDataName(pByteString, "OS", &pSize->dataNames); //object start
 	encodeDataName(pByteString, "XF", &pSize->dataNames); //transform/ xform
 	for (int32_t i = 0; i < 16; ++i) {
@@ -288,7 +289,6 @@ StucResult encodeObj(ByteString *pByteString,
 		}
 		return STUC_SUCCESS;
 	}
-	StucMesh *pMesh = pObj->pData;
 	encodeDataName(pByteString, "HD", &pSize->dataNames); //header
 	encodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count,
 	            32, &pSize->attribCounts);
@@ -746,7 +746,6 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 		err = STUC_ERROR;
 		STUC_ERROR("Object is not a mesh", err);
 	}
-
 	err = isDataNameInvalid(pByteString, "HD"); //header
 	STUC_ERROR("Data name did not match 'HD'", err);
 	decodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);

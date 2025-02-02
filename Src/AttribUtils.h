@@ -44,6 +44,7 @@ StucAttrib *getAttrib(char *pName, AttribArray *pAttribs);
 V3_F32 *attribAsV3(Attrib *pAttrib, int32_t idx);
 V2_F32 *attribAsV2(Attrib *pAttrib, int32_t idx);
 int32_t *attribAsI32(Attrib *pAttrib, int32_t idx);
+int8_t *attribAsI8(Attrib *pAttrib, int32_t idx);
 void *attribAsVoid(Attrib *pAttrib, int32_t idx);
 int32_t copyAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc, int32_t iSrc);
 void copyAllAttribs(AttribArray *pDest, int32_t iDest,
