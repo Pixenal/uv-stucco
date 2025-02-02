@@ -1299,6 +1299,8 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 						//     and you can also remove the use of CornerBuf,
 						//     and turn the func into a generic (generic for BufMesh)
 						//     one that can be used on deffered corners in MergeBoundsFaces.c
+						// Followup - Very low priority, the perf increase is minimal
+						// (tested by commenting out the func)
 						transformClippedFaceFromUvToXyz(pCornerBuf, stucFace, baseFace, &baseTri,
 														pVars, fTileMin, pVars->wScale);
 						int32_t faceIdx = pVars->bufMesh.mesh.core.faceCount;

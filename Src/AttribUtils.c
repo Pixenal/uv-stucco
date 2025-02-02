@@ -2331,7 +2331,6 @@ SpecialBufAttrib quickCheckIfSpecialBufAttrib(BufMesh *pMesh, Attrib *pAttrib) {
 
 static
 void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
-	//TODO valid isn't used here?
 	switch (special) {
 		case (STUC_ATTRIB_SP_NONE):
 			break;
@@ -2370,7 +2369,6 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 
 static
 void reassignIfSpecialBuf(BufMesh *pMesh, Attrib *pAttrib, SpecialBufAttrib special) {
-	//TODO valid isn't used here?
 	switch (special) {
 		case (STUC_ATTRIB_SP_BUF_NONE):
 			break;
@@ -2627,12 +2625,12 @@ void initAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen
 
 void appendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,
                   int32_t dataLen, bool interpolate, AttribOrigin origin, AttribType type) {
-	STUC_ASSERT("", pArr->count < pArr->size);
-	pArr->count++;
-	if (pArr->count >= pArr->size) {
+	STUC_ASSERT("", pArr->count <= pArr->size);
+	if (pArr->count == pArr->size) {
 		pArr->size *= 2;
 		pArr->pArr = pAlloc->pRealloc(pArr->pArr, sizeof(Attrib) * pArr->size);
 	}
-	*ppAttrib = pArr->pArr + pArr->count - 1;
+	*ppAttrib = pArr->pArr + pArr->count;
+	pArr->count++;
 	initAttrib(pAlloc, *ppAttrib, pName, dataLen, interpolate, origin, type);
 }

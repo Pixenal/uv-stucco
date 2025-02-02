@@ -288,7 +288,6 @@ typedef struct {
 	StucObjectType type;
 } StucObjectData;
 
-//TODO rename pCorners to pVerts
 typedef struct {
 	StucObjectData type;
 	StucAttribArray meshAttribs;

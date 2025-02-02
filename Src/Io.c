@@ -792,11 +792,6 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 		usgAttrib->interpolate = true;
 		usgAttrib->type = STUC_ATTRIB_I32;
 	}
-
-	//TODO add short headers (like 2 or 4 bytes) to the start of each
-	//of these large blocks of data, to better catch corrupt files.
-	//So one for faces, corners, edges, etc
-
 	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
 	STUC_ERROR("Data name did not match 'MA'", err);
 	decodeAttribs(pContext, pByteString, &pMesh->meshAttribs, 1);
