@@ -1,4 +1,5 @@
-# Reverse UV Mapper 
+# UV Stucco
+A library for mapping geometry to meshes
 
 # Build Instructions
 ```
