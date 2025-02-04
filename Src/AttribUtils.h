@@ -49,6 +49,7 @@ void *attribAsVoid(Attrib *pAttrib, int32_t idx);
 int32_t copyAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc, int32_t iSrc);
 void copyAllAttribs(AttribArray *pDest, int32_t iDest,
                     AttribArray *pSrc, int32_t iSrc);
+void stucSetTypeDefaultConfig(StucContext pContext);
 StucTypeDefault *getTypeDefaultConfig(StucTypeDefaultConfig *pConfig,
                                       AttribType type);
 StucCommonAttrib *getCommonAttrib(StucCommonAttrib *pAttribs, int32_t attribCount,

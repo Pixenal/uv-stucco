@@ -159,6 +159,7 @@ void addIntersectionToBuf(StucAlloc *pAlloc, CornerBufWrap *pNewCornerBuf, Corne
 	}
 	//this attrib is lerped here instead of later like other attribs,
 	//as it's needed to transform from uvw to xyz
+	//TODO is this still necessary? or is it obsolete?
 	pNewEntry->normal = v3Lerp(pCorner->normal, pCornerNext->normal, pNewEntry->mapAlpha);
 	//pNewEntry->normal = pCornerBuf->buf[i].normal;
 	//V3_F32 up = {.0f, .0f, 1.0f};

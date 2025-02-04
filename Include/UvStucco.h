@@ -85,6 +85,11 @@ typedef enum {
 } StucAttribOrigin;
 
 typedef enum {
+	STUC_ATTRIB_USE_NONE,
+	STUC_ATTRIB_USE_COLOR
+} StucAttribUse;
+
+typedef enum {
 	STUC_IMAGE_UI8,
 	STUC_IMAGE_UI16,
 	STUC_IMAGE_UI32,
@@ -193,6 +198,7 @@ typedef struct {
 	char name[STUC_ATTRIB_NAME_MAX_LEN];
 	StucAttribType type;
 	StucAttribOrigin origin;
+	StucAttribUse use;
 	bool interpolate;
 } StucAttrib;
 
@@ -224,6 +230,7 @@ typedef enum {
 
 typedef struct {
 	StucBlendMode blend;
+	float opacity;
 	int8_t order;
 } StucBlendConfig;
 

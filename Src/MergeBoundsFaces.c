@@ -15,6 +15,7 @@
 #include <AttribUtils.h>
 #include <ThreadPool.h>
 #include <Error.h>
+#include <DebugDump.h>
 
 typedef struct SharedEdge {
 	struct SharedEdge *pNext;
@@ -922,7 +923,9 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 		pEntry = pNextEntry;
 	} while(pEntry);
 	STUC_ASSERT("", entryIdx == entryCount);
-	
+	if (false) {
+		dumpBoundsFaceToFile(pArgs, pPieceArr);
+	}
 	//CLOCK_STOP_NO_PRINT;
 	////pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
 	//CLOCK_START;
