@@ -21,389 +21,232 @@
 #include <AttribUtils.h>
 #include <Error.h>
 
-static int32_t decodeSingleBit(ByteString *byteString) {
-	int32_t value = byteString->pString[byteString->byteIdx];
-	value >>= byteString->nextBitIdx;
-	value &= 1;
-	byteString->nextBitIdx++;
-	byteString->byteIdx += byteString->nextBitIdx >= 8;
-	byteString->nextBitIdx %= 8;
-	return value;
+static
+void reallocByteStringIfNeeded(StucAlloc *pAlloc,
+                               ByteString *pByteString, int64_t bitOffset) {
+	int64_t bitCount = ((pByteString->byteIdx) * 8l) + pByteString->nextBitIdx;
+	STUC_ASSERT("", bitCount <= pByteString->size * 8l);
+	bitCount += bitOffset;
+	int64_t byteCount = bitCount / 8l + (bitCount % 8l != 0l);
+	if (byteCount >= pByteString->size) {
+		int64_t oldSize = pByteString->size;
+		pByteString->size *= 2l;
+		pByteString->pString = pAlloc->pRealloc(pByteString->pString, pByteString->size);
+		memset(pByteString->pString + oldSize, 0, pByteString->size - oldSize);
+	}
 }
 
-void encodeValue(ByteString *byteString, uint8_t *value,
-                        int32_t lengthInBits, int64_t *pSize) {
+void encodeValue(StucAlloc *pAlloc, ByteString *pByteString,
+                 uint8_t *pValue, int32_t lengthInBits) {
+	reallocByteStringIfNeeded(pAlloc, pByteString, lengthInBits);
 	uint8_t valueBuf[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	int32_t lengthInBytes = lengthInBits / 8;
 	lengthInBytes += (lengthInBits - lengthInBytes * 8) > 0;
 	for (int32_t i = 1; i <= lengthInBytes; ++i) {
-		valueBuf[i] = value[i - 1];
+		valueBuf[i] = pValue[i - 1];
 	}
 	for (int32_t i = lengthInBytes - 1; i >= 1; --i) {
-		valueBuf[i] <<= byteString->nextBitIdx;
+		valueBuf[i] <<= pByteString->nextBitIdx;
 		uint8_t nextByteCopy = valueBuf[i - 1];
-		nextByteCopy >>= 8 - byteString->nextBitIdx;
+		nextByteCopy >>= 8 - pByteString->nextBitIdx;
 		valueBuf[i] |= nextByteCopy;
 	}
-	int32_t writeUpTo = lengthInBytes + (byteString->nextBitIdx > 0);
+	int32_t writeUpTo = lengthInBytes + (pByteString->nextBitIdx > 0);
 	for (int32_t i = 0; i < writeUpTo; ++i) {
-		byteString->pString[byteString->byteIdx + i] |= valueBuf[i + 1];
+		pByteString->pString[pByteString->byteIdx + i] |= valueBuf[i + 1];
 	}
-	byteString->nextBitIdx = byteString->nextBitIdx + lengthInBits;
-	byteString->byteIdx += byteString->nextBitIdx / 8;
-	byteString->nextBitIdx %= 8;
-	*pSize -= lengthInBits;
+	pByteString->nextBitIdx = pByteString->nextBitIdx + lengthInBits;
+	pByteString->byteIdx += pByteString->nextBitIdx / 8;
+	pByteString->nextBitIdx %= 8;
 }
 
-void encodeString(ByteString *byteString,
-                         uint8_t *string, int64_t *pSize) {
-	int32_t lengthInBits = (strlen((char *)string) + 1) * 8;
+void encodeString(StucAlloc *pAlloc, ByteString *pByteString, uint8_t *pString) {
+	int32_t lengthInBits = (strlen((char *)pString) + 1) * 8;
 	int32_t lengthInBytes = lengthInBits / 8;
-	byteString->byteIdx += byteString->nextBitIdx > 0;
-	byteString->nextBitIdx = 0;
-	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		byteString->pString[byteString->byteIdx] = string[i];
-		byteString->byteIdx++;
+	//+8 for potential padding
+	reallocByteStringIfNeeded(pAlloc, pByteString, lengthInBits + 8l);
+	if (pByteString->nextBitIdx != 0) {
+		//pad to beginning of next byte
+		pByteString->nextBitIdx = 0;
+		pByteString->byteIdx++;
 	}
-	*pSize -= lengthInBits;
+	for (int32_t i = 0; i < lengthInBytes; ++i) {
+		pByteString->pString[pByteString->byteIdx] = pString[i];
+		pByteString->byteIdx++;
+	}
 }
 
-void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits) {
+void decodeValue(ByteString *pByteString, uint8_t *pValue, int32_t lengthInBits) {
 	int32_t lengthInBytes = lengthInBits / 8;
 	int32_t bitDifference = lengthInBits - lengthInBytes * 8;
 	lengthInBytes += bitDifference > 0;
 	uint8_t buf[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		buf[i] = byteString->pString[byteString->byteIdx + i];
+		buf[i] = pByteString->pString[pByteString->byteIdx + i];
 	}
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		buf[i] >>= byteString->nextBitIdx;
+		buf[i] >>= pByteString->nextBitIdx;
 		uint8_t nextByteCopy = buf[i + 1];
-		nextByteCopy <<= 8 - byteString->nextBitIdx;
+		nextByteCopy <<= 8 - pByteString->nextBitIdx;
 		buf[i] |= nextByteCopy;
 	}
 	for (int32_t i = 0; i < lengthInBytes; ++i) {
-		value[i] = buf[i];
+		pValue[i] = buf[i];
 	}
 	uint8_t mask = UCHAR_MAX >> ((8 - bitDifference) % 8);
-	value[lengthInBytes - 1] &= mask;
-	byteString->nextBitIdx = byteString->nextBitIdx + lengthInBits;
-	byteString->byteIdx += byteString->nextBitIdx / 8;
-	byteString->nextBitIdx %= 8;
+	pValue[lengthInBytes - 1] &= mask;
+	pByteString->nextBitIdx = pByteString->nextBitIdx + lengthInBits;
+	pByteString->byteIdx += pByteString->nextBitIdx / 8;
+	pByteString->nextBitIdx %= 8;
 }
 
-void decodeString(ByteString *byteString, char *string, int32_t maxLen) {
-	byteString->byteIdx += byteString->nextBitIdx > 0;
-	uint8_t *dataPtr = byteString->pString + byteString->byteIdx;
+void decodeString(ByteString *pByteString, char *pString, int32_t maxLen) {
+	pByteString->byteIdx += pByteString->nextBitIdx > 0;
+	uint8_t *dataPtr = pByteString->pString + pByteString->byteIdx;
 	int32_t i = 0;
 	for (; i < maxLen && dataPtr[i]; ++i) {
-		string[i] = dataPtr[i];
+		pString[i] = dataPtr[i];
 	}
-	string[i] = 0;
-	byteString->byteIdx += i + 1;
-	byteString->nextBitIdx = 0;
-}
-
-static int32_t getTotalAttribSize(AttribArray *pAttribs) {
-	int32_t totalSize = 0;
-	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		totalSize += getAttribSize(pAttribs->pArr[i].type) * 8;
-	}
-	return totalSize;
-}
-
-static int32_t getTotalAttribMetaSize(AttribArray *pAttribs) {
-	int32_t totalSize = pAttribs->count * 16;
-	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		totalSize += (strlen(pAttribs->pArr[i].name) + 1) * 8;
-	}
-	return totalSize;
+	pString[i] = 0;
+	pByteString->byteIdx += i + 1;
+	pByteString->nextBitIdx = 0;
 }
 
 static
-void encodeAttribs(ByteString *pData, AttribArray *pAttribs,
-                   int32_t dataLen, int64_t *pSize) {
+void encodeAttribs(StucAlloc *pAlloc, ByteString *pData,
+                   AttribArray *pAttribs, int32_t dataLen) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < dataLen; ++j) {
 				void *pString = attribAsVoid(pAttribs->pArr + i, j);
-				encodeString(pData, pString, pSize);
+				encodeString(pAlloc, pData, pString);
 			}
 		}
 		else {
 			int32_t attribSize = getAttribSize(pAttribs->pArr[i].type) * 8;
 			for (int32_t j = 0; j < dataLen; ++j) {
-				encodeValue(pData, attribAsVoid(pAttribs->pArr + i, j),
-				            attribSize, pSize);
+				encodeValue(pAlloc, pData, attribAsVoid(pAttribs->pArr + i, j), attribSize);
 			}
 		}
 	}
 }
 
 static
-void encodeIndexedAttribs(ByteString *pData, AttribIndexedArr attribs,
-                          int64_t *pSize) {
+void encodeIndexedAttribs(StucAlloc *pAlloc, ByteString *pData,
+                          AttribIndexedArr attribs) {
 	for (int32_t i = 0; i < attribs.count; ++i) {
 		AttribIndexed *pAttrib = attribs.pArr + i;
 		if (pAttrib->type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
 				void *pString = attribAsVoid(pAttrib, j);
-				encodeString(pData, pString, pSize);
+				encodeString(pAlloc, pData, pString);
 			}
 		}
 		else {
 			int32_t attribSize = getAttribSize(pAttrib->type) * 8;
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
-				encodeValue(pData, attribAsVoid(pAttrib, j),
-				            attribSize, pSize);
+				encodeValue(pAlloc, pData, attribAsVoid(pAttrib, j), attribSize);
 			}
 		}
 	}
 }
 
 static
-void encodeAttribMeta(ByteString *pData,
-                      AttribArray *pAttribs, int64_t *pSize) {
+void encodeAttribMeta(StucAlloc *pAlloc, ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		encodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16, pSize);
-		encodeString(pData, (uint8_t *)pAttribs->pArr[i].name, pSize);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].type, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].use, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
+		encodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].name);
 	}
 }
 
 static
-void encodeIndexedAttribMeta(ByteString *pData,
+void encodeIndexedAttribMeta(StucAlloc *pAlloc, ByteString *pData,
                              AttribIndexedArr attribs) {
 	int64_t size = 0;
 	for (int32_t i = 0; i < attribs.count; ++i) {
-		encodeValue(pData, (uint8_t *)&attribs.pArr[i].type, 16, &size);
-		encodeValue(pData, (uint8_t *)&attribs.pArr[i].count, 32, &size);
-		encodeString(pData, (uint8_t *)attribs.pArr[i].name, &size);
+		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].type, 8, &size);
+		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].use, 8, &size);
+		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].count, 32, &size);
+		encodeString(pAlloc, pData, (uint8_t *)attribs.pArr[i].name, &size);
 	}
-}
-
-typedef struct {
-	int64_t transform;
-	int64_t type;
-	int64_t dataNames;
-	int64_t attribCounts;
-	int64_t meshAttribMeta;
-	int64_t faceAttribMeta;
-	int64_t cornerAttribMeta;
-	int64_t edgeAttribMeta;
-	int64_t vertAttribMeta;
-	int64_t meshAttribs;
-	int64_t faceAttribs;
-	int64_t cornerAttribs;
-	int64_t edgeAttribs;
-	int64_t vertAttribs;
-	int64_t listCounts;
-	int64_t faceList;
-	int64_t cornerList;
-	int64_t edgeList;
-} MeshSizeInBits;
-
-static getObjDataSize(StucObject *pObj,
-                      int64_t *pDataSizeInBits, MeshSizeInBits *pSize) {
-	StucMesh *pMesh = pObj->pData;
-	pSize->transform = 32 * 16;
-	pSize->type = 8;
-	pSize->dataNames = 16 * 3;
-	if (!checkIfMesh(pObj->pData)) {
-		return STUC_SUCCESS;
-	}
-	pSize->dataNames += 16 * 9;
-
-	//calculate total size of attribute header info
-	pSize->meshAttribMeta = getTotalAttribMetaSize(&pMesh->meshAttribs);
-	pSize->faceAttribMeta = getTotalAttribMetaSize(&pMesh->faceAttribs);
-	pSize->cornerAttribMeta = getTotalAttribMetaSize(&pMesh->cornerAttribs);
-	pSize->edgeAttribMeta = getTotalAttribMetaSize(&pMesh->edgeAttribs);
-	pSize->vertAttribMeta = getTotalAttribMetaSize(&pMesh->vertAttribs);
-
-	pSize->attribCounts = 32 + //mesh attrib count
-	                    32 + //face attrib count
-	                    32 + //corner attrib count
-	                    32 + //edge attrib count
-	                    32; //vert attrib count
-	pSize->listCounts = 32 + //face count
-	                  32 + //corner count
-	                  32 + //edge count
-	                  32;  //vert count
-
-	//calculate total size of attribute data
-	int64_t meshAttribSize = getTotalAttribSize(&pMesh->meshAttribs);
-	int64_t faceAttribSize = getTotalAttribSize(&pMesh->faceAttribs);
-	int64_t cornerAttribSize = getTotalAttribSize(&pMesh->cornerAttribs);
-	int64_t edgeAttribSize = getTotalAttribSize(&pMesh->edgeAttribs);
-	int64_t vertAttribSize = getTotalAttribSize(&pMesh->vertAttribs);
-
-	pSize->meshAttribs = meshAttribSize;
-	pSize->faceAttribs = faceAttribSize * pMesh->faceCount;
-	pSize->cornerAttribs = cornerAttribSize * pMesh->cornerCount;
-	pSize->edgeAttribs = edgeAttribSize * pMesh->edgeCount;
-	pSize->vertAttribs = vertAttribSize * pMesh->vertCount;
-
-	pSize->faceList = 32 * (int64_t)pMesh->faceCount;
-	pSize->cornerList = 32 * (int64_t)pMesh->cornerCount;
-	pSize->edgeList = 32 * (int64_t)pMesh->cornerCount;
-	return STUC_SUCCESS;
 }
 
 static
-void encodeDataName(ByteString *pByteString, char *pName, int64_t *pSize) {
+void encodeDataName(StucAlloc *pAlloc, ByteString *pByteString, char *pName) {
 	//not using encodeString, as there's not need for a null terminator.
 	//Only using 2 characters
 	
 	//ensure string is aligned with byte (we need to do this manually,
 	//as encodeValue is being used instead of encodeString)
-	pByteString->byteIdx += pByteString->nextBitIdx > 0;
-	pByteString->nextBitIdx = 0;
-	encodeValue(pByteString, (uint8_t *)pName, 16, pSize);
+	if (pByteString->nextBitIdx != 0) {
+		pByteString->nextBitIdx = 0;
+		pByteString->byteIdx++;
+	}
+	encodeValue(pAlloc, pByteString, (uint8_t *)pName, 16);
 }
 
 static
-bool isSizeInvalid(int64_t size) {
-	return size != 0;
-}
-
-static
-StucResult encodeObj(ByteString *pByteString,
-                     StucObject *pObj, MeshSizeInBits *pSize) {
+StucResult encodeObj(StucAlloc *pAlloc, ByteString *pByteString, StucObject *pObj) {
+	int64_t byteBase = pByteString->byteIdx;
 	//encode obj header
 	StucMesh *pMesh = pObj->pData;
-	encodeDataName(pByteString, "OS", &pSize->dataNames); //object start
-	encodeDataName(pByteString, "XF", &pSize->dataNames); //transform/ xform
+	encodeDataName(pAlloc, pByteString, "OS"); //object start
+	encodeDataName(pAlloc, pByteString, "XF"); //transform/ xform
 	for (int32_t i = 0; i < 16; ++i) {
 		int32_t x = i % 4;
 		int32_t y = i / 4;
-		encodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32, &pSize->transform);
+		encodeValue(pAlloc, pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
 	}
-	if (isSizeInvalid(pSize->transform)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "OT", &pSize->dataNames); //object type
-	encodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8, &pSize->type);
+	encodeDataName(pAlloc, pByteString, "OT"); //object type
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pObj->pData->type, 8);
 	if (!checkIfMesh(pObj->pData)) {
-		if (isSizeInvalid(pSize->dataNames)) {
-			return STUC_ERROR;
-		}
 		return STUC_SUCCESS;
 	}
-	encodeDataName(pByteString, "HD", &pSize->dataNames); //header
-	encodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count,
-	            32, &pSize->attribCounts);
-	encodeAttribMeta(pByteString, &pMesh->meshAttribs, &pSize->meshAttribMeta);
-	if (isSizeInvalid(pSize->meshAttribMeta)) {
-		return STUC_ERROR;
-	}
-	encodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count,
-	            32, &pSize->attribCounts);
-	encodeAttribMeta(pByteString, &pMesh->faceAttribs, &pSize->faceAttribMeta);
-	if (isSizeInvalid(pSize->faceAttribMeta)) {
-		return STUC_ERROR;
-	}
-	encodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count,
-	            32, &pSize->attribCounts);
-	encodeAttribMeta(pByteString, &pMesh->cornerAttribs, &pSize->cornerAttribMeta);
-	if (isSizeInvalid(pSize->cornerAttribMeta)) {
-		return STUC_ERROR;
-	}
-	encodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count,
-	            32, &pSize->attribCounts);
-	encodeAttribMeta(pByteString, &pMesh->edgeAttribs, &pSize->edgeAttribMeta);
-	if (isSizeInvalid(pSize->edgeAttribMeta)) {
-		return STUC_ERROR;
-	}
-	encodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count,
-	            32, &pSize->attribCounts);
-	encodeAttribMeta(pByteString, &pMesh->vertAttribs, &pSize->vertAttribMeta);
-	if (isSizeInvalid(pSize->vertAttribMeta)) {
-		return STUC_ERROR;
-	}
-	if (isSizeInvalid(pSize->attribCounts)) {
-		return STUC_ERROR;
-	}
-	encodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32, &pSize->listCounts);
-	encodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32, &pSize->listCounts);
-	encodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32, &pSize->listCounts);
-	encodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32, &pSize->listCounts);
-	if (isSizeInvalid(pSize->listCounts)) {
-		return STUC_ERROR;
-	}
+	encodeDataName(pAlloc, pByteString, "HD"); //header
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
+	encodeAttribMeta(pAlloc, pByteString, &pMesh->meshAttribs);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
+	encodeAttribMeta(pAlloc, pByteString, &pMesh->faceAttribs);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
+	encodeAttribMeta(pAlloc, pByteString, &pMesh->cornerAttribs);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
+	encodeAttribMeta(pAlloc, pByteString, &pMesh->edgeAttribs);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
+	encodeAttribMeta(pAlloc, pByteString, &pMesh->vertAttribs);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->faceCount, 32);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->cornerCount, 32);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->edgeCount, 32);
+	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->vertCount, 32);
 	//encode data
-	encodeDataName(pByteString, "MA", &pSize->dataNames); //mesh attribs
-	encodeAttribs(pByteString, &pMesh->meshAttribs, 1, &pSize->meshAttribs);
-	if (isSizeInvalid(pSize->meshAttribs)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "FL", &pSize->dataNames); //face list
+	encodeDataName(pAlloc, pByteString, "MA"); //mesh attribs
+	encodeAttribs(pAlloc, pByteString, &pMesh->meshAttribs, 1);
+	encodeDataName(pAlloc, pByteString, "FL"); //face list
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		STUC_ASSERT("", pMesh->pFaces[i] >= 0 &&
 		                pMesh->pFaces[i] < pMesh->cornerCount);
-		encodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32, &pSize->faceList);
+		encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
-	if (isSizeInvalid(pSize->faceList)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "FA", &pSize->dataNames); //face attribs
-	encodeAttribs(pByteString, &pMesh->faceAttribs, pMesh->faceCount, &pSize->faceAttribs);
-	if (isSizeInvalid(pSize->faceAttribs)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "LL", &pSize->dataNames); //corner and edge lists
+	encodeDataName(pAlloc, pByteString, "FA"); //face attribs
+	encodeAttribs(pAlloc, pByteString, &pMesh->faceAttribs, pMesh->faceCount);
+	encodeDataName(pAlloc, pByteString, "LL"); //corner and edge lists
 	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
 		STUC_ASSERT("", pMesh->pCorners[i] >= 0 &&
 		                pMesh->pCorners[i] < pMesh->vertCount);
-		encodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32, &pSize->cornerList);
+		encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
 		STUC_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
-		encodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32, &pSize->edgeList);
+		encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
 	}
-	if (isSizeInvalid(pSize->cornerList) || isSizeInvalid(pSize->edgeList)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "LA", &pSize->dataNames); //corner attribs
-	encodeAttribs(pByteString, &pMesh->cornerAttribs, pMesh->cornerCount, &pSize->cornerAttribs);
-	if (isSizeInvalid(pSize->cornerAttribs)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "EA", &pSize->dataNames); //edge attribs
-	encodeAttribs(pByteString, &pMesh->edgeAttribs, pMesh->edgeCount, &pSize->edgeAttribs);
-	if (isSizeInvalid(pSize->edgeAttribs)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "VA", &pSize->dataNames); //vert attribs
-	encodeAttribs(pByteString, &pMesh->vertAttribs, pMesh->vertCount, &pSize->vertAttribs);
-	if (isSizeInvalid(pSize->vertAttribs)) {
-		return STUC_ERROR;
-	}
-	encodeDataName(pByteString, "OE", &pSize->dataNames); //object end
-	if (isSizeInvalid(pSize->dataNames)) {
-		return STUC_ERROR;
-	}
+	encodeDataName(pAlloc, pByteString, "LA"); //corner attribs
+	encodeAttribs(pAlloc, pByteString, &pMesh->cornerAttribs, pMesh->cornerCount);
+	encodeDataName(pAlloc, pByteString, "EA"); //edge attribs
+	encodeAttribs(pAlloc, pByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
+	encodeDataName(pAlloc, pByteString, "VA"); //vert attribs
+	encodeAttribs(pAlloc, pByteString, &pMesh->vertAttribs, pMesh->vertCount);
+	encodeDataName(pAlloc, pByteString, "OE"); //object end
 	return STUC_SUCCESS;
-}
-
-static
-int64_t sumOfMeshSize(MeshSizeInBits *pSize) {
-	return pSize->transform +
-	       pSize->type +
-		   pSize->dataNames +
-		   pSize->attribCounts +
-		   pSize->meshAttribMeta +
-		   pSize->faceAttribMeta +
-		   pSize->cornerAttribMeta +
-		   pSize->edgeAttribMeta +
-		   pSize->vertAttribMeta +
-		   pSize->meshAttribs +
-		   pSize->faceAttribs +
-		   pSize->cornerAttribs +
-		   pSize->edgeAttribs +
-		   pSize->vertAttribs +
-		   pSize->listCounts +
-		   pSize->faceList +
-		   pSize->cornerList +
-		   pSize->edgeList;
 }
 
 static
@@ -444,10 +287,46 @@ void getUniqueFlatCutoffs(StucContext pContext, int32_t usgCount,
 		pContext->alloc.pRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
 }
 
+static
+int64_t estimateObjSize(StucObject *pObj) {
+	//marking literal constants l here is pointless on windows,
+	//i'm only doing it to avoid gcc/clang errors with Wall & Werror
+	int64_t total = 0l;
+	StucMesh *pMesh = pObj->pData;
+	total += 4l * 16l; //transform
+	total += 1l; //type
+	total += 2l * 3l; //data names/ checks
+	if (!checkIfMesh(pObj->pData)) {
+		return total;
+	}
+	total += 2l * 9l; //data names/ checks
+
+	total += (int64_t)pMesh->faceAttribs.count * (int64_t)pMesh->faceCount;
+	total += (int64_t)pMesh->cornerAttribs.count * (int64_t)pMesh->cornerCount;
+	total += (int64_t)pMesh->edgeAttribs.count * (int64_t)pMesh->edgeCount;
+	total += (int64_t)pMesh->vertAttribs.count * (int64_t)pMesh->vertCount;
+
+	total += 4l * (int64_t)pMesh->faceCount;
+	total += 4l * (int64_t)pMesh->cornerCount;
+	total += 4l * (int64_t)pMesh->cornerCount; //edge list
+
+	return total;
+}
+
+static
+int64_t estimateObjArrSize(int32_t count, StucObject *pObjArr) {
+	int64_t total = 0l;
+	for (int32_t i = 0; i < count; ++i) {
+		total += estimateObjSize(pObjArr + i);
+	}
+	return total;
+}
+
 StucResult stucWriteStucFile(StucContext pContext, const char *pName,
                              int32_t objCount, StucObject *pObjArr,
                              int32_t usgCount, StucUsg *pUsgArr,
                              StucAttribIndexedArr indexedAttribs) {
+	StucAlloc *pAlloc = &pContext->alloc;
 	StucResult err = 0;
 	ByteString header = {0};
 	ByteString data = {0};
@@ -459,91 +338,43 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 		getUniqueFlatCutoffs(pContext, usgCount, pUsgArr, &cutoffCount, &ppCutoffs,
 							 &pCutoffIndices);
 	}
-
-	int64_t dataSizeInBits = 0;
-	int64_t indexedAttribsSize = 0;
-	for (int32_t i = 0; i < indexedAttribs.count; ++i) {
-		AttribIndexed *pAttrib = indexedAttribs.pArr + i;
-		int64_t size = getAttribSize(pAttrib->type) * 8 * pAttrib->count;
-		dataSizeInBits += size;
-		indexedAttribsSize += size;
-	}
-	MeshSizeInBits *pMeshSizes =
-		pContext->alloc.pCalloc(objCount + usgCount * 2, sizeof(MeshSizeInBits));
-	for (int32_t i = 0; i < objCount; ++i) {
-		err = getObjDataSize(pObjArr + i, &dataSizeInBits, pMeshSizes + i);
-		if (err != STUC_SUCCESS) {
-			return err;
-		}
-		dataSizeInBits += sumOfMeshSize(pMeshSizes + i);
-	}
-	int32_t sizesIdx = objCount;
-	for (int32_t i = 0; i < cutoffCount; ++i) {
-		err = getObjDataSize(ppCutoffs[i], &dataSizeInBits, pMeshSizes + sizesIdx);
-		if (err != STUC_SUCCESS) {
-			return err;
-		}
-		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIdx);
-		sizesIdx++;
-	}
-	for (int32_t i = 0; i < usgCount; ++i) {
-		err = getObjDataSize(&pUsgArr[i].obj, &dataSizeInBits, pMeshSizes + sizesIdx);
-		if (err != STUC_SUCCESS) {
-			return err;
-		}
-		dataSizeInBits += sumOfMeshSize(pMeshSizes + sizesIdx);
-		dataSizeInBits += STUC_FLAT_CUTOFF_HEADER_SIZE;
-		if (!pUsgArr[i].pFlatCutoff) {
-			dataSizeInBits -= sizeof(int32_t); //no index
-		}
-		sizesIdx++;
-	}
-	int64_t dataSizeInBytes = dataSizeInBits / 8 + 2;
-	data.byteIdx = 0;
-	data.nextBitIdx = 0;
-	data.pString = pContext->alloc.pCalloc(dataSizeInBytes, 1);
+	data.size = estimateObjArrSize(objCount, pObjArr) +
+	            estimateObjArrSize(usgCount, pUsgArr);
+	data.pString = pContext->alloc.pCalloc(data.size, 1);
 	if (indexedAttribs.count) {
-		encodeIndexedAttribMeta(&data, indexedAttribs);
-		encodeIndexedAttribs(&data, indexedAttribs, &indexedAttribsSize);
+		encodeIndexedAttribMeta(pAlloc, &data, indexedAttribs);
+		encodeIndexedAttribs(pAlloc, &data, indexedAttribs);
 	}
 	for (int32_t i = 0; i < objCount; ++i) {
-		err = encodeObj(&data, pObjArr + i, pMeshSizes + i);
+		err = encodeObj(pAlloc, &data, pObjArr + i);
 		if (err != STUC_SUCCESS) {
 			return err;
 		}
 	}
-	sizesIdx = objCount;
 	for (int32_t i = 0; i < cutoffCount; ++i) {
-		err = encodeObj(&data, ppCutoffs[i], pMeshSizes + sizesIdx);
+		err = encodeObj(pAlloc, &data, ppCutoffs[i]);
 		if (err != STUC_SUCCESS) {
 			return err;
 		}
-		sizesIdx++;
 	}
 	for (int32_t i = 0; i < usgCount; ++i) {
-		err = encodeObj(&data, &pUsgArr[i].obj, pMeshSizes + sizesIdx);
+		err = encodeObj(pAlloc, &data, &pUsgArr[i].obj);
 		if (err != STUC_SUCCESS) {
 			return err;
 		}
 		bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
 		int64_t fcHeaderSize = STUC_FLAT_CUTOFF_HEADER_SIZE;
-		encodeDataName(&data, "FC", &fcHeaderSize); //flatten cut-off
-		encodeValue(&data, (uint8_t *)&hasFlatCutoff, 8, &fcHeaderSize);
+		encodeDataName(pAlloc, &data, "FC", &fcHeaderSize); //flatten cut-off
+		encodeValue(pAlloc, &data, (uint8_t *)&hasFlatCutoff, 8, &fcHeaderSize);
 		if (hasFlatCutoff) {
-			encodeValue(&data, (uint8_t *)&pCutoffIndices[i], 32, &fcHeaderSize);
+			encodeValue(pAlloc, &data, (uint8_t *)&pCutoffIndices[i], 32, &fcHeaderSize);
 		}
-		sizesIdx++;
 	}
-	pContext->alloc.pFree(pMeshSizes);
-
 	//compress data
 	//TODO convert to use proper zlib inflate and deflate calls
 	//compress and decompress are not context independent iirc
-	int64_t dataSize = data.byteIdx + (data.nextBitIdx > 0);
-	int64_t dataSizeExtra = dataSize / 1000;
-	dataSizeExtra += ((dataSize * 1000) - dataSize) > 0;
-	dataSizeExtra += 12;
-	unsigned long uCompressedDataSize = dataSize + dataSizeExtra;
+	int64_t dataSize = data.byteIdx + (data.nextBitIdx > 0l);
+	uint64_t uCompressedDataSize = (uint64_t)(dataSize * 1.01l + 12l); //zlib needs some padding
 	uint8_t *compressedData = pContext->alloc.pMalloc(uCompressedDataSize);
 	int32_t zResult = compress(compressedData, &uCompressedDataSize, data.pString, dataSize);
 	switch(zResult) {
@@ -557,43 +388,40 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 			printf("Failed to compress STUC data, output buffer too small\n");
 			break;
 	}
-	int64_t compressedDataSize = uCompressedDataSize;
+	int64_t compressedDataSize = (int64_t)uCompressedDataSize;
 	printf("Compressed data is %lu long\n", compressedDataSize);
 
 	//encode header
 	const char *format = "UV Stucco Map File";
 	int32_t formatLen = strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
 	STUC_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN)
-	int64_t headerSizeInBits = 8 * (formatLen + 1) +
-	                           16 + //version
-	                           64 + //compressed data size
-	                           64 + //uncompressed data size
-                               32 + //indexed attrib count
-	                           32 + //obj count
-	                           32 + //usg count
-	                           32;  //flatten cutoff count
-	int64_t headerSizeInBytes = headerSizeInBits / 8 + 2;
-	header.pString = pContext->alloc.pCalloc(headerSizeInBytes, 1);
-	encodeString(&header, (uint8_t *)format, &headerSizeInBits);
+	header.size = 8l * ((int64_t)formatLen + 1l) +
+	              16l + //version
+	              64l + //compressed data size
+	              64l + //uncompressed data size
+                  32l + //indexed attrib count
+	              32l + //obj count
+	              32l + //usg count
+	              32l;  //flatten cutoff count
+	header.size = header.size / 8l + (header.size % 8l != 0l);
+	header.pString = pContext->alloc.pCalloc(header.size, 1);
+	encodeString(pAlloc, &header, (uint8_t *)format);
 	int32_t version = STUC_MAP_VERSION;
-	encodeValue(&header, (uint8_t *)&version, 16, &headerSizeInBits);
-	encodeValue(&header, (uint8_t *)&compressedDataSize, 64, &headerSizeInBits);
-	encodeValue(&header, (uint8_t *)&dataSize, 64, &headerSizeInBits);
-	encodeValue(&header, (uint8_t *)&indexedAttribs.count, 32, &headerSizeInBits);
-	encodeValue(&header, (uint8_t *)&objCount, 32, &headerSizeInBits);
-	encodeValue(&header, (uint8_t *)&usgCount, 32, &headerSizeInBits);
-	encodeValue(&header, (uint8_t *)&cutoffCount, 32, &headerSizeInBits);
-	if (isSizeInvalid(headerSizeInBits)) {
-		return STUC_ERROR;
-	}
+	encodeValue(pAlloc, &header, (uint8_t *)&version, 16);
+	encodeValue(pAlloc, &header, (uint8_t *)&compressedDataSize, 64);
+	encodeValue(pAlloc, &header, (uint8_t *)&dataSize, 64);
+	encodeValue(pAlloc, &header, (uint8_t *)&indexedAttribs.count, 32);
+	encodeValue(pAlloc, &header, (uint8_t *)&objCount, 32);
+	encodeValue(pAlloc, &header, (uint8_t *)&usgCount, 32);
+	encodeValue(pAlloc, &header, (uint8_t *)&cutoffCount, 32);
 
 	//TODO CRC for uncompressed data
 	
 	void *pFile;
 	pContext->io.pOpen(&pFile, pName, 0, &pContext->alloc);
-	headerSizeInBytes = header.byteIdx + (header.nextBitIdx > 0);
-	pContext->io.pWrite(pFile, (uint8_t *)&headerSizeInBytes, 2);
-	pContext->io.pWrite(pFile, header.pString, headerSizeInBytes);
+	int64_t finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
+	pContext->io.pWrite(pFile, (uint8_t *)&finalHeaderLen, 2);
+	pContext->io.pWrite(pFile, header.pString, finalHeaderLen);
 	pContext->io.pWrite(pFile, compressedData, (int32_t)compressedDataSize);
 	pContext->io.pClose(pFile);
 
@@ -607,7 +435,9 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 static
 StucResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 8);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].use, 8);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
 		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
 		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {

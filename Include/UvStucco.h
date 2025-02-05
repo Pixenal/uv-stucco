@@ -206,6 +206,7 @@ typedef struct {
 	void *pData;
 	char name[STUC_ATTRIB_NAME_MAX_LEN];
 	StucAttribType type;
+	StucAttribUse use;
 	int32_t count;
 } StucAttribIndexed;
 

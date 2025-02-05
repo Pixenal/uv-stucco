@@ -7,8 +7,9 @@
 
 typedef struct {
     unsigned char *pString;
-    int32_t nextBitIdx;
-    int32_t byteIdx;
+    int64_t size;
+    int64_t nextBitIdx;
+    int64_t byteIdx;
 } ByteString;
 
 //void stucWriteDebugImage(Cell *pRootCell);
@@ -24,7 +25,7 @@ StucResult stucLoadStucFile(StucContext pContext, char *filePath,
 
 void stucIoSetCustom(StucContext pContext, StucIo *pIo);
 void stucIoSetDefault(StucContext pContext);
-void encodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits, int64_t *pSize);
-void encodeString(ByteString *byteString, uint8_t *string, int64_t *pSize);
+void encodeValue(StucAlloc *pAlloc, ByteString *byteString, uint8_t *value, int32_t lengthInBits);
+void encodeString(StucAlloc *pAlloc, ByteString *byteString, uint8_t *string);
 void decodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits);
 void decodeString(ByteString *byteString, char *string, int32_t maxLen);
