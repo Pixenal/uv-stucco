@@ -1063,7 +1063,8 @@ void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 											pPiece, pPieceRoot, &otherCorner, NULL);
 		}
 		if (!pOtherPiece) {
-			if (!adj) {
+			if (!adj ||
+				getIfOnLine(pPiece->pEntry, corner)) {
 				pPiece->add |= true << corner;
 				pPiece->pOrder[corner] = sort;
 				//set keep preserve to false if true
@@ -1073,8 +1074,8 @@ void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			}
 			else {
 				pPiece->pOrder[corner] = 1;
-				adj = false;
 			}
+			adj = false;
 			corner++;
 			continue;
 		}
@@ -1661,6 +1662,9 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 #else
 			pPiece->triangulate = false;
 #endif
+			if (false) {
+				dumpBoundsFaceToFile(pArgs, pPieceArr);
+			}
 		}
 		if (pSharedEdges) {
 			destroySharedEdgeTable(&pArgs->pContext->alloc, pSharedEdges, edgeTableSize);
