@@ -112,4 +112,5 @@ typedef struct {
 	int8_t *pInVertTable;
 	int32_t id;
 	float wScale;
+	int8_t maskIdx;
 } SendOffArgs;

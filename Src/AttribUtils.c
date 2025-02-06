@@ -34,6 +34,7 @@ void setDefaultSpecialAttribNames(StucContext pContext) {
 	strcpy(pContext->spAttribs[8], "StucTangent");
 	strcpy(pContext->spAttribs[9], "StucTSign");
 	strcpy(pContext->spAttribs[10], "StucWScale");
+	strcpy(pContext->spAttribs[11], "StucMaterialIndices");//TODO StucMatIdx is easier to type
 }
 
 #define LERP_SIMPLE(a, b, o) (b * o + (1.0 - o) * a)
@@ -2531,6 +2532,9 @@ SpecialAttrib quickCheckIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
 	else if (pAttrib->pData == pMesh->pWScale) {
 		return STUC_ATTRIB_SP_WSCALE;
 	}
+	else if (pAttrib->pData == pMesh->pMatIdx) {
+		return STUC_ATTRIB_SP_MAT_IDX;
+	}
 	return STUC_ATTRIB_SP_NONE;
 }
 
@@ -2592,6 +2596,9 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 			break;
 		case (STUC_ATTRIB_SP_WSCALE):
 			pMesh->pWScale = pAttrib->pData;
+			break;
+		case (STUC_ATTRIB_SP_MAT_IDX):
+			pMesh->pMatIdx = pAttrib->pData;
 			break;
 	}
 }
@@ -2744,6 +2751,13 @@ void setSpecialAttribs(StucContext pContext, Mesh *pMesh, UBitField16 flags) {
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_WSCALE], &pCore->vertAttribs);
 		if (pMesh->pWScaleAttrib) {
 			pMesh->pWScale = pMesh->pWScaleAttrib->pData;
+		}
+	}
+	if (flags >> STUC_ATTRIB_SP_MAT_IDX & 0x01) {
+		pMesh->pMatIdxAttrib = 
+			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_MAT_IDX], &pCore->faceAttribs);
+		if (pMesh->pMatIdxAttrib) {
+			pMesh->pMatIdx = pMesh->pMatIdxAttrib->pData;
 		}
 	}
 }

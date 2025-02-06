@@ -93,6 +93,7 @@ typedef struct {
 	int32_t cornerBufSize;
 	int32_t inFaceOffset;
 	float wScale;
+	int8_t maskIdx;
 } MappingJobVars;
 
 void stucMapToJobMesh(void *pArgsPtr);

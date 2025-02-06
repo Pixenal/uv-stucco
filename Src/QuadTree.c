@@ -1041,12 +1041,15 @@ void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
 
 void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
                       Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
-					  int32_t *pAverageMapFacesPerFace) {
+					  int8_t maskIdx, int32_t *pAverageMapFacesPerFace) {
 	*pAverageMapFacesPerFace = 0;
 	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->core.faceCount);
 	QuadTreeSearch searchState = {0};
 	stucInitQuadTreeSearch(pAlloc, pMap, &searchState);
 	for (int32_t i = 0; i < pMesh->core.faceCount; ++i) {
+		if (maskIdx != -1 && pMesh->pMatIdx && pMesh->pMatIdx[i] != maskIdx) {
+			continue;
+		}
 		FaceRange faceInfo = getFaceRange(pMesh, i, false);
 		FaceBounds faceBounds = {0};
 		getFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);

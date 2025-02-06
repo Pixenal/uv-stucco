@@ -297,6 +297,13 @@ typedef struct {
 } StucObjectData;
 
 typedef struct {
+	StucMap *ppArr;
+	int8_t *pMatArr;
+	int32_t size;
+	int32_t count;
+} StucMapArr;
+
+typedef struct {
 	StucObjectData type;
 	StucAttribArray meshAttribs;
 	int32_t faceCount;

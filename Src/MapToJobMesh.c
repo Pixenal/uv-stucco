@@ -127,11 +127,12 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	vars.getInFaces = pSend->getInFaces;
 	vars.wScale = pSend->wScale;
 	vars.inFaceOffset = pSend->inFaceOffset;
+	vars.maskIdx = pSend->maskIdx;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
 	getEncasingCells(&vars.alloc, vars.pMap, &vars.mesh, &faceCellsTable,
-	                 &averageMapFacesPerFace);
+	                 vars.maskIdx, &averageMapFacesPerFace);
 	//CLOCK_STOP("Get Encasing Cells Time");
 	//CLOCK_START;
 	vars.bufSize = vars.mesh.core.faceCount + faceCellsTable.cellFacesTotal;
@@ -152,6 +153,10 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
 	for (int32_t i = 0; i < vars.mesh.core.faceCount; ++i) {
+		if (vars.maskIdx != -1 && vars.mesh.pMatIdx &&
+		    vars.mesh.pMatIdx[i] != vars.maskIdx) {
+			continue;
+		}
 		// copy faces over to a new contiguous array
 		//CLOCK_START;
 		//stucLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);

@@ -267,7 +267,7 @@ StucResult assignUsgsToVerts(StucAlloc *pAlloc,
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
 	getEncasingCells(pAlloc, pMap, pSquares, &faceCellsTable,
-	                 &averageMapFacesPerFace);
+	                 -1, &averageMapFacesPerFace);
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
 		Mesh *pFlatCutoff = (Mesh *)pUsgArr[i].pFlatCutoff->pData;

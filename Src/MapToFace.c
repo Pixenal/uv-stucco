@@ -646,7 +646,7 @@ lerpIntersect(CornerBuf *pCorner, Attrib *pDestAttrib, int32_t destIdx,
 //Except for right now, because I havn't implemented map triangulation and interpolation,
 //so the map data idx is used temporarily until that's done.
 static
-void blendMapAndInAttribs(BufMesh *pBufMesh, AttribArray *pDestAttribs,
+void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh, AttribArray *pDestAttribs,
                           AttribArray *pMapAttribs, AttribArray *pMeshAttribs,
 						  CornerBuf *pCornerBuf, int32_t cornerBufIdx,
 						  int32_t dataIdx, int32_t mapDataIdx,
@@ -704,12 +704,21 @@ void blendMapAndInAttribs(BufMesh *pBufMesh, AttribArray *pDestAttribs,
 			StucCommonAttrib *pCommon =
 				getCommonAttrib(pCommonAttribs, commonAttribCount,
 			                    pDestAttribs->pArr[i].name);
+			StucBlendConfig blendConfig = {0};
+			if (pCommon) {
+				 blendConfig = pCommon->blendConfig;
+			}
+			else {
+				StucTypeDefault *pDefault =
+					getTypeDefaultConfig(&pContext->typeDefaults, pMeshAttrib->type);
+				blendConfig = pDefault->blendConfig;
+			}
 			StucAttrib *orderTable[2];
-			int8_t order = pCommon->blendConfig.order;
+			int8_t order = blendConfig.order;
 			orderTable[0] = order ? &mapBuf : &meshBuf;
 			orderTable[1] = !order ? &mapBuf : &meshBuf;
 			blendAttribs(pDestAttrib, dataIdx, orderTable[0], 0,
-			             orderTable[1], 0, pCommon->blendConfig);
+			             orderTable[1], 0, blendConfig);
 		}
 		else if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_MAP) {
 			StucAttrib *pMapAttrib = getAttrib(pDestAttribs->pArr[i].name,
@@ -878,6 +887,7 @@ void addNewCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 		pBufMesh->mesh.pVerts[vert.realIdx] = pCornerBuf[cornerBufIdx].corner;
 		//temporarily setting mesh data idx to 0, as it's only needed if interpolation is disabled
 		blendMapAndInAttribs(
+			pVars->pContext,
 			pBufMesh, &pBufMesh->mesh.core.vertAttribs,
 			&pVars->pMap->mesh.core.vertAttribs,
 			&pVars->mesh.core.vertAttribs,
@@ -903,7 +913,8 @@ void initMapVertTableEntry(MappingJobVars *pVars, int32_t cornerBufIdx,
 	pEntry->mapVert = stucVert;
 	pEntry->baseFace = baseFace.idx;
 	pEntry->tile = tile;
-	blendMapAndInAttribs(pBufMesh, &pBufMesh->mesh.core.vertAttribs,
+	blendMapAndInAttribs(pVars->pContext,
+	                     pBufMesh, &pBufMesh->mesh.core.vertAttribs,
 						 &pVars->pMap->mesh.core.vertAttribs,
 						 &pVars->mesh.core.vertAttribs,
 						 pCornerBuf, cornerBufIdx, vert.realIdx,
@@ -1123,7 +1134,9 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 		pBufMesh->mesh.pNormals[corner.realIdx] = pCornerBuf->buf[i].normal;
 		pBufMesh->mesh.pUvs[corner.realIdx] = pCornerBuf->buf[i].uv;
 		//TODO add an intermediate function to shorten the arg lists in blendattrib functions
-		blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.core.cornerAttribs,
+		blendMapAndInAttribs(pVars->pContext,
+		                     &pVars->bufMesh,
+		                     &pBufMesh->mesh.core.cornerAttribs,
 							 &pVars->pMap->mesh.core.cornerAttribs,
 							 &pVars->mesh.core.cornerAttribs,
 							 pCornerBuf->buf, i, corner.realIdx,
@@ -1142,7 +1155,8 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 	}
 	acfVars.face = face.idx;
 	pBufMesh->mesh.core.pFaces[face.realIdx] = acfVars.cornerStart;
-	blendMapAndInAttribs(&pVars->bufMesh, &pBufMesh->mesh.core.faceAttribs,
+	blendMapAndInAttribs(pVars->pContext,
+	                     &pVars->bufMesh, &pBufMesh->mesh.core.faceAttribs,
 						 &pVars->pMap->mesh.core.faceAttribs,
 						 &pVars->mesh.core.faceAttribs,
 						 pCornerBuf->buf, 0, face.realIdx,
