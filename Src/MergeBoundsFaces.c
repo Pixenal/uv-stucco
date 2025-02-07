@@ -1162,7 +1162,7 @@ void blendMergedCornerAttribs(BlendConfig config,
 	for (int32_t i = 0; i < pDestArr->count; ++i) {
 		Attrib *pDest = pDestArr->pArr + i;
 		Attrib *pSrc = pSrcArr->pArr + i;
-		STUC_ASSERT("", !strncmp(pDest->name, pSrc->name, STUC_ATTRIB_NAME_MAX_LEN));
+		STUC_ASSERT("", !strncmp(pDest->core.name, pSrc->core.name, STUC_ATTRIB_NAME_MAX_LEN));
 		if (pDest != pDestNormalAttrib &&
 			(!pDest->origin == STUC_ATTRIB_ORIGIN_MAP ||
 			!pDest->interpolate)) {

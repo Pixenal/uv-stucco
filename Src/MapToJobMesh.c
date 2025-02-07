@@ -26,7 +26,7 @@ void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
 	allocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
 	appendBufOnlySpecialAttribs(&pVars->alloc, &pVars->bufMesh);
-	setSpecialBufAttribs(pMesh, 0x3e); //set all
+	setSpecialBufAttribs((BufMesh *)pMesh, 0x3e); //set all
 	setSpecialAttribs(pVars->pContext, pMesh, 0x40e); //set vert, normal, uv, and w scale
 	setAttribToDontCopy(pVars->pContext, pMesh, 0x400); //set w scale to DONT_COPY
 
@@ -229,7 +229,7 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		pSend->reallocTime = dpVars.reallocTime;
 		pSend->bufSize = vars.bufSize;
 		pSend->rawBufSize = vars.rawBufSize;
-		pSend->finalBufSize = &vars.bufMesh.mesh.faceBufSize;
+		pSend->finalBufSize = vars.bufMesh.mesh.faceBufSize;
 		//STUC_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
 		STUC_ASSERT("", vars.borderTable.pTable != NULL);
 		printf("borderTable %d\n", vars.borderTable.pTable != NULL);

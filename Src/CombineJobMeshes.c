@@ -58,7 +58,7 @@ void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	//get first bufmesh that isn't empty
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		if (pJobArgs[i].bufSize) {
-			src = &pJobArgs[i].bufMesh;
+			src = &pJobArgs[i].bufMesh.mesh;
 			break;
 		}
 	}
@@ -69,21 +69,29 @@ void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	uint64_t reallocTime = 0;
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		reallocTime += pJobArgs[i].reallocTime;
+#ifdef WIN32
+		printf("realloc time %llu\n", pJobArgs[i].reallocTime);
+#else
 		printf("realloc time %lu\n", pJobArgs[i].reallocTime);
+#endif
 		printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
 		printf("bufSize: %d | ", pJobArgs[i].bufSize);
 		printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
 		if (pJobArgs[i].bufSize) { //don't copy if mesh is empty
 			pJobBases[i].vertBase = pMeshOut->core.vertCount;
 			pJobBases[i].edgeBase = pMeshOut->core.edgeCount;
-			copyMesh(&pMeshOut->core, &pJobArgs[i].bufMesh.mesh);
+			copyMesh(&pMeshOut->core, &pJobArgs[i].bufMesh.mesh.core);
 		}
 	}
 	if (ppInFaceTable) {
 		*ppInFaceTable = pContext->alloc.pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
 		combineJobInFaceLists(pContext, *ppInFaceTable, pJobArgs, mapJobsSent);
 	}
+#ifdef WIN32
+	printf("realloc time total %llu\n", reallocTime);
+#else
 	printf("realloc time total %lu\n", reallocTime);
+#endif
 	stucMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
 	                     pEdgeVerts, pJobBases, pVertSeamTable,
 	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh,
@@ -131,67 +139,80 @@ BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
 bool getIfStuc(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->isStuc, cornerIdx, 1);
+			return idxBitArray(((BorderFaceSmall *)pEntry)->isStuc, cornerIdx, 1);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->isStuc, cornerIdx, 1);
+			return idxBitArray(((BorderFaceMid *)pEntry)->isStuc, cornerIdx, 1);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->isStuc, cornerIdx, 1);
+			return idxBitArray(((BorderFaceLarge *)pEntry)->isStuc, cornerIdx, 1);
 	}
+	STUC_ASSERT("", false);
+	//TODO return STUC_ERROR instead of bool, pass bool as out param
+	return false;
 }
 
 bool getIfOnInVert(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->onInVert, cornerIdx, 1);
+			return idxBitArray(((BorderFaceSmall *)pEntry)->onInVert, cornerIdx, 1);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->onInVert, cornerIdx, 1);
+			return idxBitArray(((BorderFaceMid *)pEntry)->onInVert, cornerIdx, 1);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->onInVert, cornerIdx, 1);
+			return idxBitArray(((BorderFaceLarge *)pEntry)->onInVert, cornerIdx, 1);
 	}
+	STUC_ASSERT("", false);
+	return false;
 }
 
 bool getIfOnLine(const BorderFace *pEntry, int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->onLine, cornerIdx, 1);
+			return idxBitArray(((BorderFaceSmall *)pEntry)->onLine, cornerIdx, 1);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->onLine, cornerIdx, 1);
+			return idxBitArray(((BorderFaceMid *)pEntry)->onLine, cornerIdx, 1);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->onLine, cornerIdx, 1);
+			return idxBitArray(((BorderFaceLarge *)pEntry)->onLine, cornerIdx, 1);
 	}
+	STUC_ASSERT("", false);
+	return false;
 }
 
 int32_t getSegment(const BorderFace *pEntry, int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->segment, cornerIdx, 3);
+			return idxBitArray(((BorderFaceSmall *)pEntry)->segment, cornerIdx, 3);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->segment, cornerIdx, 4);
+			return idxBitArray(((BorderFaceMid *)pEntry)->segment, cornerIdx, 4);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->segment, cornerIdx, 5);
+			return idxBitArray(((BorderFaceLarge *)pEntry)->segment, cornerIdx, 5);
 	}
+	STUC_ASSERT("", false);
+	return false;
 }
 
 int32_t getMapCorner(const BorderFace *pEntry, const int32_t cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
-			return idxBitArray(&((BorderFaceSmall *)pEntry)->stucCorner, cornerIdx, 3);
+			return idxBitArray(((BorderFaceSmall *)pEntry)->stucCorner, cornerIdx, 3);
 		case 1:
-			return idxBitArray(&((BorderFaceMid *)pEntry)->stucCorner, cornerIdx, 4);
+			return idxBitArray(((BorderFaceMid *)pEntry)->stucCorner, cornerIdx, 4);
 		case 2:
-			return idxBitArray(&((BorderFaceLarge *)pEntry)->stucCorner, cornerIdx, 5);
+			return idxBitArray(((BorderFaceLarge *)pEntry)->stucCorner, cornerIdx, 5);
 	}
+	STUC_ASSERT("", false);
+	return false;
 }
 
 int32_t getBaseCorner(const BorderFace *pEntry, int32_t cornerIdx) {
 	switch (pEntry->memType) {
 	case 0:
-		return idxBitArray(&((BorderFaceSmall *)pEntry)->baseCorner, cornerIdx, 2);
+		return idxBitArray(((BorderFaceSmall *)pEntry)->baseCorner, cornerIdx, 2);
 	case 1:
-		return idxBitArray(&((BorderFaceMid *)pEntry)->baseCorner, cornerIdx, 2);
+		return idxBitArray(((BorderFaceMid *)pEntry)->baseCorner, cornerIdx, 2);
 	case 2:
-		return idxBitArray(&((BorderFaceLarge *)pEntry)->baseCorner, cornerIdx, 2);
+		return idxBitArray(((BorderFaceLarge *)pEntry)->baseCorner, cornerIdx, 2);
 	}
+	STUC_ASSERT("", false);
+	return false;
 }
 
 V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry) {

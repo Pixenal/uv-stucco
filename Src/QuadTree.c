@@ -1033,7 +1033,7 @@ void getEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range faceRange,
 		if (maskIdx != -1 && pMesh->pMatIdx && pMesh->pMatIdx[i] != maskIdx) {
 			continue;
 		}
-		FaceRange faceInfo = getFaceRange(pMesh, i, false);
+		FaceRange faceInfo = getFaceRange(&pMesh->core, i, false);
 		FaceBounds faceBounds = {0};
 		getFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);
 		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);

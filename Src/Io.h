@@ -13,7 +13,7 @@ typedef struct {
 } ByteString;
 
 //void stucWriteDebugImage(Cell *pRootCell);
-StucResult stucWriteStucFile(StucContext pContext, const char *pName,
+StucResult stucWriteStucFile(StucContext pContext, char *pName,
                              int32_t objCount, StucObject *pObjArr,
                              int32_t usgCount, StucUsg *pUsgArr,
                              StucAttribIndexedArr indexedAttribs);

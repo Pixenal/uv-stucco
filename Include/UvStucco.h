@@ -197,16 +197,17 @@ typedef struct {
 	void *pData;
 	char name[STUC_ATTRIB_NAME_MAX_LEN];
 	StucAttribType type;
-	StucAttribOrigin origin;
 	StucAttribUse use;
+} StucAttribCore;
+
+typedef struct {
+	StucAttribCore core;
+	StucAttribOrigin origin;
 	bool interpolate;
 } StucAttrib;
 
 typedef struct {
-	void *pData;
-	char name[STUC_ATTRIB_NAME_MAX_LEN];
-	StucAttribType type;
-	StucAttribUse use;
+	StucAttribCore core;
 	int32_t count;
 } StucAttribIndexed;
 
@@ -382,7 +383,7 @@ StucResult stucContextInit(StucContext *pContext, StucAlloc *pAlloc,
                            StucTypeDefaultConfig *pTypeDefaultConfig,
                            StucStageReport *pStageReport);
 STUC_EXPORT
-StucResult stucMapFileExport(StucContext context, const char *pName,
+StucResult stucMapFileExport(StucContext context, char *pName,
                              int32_t objCount, StucObject* pObjArr,
                              int32_t usgCount, StucUsg* pUsgArr,
                              StucAttribIndexedArr indexedAttribs);

@@ -41,14 +41,14 @@ void setDefaultSpecialAttribNames(StucContext pContext) {
 
 //t is type, pD is attrib, i is idx, v is vector len (scalar is 1, v2 is 2, etc),
 //and c is component (ie, x is 0, y is 1, z is 2, etc)
-#define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->pData)[i][c]
+#define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->core.pData)[i][c]
 //TODO you'll need to make an unsigned wide macro as well when you implement
 //proper unsigned attribs
-#define INDEX_ATTRIB_WIDE(t, pD, i, v, c) (double)(((t (*)[v])pD->pData)[i][c])
+#define INDEX_ATTRIB_WIDE(t, pD, i, v, c) (double)(((t (*)[v])pD->core.pData)[i][c])
 //TODO add a way to pass the max value here rather than just using 255.0f,
 //one may want to use 16 or 32 bit color depth
 #define INDEX_ATTRIB_NORM(t, tMax, pD, i, v, c) \
-	((double)((t (*)[v])pD->pData)[i][c] / (double)tMax)
+	((double)((t (*)[v])pD->core.pData)[i][c] / (double)tMax)
 
 #define CLAMP_AND_LERP(t, tMax, o, pA, iA, v, c, d) (\
 	(d = LERP_SIMPLE(INDEX_ATTRIB_WIDE(t,pA,iA,v,c), d, o)),\
@@ -318,7 +318,7 @@ int32_t getAttribSize(AttribType type) {
 
 Attrib *getAttrib(char *pName, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		if (!strncmp(pName, pAttribs->pArr[i].name,
+		if (!strncmp(pName, pAttribs->pArr[i].core.name,
 		             STUC_ATTRIB_NAME_MAX_LEN)) {
 			return pAttribs->pArr + i;
 		}
@@ -326,23 +326,23 @@ Attrib *getAttrib(char *pName, AttribArray *pAttribs) {
 	return NULL;
 }
 
-V3_F32 *attribAsV3(Attrib *pAttrib, int32_t idx) {
+V3_F32 *attribAsV3(AttribCore *pAttrib, int32_t idx) {
 	return (V3_F32 *)pAttrib->pData + idx;
 }
 
-V2_F32 *attribAsV2(Attrib *pAttrib, int32_t idx) {
+V2_F32 *attribAsV2(AttribCore *pAttrib, int32_t idx) {
 	return (V2_F32 *)pAttrib->pData + idx;
 }
 
-int32_t *attribAsI32(Attrib *pAttrib, int32_t idx) {
+int32_t *attribAsI32(AttribCore *pAttrib, int32_t idx) {
 	return (int32_t *)pAttrib->pData + idx;
 }
 
-int8_t *attribAsI8(Attrib *pAttrib, int32_t idx) {
+int8_t *attribAsI8(AttribCore *pAttrib, int32_t idx) {
 	return (int8_t *)pAttrib->pData + idx;
 }
 
-void *attribAsVoid(Attrib *pAttrib, int32_t idx) {
+void *attribAsVoid(AttribCore *pAttrib, int32_t idx) {
 	switch (pAttrib->type) {
 		case STUC_ATTRIB_I8:
 			return ((int8_t *)pAttrib->pData) + idx;
@@ -405,103 +405,103 @@ int32_t copyAttrib(Attrib *pDest, int32_t iDest,
 	if (pSrc->origin == STUC_ATTRIB_DONT_COPY) {
 		return 0;
 	}
-	if (pSrc->type != pDest->type) {
+	if (pSrc->core.type != pDest->core.type) {
 		return 1;
 	}
-	switch (pSrc->type) {
+	switch (pSrc->core.type) {
 		case STUC_ATTRIB_I8:
-			((int8_t *)pDest->pData)[iDest] = ((int8_t *)pSrc->pData)[iSrc];
+			((int8_t *)pDest->core.pData)[iDest] = ((int8_t *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_I16:
-			((int16_t *)pDest->pData)[iDest] = ((int16_t *)pSrc->pData)[iSrc];
+			((int16_t *)pDest->core.pData)[iDest] = ((int16_t *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_I32:
-			((int32_t *)pDest->pData)[iDest] = ((int32_t *)pSrc->pData)[iSrc];
+			((int32_t *)pDest->core.pData)[iDest] = ((int32_t *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_I64:
-			((int64_t *)pDest->pData)[iDest] = ((int64_t *)pSrc->pData)[iSrc];
+			((int64_t *)pDest->core.pData)[iDest] = ((int64_t *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_F32:
-			((float *)pDest->pData)[iDest] = ((float *)pSrc->pData)[iSrc];
+			((float *)pDest->core.pData)[iDest] = ((float *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_F64:
-			((double *)pDest->pData)[iDest] = ((double *)pSrc->pData)[iSrc];
+			((double *)pDest->core.pData)[iDest] = ((double *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_V2_I8:
-			memcpy(((int8_t (*)[2])pDest->pData)[iDest],
-			       ((int8_t (*)[2])pSrc->pData)[iSrc], sizeof(int8_t[2]));
+			memcpy(((int8_t (*)[2])pDest->core.pData)[iDest],
+			       ((int8_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int8_t[2]));
 			break;
 		case STUC_ATTRIB_V2_I16:
-			memcpy(((int16_t (*)[2])pDest->pData)[iDest],
-			       ((int16_t (*)[2])pSrc->pData)[iSrc], sizeof(int16_t[2]));
+			memcpy(((int16_t (*)[2])pDest->core.pData)[iDest],
+			       ((int16_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int16_t[2]));
 			break;
 		case STUC_ATTRIB_V2_I32:
-			memcpy(((int32_t (*)[2])pDest->pData)[iDest],
-			       ((int32_t (*)[2])pSrc->pData)[iSrc], sizeof(int32_t[2]));
+			memcpy(((int32_t (*)[2])pDest->core.pData)[iDest],
+			       ((int32_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int32_t[2]));
 			break;
 		case STUC_ATTRIB_V2_I64:
-			memcpy(((int64_t (*)[2])pDest->pData)[iDest],
-			       ((int64_t (*)[2])pSrc->pData)[iSrc], sizeof(int64_t[2]));
+			memcpy(((int64_t (*)[2])pDest->core.pData)[iDest],
+			       ((int64_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int64_t[2]));
 			break;
 		case STUC_ATTRIB_V2_F32:
-			memcpy(((float (*)[2])pDest->pData)[iDest],
-			       ((float (*)[2])pSrc->pData)[iSrc], sizeof(float[2]));
+			memcpy(((float (*)[2])pDest->core.pData)[iDest],
+			       ((float (*)[2])pSrc->core.pData)[iSrc], sizeof(float[2]));
 			break;
 		case STUC_ATTRIB_V2_F64:
-			memcpy(((double (*)[2])pDest->pData)[iDest],
-			       ((double (*)[2])pSrc->pData)[iSrc], sizeof(double[2]));
+			memcpy(((double (*)[2])pDest->core.pData)[iDest],
+			       ((double (*)[2])pSrc->core.pData)[iSrc], sizeof(double[2]));
 			break;
 		case STUC_ATTRIB_V3_I8:
-			memcpy(((int8_t (*)[3])pDest->pData)[iDest],
-			       ((int8_t (*)[3])pSrc->pData)[iSrc], sizeof(int8_t[3]));
+			memcpy(((int8_t (*)[3])pDest->core.pData)[iDest],
+			       ((int8_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int8_t[3]));
 			break;
 		case STUC_ATTRIB_V3_I16:
-			memcpy(((int16_t (*)[3])pDest->pData)[iDest],
-			       ((int16_t (*)[3])pSrc->pData)[iSrc], sizeof(int16_t[3]));
+			memcpy(((int16_t (*)[3])pDest->core.pData)[iDest],
+			       ((int16_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int16_t[3]));
 			break;
 		case STUC_ATTRIB_V3_I32:
-			memcpy(((int32_t (*)[3])pDest->pData)[iDest],
-			       ((int32_t (*)[3])pSrc->pData)[iSrc], sizeof(int32_t[3]));
+			memcpy(((int32_t (*)[3])pDest->core.pData)[iDest],
+			       ((int32_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int32_t[3]));
 			break;
 		case STUC_ATTRIB_V3_I64:
-			memcpy(((int64_t (*)[3])pDest->pData)[iDest],
-			       ((int64_t (*)[3])pSrc->pData)[iSrc], sizeof(int64_t[3]));
+			memcpy(((int64_t (*)[3])pDest->core.pData)[iDest],
+			       ((int64_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int64_t[3]));
 			break;
 		case STUC_ATTRIB_V3_F32:
-			memcpy(((float (*)[3])pDest->pData)[iDest],
-			       ((float (*)[3])pSrc->pData)[iSrc], sizeof(float[3]));
+			memcpy(((float (*)[3])pDest->core.pData)[iDest],
+			       ((float (*)[3])pSrc->core.pData)[iSrc], sizeof(float[3]));
 			break;
 		case STUC_ATTRIB_V3_F64:
-			memcpy(((double (*)[3])pDest->pData)[iDest],
-			       ((double (*)[3])pSrc->pData)[iSrc], sizeof(double[3]));
+			memcpy(((double (*)[3])pDest->core.pData)[iDest],
+			       ((double (*)[3])pSrc->core.pData)[iSrc], sizeof(double[3]));
 			break;
 		case STUC_ATTRIB_V4_I8:
-			memcpy(((int8_t (*)[4])pDest->pData)[iDest],
-			       ((int8_t (*)[4])pSrc->pData)[iSrc], sizeof(int8_t[4]));
+			memcpy(((int8_t (*)[4])pDest->core.pData)[iDest],
+			       ((int8_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int8_t[4]));
 			break;
 		case STUC_ATTRIB_V4_I16:
-			memcpy(((int16_t (*)[4])pDest->pData)[iDest],
-			       ((int16_t (*)[4])pSrc->pData)[iSrc], sizeof(int16_t[4]));
+			memcpy(((int16_t (*)[4])pDest->core.pData)[iDest],
+			       ((int16_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int16_t[4]));
 			break;
 		case STUC_ATTRIB_V4_I32:
-			memcpy(((int32_t (*)[4])pDest->pData)[iDest],
-			       ((int32_t (*)[4])pSrc->pData)[iSrc], sizeof(int32_t[4]));
+			memcpy(((int32_t (*)[4])pDest->core.pData)[iDest],
+			       ((int32_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int32_t[4]));
 			break;
 		case STUC_ATTRIB_V4_I64:
-			memcpy(((int64_t (*)[4])pDest->pData)[iDest],
-			       ((int64_t (*)[4])pSrc->pData)[iSrc], sizeof(int64_t[4]));
+			memcpy(((int64_t (*)[4])pDest->core.pData)[iDest],
+			       ((int64_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int64_t[4]));
 			break;
 		case STUC_ATTRIB_V4_F32:
-			memcpy(((float (*)[4])pDest->pData)[iDest],
-			       ((float (*)[4])pSrc->pData)[iSrc], sizeof(float[4]));
+			memcpy(((float (*)[4])pDest->core.pData)[iDest],
+			       ((float (*)[4])pSrc->core.pData)[iSrc], sizeof(float[4]));
 			break;
 		case STUC_ATTRIB_V4_F64:
-			memcpy(((double (*)[4])pDest->pData)[iDest],
-			       ((double (*)[4])pSrc->pData)[iSrc], sizeof(double[4]));
+			memcpy(((double (*)[4])pDest->core.pData)[iDest],
+			       ((double (*)[4])pSrc->core.pData)[iSrc], sizeof(double[4]));
 			break;
 		case STUC_ATTRIB_STRING:
-			memcpy(((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pDest->pData)[iDest],
-			       ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pSrc->pData)[iSrc],
+			memcpy(((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pDest->core.pData)[iDest],
+			       ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pSrc->core.pData)[iSrc],
 				   sizeof(double[STUC_ATTRIB_STRING_MAX_LEN]));
 			break;
 	}
@@ -511,7 +511,7 @@ int32_t copyAttrib(Attrib *pDest, int32_t iDest,
 void copyAllAttribs(AttribArray *pDest, int32_t iDest,
                     AttribArray *pSrc, int32_t iSrc) {
 	for (int32_t i = 0; i < pDest->count; ++i) {
-		Attrib *pSrcAttrib = getAttrib(pDest->pArr[i].name, pSrc);
+		Attrib *pSrcAttrib = getAttrib(pDest->pArr[i].core.name, pSrc);
 		if (pSrcAttrib) {
 			copyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
 		}
@@ -622,13 +622,13 @@ StucCommonAttrib *getCommonAttrib(StucCommonAttrib *pAttribs, int32_t attribCoun
 
 void lerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
                 int32_t iSrcA, Attrib *pSrcB, int32_t iSrcB, float alpha) {
-	if (pDest->type != pSrcA->type ||
-		pDest->type != pSrcB->type) {
+	if (pDest->core.type != pSrcA->core.type ||
+		pDest->core.type != pSrcB->core.type) {
 		printf("Type mismatch in interpolateAttrib\n");
 		//TODO remove all uses of abort(), and add proper exception handling
 		abort();
 	}
-	AttribType type = pDest->type;
+	AttribType type = pDest->core.type;
 	switch (type) {
 		case STUC_ATTRIB_I8:
 			LERP_SCALAR(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
@@ -717,12 +717,12 @@ void lerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
 
 void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
                           int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc) {
-	if (pDest->type != pSrc->type) {
+	if (pDest->core.type != pSrc->core.type) {
 		printf("Type mismatch in interpolateAttrib\n");
 		//TODO remove all uses of abort(), and add proper exception handling
 		abort();
 	}
-	AttribType type = pDest->type;
+	AttribType type = pDest->core.type;
 	switch (type) {
 		case STUC_ATTRIB_I8:
 			TRI_INTERPOLATE_SCALAR(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB,
@@ -817,7 +817,7 @@ static void appendOnNonString() {
 //TODO this name should not be plural
 void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
                   Attrib *pB, int32_t iB, StucBlendConfig blendConfig) {
-	AttribType type = pD->type;
+	AttribType type = pD->core.type;
 	double opacity = (double)blendConfig.opacity; //casting as blending is done with doubles
 	switch (type) {
 		case STUC_ATTRIB_I8:
@@ -1741,7 +1741,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V4_I8:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					switch (pD->use) {
+					switch (pD->core.use) {
 					//TODO add a GENERIC item, in addition to NONE (none indicates not set),
 					//and use that here. NONE should probably cause an error, or just default to
 					//generic blending?
@@ -1760,7 +1760,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_MULTIPLY:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						//TODO have an option in blendConfig for whether to normalize or not.
 						//This will only be relevent for non-color attribs. As if use is color,
 						//attribs will always be normalized
@@ -1779,7 +1779,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_DIVIDE:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1795,7 +1795,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_ADD:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1811,7 +1811,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_SUBTRACT:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1827,7 +1827,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_ADD_SUB:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1844,7 +1844,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_LIGHTEN:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1860,7 +1860,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_DARKEN:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1876,7 +1876,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_OVERLAY:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1892,7 +1892,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -1908,7 +1908,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					}
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					switch (pD->use) {
+					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
 							BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
 							BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
@@ -2300,7 +2300,7 @@ void blendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 }
 
 void divideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar) {
-	switch (pAttrib->type) {
+	switch (pAttrib->core.type) {
 		case STUC_ATTRIB_I8:
 			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 1, 0, scalar);
 			break;
@@ -2443,7 +2443,7 @@ void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
 				if (pSrc->pArr[j].origin == STUC_ATTRIB_DONT_COPY) {
 					continue;
 				}
-				Attrib *pAttrib = getAttrib(pSrc->pArr[j].name, pDest);
+				Attrib *pAttrib = getAttrib(pSrc->pArr[j].core.name, pDest);
 				if (pAttrib) {
 					//if attribute already exists in destination,
 					//set origin to common, then skip
@@ -2457,14 +2457,14 @@ void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
 					pDest->size *= 2;
 					pDest->pArr = pAlloc->pRealloc(pDest->pArr, pDest->size * sizeof(Attrib));
 				}
-				pDest->pArr[pDest->count].type = pSrc->pArr[j].type;
-				memcpy(pDest->pArr[pDest->count].name, pSrc->pArr[j].name,
+				pDest->pArr[pDest->count].core.type = pSrc->pArr[j].core.type;
+				memcpy(pDest->pArr[pDest->count].core.name, pSrc->pArr[j].core.name,
 				       STUC_ATTRIB_NAME_MAX_LEN);
 				pDest->pArr[pDest->count].origin = pSrc->pArr[j].origin;
-				pDest->pArr[pDest->count].use = pSrc->pArr[j].use;
+				pDest->pArr[pDest->count].core.use = pSrc->pArr[j].core.use;
 				pDest->pArr[pDest->count].interpolate = pSrc->pArr[j].interpolate;
-				int32_t attribSize = getAttribSize(pSrc->pArr[j].type);
-				pDest->pArr[pDest->count].pData = pAlloc->pCalloc(dataLen, attribSize);
+				int32_t attribSize = getAttribSize(pSrc->pArr[j].core.type);
+				pDest->pArr[pDest->count].core.pData = pAlloc->pCalloc(dataLen, attribSize);
 				pDest->count++;
 			}
 		}
@@ -2480,7 +2480,7 @@ static
 int32_t checkIfSpecialAttrib(StucContext pContext, Attrib *pAttrib) {
 	int32_t size = sizeof(pContext->spAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
 	for (int32_t i = 1; i < size; ++i) {
-		if (!strncmp(pAttrib->name, pContext->spAttribs[i], STUC_ATTRIB_NAME_MAX_LEN)) {
+		if (!strncmp(pAttrib->core.name, pContext->spAttribs[i], STUC_ATTRIB_NAME_MAX_LEN)) {
 			return i;
 		}
 	}
@@ -2491,7 +2491,7 @@ static
 int32_t checkIfSpecialBufAttrib(Attrib *pAttrib) {
 	int32_t size = sizeof(spBufAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
 	for (int32_t i = 1; i < size; ++i) {
-		if (!strncmp(pAttrib->name, spBufAttribs[i], STUC_ATTRIB_NAME_MAX_LEN)) {
+		if (!strncmp(pAttrib->core.name, spBufAttribs[i], STUC_ATTRIB_NAME_MAX_LEN)) {
 			return i;
 		}
 	}
@@ -2502,37 +2502,37 @@ int32_t checkIfSpecialBufAttrib(Attrib *pAttrib) {
 //by comparing pointers, to avoid needing to compare a bunch of strings
 static
 SpecialAttrib quickCheckIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
-	if (pAttrib->pData == pMesh->pVerts) {
+	if (pAttrib->core.pData == pMesh->pVerts) {
 		return STUC_ATTRIB_SP_VERTS;
 	}
-	else if (pAttrib->pData == pMesh->pUvs) {
+	else if (pAttrib->core.pData == pMesh->pUvs) {
 		return STUC_ATTRIB_SP_UVS;
 	}
-	else if (pAttrib->pData == pMesh->pNormals) {
+	else if (pAttrib->core.pData == pMesh->pNormals) {
 		return STUC_ATTRIB_SP_NORMALS;
 	}
-	else if (pAttrib->pData == pMesh->pEdgePreserve) {
+	else if (pAttrib->core.pData == pMesh->pEdgePreserve) {
 		return STUC_ATTRIB_SP_PRESERVE;
 	}
-	else if (pAttrib->pData == pMesh->pEdgeReceive) {
+	else if (pAttrib->core.pData == pMesh->pEdgeReceive) {
 		return STUC_ATTRIB_SP_RECEIVE;
 	}
-	else if (pAttrib->pData == pMesh->pVertPreserve) {
+	else if (pAttrib->core.pData == pMesh->pVertPreserve) {
 		return STUC_ATTRIB_SP_PRESERVE_VERT;
 	}
-	else if (pAttrib->pData == pMesh->pUsg) {
+	else if (pAttrib->core.pData == pMesh->pUsg) {
 		return STUC_ATTRIB_SP_USG;
 	}
-	else if (pAttrib->pData == pMesh->pTangents) {
+	else if (pAttrib->core.pData == pMesh->pTangents) {
 		return STUC_ATTRIB_SP_TANGENTS;
 	}
-	else if (pAttrib->pData == pMesh->pTSigns) {
+	else if (pAttrib->core.pData == pMesh->pTSigns) {
 		return STUC_ATTRIB_SP_TSIGNS;
 	}
-	else if (pAttrib->pData == pMesh->pWScale) {
+	else if (pAttrib->core.pData == pMesh->pWScale) {
 		return STUC_ATTRIB_SP_WSCALE;
 	}
-	else if (pAttrib->pData == pMesh->pMatIdx) {
+	else if (pAttrib->core.pData == pMesh->pMatIdx) {
 		return STUC_ATTRIB_SP_MAT_IDX;
 	}
 	return STUC_ATTRIB_SP_NONE;
@@ -2545,19 +2545,19 @@ SpecialBufAttrib quickCheckIfSpecialBufAttrib(BufMesh *pMesh, Attrib *pAttrib) {
 	if (pMesh->mesh.core.type.type != STUC_OBJECT_DATA_MESH_BUF) {
 		return STUC_ATTRIB_SP_BUF_NONE;
 	}
-	if (pAttrib->pData == pMesh->pW) {
+	if (pAttrib->core.pData == pMesh->pW) {
 		return STUC_ATTRIB_SP_BUF_W;
 	}
-	else if (pAttrib->pData == pMesh->pInNormal) {
+	else if (pAttrib->core.pData == pMesh->pInNormal) {
 		return STUC_ATTRIB_SP_BUF_IN_NORMAL;
 	}
-	else if (pAttrib->pData == pMesh->pInTangent) {
+	else if (pAttrib->core.pData == pMesh->pInTangent) {
 		return STUC_ATTRIB_SP_BUF_IN_TANGENT;
 	}
-	else if (pAttrib->pData == pMesh->pInTSign) {
+	else if (pAttrib->core.pData == pMesh->pInTSign) {
 		return STUC_ATTRIB_SP_BUF_IN_T_SIGN;
 	}
-	else if (pAttrib->pData == pMesh->pAlpha) {
+	else if (pAttrib->core.pData == pMesh->pAlpha) {
 		return STUC_ATTRIB_SP_BUF_ALPHA;
 	}
 	return STUC_ATTRIB_SP_BUF_NONE;
@@ -2569,37 +2569,37 @@ void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
 		case (STUC_ATTRIB_SP_NONE):
 			break;
 		case (STUC_ATTRIB_SP_VERTS):
-			pMesh->pVerts = pAttrib->pData;
+			pMesh->pVerts = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_UVS):
-			pMesh->pUvs = pAttrib->pData;
+			pMesh->pUvs = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_NORMALS):
-			pMesh->pNormals = pAttrib->pData;
+			pMesh->pNormals = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_PRESERVE):
-			pMesh->pEdgePreserve = pAttrib->pData;
+			pMesh->pEdgePreserve = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_RECEIVE):
-			pMesh->pEdgeReceive = pAttrib->pData;
+			pMesh->pEdgeReceive = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_PRESERVE_VERT):
-			pMesh->pVertPreserve = pAttrib->pData;
+			pMesh->pVertPreserve = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_USG):
-			pMesh->pUsg = pAttrib->pData;
+			pMesh->pUsg = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_TANGENTS):
-			pMesh->pTangents = pAttrib->pData;
+			pMesh->pTangents = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_TSIGNS):
-			pMesh->pTSigns = pAttrib->pData;
+			pMesh->pTSigns = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_WSCALE):
-			pMesh->pWScale = pAttrib->pData;
+			pMesh->pWScale = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_MAT_IDX):
-			pMesh->pMatIdx = pAttrib->pData;
+			pMesh->pMatIdx = pAttrib->core.pData;
 			break;
 	}
 }
@@ -2610,19 +2610,19 @@ void reassignIfSpecialBuf(BufMesh *pMesh, Attrib *pAttrib, SpecialBufAttrib spec
 		case (STUC_ATTRIB_SP_BUF_NONE):
 			break;
 		case (STUC_ATTRIB_SP_BUF_W):
-			pMesh->pW = pAttrib->pData;
+			pMesh->pW = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_IN_NORMAL):
-			pMesh->pInNormal = pAttrib->pData;
+			pMesh->pInNormal = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_IN_TANGENT):
-			pMesh->pInTangent = pAttrib->pData;
+			pMesh->pInTangent = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_IN_T_SIGN):
-			pMesh->pInTSign = pAttrib->pData;
+			pMesh->pInTSign = pAttrib->core.pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_ALPHA):
-			pMesh->pAlpha = pAttrib->pData;
+			pMesh->pAlpha = pAttrib->core.pData;
 			break;
 	}
 }
@@ -2636,11 +2636,11 @@ void reallocAttribs(const StucAlloc *pAlloc, Mesh *pMesh,
 		SpecialBufAttrib specialBuf = quickCheckIfSpecialBufAttrib((BufMesh *)pMesh, pAttrib);
 		//Check entry is valid
 		STUC_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
-		int8_t oldFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData =
-			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
-		int8_t newFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
+		int8_t oldFirstElement = *(int8_t *)attribAsVoid(&pAttrib->core, 0);
+		int32_t attribSize = getAttribSize(pAttrib->core.type);
+		pAttrib->core.pData =
+			pAlloc->pRealloc(pAttrib->core.pData, attribSize * newLen);
+		int8_t newFirstElement = *(int8_t *)attribAsVoid(&pAttrib->core, 0);
 		STUC_ASSERT("", newFirstElement == oldFirstElement);
 		reassignIfSpecial(pMesh, pAttrib, special);
 		reassignIfSpecialBuf((BufMesh *)pMesh, pAttrib, specialBuf);
@@ -2661,19 +2661,19 @@ void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
 		//Check entry is valid
 		STUC_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
 		int8_t oldFirstElement =
-			*(int8_t *)attribAsVoid(pAttrib, start);
+			*(int8_t *)attribAsVoid(&pAttrib->core, start);
 		int8_t oldLastElement =
-			*(int8_t *)attribAsVoid(pAttrib, start + lenToCopy - 1);
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData =
-			pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
+			*(int8_t *)attribAsVoid(&pAttrib->core, start + lenToCopy - 1);
+		int32_t attribSize = getAttribSize(pAttrib->core.type);
+		pAttrib->core.pData =
+			pAlloc->pRealloc(pAttrib->core.pData, attribSize * newLen);
 		if (lenToCopy) {
-			memmove(attribAsVoid(pAttrib, start + offset),
-					attribAsVoid(pAttrib, start), attribSize * lenToCopy);
+			memmove(attribAsVoid(&pAttrib->core, start + offset),
+					attribAsVoid(&pAttrib->core, start), attribSize * lenToCopy);
 			int8_t newFirstElement =
-				*(int8_t *)attribAsVoid(pAttrib, start + offset);
+				*(int8_t *)attribAsVoid(&pAttrib->core, start + offset);
 			int8_t newLastElement =
-				*(int8_t *)attribAsVoid(pAttrib, start + offset + lenToCopy - 1);
+				*(int8_t *)attribAsVoid(&pAttrib->core, start + offset + lenToCopy - 1);
 			STUC_ASSERT("", newFirstElement == oldFirstElement);
 			STUC_ASSERT("", newLastElement == oldLastElement);
 		}
@@ -2693,72 +2693,72 @@ void setSpecialAttribs(StucContext pContext, Mesh *pMesh, UBitField16 flags) {
 		pMesh->pVertAttrib =
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_VERTS], &pCore->vertAttribs);
 		STUC_ASSERT("", pMesh->pVertAttrib);
-		pMesh->pVerts = pMesh->pVertAttrib->pData;
+		pMesh->pVerts = pMesh->pVertAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_UVS & 0x01) {
 		pMesh->pUvAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_UVS], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pUvAttrib);
-		pMesh->pUvs = pMesh->pUvAttrib->pData;
+		pMesh->pUvs = pMesh->pUvAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_NORMALS & 0x01) {
 		pMesh->pNormalAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_NORMALS], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pNormalAttrib);
-		pMesh->pNormals = pMesh->pNormalAttrib->pData;
+		pMesh->pNormals = pMesh->pNormalAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_PRESERVE & 0x01) {
 		pMesh->pEdgePreserveAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_PRESERVE], &pCore->edgeAttribs);
 		if (pMesh->pEdgePreserveAttrib) {
-			pMesh->pEdgePreserve = pMesh->pEdgePreserveAttrib->pData;
+			pMesh->pEdgePreserve = pMesh->pEdgePreserveAttrib->core.pData;
 		}
 	}
 	if (flags >> STUC_ATTRIB_SP_RECEIVE & 0x01) {
 		pMesh->pEdgeReceiveAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_RECEIVE], &pCore->edgeAttribs);
 		if (pMesh->pEdgeReceiveAttrib) {
-			pMesh->pEdgeReceive = pMesh->pEdgeReceiveAttrib->pData;
+			pMesh->pEdgeReceive = pMesh->pEdgeReceiveAttrib->core.pData;
 		}
 	}
 	if (flags >> STUC_ATTRIB_SP_PRESERVE_VERT & 0x01) {
 		pMesh->pVertPreserveAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_PRESERVE_VERT], &pCore->vertAttribs);
 		if (pMesh->pVertPreserveAttrib) {
-			pMesh->pVertPreserve = pMesh->pVertPreserveAttrib->pData;
+			pMesh->pVertPreserve = pMesh->pVertPreserveAttrib->core.pData;
 		}
 	}
 	if (flags >> STUC_ATTRIB_SP_USG & 0x01) {
 		pMesh->pUsgAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_USG], &pCore->vertAttribs);
 		if (pMesh->pUsgAttrib) {
-			pMesh->pUsg = pMesh->pUsgAttrib->pData;
+			pMesh->pUsg = pMesh->pUsgAttrib->core.pData;
 		}
 	}
 	if (flags >> STUC_ATTRIB_SP_TANGENTS & 0x01) {;
 		pMesh->pTangentAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_TANGENTS], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pTangentAttrib);
-		pMesh->pTangents = pMesh->pTangentAttrib->pData;
+		pMesh->pTangents = pMesh->pTangentAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_TSIGNS & 0x01) {
 		pMesh->pTSignAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_TSIGNS], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pTSignAttrib);
-		pMesh->pTSigns = pMesh->pTSignAttrib->pData;
+		pMesh->pTSigns = pMesh->pTSignAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_WSCALE & 0x01) {
 		pMesh->pWScaleAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_WSCALE], &pCore->vertAttribs);
 		if (pMesh->pWScaleAttrib) {
-			pMesh->pWScale = pMesh->pWScaleAttrib->pData;
+			pMesh->pWScale = pMesh->pWScaleAttrib->core.pData;
 		}
 	}
 	if (flags >> STUC_ATTRIB_SP_MAT_IDX & 0x01) {
 		pMesh->pMatIdxAttrib = 
 			getAttrib(pContext->spAttribs[STUC_ATTRIB_SP_MAT_IDX], &pCore->faceAttribs);
 		if (pMesh->pMatIdxAttrib) {
-			pMesh->pMatIdx = pMesh->pMatIdxAttrib->pData;
+			pMesh->pMatIdx = pMesh->pMatIdxAttrib->core.pData;
 		}
 	}
 }
@@ -2769,31 +2769,31 @@ void setSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
 		pMesh->pWAttrib =
 			getAttrib(spBufAttribs[STUC_ATTRIB_SP_BUF_W], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pWAttrib);
-		pMesh->pW = pMesh->pWAttrib->pData;
+		pMesh->pW = pMesh->pWAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_IN_NORMAL & 0x01) {
 		pMesh->pInNormalAttrib =
 			getAttrib(spBufAttribs[STUC_ATTRIB_SP_BUF_IN_NORMAL], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pInNormalAttrib);
-		pMesh->pInNormal = pMesh->pInNormalAttrib->pData;
+		pMesh->pInNormal = pMesh->pInNormalAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_IN_TANGENT & 0x01) {
 		pMesh->pInTangentAttrib =
 			getAttrib(spBufAttribs[STUC_ATTRIB_SP_BUF_IN_TANGENT], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pInTangentAttrib);
-		pMesh->pInTangent = pMesh->pInTangentAttrib->pData;
+		pMesh->pInTangent = pMesh->pInTangentAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_IN_T_SIGN & 0x01) {
 		pMesh->pInTSignAttrib =
 			getAttrib(spBufAttribs[STUC_ATTRIB_SP_BUF_IN_T_SIGN], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pInTSignAttrib);
-		pMesh->pInTSign = pMesh->pInTSignAttrib->pData;
+		pMesh->pInTSign = pMesh->pInTSignAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_ALPHA & 0x01) {
 		pMesh->pAlphaAttrib =
 			getAttrib(spBufAttribs[STUC_ATTRIB_SP_BUF_ALPHA], &pCore->cornerAttribs);
 		STUC_ASSERT("", pMesh->pAlphaAttrib);
-		pMesh->pAlpha = pMesh->pAlphaAttrib->pData;
+		pMesh->pAlpha = pMesh->pAlphaAttrib->core.pData;
 	}
 }
 
@@ -2860,9 +2860,9 @@ void allocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
 
 void initAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
                 bool interpolate, AttribOrigin origin, AttribType type) {
-	memcpy(pAttrib->name, pName, STUC_ATTRIB_NAME_MAX_LEN);
-	pAttrib->pData = pAlloc->pCalloc(dataLen, getAttribSize(type));
-	pAttrib->type = type;
+	memcpy(pAttrib->core.name, pName, STUC_ATTRIB_NAME_MAX_LEN);
+	pAttrib->core.pData = pAlloc->pCalloc(dataLen, getAttribSize(type));
+	pAttrib->core.type = type;
 	pAttrib->interpolate = interpolate;
 	pAttrib->origin = origin;
 }

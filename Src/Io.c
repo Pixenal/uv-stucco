@@ -116,36 +116,38 @@ static
 void encodeAttribs(StucAlloc *pAlloc, ByteString *pData,
                    AttribArray *pAttribs, int32_t dataLen) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
+		if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < dataLen; ++j) {
-				void *pString = attribAsVoid(pAttribs->pArr + i, j);
+				void *pString = attribAsVoid(&pAttribs->pArr[i].core, j);
 				encodeString(pAlloc, pData, pString);
 			}
 		}
 		else {
-			int32_t attribSize = getAttribSize(pAttribs->pArr[i].type) * 8;
+			int32_t attribSize = getAttribSize(pAttribs->pArr[i].core.type) * 8;
 			for (int32_t j = 0; j < dataLen; ++j) {
-				encodeValue(pAlloc, pData, attribAsVoid(pAttribs->pArr + i, j), attribSize);
+				encodeValue(pAlloc, pData, attribAsVoid(&pAttribs->pArr[i].core, j), attribSize);
 			}
 		}
 	}
 }
 
+//TODO now that StucAttrib and StucAttribIndexed share the same StucAttribCore
+//struct, try and generalize these funcs for both if possible
 static
 void encodeIndexedAttribs(StucAlloc *pAlloc, ByteString *pData,
                           AttribIndexedArr attribs) {
 	for (int32_t i = 0; i < attribs.count; ++i) {
 		AttribIndexed *pAttrib = attribs.pArr + i;
-		if (pAttrib->type == STUC_ATTRIB_STRING) {
+		if (pAttrib->core.type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
-				void *pString = attribAsVoid(pAttrib, j);
+				void *pString = attribAsVoid(&pAttrib->core, j);
 				encodeString(pAlloc, pData, pString);
 			}
 		}
 		else {
-			int32_t attribSize = getAttribSize(pAttrib->type) * 8;
+			int32_t attribSize = getAttribSize(pAttrib->core.type) * 8;
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
-				encodeValue(pAlloc, pData, attribAsVoid(pAttrib, j), attribSize);
+				encodeValue(pAlloc, pData, attribAsVoid(&pAttrib->core, j), attribSize);
 			}
 		}
 	}
@@ -154,10 +156,10 @@ void encodeIndexedAttribs(StucAlloc *pAlloc, ByteString *pData,
 static
 void encodeAttribMeta(StucAlloc *pAlloc, ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].type, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].use, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
 		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
-		encodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].name);
+		encodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].core.name);
 	}
 }
 
@@ -166,10 +168,10 @@ void encodeIndexedAttribMeta(StucAlloc *pAlloc, ByteString *pData,
                              AttribIndexedArr attribs) {
 	int64_t size = 0;
 	for (int32_t i = 0; i < attribs.count; ++i) {
-		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].type, 8, &size);
-		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].use, 8, &size);
-		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].count, 32, &size);
-		encodeString(pAlloc, pData, (uint8_t *)attribs.pArr[i].name, &size);
+		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].core.type, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].core.use, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].count, 32);
+		encodeString(pAlloc, pData, (uint8_t *)attribs.pArr[i].core.name);
 	}
 }
 
@@ -191,7 +193,7 @@ static
 StucResult encodeObj(StucAlloc *pAlloc, ByteString *pByteString, StucObject *pObj) {
 	int64_t byteBase = pByteString->byteIdx;
 	//encode obj header
-	StucMesh *pMesh = pObj->pData;
+	StucMesh *pMesh = (StucMesh *)pObj->pData;
 	encodeDataName(pAlloc, pByteString, "OS"); //object start
 	encodeDataName(pAlloc, pByteString, "XF"); //transform/ xform
 	for (int32_t i = 0; i < 16; ++i) {
@@ -201,7 +203,7 @@ StucResult encodeObj(StucAlloc *pAlloc, ByteString *pByteString, StucObject *pOb
 	}
 	encodeDataName(pAlloc, pByteString, "OT"); //object type
 	encodeValue(pAlloc, pByteString, (uint8_t *)&pObj->pData->type, 8);
-	if (!checkIfMesh(pObj->pData)) {
+	if (!checkIfMesh(*pObj->pData)) {
 		return STUC_SUCCESS;
 	}
 	encodeDataName(pAlloc, pByteString, "HD"); //header
@@ -292,11 +294,11 @@ int64_t estimateObjSize(StucObject *pObj) {
 	//marking literal constants l here is pointless on windows,
 	//i'm only doing it to avoid gcc/clang errors with Wall & Werror
 	int64_t total = 0l;
-	StucMesh *pMesh = pObj->pData;
+	StucMesh *pMesh = (StucMesh *)pObj->pData;
 	total += 4l * 16l; //transform
 	total += 1l; //type
 	total += 2l * 3l; //data names/ checks
-	if (!checkIfMesh(pObj->pData)) {
+	if (!checkIfMesh(*pObj->pData)) {
 		return total;
 	}
 	total += 2l * 9l; //data names/ checks
@@ -314,6 +316,16 @@ int64_t estimateObjSize(StucObject *pObj) {
 }
 
 static
+int64_t estimateUsgArrSize(int32_t count, StucUsg *pUsgArr) {
+	int64_t total = 0;
+	for (int32_t i = 0; i < count; ++i) {
+		total += estimateObjSize(&pUsgArr[i].obj);
+		total += estimateObjSize(pUsgArr[i].pFlatCutoff);
+	}
+	return total;
+}
+
+static
 int64_t estimateObjArrSize(int32_t count, StucObject *pObjArr) {
 	int64_t total = 0l;
 	for (int32_t i = 0; i < count; ++i) {
@@ -322,7 +334,7 @@ int64_t estimateObjArrSize(int32_t count, StucObject *pObjArr) {
 	return total;
 }
 
-StucResult stucWriteStucFile(StucContext pContext, const char *pName,
+StucResult stucWriteStucFile(StucContext pContext, char *pName,
                              int32_t objCount, StucObject *pObjArr,
                              int32_t usgCount, StucUsg *pUsgArr,
                              StucAttribIndexedArr indexedAttribs) {
@@ -339,7 +351,7 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 							 &pCutoffIndices);
 	}
 	data.size = estimateObjArrSize(objCount, pObjArr) +
-	            estimateObjArrSize(usgCount, pUsgArr);
+	            estimateUsgArrSize(usgCount, pUsgArr);
 	data.pString = pContext->alloc.pCalloc(data.size, 1);
 	if (indexedAttribs.count) {
 		encodeIndexedAttribMeta(pAlloc, &data, indexedAttribs);
@@ -364,17 +376,17 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 		}
 		bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
 		int64_t fcHeaderSize = STUC_FLAT_CUTOFF_HEADER_SIZE;
-		encodeDataName(pAlloc, &data, "FC", &fcHeaderSize); //flatten cut-off
-		encodeValue(pAlloc, &data, (uint8_t *)&hasFlatCutoff, 8, &fcHeaderSize);
+		encodeDataName(pAlloc, &data, "FC"); //flatten cut-off
+		encodeValue(pAlloc, &data, (uint8_t *)&hasFlatCutoff, 8);
 		if (hasFlatCutoff) {
-			encodeValue(pAlloc, &data, (uint8_t *)&pCutoffIndices[i], 32, &fcHeaderSize);
+			encodeValue(pAlloc, &data, (uint8_t *)&pCutoffIndices[i], 32);
 		}
 	}
 	//compress data
 	//TODO convert to use proper zlib inflate and deflate calls
 	//compress and decompress are not context independent iirc
 	int64_t dataSize = data.byteIdx + (data.nextBitIdx > 0l);
-	uint64_t uCompressedDataSize = (uint64_t)(dataSize * 1.01l + 12l); //zlib needs some padding
+	uLongf uCompressedDataSize = (uint64_t)(dataSize * 1.01l + 12l); //zlib needs some padding
 	uint8_t *compressedData = pContext->alloc.pMalloc(uCompressedDataSize);
 	int32_t zResult = compress(compressedData, &uCompressedDataSize, data.pString, dataSize);
 	switch(zResult) {
@@ -389,7 +401,11 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 			break;
 	}
 	int64_t compressedDataSize = (int64_t)uCompressedDataSize;
+#ifdef WIN32
+	printf("Compressed data is %llu long\n", compressedDataSize);
+#else
 	printf("Compressed data is %lu long\n", compressedDataSize);
+#endif
 
 	//encode header
 	const char *format = "UV Stucco Map File";
@@ -435,13 +451,13 @@ StucResult stucWriteStucFile(StucContext pContext, const char *pName,
 static
 StucResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 8);
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].use, 8);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
 		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
-		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
-		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
+		int32_t maxNameLen = sizeof(pAttribs->pArr[i].core.name);
+		decodeString(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
-			if (!strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
+			if (!strncmp(pAttribs->pArr[i].core.name, pAttribs->pArr[j].core.name,
 			    STUC_ATTRIB_NAME_MAX_LEN)) {
 
 				//dup
@@ -455,12 +471,12 @@ StucResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 static
 StucResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].type, 16);
+		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.type, 16);
 		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
-		int32_t maxNameLen = sizeof(pAttribs->pArr[i].name);
-		decodeString(pData, (char *)pAttribs->pArr[i].name, maxNameLen);
+		int32_t maxNameLen = sizeof(pAttribs->pArr[i].core.name);
+		decodeString(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
-			if (!strncmp(pAttribs->pArr[i].name, pAttribs->pArr[j].name,
+			if (!strncmp(pAttribs->pArr[i].core.name, pAttribs->pArr[j].core.name,
 				STUC_ATTRIB_NAME_MAX_LEN)) {
 
 				//dup
@@ -479,15 +495,15 @@ static void decodeAttribs(StucContext pContext, ByteString *pData,
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		Attrib* pAttrib = pAttribs->pArr + i;
 		memcpy(stageBuf, stageName, sizeof(stageName));
-		setStageName(pContext, strncat(stageBuf, pAttrib->name, STUC_STAGE_NAME_LEN - sizeof(stageName)));
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData = dataLen ?
+		setStageName(pContext, strncat(stageBuf, pAttrib->core.name, STUC_STAGE_NAME_LEN - sizeof(stageName)));
+		int32_t attribSize = getAttribSize(pAttrib->core.type);
+		pAttrib->core.pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
 		attribSize *= 8;
 		int32_t progressBase = i * pAttribs->count * dataLen;
 		for (int32_t j = 0; j < dataLen; ++j) {
-			void *pAttribData = attribAsVoid(pAttrib, j);
-			if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
+			void *pAttribData = attribAsVoid(&pAttrib->core, j);
+			if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
 				decodeString(pData, pAttribData, attribSize);
 			}
 			else {
@@ -505,13 +521,13 @@ void decodeIndexedAttribs(StucContext pContext, ByteString *pData,
                           AttribIndexedArr *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		AttribIndexed* pAttrib = pAttribs->pArr + i;
-		int32_t attribSize = getAttribSize(pAttrib->type);
-		pAttrib->pData = pAttrib->count ?
+		int32_t attribSize = getAttribSize(pAttrib->core.type);
+		pAttrib->core.pData = pAttrib->count ?
 			pContext->alloc.pCalloc(pAttrib->count, attribSize) : NULL;
 		attribSize *= 8;
 		for (int32_t j = 0; j < pAttrib->count; ++j) {
-			void *pAttribData = attribAsVoid(pAttrib, j);
-			if (pAttribs->pArr[i].type == STUC_ATTRIB_STRING) {
+			void *pAttribData = attribAsVoid(&pAttrib->core, j);
+			if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
 				decodeString(pData, pAttribData, attribSize);
 			}
 			else {
@@ -556,7 +572,7 @@ StucResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 static
 StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteString, bool usesUsg) {
 	createMesh(pContext, pObj, STUC_OBJECT_DATA_MESH_INTERN);
-	StucMesh *pMesh = pObj->pData;
+	StucMesh *pMesh = (StucMesh *)pObj->pData;
 
 	StucResult err = STUC_NOT_SET;
 
@@ -572,7 +588,7 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	err = isDataNameInvalid(pByteString, "OT"); //object type
 	STUC_ERROR("Data name did not match 'OT'", err);
 	decodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8);
-	if (!checkIfMesh(pObj->pData)) {
+	if (!checkIfMesh(*pObj->pData)) {
 		err = STUC_ERROR;
 		STUC_ERROR("Object is not a mesh", err);
 	}
@@ -616,11 +632,11 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	//set usg attrib metadata if used
 	if (usesUsg) {
 		Attrib *usgAttrib = pMesh->vertAttribs.pArr + pMesh->vertAttribs.count;
-		usgAttrib->pData = pContext->alloc.pCalloc(pMesh->vertCount, sizeof(int32_t));
-		strncpy(usgAttrib->name, "StucUsg", STUC_ATTRIB_NAME_MAX_LEN);
+		usgAttrib->core.pData = pContext->alloc.pCalloc(pMesh->vertCount, sizeof(int32_t));
+		strncpy(usgAttrib->core.name, "StucUsg", STUC_ATTRIB_NAME_MAX_LEN);
 		usgAttrib->origin = STUC_ATTRIB_ORIGIN_MAP;
 		usgAttrib->interpolate = true;
-		usgAttrib->type = STUC_ATTRIB_I32;
+		usgAttrib->core.type = STUC_ATTRIB_I32;
 	}
 	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
 	STUC_ERROR("Data name did not match 'MA'", err);

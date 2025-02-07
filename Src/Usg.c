@@ -272,7 +272,7 @@ StucResult assignUsgsToVerts(StucAlloc *pAlloc,
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
 		Mesh *pFlatCutoff = (Mesh *)pUsgArr[i].pFlatCutoff->pData;
-		FaceRange squaresFace = getFaceRange(pSquares, i, false);
+		FaceRange squaresFace = getFaceRange(&pSquares->core, i, false);
 		FaceCells *pFaceCellsEntry = idxFaceCells(&faceCellsTable, i, 0);
 		for (int32_t j = 0; j < pFaceCellsEntry->cellSize; ++j) {
 			//put this cell stuff into a generic function
@@ -420,7 +420,7 @@ StucResult sampleInAttribsAtUsgOrigins(StucContext pContext, StucMap pMap, Mesh 
 		float closestDist = FLT_MAX;
 		StucResult result = STUC_NOT_SET;
 		result = getClosestTriToOrigin(pUsg, pInMesh, pInFaceTable, i, &closestBc,
-		                               &closestFace, &closestFaceCorners, &closestDist);
+		                               &closestFace, closestFaceCorners, &closestDist);
 		if (result != STUC_SUCCESS) {
 			return result;
 		}

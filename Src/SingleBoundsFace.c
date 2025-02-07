@@ -415,8 +415,7 @@ void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		tris = triangulateFace(pArgs->pContext->alloc, tempFace, pArgs->pMeshOut->pVerts,
 		                       vars.pSortedVertBuf, false);
 		for (int32_t i = 0; i < tris.triCount; ++i) {
-			addFaceToOutMesh(&vars, tris.pCorners + (i * 3), 3,
-			                 vars.pIdxTable, pInFaces);
+			addFaceToOutMesh(&vars, tris.pCorners + (i * 3), 3, vars.pIdxTable);
 			STUC_ASSERT("", i >= 0 && i < tris.triCount);
 		}
 		pArgs->pContext->alloc.pFree(tris.pCorners);
@@ -428,8 +427,7 @@ void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 		for (int32_t i = 0; i < vars.cornerBuf.count; ++i) {
 			pIndices[i] = i;
 		}
-		addFaceToOutMesh(&vars, pIndices, vars.cornerBuf.count,
-		                 vars.pIdxTable, pInFaces);
+		addFaceToOutMesh(&vars, pIndices, vars.cornerBuf.count, vars.pIdxTable);
 		pArgs->pContext->alloc.pFree(pIndices);
 	}
 	destroyEntries(pArgs->pContext, vars.pPieceRoot);
