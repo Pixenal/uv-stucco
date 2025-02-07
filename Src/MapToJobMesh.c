@@ -62,9 +62,10 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 static
 Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
                        FaceCellsTable *pFaceCellsTable,
-					   DebugAndPerfVars *pDpVars, int32_t rawFace) {
+					   DebugAndPerfVars *pDpVars, int32_t faceIdx) {
 	Result result = STUC_NOT_SET;
-	FaceBounds *pFaceBounds = &pFaceCellsTable->pFaceCells[rawFace].faceBounds;
+	FaceBounds *pFaceBounds = 
+		&idxFaceCells(pFaceCellsTable, faceIdx, pMVars->inFaceRange.start)->faceBounds;
 	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
 			STUC_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
@@ -128,14 +129,16 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	vars.wScale = pSend->wScale;
 	vars.inFaceOffset = pSend->inFaceOffset;
 	vars.maskIdx = pSend->maskIdx;
+	vars.inFaceRange = pSend->inFaceRange;
+	int32_t inFaceRangeSize = vars.inFaceRange.end - vars.inFaceRange.start;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
-	getEncasingCells(&vars.alloc, vars.pMap, &vars.mesh, &faceCellsTable,
-	                 vars.maskIdx, &averageMapFacesPerFace);
+	getEncasingCells(&vars.alloc, vars.pMap, vars.inFaceRange, &vars.mesh,
+	                 &faceCellsTable, vars.maskIdx, &averageMapFacesPerFace);
 	//CLOCK_STOP("Get Encasing Cells Time");
 	//CLOCK_START;
-	vars.bufSize = vars.mesh.core.faceCount + faceCellsTable.cellFacesTotal;
+	vars.bufSize = inFaceRangeSize + faceCellsTable.cellFacesTotal;
 	allocBufMeshAndTables(&vars, &faceCellsTable);
 	//CLOCK_STOP("Alloc buffers and tables time");
 	DebugAndPerfVars dpVars = {0};
@@ -152,7 +155,7 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		vars.inFaceSize = 8;
 		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
-	for (int32_t i = 0; i < vars.mesh.core.faceCount; ++i) {
+	for (int32_t i = vars.inFaceRange.start; i < vars.inFaceRange.end; ++i) {
 		if (vars.maskIdx != -1 && vars.mesh.pMatIdx &&
 		    vars.mesh.pMatIdx[i] != vars.maskIdx) {
 			continue;
@@ -210,7 +213,8 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		stucDestroyFaceCellsEntry(&vars.alloc, i, &faceCellsTable);
+		FaceCells *pFaceCellsEntry = idxFaceCells(&faceCellsTable, i, vars.inFaceRange.start);
+		stucDestroyFaceCellsEntry(&vars.alloc, pFaceCellsEntry);
 		//CLOCK_STOP_NO_PRINT;
 		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		if (result != STUC_SUCCESS) {
@@ -233,14 +237,17 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		pSend->bufMesh = vars.bufMesh;
 		pSend->pInFaces = vars.pInFaces;
 	}
+	else if (empty) {
+		result = STUC_SUCCESS;
+	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
 	stucDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
 	pSend->result = result;
 	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
 	                                       pSend->pMutex);
 	STUC_ASSERT("", pSend->bufSize > 0 || empty);
-	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / vars.mesh.core.faceCount);
-	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / vars.mesh.core.faceCount);
+	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / inFaceRangeSize);
+	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / inFaceRangeSize);
 	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
 	--*pSend->pActiveJobs;
 	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,

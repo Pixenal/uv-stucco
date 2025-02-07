@@ -86,6 +86,7 @@ typedef struct {
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
 	int8_t *pInVertTable;
+	Range inFaceRange;
 	int32_t id;
 	int32_t bufSize;
 	int32_t rawBufSize;

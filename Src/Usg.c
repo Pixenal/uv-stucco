@@ -266,26 +266,28 @@ StucResult assignUsgsToVerts(StucAlloc *pAlloc,
 	Mesh *pSquares = &pMap->usgArr.squares;
 	FaceCellsTable faceCellsTable = {0};
 	int32_t averageMapFacesPerFace = 0;
-	getEncasingCells(pAlloc, pMap, pSquares, &faceCellsTable,
+	Range faceRange = {.start = 0, .end = pSquares->core.faceCount};
+	getEncasingCells(pAlloc, pMap, faceRange, pSquares, &faceCellsTable,
 	                 -1, &averageMapFacesPerFace);
 	for (int32_t i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
 		Mesh *pFlatCutoff = (Mesh *)pUsgArr[i].pFlatCutoff->pData;
 		FaceRange squaresFace = getFaceRange(pSquares, i, false);
-		for (int32_t j = 0; j < faceCellsTable.pFaceCells[i].cellSize; ++j) {
+		FaceCells *pFaceCellsEntry = idxFaceCells(&faceCellsTable, i, 0);
+		for (int32_t j = 0; j < pFaceCellsEntry->cellSize; ++j) {
 			//put this cell stuff into a generic function
 			// v v v
-			int32_t cellIdx = faceCellsTable.pFaceCells[i].pCells[j];
+			int32_t cellIdx = pFaceCellsEntry->pCells[j];
 			Cell *pCell = pMap->quadTree.cellTable.pArr + cellIdx;
 			STUC_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
 			STUC_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 			int32_t *pCellFaces;
 			Range range = {0};
-			if (faceCellsTable.pFaceCells[i].pCellType[j]) {
+			if (pFaceCellsEntry->pCellType[j]) {
 				pCellFaces = pCell->pEdgeFaces;
-				range = faceCellsTable.pFaceCells[i].pRanges[j];
+				range = pFaceCellsEntry->pRanges[j];
 			}
-			else if (faceCellsTable.pFaceCells[i].pCellType[j] != 1) {
+			else if (pFaceCellsEntry->pCellType[j] != 1) {
 				pCellFaces = pCell->pFaces;
 				range.start = 0;
 				range.end = pCell->faceSize;
@@ -318,7 +320,7 @@ StucResult assignUsgsToVerts(StucAlloc *pAlloc,
 				}
 			}
 		}
-		stucDestroyFaceCellsEntry(pAlloc, i, &faceCellsTable);
+		stucDestroyFaceCellsEntry(pAlloc, idxFaceCells(&faceCellsTable, i, 0));
 	}
 	stucDestroyFaceCellsTable(pAlloc, &faceCellsTable);
 	return STUC_SUCCESS;

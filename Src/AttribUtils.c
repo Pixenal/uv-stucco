@@ -2560,6 +2560,7 @@ SpecialBufAttrib quickCheckIfSpecialBufAttrib(BufMesh *pMesh, Attrib *pAttrib) {
 	else if (pAttrib->pData == pMesh->pAlpha) {
 		return STUC_ATTRIB_SP_BUF_ALPHA;
 	}
+	return STUC_ATTRIB_SP_BUF_NONE;
 }
 
 static

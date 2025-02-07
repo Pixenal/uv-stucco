@@ -371,8 +371,8 @@ void removeNonLinkedBranchCells(StucMap pMap, EncasingCells *pCellsBuf) {
 
 static
 void copyCellsIntoTotalList(StucAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
-                            EncasingCells *pCellsBuf, int32_t faceIdx) {
-	FaceCells *pEntry = pFaceCellsTable->pFaceCells + faceIdx;
+                            EncasingCells *pCellsBuf, int32_t faceIdx, Range faceRange) {
+	FaceCells *pEntry = idxFaceCells(pFaceCellsTable, faceIdx, faceRange.start);
 	pFaceCellsTable->cellFacesTotal += pCellsBuf->faceTotalNoDup;
 	pEntry->pCells = pAlloc->pMalloc(sizeof(int32_t) * pCellsBuf->cellSize);
 	pEntry->pCellType = pAlloc->pMalloc(pCellsBuf->cellSize);
@@ -453,14 +453,13 @@ void stucDestroyFaceCellsTable(StucAlloc *pAlloc,
 	pAlloc->pFree(pFaceCellsTable->pFaceCells);
 }
 
-void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, int32_t i,
-                               FaceCellsTable *pFaceCellsTable) {
-	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCells);
-	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pCellType);
+void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, FaceCells *pEntry) {
+	pAlloc->pFree(pEntry->pCells);
+	pAlloc->pFree(pEntry->pCellType);
 	//TODO segfault when mapping a single quad larger than the 0-1 uv tile
 	//i've not really tested the code thats supposed to handle this case,
 	//so no surprise it crashes
-	pAlloc->pFree(pFaceCellsTable->pFaceCells[i].pRanges);
+	pAlloc->pFree(pEntry->pRanges);
 }
 
 void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pState) {
@@ -505,11 +504,12 @@ bool getTilesFaceResidesIn(int32_t vertCount, V2_F32 *pVerts,
 
 void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
-							   FaceBounds *pFaceBounds, int32_t faceIdx) {
+							   FaceBounds *pFaceBounds, int32_t faceIdx, Range faceRange) {
 	EncasingCells cellsBuf = {0};
 	cellsBuf.pCells = pState->pCells;
 	cellsBuf.pCellType = pState->pCellType;
-	FaceCells *pEntry = pFaceCellsTable->pFaceCells + faceIdx;
+	idxFaceCells(pFaceCellsTable, faceIdx, faceRange.start);
+	FaceCells *pEntry = idxFaceCells(pFaceCellsTable, faceIdx, faceRange.start);
 	V2_I32 minTile = {0};
 	V2_I32 maxTile = {0};
 	if (pFaceBounds) {
@@ -562,25 +562,7 @@ void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 	removeNonLinkedBranchCells(pState->pMap, &cellsBuf);
 	recordCellsInTable(pState, pFaceCellsTable, &cellsBuf);
 	copyCellsIntoTotalList(pState->pAlloc, pFaceCellsTable, &cellsBuf,
-							faceIdx);
-}
-
-void stucLinearizeCellFaces(FaceCells *pFaceCells, int32_t *pCellFaces,
-                            int32_t faceIdx) {
-	int32_t facesNextIdx = 0;
-	for (int32_t j = 0; j < pFaceCells[faceIdx].cellSize; ++j) {
-		Cell *cell = pFaceCells[faceIdx].pCells[j];
-		if (pFaceCells[faceIdx].pCellType[j]) {
-			memcpy(pCellFaces + facesNextIdx, cell->pEdgeFaces,
-					sizeof(int32_t) * cell->edgeFaceSize);
-			facesNextIdx += cell->edgeFaceSize;
-		}
-		if (pFaceCells[faceIdx].pCellType[j] != 1) {
-			memcpy(pCellFaces + facesNextIdx, cell->pFaces,
-					sizeof(int32_t) * cell->faceSize);
-			facesNextIdx += cell->faceSize;
-		}
-	}
+	                       faceIdx, faceRange);
 }
 
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos) {
@@ -1039,14 +1021,15 @@ void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,
 	_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
 }
 
-void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
+void getEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range faceRange,
                       Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
 					  int8_t maskIdx, int32_t *pAverageMapFacesPerFace) {
 	*pAverageMapFacesPerFace = 0;
-	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, pMesh->core.faceCount);
+	int32_t inFaceRangeSize = faceRange.end - faceRange.start;
+	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, inFaceRangeSize);
 	QuadTreeSearch searchState = {0};
 	stucInitQuadTreeSearch(pAlloc, pMap, &searchState);
-	for (int32_t i = 0; i < pMesh->core.faceCount; ++i) {
+	for (int32_t i = faceRange.start; i < faceRange.end; ++i) {
 		if (maskIdx != -1 && pMesh->pMatIdx && pMesh->pMatIdx[i] != maskIdx) {
 			continue;
 		}
@@ -1058,11 +1041,15 @@ void getEncasingCells(StucAlloc *pAlloc, StucMap pMap,
 			pVertBuf[j] = pMesh->pUvs[faceInfo.start + j];
 		}
 		stucGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
-			                      pFaceCellsTable, &faceBounds, i);
+			                      pFaceCellsTable, &faceBounds, i, faceRange);
 		pAlloc->pFree(pVertBuf);
-		*pAverageMapFacesPerFace += pFaceCellsTable->pFaceCells[i].faceSize;
-		//printf("Total cell amount: %d\n", faceCellsInfo[i].cellSize);
+		*pAverageMapFacesPerFace += idxFaceCells(pFaceCellsTable, i, faceRange.start)->faceSize;
 	}
-	*pAverageMapFacesPerFace /= pMesh->core.faceCount;
+	*pAverageMapFacesPerFace /= inFaceRangeSize;
 	stucDestroyQuadTreeSearch(&searchState);
+}
+
+FaceCells *idxFaceCells(FaceCellsTable *pFaceCellsTable,
+                        int32_t faceIdx, int32_t faceOffset) {
+	return pFaceCellsTable->pFaceCells + (faceIdx - faceOffset);
 }

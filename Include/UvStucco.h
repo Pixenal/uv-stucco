@@ -404,7 +404,7 @@ STUC_EXPORT
 StucResult stucDestroyCommonAttribs(StucContext pContext,
                                     StucCommonAttribList *pCommonAttribs);
 STUC_EXPORT
-StucResult stucMapToMesh(StucContext pContext, StucMap pMap, StucMesh *pMeshIn,
+StucResult stucMapToMesh(StucContext pContext, StucMapArr *pMapArr, StucMesh *pMeshIn,
                          StucMesh *pMeshOut, StucCommonAttribList *pCommonAttribList,
                          float wScale);
 STUC_EXPORT

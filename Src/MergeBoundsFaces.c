@@ -427,7 +427,7 @@ bool handleExterior(EdgeStack *pStack, int32_t *pStackPtr,
                     SharedEdge *pEdge, bool side) {
 	EdgeStack *pItem = pStack + *pStackPtr;
 	Mesh *pMapMesh = &pArgs->pMap->mesh;
-	Mesh *pBufMesh = &pArgs->pJobArgs[pItem->pPiece->pEntry->job].bufMesh;
+	Mesh *pBufMesh = (Mesh *)&pArgs->pJobArgs[pItem->pPiece->pEntry->job].bufMesh;
 	int32_t mapCorner = -1;
 	bool isReceive =
 		checkIfIntersectsReceive(pArgs, pNeighbour, pBufMesh, pArgs->pMap,
@@ -493,7 +493,7 @@ SharedEdge *getIfQuadJunc(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
 static
 void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
                           int32_t treeCount, int32_t *pReceive, 
-                          MergeSendOffArgs *pArgs, SharedEdge *pEdgeTable,
+                          MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
                           int32_t edgeTableSize, Piece *pPieceRoot,
                           FaceRange *pMapFace, bool *pUnwind) {
 	EdgeStack *pItem = pStack + *pStackPtr;
@@ -985,7 +985,7 @@ void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece *pPieceRoot,
 }
 
 static
-void markKeepInVertsPreserve(MergeSendOffArgs *pArgs, StucMap *pMap, Piece* pPiece) {
+void markKeepInVertsPreserve(MergeSendOffArgs *pArgs, StucMap pMap, Piece* pPiece) {
 	Piece* pPieceRoot = pPiece;
 	do {
 		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
@@ -1446,7 +1446,11 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 	pAlloc->pFree(pArgs->pTotalVertTable);
 	printf("Combine time breakdown: \n");
 	for(int32_t i = 0; i < 7; ++i) {
+#ifdef WIN32
+		printf("	%llu\n", timeSpent[i]);
+#else
 		printf("	%lu\n", timeSpent[i]);
+#endif
 	}
 	printf("\n");
 }

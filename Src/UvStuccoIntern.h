@@ -105,6 +105,7 @@ typedef struct {
 	StucCommonAttribList *pCommonAttribList;
 	int32_t *pActiveJobs;
 	void *pMutex;
+	Range inFaceRange;
 	int32_t bufSize;
 	int32_t rawBufSize;
 	int32_t finalBufSize;

@@ -1095,7 +1095,7 @@ static
 void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 							 FaceRange stucFace, V2_I32 tile, FaceRange baseFace,
                              bool faceWindDir, bool mapFaceWindDir,
-                             Segments *pSegments, CornerAncestors *pAncestors) {
+                             Segments *pSegments, CornerAncestors *pAncestors) {;
 	bool realloced = false;
 	AddClippedFaceVars acfVars = {0};
 	BufMesh *pBufMesh = &pVars->bufMesh;
@@ -1231,23 +1231,25 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	}
 	CornerAncestors ancestors = {.size = 2};
 	ancestors.pArr = pVars->alloc.pMalloc(sizeof(CornerBuf) * ancestors.size);
-	for (int32_t i = 0; i < pFaceCellsTable->pFaceCells[baseFace.idx].cellSize; ++i) {
+	FaceCells *pFaceCellsEntry =
+		idxFaceCells(pFaceCellsTable, baseFace.idx, pVars->inFaceRange.start);
+	for (int32_t i = 0; i < pFaceCellsEntry->cellSize; ++i) {
 		STUC_ASSERT("", &pVars->bufMesh.mesh.core.faceCount >= 0);
 		STUC_ASSERT("", &pVars->bufMesh.mesh.core.faceCount <
 		                &pVars->bufMesh.mesh.faceBufSize);
-		int32_t cellIdx = pFaceCellsTable->pFaceCells[baseFace.idx].pCells[i];
+		int32_t cellIdx = pFaceCellsEntry->pCells[i];
 		Cell *pCell = pVars->pMap->quadTree.cellTable.pArr + cellIdx;
 		STUC_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
 		STUC_ASSERT("", pCell->initialized % 2 == pCell->initialized);
 		int32_t* pCellFaces;
 		Range range = {0};
-		if (pFaceCellsTable->pFaceCells[baseFace.idx].pCellType[i]) {
+		if (pFaceCellsEntry->pCellType[i]) {
 			pCellFaces = pCell->pEdgeFaces;
-			range = pFaceCellsTable->pFaceCells[baseFace.idx].pRanges[i];
+			range = pFaceCellsEntry->pRanges[i];
 			//range.start = 0;
 			//range.end = pCell->edgeFaceSize;
 		}
-		else if (pFaceCellsTable->pFaceCells[baseFace.idx].pCellType[i] != 1) {
+		else if (pFaceCellsEntry->pCellType[i] != 1) {
 			pCellFaces = pCell->pFaces;
 			range.start = 0;
 			range.end = pCell->faceSize;
