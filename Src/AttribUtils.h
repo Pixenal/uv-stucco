@@ -13,6 +13,8 @@ typedef StucAttribArray AttribArray;
 typedef StucAttribIndexedArr AttribIndexedArr;
 typedef StucAttribOrigin AttribOrigin;
 typedef StucBlendConfig BlendConfig;
+typedef StucCommonAttrib CommonAttrib;
+typedef StucCommonAttribList CommonAttribList;
 
 //TODO switch pAttrib pData ptr from void * to uint8_t *?
 
@@ -47,6 +49,7 @@ V3_F32 *attribAsV3(AttribCore *pAttrib, int32_t idx);
 V2_F32 *attribAsV2(AttribCore *pAttrib, int32_t idx);
 int32_t *attribAsI32(AttribCore *pAttrib, int32_t idx);
 int8_t *attribAsI8(AttribCore *pAttrib, int32_t idx);
+char *attribAsStr(AttribCore *pAttrib, int32_t idx);
 void *attribAsVoid(AttribCore *pAttrib, int32_t idx);
 int32_t copyAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc, int32_t iSrc);
 void copyAllAttribs(AttribArray *pDest, int32_t iDest,
@@ -56,6 +59,7 @@ StucTypeDefault *getTypeDefaultConfig(StucTypeDefaultConfig *pConfig,
                                       AttribType type);
 StucCommonAttrib *getCommonAttrib(StucCommonAttrib *pAttribs, int32_t attribCount,
                                   char *pName);
+AttribIndexed *getAttribIndexed(AttribIndexedArr *pAttribArr, char *pName);
 void lerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
                 int32_t iSrcA, Attrib *pSrcB, int32_t iSrcB, float alpha);
 void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
@@ -66,6 +70,8 @@ void divideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar);
 void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
                   int32_t srcCount, Mesh **ppSrcArr,
 				  int32_t dataLen, StucDomain domain, bool setCommon);
+void reallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
+                   AttribCore *pAttrib, const int32_t newLen);
 void reallocAttribs(const StucAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, int32_t newLen);
 void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
@@ -80,5 +86,7 @@ void allocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
                              int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon);
 void initAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
                 bool interpolate, AttribOrigin origin, AttribType type);
+void initAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, int32_t dataLen,
+                    AttribType type);
 void appendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,
                   int32_t dataLen, bool interpolate, AttribOrigin origin, AttribType type);

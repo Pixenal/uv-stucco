@@ -62,7 +62,7 @@ void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 			break;
 		}
 	}
-	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false);
+	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false, true);
 	setSpecialAttribs(pContext, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
 	JobBases *pJobBases =
 		pContext->alloc.pMalloc(sizeof(JobBases) * mapJobsSent);

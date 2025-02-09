@@ -12,14 +12,21 @@ typedef StucResult Result;
 	printf("STUC ASSERT in %s, MESSAGE: %s\n", __func__, message); \
 	assert(condition);
 
-#define STUC_ERROR(message, err) \
-	if (err != STUC_SUCCESS) { \
-		printf("STUC ERROR CODE %d in %s, MESSAGE: %s\n", err, __func__, message); \
-		goto handle_error; \
+#define STUC_THROW_IF(err, condition, message, idx) \
+	{\
+		bool isError = err != STUC_SUCCESS;\
+		bool isNotCondition = !(condition);\
+		if (isError || isNotCondition) { \
+			char *isNotConditionStr = isNotCondition ? "false" : "true";\
+			printf("STUC ERROR THROWN IN %s, IDX: %d, CODE: %d, CONDITION (%s) WAS %s, MESSAGE: %s\n",\
+			       __func__, idx, err, #condition, isNotConditionStr, #message); \
+			err = STUC_ERROR;\
+			goto handle_error_##idx; \
+		}\
 	}
 
-#define STUC_CATCH(err, cleanup) \
+#define STUC_CATCH(idx, err, cleanup) \
 	if (err != STUC_SUCCESS) { \
-	handle_error: \
+	handle_error_##idx: \
 		##cleanup \
 	}

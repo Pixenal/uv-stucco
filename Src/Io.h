@@ -16,7 +16,7 @@ typedef struct {
 StucResult stucWriteStucFile(StucContext pContext, char *pName,
                              int32_t objCount, StucObject *pObjArr,
                              int32_t usgCount, StucUsg *pUsgArr,
-                             StucAttribIndexedArr indexedAttribs);
+                             StucAttribIndexedArr *pIndexedAttribs);
 StucResult stucLoadStucFile(StucContext pContext, char *filePath,
                             int32_t *pObjCount, StucObject **ppObjArr,
                             int32_t *pUsgCount, StucUsg **ppUsgArr,

@@ -656,6 +656,8 @@ void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh, AttribArray *
                           CornerAncestors *pAncestors) {
 	CornerBuf *pCorner = pCornerBuf + cornerBufIdx;
 	//TODO make naming for MeshIn consistent
+	//TODO rename meshBuf in this func to inBuf,
+	//it's ambiguous whether it's refering to in-mesh or bufmesh
 	for (int32_t i = 0; i < pDestAttribs->count; ++i) {
 		StucAttrib *pDestAttrib = pDestAttribs->pArr + i;
 		if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_COMMON) {
@@ -672,11 +674,12 @@ void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh, AttribArray *
 			StucAttrib *pMeshAttrib = getAttrib(pDestAttribs->pArr[i].core.name,
 											      pMeshAttribs);
 			StucAttribType type = pDestAttribs->pArr[i].core.type;
-			uint8_t mapDataBuf[STUC_ATTRIB_STRING_MAX_LEN];
+			uint8_t mapDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
 			StucAttrib mapBuf = {.core.pData = mapDataBuf, .core.type = type};
-			uint8_t meshDataBuf[STUC_ATTRIB_STRING_MAX_LEN];
+			uint8_t meshDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
 			StucAttrib meshBuf = {.core.pData = meshDataBuf, .core.type = type};
-			if (pMapAttrib->interpolate) {
+			//TODO remove 'false' once interpolation is implemented for map attribs
+			if (false && pMapAttrib->interpolate) {
 				//TODO add correct map interpolation. to do this, you'll need
 				//to triangulate the face, like with the Mesh in face, and you''
 				//need to get baerycentry coords for baseCorners (not necessary
@@ -684,8 +687,8 @@ void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh, AttribArray *
 				//so to summarise, only base corners will be interpolated here,
 				//intersection corners will be lerped at clipping stage,
 				//and map corners obviously don't need interpolation
-				
-				//temp memcpy until the above todo is handled
+			}
+			else {
 				memcpy(mapBuf.core.pData, attribAsVoid(&pMapAttrib->core, mapDataIdx),
 				       getAttribSize(pMapAttrib->core.type));
 			}
@@ -700,6 +703,10 @@ void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh, AttribArray *
 					pBaseFace->start + pCornerBuf[cornerBufIdx].triCorners[2],
 					pCornerBuf[cornerBufIdx].bc
 				);
+			}
+			else {
+				memcpy(meshBuf.core.pData, attribAsVoid(&pMeshAttrib->core, meshDataIdx),
+				       getAttribSize(pMeshAttrib->core.type));
 			}
 			StucCommonAttrib *pCommon =
 				getCommonAttrib(pCommonAttribs, commonAttribCount,

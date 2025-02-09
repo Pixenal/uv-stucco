@@ -342,6 +342,10 @@ int8_t *attribAsI8(AttribCore *pAttrib, int32_t idx) {
 	return (int8_t *)pAttrib->pData + idx;
 }
 
+char *attribAsStr(AttribCore *pAttrib, int32_t idx) {
+	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData) + idx;
+}
+
 void *attribAsVoid(AttribCore *pAttrib, int32_t idx) {
 	switch (pAttrib->type) {
 		case STUC_ATTRIB_I8:
@@ -609,12 +613,20 @@ StucTypeDefault *getTypeDefaultConfig(StucTypeDefaultConfig *pConfig,
 
 StucCommonAttrib *getCommonAttrib(StucCommonAttrib *pAttribs, int32_t attribCount,
                                   char *pName) {
-	//this is it's own function (rather than a general getAttrib function),
-	//because of the below todo:
-	//TODO replace linear search with hash table.
 	for (int32_t i = 0; i < attribCount; ++i) {
 		if (!strncmp(pName, pAttribs[i].name, STUC_ATTRIB_NAME_MAX_LEN)) {
 			return pAttribs + i;
+		}
+	}
+	return NULL;
+}
+
+//TODO replace manual searches of indexed attribs with this func
+AttribIndexed *getAttribIndexed(AttribIndexedArr *pAttribArr, char *pName) {
+	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+		AttribIndexed *pAttrib = pAttribArr->pArr + i;
+		if (!strncmp(pName, pAttrib->core.name, STUC_ATTRIB_NAME_MAX_LEN)) {
+			return pAttrib;
 		}
 	}
 	return NULL;
@@ -2627,23 +2639,33 @@ void reassignIfSpecialBuf(BufMesh *pMesh, Attrib *pAttrib, SpecialBufAttrib spec
 	}
 }
 
+void reallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
+                   AttribCore *pAttrib, const int32_t newLen) {
+	SpecialAttrib special = quickCheckIfSpecialAttrib(pMesh, pAttrib);
+	SpecialBufAttrib specialBuf = STUC_ATTRIB_SP_BUF_NONE;
+	if (pMesh->core.type.type == STUC_OBJECT_DATA_MESH_BUF) {
+		specialBuf = quickCheckIfSpecialBufAttrib((BufMesh *)pMesh, pAttrib);
+	}
+	int8_t oldFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
+	int32_t attribSize = getAttribSize(pAttrib->type);
+	pAttrib->pData =
+		pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
+	int8_t newFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
+	STUC_ASSERT("", newFirstElement == oldFirstElement);
+	reassignIfSpecial(pMesh, pAttrib, special);
+	if (pMesh->core.type.type == STUC_OBJECT_DATA_MESH_BUF) {
+		reassignIfSpecialBuf((BufMesh *)pMesh, pAttrib, specialBuf);
+	}
+}
+
 void reallocAttribs(const StucAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, const int32_t newLen) {
 	STUC_ASSERT("", newLen >= 0 && newLen < 100000000);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
-		SpecialAttrib special = quickCheckIfSpecialAttrib(pMesh, pAttrib);
-		SpecialBufAttrib specialBuf = quickCheckIfSpecialBufAttrib((BufMesh *)pMesh, pAttrib);
 		//Check entry is valid
-		STUC_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
-		int8_t oldFirstElement = *(int8_t *)attribAsVoid(&pAttrib->core, 0);
-		int32_t attribSize = getAttribSize(pAttrib->core.type);
-		pAttrib->core.pData =
-			pAlloc->pRealloc(pAttrib->core.pData, attribSize * newLen);
-		int8_t newFirstElement = *(int8_t *)attribAsVoid(&pAttrib->core, 0);
-		STUC_ASSERT("", newFirstElement == oldFirstElement);
-		reassignIfSpecial(pMesh, pAttrib, special);
-		reassignIfSpecialBuf((BufMesh *)pMesh, pAttrib, specialBuf);
+		STUC_ASSERT("corrupt attrib", pAttrib->interpolate % 2 == pAttrib->interpolate);
+		reallocAttrib(pAlloc, pMesh, &pAttrib->core, newLen);
 		STUC_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
 }
@@ -2655,6 +2677,7 @@ void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
 	STUC_ASSERT("", newLen >= 0 && newLen < 100000000);
 	STUC_ASSERT("", start >= 0 && start < newLen);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+		//this func has stuff unique to bufmeshes, and so doesn't use reallocAttrib()
 		Attrib *pAttrib = pAttribArr->pArr + i;
 		SpecialAttrib special = quickCheckIfSpecialAttrib((Mesh *)pMesh, pAttrib);
 		SpecialBufAttrib specialBuf = quickCheckIfSpecialBufAttrib(pMesh, pAttrib);
@@ -2860,11 +2883,16 @@ void allocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
 
 void initAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
                 bool interpolate, AttribOrigin origin, AttribType type) {
-	memcpy(pAttrib->core.name, pName, STUC_ATTRIB_NAME_MAX_LEN);
-	pAttrib->core.pData = pAlloc->pCalloc(dataLen, getAttribSize(type));
-	pAttrib->core.type = type;
+	initAttribCore(pAlloc, &pAttrib->core, pName, dataLen, type);
 	pAttrib->interpolate = interpolate;
 	pAttrib->origin = origin;
+}
+
+void initAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, int32_t dataLen,
+                    AttribType type) {
+	memcpy(pAttrib->name, pName, STUC_ATTRIB_NAME_MAX_LEN);
+	pAttrib->pData = pAlloc->pCalloc(dataLen, getAttribSize(type));
+	pAttrib->type = type;
 }
 
 void appendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,

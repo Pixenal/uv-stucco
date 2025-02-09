@@ -971,7 +971,7 @@ Result stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 	int32_t cellStack[STUC_CELL_STACK_SIZE];
 	err =  initRootAndChildren(pContext, cellStack, pTree,
 	                                         pMap, pMesh, pFaceFlag);
-	STUC_ERROR("All faces were outside 0-1 tile", err);
+	STUC_THROW_IF(err, true, "All faces were outside 0-1 tile", 0);
 	int32_t cellStackPtr = 1;
 	int32_t progress = 0;
 	do {
@@ -987,7 +987,7 @@ Result stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 		pTree->cellCount, pTree->leafCount);
 	reallocCellTable(pContext, pTree, sizeDecrease);
 	stageEndWrap(pContext);
-	STUC_CATCH(err, ;)
+	STUC_CATCH(0, err, ;)
 	pContext->alloc.pFree(pFaceFlag);
 	return err;
 }

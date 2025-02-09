@@ -135,9 +135,9 @@ void encodeAttribs(StucAlloc *pAlloc, ByteString *pData,
 //struct, try and generalize these funcs for both if possible
 static
 void encodeIndexedAttribs(StucAlloc *pAlloc, ByteString *pData,
-                          AttribIndexedArr attribs) {
-	for (int32_t i = 0; i < attribs.count; ++i) {
-		AttribIndexed *pAttrib = attribs.pArr + i;
+                          AttribIndexedArr *pAttribs) {
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		AttribIndexed *pAttrib = pAttribs->pArr + i;
 		if (pAttrib->core.type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
 				void *pString = attribAsVoid(&pAttrib->core, j);
@@ -165,13 +165,13 @@ void encodeAttribMeta(StucAlloc *pAlloc, ByteString *pData, AttribArray *pAttrib
 
 static
 void encodeIndexedAttribMeta(StucAlloc *pAlloc, ByteString *pData,
-                             AttribIndexedArr attribs) {
+                             AttribIndexedArr *pAttribs) {
 	int64_t size = 0;
-	for (int32_t i = 0; i < attribs.count; ++i) {
-		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].core.type, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].core.use, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&attribs.pArr[i].count, 32);
-		encodeString(pAlloc, pData, (uint8_t *)attribs.pArr[i].core.name);
+	for (int32_t i = 0; i < pAttribs->count; ++i) {
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
+		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
+		encodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].core.name);
 	}
 }
 
@@ -337,7 +337,7 @@ int64_t estimateObjArrSize(int32_t count, StucObject *pObjArr) {
 StucResult stucWriteStucFile(StucContext pContext, char *pName,
                              int32_t objCount, StucObject *pObjArr,
                              int32_t usgCount, StucUsg *pUsgArr,
-                             StucAttribIndexedArr indexedAttribs) {
+                             StucAttribIndexedArr *pIndexedAttribs) {
 	StucAlloc *pAlloc = &pContext->alloc;
 	StucResult err = 0;
 	ByteString header = {0};
@@ -353,9 +353,9 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 	data.size = estimateObjArrSize(objCount, pObjArr) +
 	            estimateUsgArrSize(usgCount, pUsgArr);
 	data.pString = pContext->alloc.pCalloc(data.size, 1);
-	if (indexedAttribs.count) {
-		encodeIndexedAttribMeta(pAlloc, &data, indexedAttribs);
-		encodeIndexedAttribs(pAlloc, &data, indexedAttribs);
+	if (pIndexedAttribs->count) {
+		encodeIndexedAttribMeta(pAlloc, &data, pIndexedAttribs);
+		encodeIndexedAttribs(pAlloc, &data, pIndexedAttribs);
 	}
 	for (int32_t i = 0; i < objCount; ++i) {
 		err = encodeObj(pAlloc, &data, pObjArr + i);
@@ -426,7 +426,7 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 	encodeValue(pAlloc, &header, (uint8_t *)&version, 16);
 	encodeValue(pAlloc, &header, (uint8_t *)&compressedDataSize, 64);
 	encodeValue(pAlloc, &header, (uint8_t *)&dataSize, 64);
-	encodeValue(pAlloc, &header, (uint8_t *)&indexedAttribs.count, 32);
+	encodeValue(pAlloc, &header, (uint8_t *)&pIndexedAttribs->count, 32);
 	encodeValue(pAlloc, &header, (uint8_t *)&objCount, 32);
 	encodeValue(pAlloc, &header, (uint8_t *)&usgCount, 32);
 	encodeValue(pAlloc, &header, (uint8_t *)&cutoffCount, 32);
@@ -577,52 +577,52 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	StucResult err = STUC_NOT_SET;
 
 	err = isDataNameInvalid(pByteString, "OS"); //transform/ xform and type
-	STUC_ERROR("Data name did not match 'OS'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'OS'", 0);
 	err = isDataNameInvalid(pByteString, "XF"); //transform/ xform and type
-	STUC_ERROR("Data name did not match 'XF'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'XF'", 0);
 	for (int32_t i = 0; i < 16; ++i) {
 		int32_t x = i % 4;
 		int32_t y = i / 4;
 		decodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
 	}
 	err = isDataNameInvalid(pByteString, "OT"); //object type
-	STUC_ERROR("Data name did not match 'OT'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'OT'", 0);
 	decodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8);
 	if (!checkIfMesh(*pObj->pData)) {
 		err = STUC_ERROR;
-		STUC_ERROR("Object is not a mesh", err);
+		STUC_THROW_IF(err, true, "Object is not a mesh", 0);
 	}
 	err = isDataNameInvalid(pByteString, "HD"); //header
-	STUC_ERROR("Data name did not match 'HD'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'HD'", 0);
 	decodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
 	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->meshAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->meshAttribs);
-	STUC_ERROR("Failed to decode mesh attrib meta", err);
+	STUC_THROW_IF(err, true, "Failed to decode mesh attrib meta", 0);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
 	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->faceAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->faceAttribs);
-	STUC_ERROR("Failed to decode face attrib meta", err);
+	STUC_THROW_IF(err, true, "Failed to decode face attrib meta", 0);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
 	pMesh->cornerAttribs.pArr = pMesh->cornerAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->cornerAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->cornerAttribs);
-	STUC_ERROR("Failed to decode corner attrib meta", err);
+	STUC_THROW_IF(err, true, "Failed to decode corner attrib meta", 0);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
 	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->edgeAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->edgeAttribs);
-	STUC_ERROR("Failed to decode edge meta", err);
+	STUC_THROW_IF(err, true, "Failed to decode edge meta", 0);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
 	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->vertAttribs.count + usesUsg, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->vertAttribs);
-	STUC_ERROR("Failed to decode vert attrib meta", err);
+	STUC_THROW_IF(err, true, "Failed to decode vert attrib meta", 0);
 
 	decodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
 	decodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32);
@@ -639,11 +639,11 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 		usgAttrib->core.type = STUC_ATTRIB_I32;
 	}
 	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
-	STUC_ERROR("Data name did not match 'MA'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'MA'", 0);
 	decodeAttribs(pContext, pByteString, &pMesh->meshAttribs, 1);
 	stageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FL"); //face list
-	STUC_ERROR("Data name did not match 'FL'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'FL'", 0);
 	pMesh->pFaces = pContext->alloc.pCalloc(pMesh->faceCount + 1, sizeof(int32_t));
 	stageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
@@ -654,12 +654,12 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	}
 	stageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FA"); //face attribs
-	STUC_ERROR("Data name did not match 'FA'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'FA'", 0);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->cornerCount;
 	decodeAttribs(pContext, pByteString, &pMesh->faceAttribs, pMesh->faceCount);
 
 	err = isDataNameInvalid(pByteString, "LL"); //corner and edge lists
-	STUC_ERROR("Data name did not match 'LL'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'LL'", 0);
 	pMesh->pCorners = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
 	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
 	stageBeginWrap(pContext, "Decoding corners", pMesh->cornerCount);
@@ -675,22 +675,22 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	stageEndWrap(pContext);
 
 	err = isDataNameInvalid(pByteString, "LA"); //corner attribs
-	STUC_ERROR("Data name did not match 'LA'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'LA'", 0);
 	decodeAttribs(pContext, pByteString, &pMesh->cornerAttribs, pMesh->cornerCount);
 	err = isDataNameInvalid(pByteString, "EA"); //edge attribs
-	STUC_ERROR("Data name did not match 'EA'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'EA'", 0);
 	decodeAttribs(pContext, pByteString, &pMesh->edgeAttribs, pMesh->edgeCount);
 	err = isDataNameInvalid(pByteString, "VA"); //vert attribs
-	STUC_ERROR("Data name did not match 'VA'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'VA'", 0);
 	decodeAttribs(pContext, pByteString, &pMesh->vertAttribs, pMesh->vertCount);
 
 	err = isDataNameInvalid(pByteString, "OE"); //obj end
-	STUC_ERROR("Data name did not match 'OE'", err);
+	STUC_THROW_IF(err, true, "Data name did not match 'OE'", 0);
 	if (usesUsg) {
 		pMesh->vertAttribs.count++;
 	}
 	//TODO add STUC_ERROR and STUC_CATCH to all functions that return StucResult
-	STUC_CATCH(err,
+	STUC_CATCH(0, err,
 		//if error:
 		stucMeshDestroy(pContext, pMesh);
 		pContext->alloc.pFree(pMesh);

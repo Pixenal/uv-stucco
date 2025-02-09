@@ -208,19 +208,20 @@ typedef struct {
 
 typedef struct {
 	StucAttribCore core;
+	int32_t size;//add size to existing vars that only use count
 	int32_t count;
 } StucAttribIndexed;
 
 typedef struct {
 	StucAttribIndexed *pArr;
-	int32_t count;
 	int32_t size;
+	int32_t count;
 } StucAttribIndexedArr;
 
 typedef struct {
 	StucAttrib *pArr;
-	int32_t count;
 	int32_t size;
+	int32_t count;
 } StucAttribArray;
 
 typedef enum {
@@ -233,7 +234,7 @@ typedef enum {
 typedef struct {
 	StucBlendMode blend;
 	float opacity;
-	int8_t order;
+	bool order;
 } StucBlendConfig;
 
 typedef struct {
@@ -386,7 +387,7 @@ STUC_EXPORT
 StucResult stucMapFileExport(StucContext context, char *pName,
                              int32_t objCount, StucObject* pObjArr,
                              int32_t usgCount, StucUsg* pUsgArr,
-                             StucAttribIndexedArr indexedAttribs);
+                             StucAttribIndexedArr *pIndexedAttribs);
 STUC_EXPORT
 StucResult stucMapFileLoadForEdit(StucContext pContext, char *filePath,
                                   int32_t *pObjCount, StucObject **ppObjArr,
@@ -405,9 +406,10 @@ STUC_EXPORT
 StucResult stucDestroyCommonAttribs(StucContext pContext,
                                     StucCommonAttribList *pCommonAttribs);
 STUC_EXPORT
-StucResult stucMapToMesh(StucContext pContext, StucMapArr *pMapArr, StucMesh *pMeshIn,
-                         StucMesh *pMeshOut, StucCommonAttribList *pCommonAttribList,
-                         float wScale);
+StucResult stucMapToMesh(StucContext pContext, StucMapArr *pMapArr,
+                         StucMesh *pMeshIn, StucAttribIndexedArr *pInIndexedAttribs,
+                         StucMesh *pMeshOut, StucAttribIndexedArr *pOutIndexedAttribs,
+                         StucCommonAttribList *pCommonAttribList, float wScale);
 STUC_EXPORT
 StucResult stucObjArrDestroy(StucContext pContext,
                              int32_t objCount, StucObject *pObjArr);
@@ -420,10 +422,11 @@ STUC_EXPORT
 StucResult stucContextDestroy(StucContext pContext);
 STUC_EXPORT
 StucResult stucGetAttribSize(StucAttrib *pAttrib, int32_t *pSize);
-//TODO make all functions return error codes, ie, adjust functions like below, which return data,
-//pass as param instead
 STUC_EXPORT
 StucResult stucGetAttrib(char *pName, StucAttribArray *pAttribs, StucAttrib **ppAttrib);
+STUC_EXPORT
+StucResult stucGetAttribIndexed(char *pName, StucAttribIndexedArr *pAttribs,
+                                StucAttribIndexed **ppAttrib);
 STUC_EXPORT
 StucResult stucMapFileGenPreviewImage(StucContext pContext, StucMap pMap,  StucImage *pImage);
 STUC_EXPORT
