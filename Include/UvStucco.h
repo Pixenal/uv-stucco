@@ -336,7 +336,8 @@ typedef struct {
 typedef struct {
 	void (*pInit)(void **, int32_t *, StucAlloc *);
 	void (*pJobStackGetJob)(void *, void (**)(void *), void **);
-	int32_t (*pJobStackPushJobs)(void *, int32_t, void(*)(void *), void **);
+	int32_t (*pJobStackPushJobs)(void *, int32_t , void **, StucResult (*)(void *),
+	                             void **);
 	bool (*pGetAndDoJob)(void *);
 	void (*pMutexGet)(void *, void **);
 	void (*pMutexLock)(void *, void *);

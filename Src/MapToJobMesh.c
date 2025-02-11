@@ -111,7 +111,7 @@ void destroyMappingTables(StucAlloc *pAlloc, LocalTables *pLocalTables) {
 	pAlloc->pFree(pLocalTables->pEdgeTable);
 }
 
-void stucMapToJobMesh(void *pVarsPtr) {
+StucResult stucMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_INIT;
 	Result result = STUC_NOT_SET;
 	SendOffArgs *pSend = pVarsPtr;
@@ -143,32 +143,17 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_STOP("Alloc buffers and tables time");
 	DebugAndPerfVars dpVars = {0};
 	vars.pDpVars = &dpVars;
-	//uint64_t mappingTime, copySingleTime;
-	//copySingleTime = 0;
+	//uint64_t mappingTime;
 	//mappingTime = 0;
-	//CLOCK_START;
-	//int32_t *pCellFaces = 
-	//	vars.alloc.pMalloc(sizeof(int32_t) * faceCellsTable.cellFacesMax);
-	//CLOCK_STOP("Alloc cell faces");
-	//int64_t linearizeTime = 0;
 	if (vars.getInFaces) {
 		vars.inFaceSize = 8;
 		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
-	printf("Starting face loop\n");
 	for (int32_t i = vars.inFaceRange.start; i < vars.inFaceRange.end; ++i) {
-		printf("face is %d, face mat is %d, maskIdx is %d", i, vars.mesh.pMatIdx[i], vars.maskIdx);
 		if (vars.maskIdx != -1 && vars.mesh.pMatIdx &&
 		    vars.mesh.pMatIdx[i] != vars.maskIdx) {
-			printf("   -   skipping face\n");
 			continue;
 		}
-		printf("\n");
-		// copy faces over to a new contiguous array
-		//CLOCK_START;
-		//stucLinearizeCellFaces(faceCellsTable.pFaceCells, pCellFaces, i);
-		//CLOCK_STOP_NO_PRINT;
-		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
 		FaceRange baseFace = {0};
 		baseFace.start = vars.mesh.core.pFaces[i];
@@ -220,14 +205,10 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		FaceCells *pFaceCellsEntry = idxFaceCells(&faceCellsTable, i, vars.inFaceRange.start);
 		stucDestroyFaceCellsEntry(&vars.alloc, pFaceCellsEntry);
 		//CLOCK_STOP_NO_PRINT;
-		//linearizeTime += CLOCK_TIME_DIFF(start, stop);
 		if (result != STUC_SUCCESS) {
 			break;
 		}
 	}
-	printf("Finished face loop\n");
-	//printf("Linearize time: %lu\nMappingTime: %lu\n", linearizeTime, mappingTime);
-	//vars.alloc.pFree(pCellFaces);
 	bool empty = !(vars.bufMesh.mesh.core.faceCount || vars.bufMesh.borderFaceCount);
 	if (result == STUC_SUCCESS && !empty) {
 		bufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
@@ -237,7 +218,6 @@ void stucMapToJobMesh(void *pVarsPtr) {
 		pSend->finalBufSize = vars.bufMesh.mesh.faceBufSize;
 		//STUC_ASSERT("", !(!vars.borderTable.pTable ^ !vars.bufMesh.borderFaceCount));
 		STUC_ASSERT("", vars.borderTable.pTable != NULL);
-		printf("borderTable %d\n", vars.borderTable.pTable != NULL);
 		pSend->borderTable.pTable = vars.borderTable.pTable;
 		pSend->bufMesh = vars.bufMesh;
 		pSend->pInFaces = vars.pInFaces;
@@ -247,14 +227,9 @@ void stucMapToJobMesh(void *pVarsPtr) {
 	}
 	destroyMappingTables(&vars.alloc, &vars.localTables);
 	stucDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
-	pSend->result = result;
-	pSend->pContext->threadPool.pMutexLock(pSend->pContext->pThreadPoolHandle,
-	                                       pSend->pMutex);
 	STUC_ASSERT("", pSend->bufSize > 0 || empty);
-	printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / inFaceRangeSize);
-	printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / inFaceRangeSize);
-	printf("Average map faces per face: %d\n", averageMapFacesPerFace);
-	--*pSend->pActiveJobs;
-	pSend->pContext->threadPool.pMutexUnlock(pSend->pContext->pThreadPoolHandle,
-	                                         pSend->pMutex);
+	//printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / inFaceRangeSize);
+	//printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / inFaceRangeSize);
+	//printf("Average map faces per face: %d\n", averageMapFacesPerFace);
+	return result;
 }

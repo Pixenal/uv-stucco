@@ -23,11 +23,12 @@ void combineJobInFaceLists(StucContext pContext, InFaceArr *pInFaceTable,
 	}
 }
 
-void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
-                          SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
-                          int32_t mapJobsSent) {
+Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
+                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+                            int8_t *pVertSeamTable, bool *pEdgeSeamTable,
+                            InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
+                            int32_t mapJobsSent) {
+	Result err = STUC_SUCCESS;
 	//struct timeval start, stop;
 	//CLOCK_START;
 	//TODO figure out how to handle edges in local meshes,
@@ -92,10 +93,9 @@ void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 #else
 	printf("realloc time total %lu\n", reallocTime);
 #endif
-	stucMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs,
-	                     pEdgeVerts, pJobBases, pVertSeamTable,
-	                     pEdgeSeamTable, ppInFaceTable, wScale, pInMesh,
-	                     mapJobsSent);
+	err = stucMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs, pEdgeVerts, pJobBases,
+	                           pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale,
+	                           pInMesh, mapJobsSent);
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
 		stucMeshDestroy(pContext, &pBufMesh->mesh.core);
@@ -104,6 +104,7 @@ void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	pContext->alloc.pFree(pJobBases);
 	meshSetLastFace(&pContext->alloc, pMeshOut);
 	//CLOCK_STOP("moving to work mesh");
+	return err;
 }
 
 //Returns struct containing inMesh corner, edge, vert, and local corner,

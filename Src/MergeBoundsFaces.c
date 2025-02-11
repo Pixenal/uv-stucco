@@ -1679,7 +1679,8 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 }
 
 static
-void mergeAndCopyEdgeFaces(void *pArgsVoid) {
+StucResult mergeAndCopyEdgeFaces(void *pArgsVoid) {
+	Result err = STUC_SUCCESS;
 	MergeSendOffArgs *pArgs = pArgsVoid;
 	StucContext pContext = pArgs->pContext;
 	void *pThreadPoolHandle = pContext->pThreadPoolHandle;
@@ -1688,7 +1689,7 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 	bool barrierRet;
 	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
 	if (barrierRet) {
-		for (int32_t i = 0; i < *pArgs->pActiveJobs; ++i) {
+		for (int32_t i = 0; i < pArgs->jobCount; ++i) {
 			mergeIntersectionCorners(pArgs->pArgArr + i, false);
 			mergeIntersectionCorners(pArgs->pArgArr + i, true);
 			mergeCornerAttribs(pArgs->pArgArr + i);
@@ -1696,12 +1697,12 @@ void mergeAndCopyEdgeFaces(void *pArgsVoid) {
 	}
 	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
 	if (barrierRet) {
-		for (int32_t i = 0; i < *pArgs->pActiveJobs; ++i) {
+		for (int32_t i = 0; i < pArgs->jobCount; ++i) {
 			addToOutMesh(pArgs->pArgArr + i);
 		}
-		*pArgs->pActiveJobs = 0;
 	}
 	pContext->alloc.pFree(pArgs->pInVertKeep);
+	return err;
 }
 
 static
@@ -1819,20 +1820,21 @@ void destroyCombineTables(StucAlloc *pAlloc, CombineTables *pCTables) {
 
 static
 void sendOffMergeJobs(StucContext pContext, CompiledBorderTable *pBorderTable,
-                      MergeSendOffArgs *pMergeJobArgs, StucMap pMap,
-					  Mesh *pMeshOut, SendOffArgs *pMapJobArgs,
-					  EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
-					  CombineTables *pCTables, JobBases *pJobBases,
-					  int32_t *pActiveJobs, void *pMutex, bool *pEdgeSeamTable,
-                      InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh, void *pBarrier) {
-	int32_t entriesPerJob = pBorderTable->count / pContext->threadCount;
+                      int32_t *pJobCount, void ***pppJobHandles, MergeSendOffArgs *pMergeJobArgs, StucMap pMap,
+                      Mesh *pMeshOut, SendOffArgs *pMapJobArgs,
+                      EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
+                      CombineTables *pCTables, JobBases *pJobBases,
+                      bool *pEdgeSeamTable, InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh, void *pBarrier) {
+	*pJobCount = MAX_SUB_MAPPING_JOBS;
+	*pJobCount += *pJobCount == 0;
+	int32_t entriesPerJob = pBorderTable->count / *pJobCount;
 	bool singleThread = !entriesPerJob;
 	void *jobArgPtrs[MAX_THREADS];
-	*pActiveJobs = singleThread ? 1 : pContext->threadCount;
-	pContext->threadPool.pBarrierGet(pContext->pThreadPoolHandle, &pBarrier, *pActiveJobs);
-	for (int32_t i = 0; i < *pActiveJobs; ++i) {
+	*pJobCount = singleThread ? 1 : *pJobCount;
+	pContext->threadPool.pBarrierGet(pContext->pThreadPoolHandle, &pBarrier, *pJobCount);
+	for (int32_t i = 0; i < *pJobCount; ++i) {
 		int32_t entriesStart = entriesPerJob * i;
-		int32_t entriesEnd = i == *pActiveJobs - 1 ?
+		int32_t entriesEnd = i == *pJobCount - 1 ?
 			pBorderTable->count : entriesStart + entriesPerJob;
 		//TODO make a struct for these common variables, like pContext,
 		//pMap, pEdgeVerts, etc, so you don't need to move them
@@ -1852,24 +1854,25 @@ void sendOffMergeJobs(StucContext pContext, CompiledBorderTable *pBorderTable,
 		pMergeJobArgs[i].pJobBases = pJobBases;
 		pMergeJobArgs[i].pCTables = pCTables;
 		pMergeJobArgs[i].job = i;
-		pMergeJobArgs[i].pActiveJobs = pActiveJobs;
 		pMergeJobArgs[i].pBarrier = pBarrier;
-		pMergeJobArgs[i].pMutex = pMutex;
 		pMergeJobArgs[i].wScale = wScale;
 		pMergeJobArgs[i].pInMesh = pInMesh;
 		pMergeJobArgs[i].totalVerts = 4;
+		pMergeJobArgs[i].jobCount = *pJobCount;
 		jobArgPtrs[i] = pMergeJobArgs + i;
 	}
+	*pppJobHandles = pContext->alloc.pCalloc(*pJobCount, sizeof(void *));
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
-	                                       *pActiveJobs,
-										   mergeAndCopyEdgeFaces, jobArgPtrs);
+	                                       *pJobCount, *pppJobHandles,
+	                                       mergeAndCopyEdgeFaces, jobArgPtrs);
 }
 
-void stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
-                          SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-					      JobBases *pJobBases, int8_t *pVertSeamTable,
-                          bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
-                          float wScale, Mesh *pInMesh, int32_t mapJobsSent) {
+Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
+                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+                            JobBases *pJobBases, int8_t *pVertSeamTable,
+                            bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
+                            float wScale, Mesh *pInMesh, int32_t mapJobsSent) {
+	StucResult err = STUC_SUCCESS;
 	int32_t totalBorderFaces = 0;
 	int32_t totalBorderEdges = 0;
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
@@ -1897,18 +1900,20 @@ void stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
 		STUC_ASSERT("", i >= 0 && i < pJobArgs[0].mesh.core.vertCount);
 	}
 	MergeSendOffArgs mergeJobArgs[MAX_THREADS];
-	int32_t activeJobs = 0;
+	int32_t jobCount = 0;
 	int32_t fence = 0;
-	void *pMutex = NULL;
 	void *pBarrier = NULL;
-	pContext->threadPool.pMutexGet(pContext->pThreadPoolHandle, &pMutex);
-	sendOffMergeJobs(pContext, &borderTable, mergeJobArgs, pMap, pMeshOut,
-	                 pJobArgs, pEdgeVerts, pVertSeamTable, &cTables, pJobBases,
-					 &activeJobs, pMutex, pEdgeSeamTable, ppInFaceTable,
-	                 wScale, pInMesh, pBarrier);
-	waitForJobs(pContext, &activeJobs, pMutex);
-	pContext->threadPool.pMutexDestroy(pContext->pThreadPoolHandle, pMutex);
+	void **ppJobHandles = NULL;
+	sendOffMergeJobs(pContext, &borderTable, &jobCount, &ppJobHandles, mergeJobArgs,
+	                 pMap, pMeshOut, pJobArgs, pEdgeVerts, pVertSeamTable, &cTables,
+	                 pJobBases, pEdgeSeamTable, ppInFaceTable, wScale, pInMesh, pBarrier);
+	stucWaitForJobs(pContext->pThreadPoolHandle, jobCount, ppJobHandles);
+	err = stucValidateAndDestroyJobs(pContext, jobCount, &ppJobHandles);
+	STUC_THROW_IF(err, true, "", 0);
+	STUC_CATCH(0, err, ;);
+	pContext->alloc.pFree(ppJobHandles);
 	pContext->threadPool.pBarrierDestroy(pContext->pThreadPoolHandle, pBarrier);
 	pContext->alloc.pFree(borderTable.ppTable);
 	destroyCombineTables(&pContext->alloc, &cTables);
+	return err;
 }

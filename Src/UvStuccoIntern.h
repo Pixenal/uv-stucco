@@ -98,13 +98,11 @@ typedef struct {
 	InFaceArr *pInFaces;
 	bool getInFaces;
 	uint64_t reallocTime;
-	Result result;
 	StucContext pContext;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
 	StucCommonAttribList *pCommonAttribList;
 	int32_t *pActiveJobs;
-	void *pMutex;
 	Range inFaceRange;
 	int32_t bufSize;
 	int32_t rawBufSize;

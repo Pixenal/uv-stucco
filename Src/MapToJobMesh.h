@@ -97,7 +97,7 @@ typedef struct {
 	int8_t maskIdx;
 } MappingJobVars;
 
-void stucMapToJobMesh(void *pArgsPtr);
+Result stucMapToJobMesh(void *pArgsPtr);
 Result stucMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
                          DebugAndPerfVars *pDpVars,
 					     V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace);

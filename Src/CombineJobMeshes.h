@@ -138,12 +138,11 @@ typedef struct MergeSendOffArgs {
 	EdgeVerts *pEdgeVerts;
 	int8_t *pVertSeamTable;
 	bool* pEdgeSeamTable;
-	void *pMutex;
 	UBitField8 *pInVertKeep;
 	CompiledBorderTable *pBorderTable;
 	JobBases *pJobBases;
 	CombineTables *pCTables;
-	int32_t *pActiveJobs;
+	int32_t jobCount;
 	void *pBarrier;
 	PieceArr *pPieceArrTable;
 	PieceRootsArr *pPieceRootTable;
@@ -157,11 +156,11 @@ typedef struct MergeSendOffArgs {
 	float wScale;
 } MergeSendOffArgs;
 
-void stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
-                          SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-					      JobBases *pJobBases, int8_t *pVertSeamTable,
-                          bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
-                          float wScale, Mesh *pInMesh, int32_t mapJobsSent);
+Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
+                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+                            JobBases *pJobBases, int8_t *pVertSeamTable,
+                            bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
+                            float wScale, Mesh *pInMesh, int32_t mapJobsSent);
 void stucAllocMergeBufs(StucContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
 void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
@@ -170,11 +169,11 @@ void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 							   MergeBufHandles *pMergeBufHandles,
                                int32_t *pInFaces, int32_t entryCount);
 void stucDestroyMergeBufs(StucContext pContext, MergeBufHandles *pHandle);
-void stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
-                          SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-						  int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                          InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
-                          int32_t mapJobsSent);
+Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
+                            SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
+                            int8_t *pVertSeamTable, bool *pEdgeSeamTable,
+                            InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
+                            int32_t mapJobsSent);
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs, int32_t cornerIdx);
 bool getIfStuc(const BorderFace *pEntry, int32_t cornerIdx);
