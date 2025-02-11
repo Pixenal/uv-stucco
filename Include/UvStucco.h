@@ -407,6 +407,11 @@ STUC_EXPORT
 StucResult stucDestroyCommonAttribs(StucContext pContext,
                                     StucCommonAttribList *pCommonAttribs);
 STUC_EXPORT
+StucResult stucQueueMapToMesh(StucContext pContext, void **ppJobHandle, StucMapArr *pMapArr,
+                              StucMesh *pMeshIn, StucAttribIndexedArr *pInIndexedAttribs,
+                              StucMesh *pMeshOut, StucAttribIndexedArr *pOutIndexedAttribs,
+                              StucCommonAttribList *pCommonAttribList, float wScale);
+STUC_EXPORT
 StucResult stucMapToMesh(StucContext pContext, StucMapArr *pMapArr,
                          StucMesh *pMeshIn, StucAttribIndexedArr *pInIndexedAttribs,
                          StucMesh *pMeshOut, StucAttribIndexedArr *pOutIndexedAttribs,
@@ -433,3 +438,10 @@ StucResult stucMapFileGenPreviewImage(StucContext pContext, StucMap pMap,  StucI
 STUC_EXPORT
 void stucMapIndexedAttribsGet(StucContext pContext, StucMap pMap,
                               StucAttribIndexedArr *pIndexedAttribs);
+STUC_EXPORT
+StucResult stucWaitForJobs(StucContext pContext, int32_t count, void **ppHandles);
+STUC_EXPORT
+StucResult stucJobGetErrs(StucContext pContext, int32_t jobCount, void ***pppJobHandles);
+STUC_EXPORT
+StucResult stucJobDestroyHandles(StucContext pContext, int32_t jobCount,
+                             void ***pppJobHandles);
