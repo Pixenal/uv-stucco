@@ -338,6 +338,9 @@ typedef struct {
 	void (*pJobStackGetJob)(void *, void (**)(void *), void **);
 	int32_t (*pJobStackPushJobs)(void *, int32_t , void **, StucResult (*)(void *),
 	                             void **);
+	StucResult (*pWaitForJobs)(void *, int32_t, void **, bool, bool *);
+	StucResult (*pJobHandleDestroy)(void *, void **);
+	StucResult (*pGetJobErr)(void *, void *, StucResult *);
 	bool (*pGetAndDoJob)(void *);
 	void (*pMutexGet)(void *, void **);
 	void (*pMutexLock)(void *, void *);
@@ -439,7 +442,8 @@ STUC_EXPORT
 void stucMapIndexedAttribsGet(StucContext pContext, StucMap pMap,
                               StucAttribIndexedArr *pIndexedAttribs);
 STUC_EXPORT
-StucResult stucWaitForJobs(StucContext pContext, int32_t count, void **ppHandles);
+StucResult stucWaitForJobs(StucContext pContext, int32_t count, void **ppHandles,
+                           bool wait, bool *pDone);
 STUC_EXPORT
 StucResult stucJobGetErrs(StucContext pContext, int32_t jobCount, void ***pppJobHandles);
 STUC_EXPORT

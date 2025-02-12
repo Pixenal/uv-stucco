@@ -1679,27 +1679,27 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 }
 
 static
-StucResult mergeAndCopyEdgeFaces(void *pArgsVoid) {
+StucResult makePiecesJob(void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
 	MergeSendOffArgs *pArgs = pArgsVoid;
 	StucContext pContext = pArgs->pContext;
 	void *pThreadPoolHandle = pContext->pThreadPoolHandle;
 	StucThreadPool *pThreadPool = &pArgs->pContext->threadPool;
 	createAndJoinPieces(pArgs);
-	bool barrierRet;
-	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
-	if (barrierRet) {
-		for (int32_t i = 0; i < pArgs->jobCount; ++i) {
-			mergeIntersectionCorners(pArgs->pArgArr + i, false);
-			mergeIntersectionCorners(pArgs->pArgArr + i, true);
-			mergeCornerAttribs(pArgs->pArgArr + i);
-		}
+	return err;
+}
+
+static
+StucResult mergeAndAddToOutMesh(StucContext pContext, void *pArgsVoid) {
+	Result err = STUC_SUCCESS;
+	MergeSendOffArgs *pArgs = pArgsVoid;
+	for (int32_t i = 0; i < pArgs->jobCount; ++i) {
+		mergeIntersectionCorners(pArgs->pArgArr + i, false);
+		mergeIntersectionCorners(pArgs->pArgArr + i, true);
+		mergeCornerAttribs(pArgs->pArgArr + i);
 	}
-	barrierRet = pThreadPool->pBarrierWait(pThreadPoolHandle, pArgs->pBarrier);
-	if (barrierRet) {
-		for (int32_t i = 0; i < pArgs->jobCount; ++i) {
-			addToOutMesh(pArgs->pArgArr + i);
-		}
+	for (int32_t i = 0; i < pArgs->jobCount; ++i) {
+		addToOutMesh(pArgs->pArgArr + i);
 	}
 	pContext->alloc.pFree(pArgs->pInVertKeep);
 	return err;
@@ -1865,7 +1865,7 @@ void sendOffMergeJobs(StucContext pContext, CompiledBorderTable *pBorderTable,
 	*pppJobHandles = pContext->alloc.pCalloc(*pJobCount, sizeof(void *));
 	pContext->threadPool.pJobStackPushJobs(pContext->pThreadPoolHandle,
 	                                       *pJobCount, *pppJobHandles,
-	                                       mergeAndCopyEdgeFaces, jobArgPtrs);
+	                                       makePiecesJob, jobArgPtrs);
 }
 
 Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
@@ -1908,8 +1908,10 @@ Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
 	sendOffMergeJobs(pContext, &borderTable, &jobCount, &ppJobHandles, &pMergeJobArgs,
 	                 pMap, pMeshOut, pJobArgs, pEdgeVerts, pVertSeamTable, &cTables,
 	                 pJobBases, pEdgeSeamTable, ppInFaceTable, wScale, pInMesh, &pBarrier);
-	stucWaitForJobsIntern(pContext->pThreadPoolHandle, jobCount, ppJobHandles);
+	pContext->threadPool.pWaitForJobs(pContext->pThreadPoolHandle, jobCount,
+	                                  ppJobHandles, true, NULL);
 	err = stucJobGetErrs(pContext, jobCount, &ppJobHandles);
+	mergeAndAddToOutMesh(pContext, pMergeJobArgs);
 	err = stucJobDestroyHandles(pContext, jobCount, &ppJobHandles);
 	pContext->alloc.pFree(ppJobHandles);
 	STUC_THROW_IF(err, true, "", 0);
