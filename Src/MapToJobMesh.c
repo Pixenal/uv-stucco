@@ -60,9 +60,9 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 }
 
 static
-Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
-                       FaceCellsTable *pFaceCellsTable,
-					   DebugAndPerfVars *pDpVars, int32_t faceIdx) {
+Result mapPerTile(MappingJobVars *pMVars, FaceRange *pInFace,
+                  FaceCellsTable *pFaceCellsTable,
+                  DebugAndPerfVars *pDpVars, int32_t faceIdx) {
 	Result result = STUC_NOT_SET;
 	FaceBounds *pFaceBounds = 
 		&idxFaceCells(pFaceCellsTable, faceIdx, pMVars->inFaceRange.start)->faceBounds;
@@ -72,7 +72,7 @@ Result mapPerTile(MappingJobVars *pMVars, FaceRange *pBaseFace,
 			V2_F32 fTileMin = {k, j};
 			V2_I32 tile = {k, j};
 			result = stucMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
-			                             fTileMin, tile, *pBaseFace);
+			                             fTileMin, tile, pInFace);
 			if (result != STUC_SUCCESS) {
 				return result;
 			}
@@ -152,26 +152,27 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	for (int32_t i = vars.inFaceRange.start; i < vars.inFaceRange.end; ++i) {
 		if (vars.maskIdx != -1 && vars.mesh.pMatIdx &&
 		    vars.mesh.pMatIdx[i] != vars.maskIdx) {
+
 			continue;
 		}
 		//CLOCK_START;
-		FaceRange baseFace = {0};
-		baseFace.start = vars.mesh.core.pFaces[i];
-		baseFace.end = vars.mesh.core.pFaces[i + 1];
-		baseFace.size = baseFace.end - baseFace.start;
-		baseFace.idx = i;
-		vars.tbn = buildFaceTbn(baseFace, &vars.mesh, NULL);
+		FaceRange inFace = {0};
+		inFace.start = vars.mesh.core.pFaces[i];
+		inFace.end = vars.mesh.core.pFaces[i + 1];
+		inFace.size = inFace.end - inFace.start;
+		inFace.idx = i;
+		vars.tbn = buildFaceTbn(inFace, &vars.mesh, NULL);
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
-		if (baseFace.size > 4) {
+		if (inFace.size > 4) {
 			//TODO reimplement at some point
 			// disabled cause current triangulation method is bad
-			//faceTris = triangulateFace(vars.alloc, baseFace, vars.mesh.pUvs,
+			//faceTris = triangulateFace(vars.alloc, inFace, vars.mesh.pUvs,
 			                           //NULL, 1);
 		}
-		if (baseFace.size <= 4) {
+		if (inFace.size <= 4) {
 			//face is a quad, or a tri
-			result = mapPerTile(&vars, &baseFace, &faceCellsTable,
+			result = mapPerTile(&vars, &inFace, &faceCellsTable,
 			                    &dpVars, i);
 		}
 		else {
@@ -184,10 +185,10 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 			/*
 			for (int32_t j = 0; j < faceTris.triCount; ++j) {
 				int32_t triFaceStart = j * 3;
-				baseFace.start = faceTris.pCorners[triFaceStart];
-				baseFace.end = faceTris.pCorners[triFaceStart + 2];
-				baseFace.size = baseFace.end - baseFace.start;
-				result = mapPerTile(&vars, &baseFace, &faceCellsTable,
+				inFace.start = faceTris.pCorners[triFaceStart];
+				inFace.end = faceTris.pCorners[triFaceStart + 2];
+				inFace.size = inFace.end - inFace.start;
+				result = mapPerTile(&vars, &inFace, &faceCellsTable,
 				                    &dpVars, i);
 				if (result != STUC_SUCCESS) {
 					break;

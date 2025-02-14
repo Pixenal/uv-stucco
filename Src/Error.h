@@ -25,6 +25,12 @@ typedef StucResult Result;
 		}\
 	}
 
+#define STUC_THROW(err, message, idx) \
+	printf("STUC ERROR THROWN IN %s, IDX: %d, MESSAGE: %s\n",\
+	       __func__, idx, #message); \
+	err = STUC_ERROR;\
+	goto handle_error_##idx;
+
 #define STUC_CATCH(idx, err, cleanup) \
 	if (err != STUC_SUCCESS) { \
 	handle_error_##idx: \

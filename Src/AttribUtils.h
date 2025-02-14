@@ -69,14 +69,14 @@ void blendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
 void divideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar);
 void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
                   int32_t srcCount, Mesh **ppSrcArr,
-				  int32_t dataLen, StucDomain domain, bool setCommon);
+                  int32_t dataLen, StucDomain domain, bool setCommon);
 void reallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
                    AttribCore *pAttrib, const int32_t newLen);
 void reallocAttribs(const StucAlloc *pAlloc, Mesh *pMesh,
                     AttribArray *pAttribArr, int32_t newLen);
 void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, int32_t start,
-						   int32_t offset, int32_t lenToCopy, int32_t newLen);
+                           int32_t offset, int32_t lenToCopy, int32_t newLen);
 void setSpecialAttribs(StucContext pContext, Mesh *pMesh, UBitField16 flags);
 void setSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags);
 void appendBufOnlySpecialAttribs(StucAlloc *pAlloc, BufMesh *pBufMesh);
@@ -90,3 +90,4 @@ void initAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, int32_t
                     AttribType type);
 void appendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,
                   int32_t dataLen, bool interpolate, AttribOrigin origin, AttribType type);
+int32_t stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName);

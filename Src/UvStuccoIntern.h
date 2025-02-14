@@ -26,9 +26,9 @@ typedef struct {
 
 typedef struct BorderFace {
 	struct BorderFace *pNext;
-	int32_t faceIdx;
-	int32_t face;
-	int32_t baseFace;
+	int32_t mapFace;
+	int32_t bufFace;
+	int32_t inFace;
 	uint32_t tileX : STUC_TILE_MIN_BIT_LEN;
 	uint32_t tileY : STUC_TILE_MIN_BIT_LEN;
 	UBitField32 job : 6;

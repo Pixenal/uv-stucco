@@ -49,7 +49,7 @@ typedef struct LocalVert {
 	struct LocalVert *pNext;
 	int32_t vert;
 	int32_t cornerSize;
-	int32_t baseFace;
+	int32_t inFace;
 	int32_t mapVert;
 	V2_I32 tile;
 } LocalVert;
@@ -98,6 +98,6 @@ typedef struct {
 } MappingJobVars;
 
 Result stucMapToJobMesh(void *pArgsPtr);
-Result stucMapToSingleFace(MappingJobVars *pArgs, FaceCellsTable *pFaceCellsTable,
-                         DebugAndPerfVars *pDpVars,
-					     V2_F32 fTileMin, V2_I32 tile, FaceRange baseFace);
+Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
+                           DebugAndPerfVars *pDpVars, V2_F32 fTileMin, V2_I32 tile,
+                           FaceRange *pInFace);

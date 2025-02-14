@@ -14,7 +14,8 @@
 
 //special buf attribs should not be set by user,
 //so unlike special attribs, they're hardcoded here
-static char spBufAttribs[6][STUC_ATTRIB_NAME_MAX_LEN] = {
+static
+char spBufAttribs[6][STUC_ATTRIB_NAME_MAX_LEN] = {
 	"",
 	"StucW",
 	"StucInNormal",
@@ -206,7 +207,7 @@ void setDefaultSpecialAttribNames(StucContext pContext) {
 
 #define TRI_INTERPOLATE_SCALAR(t, pD, iD, pS, iA, iB, iC, bc)\
 	INDEX_ATTRIB(t, pD, iD, 1, 0) = INDEX_ATTRIB(t, pS, iA, 1, 0) * bc.d[0];\
- 	INDEX_ATTRIB(t, pD, iD, 1, 0) += INDEX_ATTRIB(t, pS, iB, 1, 0) * bc.d[1];\
+	INDEX_ATTRIB(t, pD, iD, 1, 0) += INDEX_ATTRIB(t, pS, iB, 1, 0) * bc.d[1];\
 	INDEX_ATTRIB(t, pD, iD, 1, 0) += INDEX_ATTRIB(t, pS, iC, 1, 0) * bc.d[2];\
 	INDEX_ATTRIB(t, pD, iD, 1, 0) /= bc.d[0] + bc.d[1] + bc.d[2];
 
@@ -506,7 +507,7 @@ int32_t copyAttrib(Attrib *pDest, int32_t iDest,
 		case STUC_ATTRIB_STRING:
 			memcpy(((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pDest->core.pData)[iDest],
 			       ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pSrc->core.pData)[iSrc],
-				   sizeof(double[STUC_ATTRIB_STRING_MAX_LEN]));
+			       sizeof(double[STUC_ATTRIB_STRING_MAX_LEN]));
 			break;
 	}
 	return 0;
@@ -821,7 +822,8 @@ void triInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
 	}
 }
 
-static void appendOnNonString() {
+static
+void appendOnNonString() {
 	printf("Blend mode append reached on non string attrib!\n");
 	abort();
 }
@@ -2443,42 +2445,48 @@ AttribArray *getAttribArrFromDomain(StucMesh *pMesh, StucDomain domain) {
 	}
 }
 
+static
+void allocAttribsFromArr(StucAlloc *pAlloc, AttribArray *pDest, AttribArray *pSrc,
+                         int32_t dataLen, bool setCommon) {
+	for (int32_t j = 0; j < pSrc->count; ++j) {
+		if (pSrc->pArr[j].origin == STUC_ATTRIB_DONT_COPY) {
+			continue;
+		}
+		Attrib *pAttrib = getAttrib(pSrc->pArr[j].core.name, pDest);
+		if (pAttrib) {
+			//if attribute already exists in destination,
+			//set origin to common, then skip
+			if (setCommon) {
+				pAttrib->origin = STUC_ATTRIB_ORIGIN_COMMON;
+			}
+			continue;
+		}
+		STUC_ASSERT("", pDest->count <= pDest->size);
+		if (pDest->count == pDest->size) {
+			pDest->size *= 2;
+			pDest->pArr = pAlloc->pRealloc(pDest->pArr, pDest->size * sizeof(Attrib));
+		}
+		pDest->pArr[pDest->count].core.type = pSrc->pArr[j].core.type;
+		memcpy(pDest->pArr[pDest->count].core.name, pSrc->pArr[j].core.name,
+				STUC_ATTRIB_NAME_MAX_LEN);
+		pDest->pArr[pDest->count].origin = pSrc->pArr[j].origin;
+		pDest->pArr[pDest->count].core.use = pSrc->pArr[j].core.use;
+		pDest->pArr[pDest->count].interpolate = pSrc->pArr[j].interpolate;
+		int32_t attribSize = getAttribSize(pSrc->pArr[j].core.type);
+		pDest->pArr[pDest->count].core.pData = pAlloc->pCalloc(dataLen, attribSize);
+		pDest->count++;
+	}
+}
+
 void allocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
                   int32_t srcCount, Mesh **ppSrcArr,
-				  int32_t dataLen, StucDomain domain, bool setCommon) {
+                  int32_t dataLen, StucDomain domain, bool setCommon) {
 	pDest->size = 2;
 	pDest->pArr = pAlloc->pCalloc(pDest->size, sizeof(Attrib));
 	for (int32_t i = 0; i < srcCount; ++i) {
 		AttribArray *pSrc = getAttribArrFromDomain(&ppSrcArr[i]->core, domain);
 		if (pSrc && pSrc->count) {
-			for (int32_t j = 0; j < pSrc->count; ++j) {
-				if (pSrc->pArr[j].origin == STUC_ATTRIB_DONT_COPY) {
-					continue;
-				}
-				Attrib *pAttrib = getAttrib(pSrc->pArr[j].core.name, pDest);
-				if (pAttrib) {
-					//if attribute already exists in destination,
-					//set origin to common, then skip
-					if (setCommon) {
-						pAttrib->origin = STUC_ATTRIB_ORIGIN_COMMON;
-					}
-					continue;
-				}
-				STUC_ASSERT("", pDest->count <= pDest->size);
-				if (pDest->count == pDest->size) {
-					pDest->size *= 2;
-					pDest->pArr = pAlloc->pRealloc(pDest->pArr, pDest->size * sizeof(Attrib));
-				}
-				pDest->pArr[pDest->count].core.type = pSrc->pArr[j].core.type;
-				memcpy(pDest->pArr[pDest->count].core.name, pSrc->pArr[j].core.name,
-				       STUC_ATTRIB_NAME_MAX_LEN);
-				pDest->pArr[pDest->count].origin = pSrc->pArr[j].origin;
-				pDest->pArr[pDest->count].core.use = pSrc->pArr[j].core.use;
-				pDest->pArr[pDest->count].interpolate = pSrc->pArr[j].interpolate;
-				int32_t attribSize = getAttribSize(pSrc->pArr[j].core.type);
-				pDest->pArr[pDest->count].core.pData = pAlloc->pCalloc(dataLen, attribSize);
-				pDest->count++;
-			}
+			allocAttribsFromArr(pAlloc, pDest, pSrc, dataLen, setCommon);
 		}
 	}
 	if (!pDest->count) {
@@ -2513,128 +2521,128 @@ int32_t checkIfSpecialBufAttrib(Attrib *pAttrib) {
 //differs from regular func, as it checks if special attrib
 //by comparing pointers, to avoid needing to compare a bunch of strings
 static
-SpecialAttrib quickCheckIfSpecialAttrib(Mesh *pMesh, Attrib *pAttrib) {
-	if (pAttrib->core.pData == pMesh->pVerts) {
+SpecialAttrib quickCheckIfSpecialAttrib(Mesh *pMesh, AttribCore *pAttrib) {
+	if (pAttrib->pData == pMesh->pVerts) {
 		return STUC_ATTRIB_SP_VERTS;
 	}
-	else if (pAttrib->core.pData == pMesh->pUvs) {
+	else if (pAttrib->pData == pMesh->pUvs) {
 		return STUC_ATTRIB_SP_UVS;
 	}
-	else if (pAttrib->core.pData == pMesh->pNormals) {
+	else if (pAttrib->pData == pMesh->pNormals) {
 		return STUC_ATTRIB_SP_NORMALS;
 	}
-	else if (pAttrib->core.pData == pMesh->pEdgePreserve) {
+	else if (pAttrib->pData == pMesh->pEdgePreserve) {
 		return STUC_ATTRIB_SP_PRESERVE;
 	}
-	else if (pAttrib->core.pData == pMesh->pEdgeReceive) {
+	else if (pAttrib->pData == pMesh->pEdgeReceive) {
 		return STUC_ATTRIB_SP_RECEIVE;
 	}
-	else if (pAttrib->core.pData == pMesh->pVertPreserve) {
+	else if (pAttrib->pData == pMesh->pVertPreserve) {
 		return STUC_ATTRIB_SP_PRESERVE_VERT;
 	}
-	else if (pAttrib->core.pData == pMesh->pUsg) {
+	else if (pAttrib->pData == pMesh->pUsg) {
 		return STUC_ATTRIB_SP_USG;
 	}
-	else if (pAttrib->core.pData == pMesh->pTangents) {
+	else if (pAttrib->pData == pMesh->pTangents) {
 		return STUC_ATTRIB_SP_TANGENTS;
 	}
-	else if (pAttrib->core.pData == pMesh->pTSigns) {
+	else if (pAttrib->pData == pMesh->pTSigns) {
 		return STUC_ATTRIB_SP_TSIGNS;
 	}
-	else if (pAttrib->core.pData == pMesh->pWScale) {
+	else if (pAttrib->pData == pMesh->pWScale) {
 		return STUC_ATTRIB_SP_WSCALE;
 	}
-	else if (pAttrib->core.pData == pMesh->pMatIdx) {
+	else if (pAttrib->pData == pMesh->pMatIdx) {
 		return STUC_ATTRIB_SP_MAT_IDX;
 	}
 	return STUC_ATTRIB_SP_NONE;
 }
 
 static
-SpecialBufAttrib quickCheckIfSpecialBufAttrib(BufMesh *pMesh, Attrib *pAttrib) {
+SpecialBufAttrib quickCheckIfSpecialBufAttrib(BufMesh *pMesh, AttribCore *pAttrib) {
 	//TODO put obj or mesh type check (either asserts or if statements)
 	// at the start of more functions
 	if (pMesh->mesh.core.type.type != STUC_OBJECT_DATA_MESH_BUF) {
 		return STUC_ATTRIB_SP_BUF_NONE;
 	}
-	if (pAttrib->core.pData == pMesh->pW) {
+	if (pAttrib->pData == pMesh->pW) {
 		return STUC_ATTRIB_SP_BUF_W;
 	}
-	else if (pAttrib->core.pData == pMesh->pInNormal) {
+	else if (pAttrib->pData == pMesh->pInNormal) {
 		return STUC_ATTRIB_SP_BUF_IN_NORMAL;
 	}
-	else if (pAttrib->core.pData == pMesh->pInTangent) {
+	else if (pAttrib->pData == pMesh->pInTangent) {
 		return STUC_ATTRIB_SP_BUF_IN_TANGENT;
 	}
-	else if (pAttrib->core.pData == pMesh->pInTSign) {
+	else if (pAttrib->pData == pMesh->pInTSign) {
 		return STUC_ATTRIB_SP_BUF_IN_T_SIGN;
 	}
-	else if (pAttrib->core.pData == pMesh->pAlpha) {
+	else if (pAttrib->pData == pMesh->pAlpha) {
 		return STUC_ATTRIB_SP_BUF_ALPHA;
 	}
 	return STUC_ATTRIB_SP_BUF_NONE;
 }
 
 static
-void reassignIfSpecial(Mesh *pMesh, Attrib *pAttrib, SpecialAttrib special) {
+void reassignIfSpecial(Mesh *pMesh, AttribCore *pAttrib, SpecialAttrib special) {
 	switch (special) {
 		case (STUC_ATTRIB_SP_NONE):
 			break;
 		case (STUC_ATTRIB_SP_VERTS):
-			pMesh->pVerts = pAttrib->core.pData;
+			pMesh->pVerts = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_UVS):
-			pMesh->pUvs = pAttrib->core.pData;
+			pMesh->pUvs = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_NORMALS):
-			pMesh->pNormals = pAttrib->core.pData;
+			pMesh->pNormals = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_PRESERVE):
-			pMesh->pEdgePreserve = pAttrib->core.pData;
+			pMesh->pEdgePreserve = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_RECEIVE):
-			pMesh->pEdgeReceive = pAttrib->core.pData;
+			pMesh->pEdgeReceive = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_PRESERVE_VERT):
-			pMesh->pVertPreserve = pAttrib->core.pData;
+			pMesh->pVertPreserve = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_USG):
-			pMesh->pUsg = pAttrib->core.pData;
+			pMesh->pUsg = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_TANGENTS):
-			pMesh->pTangents = pAttrib->core.pData;
+			pMesh->pTangents = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_TSIGNS):
-			pMesh->pTSigns = pAttrib->core.pData;
+			pMesh->pTSigns = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_WSCALE):
-			pMesh->pWScale = pAttrib->core.pData;
+			pMesh->pWScale = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_MAT_IDX):
-			pMesh->pMatIdx = pAttrib->core.pData;
+			pMesh->pMatIdx = pAttrib->pData;
 			break;
 	}
 }
 
 static
-void reassignIfSpecialBuf(BufMesh *pMesh, Attrib *pAttrib, SpecialBufAttrib special) {
+void reassignIfSpecialBuf(BufMesh *pMesh, AttribCore *pAttrib, SpecialBufAttrib special) {
 	switch (special) {
 		case (STUC_ATTRIB_SP_BUF_NONE):
 			break;
 		case (STUC_ATTRIB_SP_BUF_W):
-			pMesh->pW = pAttrib->core.pData;
+			pMesh->pW = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_IN_NORMAL):
-			pMesh->pInNormal = pAttrib->core.pData;
+			pMesh->pInNormal = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_IN_TANGENT):
-			pMesh->pInTangent = pAttrib->core.pData;
+			pMesh->pInTangent = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_IN_T_SIGN):
-			pMesh->pInTSign = pAttrib->core.pData;
+			pMesh->pInTSign = pAttrib->pData;
 			break;
 		case (STUC_ATTRIB_SP_BUF_ALPHA):
-			pMesh->pAlpha = pAttrib->core.pData;
+			pMesh->pAlpha = pAttrib->pData;
 			break;
 	}
 }
@@ -2648,8 +2656,7 @@ void reallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
 	}
 	int8_t oldFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
 	int32_t attribSize = getAttribSize(pAttrib->type);
-	pAttrib->pData =
-		pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
+	pAttrib->pData = pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
 	int8_t newFirstElement = *(int8_t *)attribAsVoid(pAttrib, 0);
 	STUC_ASSERT("", newFirstElement == oldFirstElement);
 	reassignIfSpecial(pMesh, pAttrib, special);
@@ -2672,15 +2679,15 @@ void reallocAttribs(const StucAlloc *pAlloc, Mesh *pMesh,
 
 void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
                            AttribArray *pAttribArr, const int32_t start,
-						   const int32_t offset, const int32_t lenToCopy,
-						   const int32_t newLen) {
+                           const int32_t offset, const int32_t lenToCopy,
+                           const int32_t newLen) {
 	STUC_ASSERT("", newLen >= 0 && newLen < 100000000);
 	STUC_ASSERT("", start >= 0 && start < newLen);
 	for (int32_t i = 0; i < pAttribArr->count; ++i) {
 		//this func has stuff unique to bufmeshes, and so doesn't use reallocAttrib()
 		Attrib *pAttrib = pAttribArr->pArr + i;
-		SpecialAttrib special = quickCheckIfSpecialAttrib((Mesh *)pMesh, pAttrib);
-		SpecialBufAttrib specialBuf = quickCheckIfSpecialBufAttrib(pMesh, pAttrib);
+		SpecialAttrib special = quickCheckIfSpecialAttrib((Mesh *)pMesh, &pAttrib->core);
+		SpecialBufAttrib specialBuf = quickCheckIfSpecialBufAttrib(pMesh, &pAttrib->core);
 		//Check entry is valid
 		STUC_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
 		int8_t oldFirstElement =
@@ -2692,7 +2699,7 @@ void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
 			pAlloc->pRealloc(pAttrib->core.pData, attribSize * newLen);
 		if (lenToCopy) {
 			memmove(attribAsVoid(&pAttrib->core, start + offset),
-					attribAsVoid(&pAttrib->core, start), attribSize * lenToCopy);
+			        attribAsVoid(&pAttrib->core, start), attribSize * lenToCopy);
 			int8_t newFirstElement =
 				*(int8_t *)attribAsVoid(&pAttrib->core, start + offset);
 			int8_t newLastElement =
@@ -2700,8 +2707,8 @@ void reallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
 			STUC_ASSERT("", newFirstElement == oldFirstElement);
 			STUC_ASSERT("", newLastElement == oldLastElement);
 		}
-		reassignIfSpecial((Mesh *)pMesh, pAttrib, special);
-		reassignIfSpecialBuf((BufMesh *)pMesh, pAttrib, specialBuf);
+		reassignIfSpecial((Mesh *)pMesh, &pAttrib->core, special);
+		reassignIfSpecialBuf((BufMesh *)pMesh, &pAttrib->core, specialBuf);
 		STUC_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
 }
@@ -2905,4 +2912,15 @@ void appendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char 
 	*ppAttrib = pArr->pArr + pArr->count;
 	pArr->count++;
 	initAttrib(pAlloc, *ppAttrib, pName, dataLen, interpolate, origin, type);
+}
+
+int32_t stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName) {
+	for (int32_t k = 0; k < pMats->count; ++k) {
+		if (!strncmp(attribAsStr(&pMats->core, k), pMatName,
+		    STUC_ATTRIB_STRING_MAX_LEN)) {
+
+			return k;
+		}
+	}
+	return -1;
 }

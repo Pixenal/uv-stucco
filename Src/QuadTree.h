@@ -79,14 +79,14 @@ void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, FaceCells *pEntry);
 void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pState);
 void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
-							   FaceBounds *pFaceBounds, int32_t faceIdx, Range faceRange);
+                               FaceBounds *pFaceBounds, int32_t faceIdx, Range faceRange);
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
 Result stucCreateQuadTree(StucContext pContext, StucMap pMap);
 void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree);
 void getEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range inFaceRange,
                       Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
-					  int8_t maskIdx, int32_t *pAverageMapFacesPerFace);
+                      int8_t maskIdx, int32_t *pAverageMapFacesPerFace);
 int32_t checkIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
                                 FaceBounds *pFaceBounds, V2_I32 tileMin);
 void getFaceBoundsForTileTest(FaceBounds *pFaceBounds,

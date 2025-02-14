@@ -95,13 +95,13 @@ typedef struct OnLine {
 typedef struct BorderVert {
 	struct BorderVert *pNext;
 	int32_t entryIdx;
-	int32_t stucFace;
-	int32_t stucEdge;
+	int32_t mapFace;
+	int32_t mapEdge;
 	int32_t vert;
 	V2_I16 tile;
 	int32_t corners;
-	int32_t baseEdge;
-	int32_t baseVert;
+	int32_t inEdge;
+	int32_t inVert;
 	int32_t cornerIdx;
 	int32_t corner;
 	int8_t job;
@@ -165,8 +165,8 @@ void stucAllocMergeBufs(StucContext pContext, MergeBufHandles *pHandle,
                         int32_t totalVerts);
 void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
                                int32_t entryIdx, PieceArr *pPieceArr,
-							   FaceRange *pStucFace,
-							   MergeBufHandles *pMergeBufHandles,
+                               FaceRange *pStucFace,
+                               MergeBufHandles *pMergeBufHandles,
                                int32_t *pInFaces, int32_t entryCount);
 void stucDestroyMergeBufs(StucContext pContext, MergeBufHandles *pHandle);
 Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,

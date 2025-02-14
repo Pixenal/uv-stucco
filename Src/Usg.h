@@ -44,7 +44,7 @@ StucResult assignUsgsToVerts(StucAlloc *pAlloc,
 StucResult sampleInAttribsAtUsgOrigins(StucContext pContext, StucMap pMap, Mesh *pInMesh,
                                        StucMesh *pSquares, InFaceArr *pInFaceTable);
 bool sampleUsg(int32_t stucCorner, V3_F32 uvw, V3_F32 *pPos, bool *pTransformed, 
-               V3_F32 *pUsgBc, FaceRange stucFace, StucMap pMap, int32_t inFace,
+               V3_F32 *pUsgBc, FaceRange *pMapFace, StucMap pMap, int32_t inFace,
                Mesh *pInMesh, V3_F32 *pNormal, V2_F32 tileMin,
                bool useFlatCutoff, bool flatCutoffOveride, Mat3x3 *pTbn);
 bool isPointInsideMesh(StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh);

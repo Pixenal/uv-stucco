@@ -3,7 +3,7 @@
 #include <MathUtils.h>
 
 V4_F32 v4MultiplyMat4x4(V4_F32 a, Mat4x4 *pB) {
-	V4_F32 c;
+	V4_F32 c = {0};
 	c.d[0] = a.d[0] * pB->d[0][0] + a.d[1] * pB->d[1][0] + a.d[2] * pB->d[2][0] + a.d[3] * pB->d[3][0];
 	c.d[1] = a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1] + a.d[3] * pB->d[3][1];
 	c.d[2] = a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2] + a.d[3] * pB->d[3][2];
@@ -76,7 +76,7 @@ int32_t v3AproxEqual(V3_F32 a, V3_F32 b) {
 
 V3_F32 v3Lerp(V3_F32 a, V3_F32 b, float alpha) {
 	float alphaInverse = 1.0f - alpha;
-	V3_F32 c;
+	V3_F32 c = {0};
 	c.d[0] = a.d[0] * alphaInverse + b.d[0] * alpha;
 	c.d[1] = a.d[1] * alphaInverse + b.d[1] * alpha;
 	c.d[2] = a.d[2] * alphaInverse + b.d[2] * alpha;
@@ -99,7 +99,7 @@ V3_F32 v3Cross(V3_F32 a, V3_F32 b) {
 }
 
 V3_F32 v3MultiplyMat3x3(V3_F32 a, Mat3x3 *pB) {
-	V3_F32 c;
+	V3_F32 c = {0};
 	c.d[0] = a.d[0] * pB->d[0][0] + a.d[1] * pB->d[1][0] + a.d[2] * pB->d[2][0];
 	c.d[1] = a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1];
 	c.d[2] = a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2];
@@ -164,7 +164,7 @@ V2_F32 v2Abs(V2_F32 a) {
 }
 
 V2_F32 v2Multiply(V2_F32 a, V2_F32 b) {
-	V2_F32 c;
+	V2_F32 c = {0};
 	c.d[0] = a.d[0] * b.d[0];
 	c.d[1] = a.d[1] * b.d[1];
 	return c;
@@ -176,7 +176,7 @@ void v2MultiplyEqual(V2_F32 *a, V2_F32 b) {
 }
 
 V2_F32 v2DivideScalar(V2_F32 a, float b) {
-	V2_F32 c;
+	V2_F32 c = {0};
 	c.d[0] = a.d[0] / b;
 	c.d[1] = a.d[1] / b;
 	return c;
@@ -328,7 +328,7 @@ int32_t v2IsFinite(V2_F32 a) {
 }
 
 Mat2x2 mat2x2Adjugate(Mat2x2 a) {
-	Mat2x2 c;
+	Mat2x2 c = {0};
 	c.d[0][0] = a.d[1][1];
 	c.d[0][1] = -a.d[0][1];
 	c.d[1][0] = -a.d[1][0];
@@ -359,6 +359,7 @@ int32_t mat2x2IsFinite(Mat2x2 *pA) {
 	       isfinite(pA->d[1][0]) && isfinite(pA->d[1][1]);
 }
 
+static
 float mat3x3Determinate(Mat3x3 *pA) {
 	float aDet = pA->d[1][1] * pA->d[2][2] - pA->d[2][1] * pA->d[1][2];
 	float bDet = pA->d[0][1] * pA->d[2][2] - pA->d[2][1] * pA->d[0][2];
@@ -366,8 +367,9 @@ float mat3x3Determinate(Mat3x3 *pA) {
 	return pA->d[0][0] * aDet - pA->d[1][0] * bDet + pA->d[2][0] * cDet;
 }
 
+static
 Mat3x3 mat3x3Adjugate(Mat3x3 *pA) {
-	Mat3x3 c;
+	Mat3x3 c = {0};
 	c.d[0][0] = pA->d[1][1] * pA->d[2][2] - pA->d[2][1] * pA->d[1][2];
 	c.d[0][1] = pA->d[0][1] * pA->d[2][2] - pA->d[2][1] * pA->d[0][2];
 	c.d[0][2] = pA->d[0][1] * pA->d[1][2] - pA->d[1][1] * pA->d[0][2];
@@ -384,6 +386,7 @@ Mat3x3 mat3x3Adjugate(Mat3x3 *pA) {
 	return c;
 }
 
+static
 void mat3x3MultiplyEqualScalar(Mat3x3 *pA, float b) {
 	for (int32_t i = 0; i < 3; ++i) {
 		for (int32_t j = 0; j < 3; ++j) {
@@ -393,7 +396,7 @@ void mat3x3MultiplyEqualScalar(Mat3x3 *pA, float b) {
 }
 
 Mat3x3 mat3x3FromV3_F32(V3_F32 a, V3_F32 b, V3_F32 c) {
-	Mat3x3 mat;
+	Mat3x3 mat = {0};
 	mat.d[0][0] = a.d[0];
 	mat.d[0][1] = a.d[1];
 	mat.d[0][2] = a.d[2];
@@ -431,7 +434,7 @@ int32_t mat3x3IsFinite(Mat3x3 *pA) {
 }
 
 Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b) {
-	Mat2x3 c;
+	Mat2x3 c = {0};
 	c.d[0][0] = a.d[0][0] * b.d[0][0] + a.d[0][1] * b.d[1][0];
 	c.d[0][1] = a.d[0][0] * b.d[0][1] + a.d[0][1] * b.d[1][1];
 	c.d[0][2] = a.d[0][0] * b.d[0][2] + a.d[0][1] * b.d[1][2];
@@ -448,7 +451,7 @@ float customFloor(float a) {
 }
 
 V2_I32 v2FloorAssign(V2_F32 *pA) {
-	V2_I32 c;
+	V2_I32 c = {0};
 	c.d[0] = pA->d[0] = customFloor(pA->d[0]);
 	c.d[1] = pA->d[1] = customFloor(pA->d[1]);
 	return c;
@@ -456,28 +459,28 @@ V2_I32 v2FloorAssign(V2_F32 *pA) {
 
 
 V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint) {
-	V3_F32 pointCartesian;
+	V3_F32 pointCartesian = {0};
 	pointCartesian.d[0] = (pPoint->d[0] * pTri[0].d[0]) +
 	                      (pPoint->d[1] * pTri[1].d[0]) +
 	                      (pPoint->d[2] * pTri[2].d[0]);
 	pointCartesian.d[1] = (pPoint->d[0] * pTri[0].d[1]) +
 	                      (pPoint->d[1] * pTri[1].d[1]) +
-						  (pPoint->d[2] * pTri[2].d[1]);
+	                      (pPoint->d[2] * pTri[2].d[1]);
 	pointCartesian.d[2] = (pPoint->d[0] * pTri[0].d[2]) +
 	                      (pPoint->d[1] * pTri[1].d[2]) +
-						  (pPoint->d[2] * pTri[2].d[2]);
+	                      (pPoint->d[2] * pTri[2].d[2]);
 	return pointCartesian;
 }
 
 V3_F32 cartesianToBarycentric(V2_F32 *pTri32, V2_F32 *pPoint32) {
-	V3_F32 pointBc;
+	V3_F32 pointBc = {0};
 	double derta = .0;
 	double dertau = .0;
 	double dertav = .0;
 
 	//Convert to double
 	V3_F64 pPoint = {.d = {pPoint32->d[0], pPoint32->d[1]}};
-	V3_F64 pTri[3];
+	V3_F64 pTri[3] = {0};
 	for (int32_t i = 0; i < 3; ++i) {
 		pTri[i].d[0] = pTri32[i].d[0];
 		pTri[i].d[1] = pTri32[i].d[1];
@@ -485,16 +488,16 @@ V3_F32 cartesianToBarycentric(V2_F32 *pTri32, V2_F32 *pPoint32) {
 
 	//Perform cramers rule
 	derta = (pTri[0].d[0] * pTri[1].d[1]) - (pTri[0].d[0] * pTri[2].d[1]) -
-			(pTri[1].d[0] * pTri[0].d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
-			(pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
+	        (pTri[1].d[0] * pTri[0].d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
+	        (pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
 	//Get determinate of Au
 	dertau = (pPoint.d[0] * pTri[1].d[1]) - (pPoint.d[0] * pTri[2].d[1]) -
-			 (pTri[1].d[0] * pPoint.d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
-			 (pTri[2].d[0] * pPoint.d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
+	         (pTri[1].d[0] * pPoint.d[1]) + (pTri[1].d[0] * pTri[2].d[1]) +
+	         (pTri[2].d[0] * pPoint.d[1]) - (pTri[2].d[0] * pTri[1].d[1]);
 	//Get determinate of Av
 	dertav = (pTri[0].d[0] * pPoint.d[1]) - (pTri[0].d[0] * pTri[2].d[1]) -
-			 (pPoint.d[0] * pTri[0].d[1]) + (pPoint.d[0] * pTri[2].d[1]) +
-			 (pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pPoint.d[1]);
+	         (pPoint.d[0] * pTri[0].d[1]) + (pPoint.d[0] * pTri[2].d[1]) +
+	         (pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pPoint.d[1]);
 
 	//u = dert(Au) / dert(A)
 	pointBc.d[0] = dertau / derta;

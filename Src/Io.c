@@ -285,14 +285,11 @@ void getUniqueFlatCutoffs(StucContext pContext, int32_t usgCount,
 		(*ppIndices)[i] =
 			addUniqToPtrArr(pUsgArr[i].pFlatCutoff, pCutoffCount, *pppCutoffs);
 	}
-	*pppCutoffs =
-		pContext->alloc.pRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
+	*pppCutoffs = pContext->alloc.pRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
 }
 
 static
 int64_t estimateObjSize(StucObject *pObj) {
-	//marking literal constants l here is pointless on windows,
-	//i'm only doing it to avoid gcc/clang errors with Wall & Werror
 	int64_t total = 0l;
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
 	total += 4l * 16l; //transform
@@ -348,7 +345,7 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 	int32_t cutoffCount = 0;
 	if (usgCount) {
 		getUniqueFlatCutoffs(pContext, usgCount, pUsgArr, &cutoffCount, &ppCutoffs,
-							 &pCutoffIndices);
+		                     &pCutoffIndices);
 	}
 	data.size = estimateObjArrSize(objCount, pObjArr) +
 	            estimateUsgArrSize(usgCount, pUsgArr);
@@ -415,7 +412,7 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 	              16l + //version
 	              64l + //compressed data size
 	              64l + //uncompressed data size
-                  32l + //indexed attrib count
+	              32l + //indexed attrib count
 	              32l + //obj count
 	              32l + //usg count
 	              32l;  //flatten cutoff count
@@ -487,15 +484,17 @@ StucResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs
 	return STUC_SUCCESS;
 }
 
-static void decodeAttribs(StucContext pContext, ByteString *pData,
-                          AttribArray *pAttribs, int32_t dataLen) {
+static
+void decodeAttribs(StucContext pContext, ByteString *pData, AttribArray *pAttribs,
+                   int32_t dataLen) {
 	stageBeginWrap(pContext, "", pAttribs->count * dataLen);
 	const char stageName[] = "Deconding attrib ";
 	char stageBuf[STUC_STAGE_NAME_LEN] = {0};
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		Attrib* pAttrib = pAttribs->pArr + i;
 		memcpy(stageBuf, stageName, sizeof(stageName));
-		setStageName(pContext, strncat(stageBuf, pAttrib->core.name, STUC_STAGE_NAME_LEN - sizeof(stageName)));
+		setStageName(pContext, strncat(stageBuf, pAttrib->core.name,
+		             STUC_STAGE_NAME_LEN - sizeof(stageName)));
 		int32_t attribSize = getAttribSize(pAttrib->core.type);
 		pAttrib->core.pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
@@ -537,8 +536,9 @@ void decodeIndexedAttribs(StucContext pContext, ByteString *pData,
 	}
 }
 
-static StucHeader decodeStucHeader(StucContext pContext, ByteString *headerByteString,
-                                   AttribIndexedArr *pIndexedAttribs) {
+static
+StucHeader decodeStucHeader(StucContext pContext, ByteString *headerByteString,
+                            AttribIndexedArr *pIndexedAttribs) {
 	StucHeader header = {0};
 	decodeString(headerByteString, (uint8_t*)&header.format, MAP_FORMAT_NAME_MAX_LEN);
 	decodeValue(headerByteString, (uint8_t *)&header.version, 16);
@@ -755,7 +755,7 @@ StucResult decodeStucData(StucContext pContext, StucHeader *pHeader,
 				int32_t cutoffIdx = 0;
 				decodeValue(dataByteString, (uint8_t *)&cutoffIdx, 32);
 				STUC_ASSERT("", cutoffIdx >= 0 &&
-								cutoffIdx < pHeader->flatCutoffCount);
+				                cutoffIdx < pHeader->flatCutoffCount);
 				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIdx;
 			}
 		}
@@ -766,7 +766,7 @@ StucResult decodeStucData(StucContext pContext, StucHeader *pHeader,
 StucResult stucLoadStucFile(StucContext pContext, char *filePath,
                             int32_t *pObjCount, StucObject **ppObjArr,
                             int32_t *pUsgCount, StucUsg **ppUsgArr,
-	                        int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
+                            int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
                             bool forEdit, StucAttribIndexedArr *pIndexedAttribs) {
 	StucResult status = STUC_NOT_SET;
 	ByteString headerByteString = {0};
@@ -795,10 +795,10 @@ StucResult stucLoadStucFile(StucContext pContext, char *filePath,
 	pContext->io.pClose(pFile);
 	dataByteString.pString = pContext->alloc.pMalloc(header.dataSize);
 	printf("Decompressing data\n");
-	z_streamp stream;
-	uint64_t size;
+	z_streamp stream = {0};
+	uint64_t size = {0};
 	int32_t zResult = uncompress(dataByteString.pString, &dataSizeUncompressed,
-			                     dataByteStringRaw, header.dataSizeCompressed);
+	                             dataByteStringRaw, header.dataSizeCompressed);
 	pContext->alloc.pFree(dataByteStringRaw);
 	switch(zResult) {
 		case Z_OK:
@@ -841,5 +841,5 @@ void stucIoSetDefault(StucContext pContext) {
 	pContext->io.pOpen = stucPlatformFileOpen;
 	pContext->io.pClose = stucPlatformFileClose;
 	pContext->io.pWrite = stucPlatformFileWrite;
-    pContext->io.pRead = stucPlatformFileRead;
+	pContext->io.pRead = stucPlatformFileRead;
 }

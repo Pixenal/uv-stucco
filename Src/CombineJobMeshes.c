@@ -63,10 +63,9 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 			break;
 		}
 	}
-	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false, true);
+	allocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false);
 	setSpecialAttribs(pContext, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
-	JobBases *pJobBases =
-		pContext->alloc.pMalloc(sizeof(JobBases) * mapJobsSent);
+	JobBases *pJobBases = pContext->alloc.pMalloc(sizeof(JobBases) * mapJobsSent);
 	uint64_t reallocTime = 0;
 	for (int32_t i = 0; i < mapJobsSent; ++i) {
 		reallocTime += pJobArgs[i].reallocTime;
@@ -113,14 +112,14 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 //Though for face end, and size, call getFaceRange
 BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
                                   const SendOffArgs *pJobArgs,
-								  const int32_t cornerIdx) {
+                                  const int32_t cornerIdx) {
 	BorderInInfo inInfo = {0};
-	STUC_ASSERT("", pEntry->baseFace >= 0);
-	STUC_ASSERT("", pEntry->baseFace < pJobArgs[pEntry->job].mesh.core.faceCount);
+	STUC_ASSERT("", pEntry->inFace >= 0);
+	STUC_ASSERT("", pEntry->inFace < pJobArgs[pEntry->job].mesh.core.faceCount);
 	inInfo.cornerLocal = getBaseCorner(pEntry, cornerIdx);
 	STUC_ASSERT("", inInfo.cornerLocal >= 0);
-	inInfo.start = pJobArgs[pEntry->job].mesh.core.pFaces[pEntry->baseFace];
-	inInfo.end = pJobArgs[pEntry->job].mesh.core.pFaces[pEntry->baseFace + 1];
+	inInfo.start = pJobArgs[pEntry->job].mesh.core.pFaces[pEntry->inFace];
+	inInfo.end = pJobArgs[pEntry->job].mesh.core.pFaces[pEntry->inFace + 1];
 	inInfo.size = inInfo.end - inInfo.start;
 	STUC_ASSERT("", inInfo.start >= 0);
 	STUC_ASSERT("", inInfo.start < pJobArgs[pEntry->job].mesh.core.cornerCount);
@@ -227,7 +226,7 @@ V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry) {
 }
 
 int32_t bufMeshGetVertIdx(const Piece *pPiece,
-                            const BufMesh *pBufMesh, const int32_t localCorner) {
+                          const BufMesh *pBufMesh, const int32_t localCorner) {
 	bool isStuc = getIfStuc(pPiece->pEntry, localCorner);
 	bool isOnLine = getIfOnLine(pPiece->pEntry, localCorner);
 	int32_t vert = pBufMesh->mesh.core.pCorners[pPiece->bufFace.start - localCorner];
@@ -238,7 +237,7 @@ int32_t bufMeshGetVertIdx(const Piece *pPiece,
 }
 
 int32_t bufMeshGetEdgeIdx(const Piece *pPiece,
-                            const BufMesh *pBufMesh, const int32_t localCorner) {
+                          const BufMesh *pBufMesh, const int32_t localCorner) {
 	bool isStuc = getIfStuc(pPiece->pEntry, localCorner);
 	bool isOnLine = getIfOnLine(pPiece->pEntry, localCorner);
 	int32_t edge = pBufMesh->mesh.core.pEdges[pPiece->bufFace.start - localCorner];
