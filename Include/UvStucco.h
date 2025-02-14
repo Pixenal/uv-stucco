@@ -334,7 +334,7 @@ typedef struct {
 } StucAlloc;
 
 typedef struct {
-	void (*pInit)(void **, int32_t *, StucAlloc *);
+	void (*pInit)(void **, int32_t *, const StucAlloc *);
 	void (*pJobStackGetJob)(void *, void **);
 	int32_t (*pJobStackPushJobs)(void *, int32_t , void **, StucResult (*)(void *),
 	                             void **);
@@ -381,7 +381,7 @@ typedef struct StucStageReport {
 } StucStageReport;
 
 STUC_EXPORT
-StucResult stucThreadPoolSetCustom(StucContext context, StucThreadPool *pThreadPool);
+StucResult stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
 StucResult stucContextInit(StucContext *pContext, StucAlloc *pAlloc,
                            StucThreadPool *pTheadPool, StucIo *pIo,

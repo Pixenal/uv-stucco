@@ -174,16 +174,16 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
                             int8_t *pVertSeamTable, bool *pEdgeSeamTable,
                             InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
                             int32_t mapJobsSent);
-BorderInInfo getBorderEntryInInfo(const BorderFace *pEntry,
-                                  const SendOffArgs *pJobArgs, int32_t cornerIdx);
-bool getIfStuc(const BorderFace *pEntry, int32_t cornerIdx);
-bool getIfOnInVert(const BorderFace *pEntry, int32_t cornerIdx);
-bool getIfOnLine(const BorderFace *pEntry, int32_t cornerIdx);
-int32_t getSegment(const BorderFace *pEntry, int32_t cornerIdx);
-int32_t getMapCorner(const BorderFace *pEntry, int32_t cornerIdx);
-int32_t getBaseCorner(const BorderFace *pEntry, int32_t cornerIdx);
-V2_I16 getTileMinFromBoundsEntry(BorderFace *pEntry);
-int32_t bufMeshGetVertIdx(const Piece *pPiece,
-                            const BufMesh *pBufMesh, int32_t localCorner);
-int32_t bufMeshGetEdgeIdx(const Piece *pPiece,
-                            const BufMesh *pBufMesh, int32_t localCorner);
+BorderInInfo stucGetBorderEntryInInfo(const BorderFace *pEntry,
+                                      const SendOffArgs *pJobArgs, int32_t cornerIdx);
+bool stucGetIfStuc(const BorderFace *pEntry, int32_t cornerIdx);
+bool stucGetIfOnInVert(const BorderFace *pEntry, int32_t cornerIdx);
+bool stucGetIfOnLine(const BorderFace *pEntry, int32_t cornerIdx);
+int32_t stucGetSegment(const BorderFace *pEntry, int32_t cornerIdx);
+int32_t stucGetMapCorner(const BorderFace *pEntry, int32_t cornerIdx);
+int32_t stucGetBaseCorner(const BorderFace *pEntry, int32_t cornerIdx);
+V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry);
+int32_t stucBufMeshGetVertIdx(const Piece *pPiece,
+                              const BufMesh *pBufMesh, int32_t localCorner);
+int32_t stucBufMeshGetEdgeIdx(const Piece *pPiece,
+                              const BufMesh *pBufMesh, int32_t localCorner);

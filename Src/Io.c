@@ -36,8 +36,8 @@ void reallocByteStringIfNeeded(StucAlloc *pAlloc,
 	}
 }
 
-void encodeValue(StucAlloc *pAlloc, ByteString *pByteString,
-                 uint8_t *pValue, int32_t lengthInBits) {
+void stucEncodeValue(StucAlloc *pAlloc, ByteString *pByteString,
+                     uint8_t *pValue, int32_t lengthInBits) {
 	reallocByteStringIfNeeded(pAlloc, pByteString, lengthInBits);
 	uint8_t valueBuf[ENCODE_DECODE_BUFFER_LENGTH] = {0};
 	int32_t lengthInBytes = lengthInBits / 8;
@@ -60,7 +60,7 @@ void encodeValue(StucAlloc *pAlloc, ByteString *pByteString,
 	pByteString->nextBitIdx %= 8;
 }
 
-void encodeString(StucAlloc *pAlloc, ByteString *pByteString, uint8_t *pString) {
+void stucEncodeString(StucAlloc *pAlloc, ByteString *pByteString, uint8_t *pString) {
 	int32_t lengthInBits = (strlen((char *)pString) + 1) * 8;
 	int32_t lengthInBytes = lengthInBits / 8;
 	//+8 for potential padding
@@ -76,7 +76,7 @@ void encodeString(StucAlloc *pAlloc, ByteString *pByteString, uint8_t *pString) 
 	}
 }
 
-void decodeValue(ByteString *pByteString, uint8_t *pValue, int32_t lengthInBits) {
+void stucDecodeValue(ByteString *pByteString, uint8_t *pValue, int32_t lengthInBits) {
 	int32_t lengthInBytes = lengthInBits / 8;
 	int32_t bitDifference = lengthInBits - lengthInBytes * 8;
 	lengthInBytes += bitDifference > 0;
@@ -100,7 +100,7 @@ void decodeValue(ByteString *pByteString, uint8_t *pValue, int32_t lengthInBits)
 	pByteString->nextBitIdx %= 8;
 }
 
-void decodeString(ByteString *pByteString, char *pString, int32_t maxLen) {
+void stucDecodeString(ByteString *pByteString, char *pString, int32_t maxLen) {
 	pByteString->byteIdx += pByteString->nextBitIdx > 0;
 	uint8_t *dataPtr = pByteString->pString + pByteString->byteIdx;
 	int32_t i = 0;
@@ -118,14 +118,14 @@ void encodeAttribs(StucAlloc *pAlloc, ByteString *pData,
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < dataLen; ++j) {
-				void *pString = attribAsVoid(&pAttribs->pArr[i].core, j);
-				encodeString(pAlloc, pData, pString);
+				void *pString = stucAttribAsVoid(&pAttribs->pArr[i].core, j);
+				stucEncodeString(pAlloc, pData, pString);
 			}
 		}
 		else {
-			int32_t attribSize = getAttribSize(pAttribs->pArr[i].core.type) * 8;
+			int32_t attribSize = stucGetAttribSizeIntern(pAttribs->pArr[i].core.type) * 8;
 			for (int32_t j = 0; j < dataLen; ++j) {
-				encodeValue(pAlloc, pData, attribAsVoid(&pAttribs->pArr[i].core, j), attribSize);
+				stucEncodeValue(pAlloc, pData, stucAttribAsVoid(&pAttribs->pArr[i].core, j), attribSize);
 			}
 		}
 	}
@@ -140,14 +140,14 @@ void encodeIndexedAttribs(StucAlloc *pAlloc, ByteString *pData,
 		AttribIndexed *pAttrib = pAttribs->pArr + i;
 		if (pAttrib->core.type == STUC_ATTRIB_STRING) {
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
-				void *pString = attribAsVoid(&pAttrib->core, j);
-				encodeString(pAlloc, pData, pString);
+				void *pString = stucAttribAsVoid(&pAttrib->core, j);
+				stucEncodeString(pAlloc, pData, pString);
 			}
 		}
 		else {
-			int32_t attribSize = getAttribSize(pAttrib->core.type) * 8;
+			int32_t attribSize = stucGetAttribSizeIntern(pAttrib->core.type) * 8;
 			for (int32_t j = 0; j < pAttrib->count; ++j) {
-				encodeValue(pAlloc, pData, attribAsVoid(&pAttrib->core, j), attribSize);
+				stucEncodeValue(pAlloc, pData, stucAttribAsVoid(&pAttrib->core, j), attribSize);
 			}
 		}
 	}
@@ -156,10 +156,10 @@ void encodeIndexedAttribs(StucAlloc *pAlloc, ByteString *pData,
 static
 void encodeAttribMeta(StucAlloc *pAlloc, ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
-		encodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].core.name);
+		stucEncodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
+		stucEncodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
+		stucEncodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
+		stucEncodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].core.name);
 	}
 }
 
@@ -168,25 +168,25 @@ void encodeIndexedAttribMeta(StucAlloc *pAlloc, ByteString *pData,
                              AttribIndexedArr *pAttribs) {
 	int64_t size = 0;
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
-		encodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
-		encodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].core.name);
+		stucEncodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
+		stucEncodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
+		stucEncodeValue(pAlloc, pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
+		stucEncodeString(pAlloc, pData, (uint8_t *)pAttribs->pArr[i].core.name);
 	}
 }
 
 static
 void encodeDataName(StucAlloc *pAlloc, ByteString *pByteString, char *pName) {
-	//not using encodeString, as there's not need for a null terminator.
+	//not using stucEncodeString, as there's not need for a null terminator.
 	//Only using 2 characters
 	
 	//ensure string is aligned with byte (we need to do this manually,
-	//as encodeValue is being used instead of encodeString)
+	//as stucEncodeValue is being used instead of stucEncodeString)
 	if (pByteString->nextBitIdx != 0) {
 		pByteString->nextBitIdx = 0;
 		pByteString->byteIdx++;
 	}
-	encodeValue(pAlloc, pByteString, (uint8_t *)pName, 16);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)pName, 16);
 }
 
 static
@@ -199,28 +199,28 @@ StucResult encodeObj(StucAlloc *pAlloc, ByteString *pByteString, StucObject *pOb
 	for (int32_t i = 0; i < 16; ++i) {
 		int32_t x = i % 4;
 		int32_t y = i / 4;
-		encodeValue(pAlloc, pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
+		stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
 	}
 	encodeDataName(pAlloc, pByteString, "OT"); //object type
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pObj->pData->type, 8);
-	if (!checkIfMesh(*pObj->pData)) {
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pObj->pData->type, 8);
+	if (!stucCheckIfMesh(*pObj->pData)) {
 		return STUC_SUCCESS;
 	}
 	encodeDataName(pAlloc, pByteString, "HD"); //header
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
 	encodeAttribMeta(pAlloc, pByteString, &pMesh->meshAttribs);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
 	encodeAttribMeta(pAlloc, pByteString, &pMesh->faceAttribs);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
 	encodeAttribMeta(pAlloc, pByteString, &pMesh->cornerAttribs);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
 	encodeAttribMeta(pAlloc, pByteString, &pMesh->edgeAttribs);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
 	encodeAttribMeta(pAlloc, pByteString, &pMesh->vertAttribs);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->faceCount, 32);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->cornerCount, 32);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->edgeCount, 32);
-	encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->vertCount, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->faceCount, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->cornerCount, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->edgeCount, 32);
+	stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->vertCount, 32);
 	//encode data
 	encodeDataName(pAlloc, pByteString, "MA"); //mesh attribs
 	encodeAttribs(pAlloc, pByteString, &pMesh->meshAttribs, 1);
@@ -228,7 +228,7 @@ StucResult encodeObj(StucAlloc *pAlloc, ByteString *pByteString, StucObject *pOb
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
 		STUC_ASSERT("", pMesh->pFaces[i] >= 0 &&
 		                pMesh->pFaces[i] < pMesh->cornerCount);
-		encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
+		stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 	}
 	encodeDataName(pAlloc, pByteString, "FA"); //face attribs
 	encodeAttribs(pAlloc, pByteString, &pMesh->faceAttribs, pMesh->faceCount);
@@ -236,10 +236,10 @@ StucResult encodeObj(StucAlloc *pAlloc, ByteString *pByteString, StucObject *pOb
 	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
 		STUC_ASSERT("", pMesh->pCorners[i] >= 0 &&
 		                pMesh->pCorners[i] < pMesh->vertCount);
-		encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
+		stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
 		STUC_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
-		encodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
+		stucEncodeValue(pAlloc, pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
 	}
 	encodeDataName(pAlloc, pByteString, "LA"); //corner attribs
 	encodeAttribs(pAlloc, pByteString, &pMesh->cornerAttribs, pMesh->cornerCount);
@@ -295,7 +295,7 @@ int64_t estimateObjSize(StucObject *pObj) {
 	total += 4l * 16l; //transform
 	total += 1l; //type
 	total += 2l * 3l; //data names/ checks
-	if (!checkIfMesh(*pObj->pData)) {
+	if (!stucCheckIfMesh(*pObj->pData)) {
 		return total;
 	}
 	total += 2l * 9l; //data names/ checks
@@ -374,9 +374,9 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 		bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
 		int64_t fcHeaderSize = STUC_FLAT_CUTOFF_HEADER_SIZE;
 		encodeDataName(pAlloc, &data, "FC"); //flatten cut-off
-		encodeValue(pAlloc, &data, (uint8_t *)&hasFlatCutoff, 8);
+		stucEncodeValue(pAlloc, &data, (uint8_t *)&hasFlatCutoff, 8);
 		if (hasFlatCutoff) {
-			encodeValue(pAlloc, &data, (uint8_t *)&pCutoffIndices[i], 32);
+			stucEncodeValue(pAlloc, &data, (uint8_t *)&pCutoffIndices[i], 32);
 		}
 	}
 	//compress data
@@ -418,15 +418,15 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 	              32l;  //flatten cutoff count
 	header.size = header.size / 8l + (header.size % 8l != 0l);
 	header.pString = pContext->alloc.pCalloc(header.size, 1);
-	encodeString(pAlloc, &header, (uint8_t *)format);
+	stucEncodeString(pAlloc, &header, (uint8_t *)format);
 	int32_t version = STUC_MAP_VERSION;
-	encodeValue(pAlloc, &header, (uint8_t *)&version, 16);
-	encodeValue(pAlloc, &header, (uint8_t *)&compressedDataSize, 64);
-	encodeValue(pAlloc, &header, (uint8_t *)&dataSize, 64);
-	encodeValue(pAlloc, &header, (uint8_t *)&pIndexedAttribs->count, 32);
-	encodeValue(pAlloc, &header, (uint8_t *)&objCount, 32);
-	encodeValue(pAlloc, &header, (uint8_t *)&usgCount, 32);
-	encodeValue(pAlloc, &header, (uint8_t *)&cutoffCount, 32);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&version, 16);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&compressedDataSize, 64);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&dataSize, 64);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&pIndexedAttribs->count, 32);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&objCount, 32);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&usgCount, 32);
+	stucEncodeValue(pAlloc, &header, (uint8_t *)&cutoffCount, 32);
 
 	//TODO CRC for uncompressed data
 	
@@ -448,11 +448,11 @@ StucResult stucWriteStucFile(StucContext pContext, char *pName,
 static
 StucResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
+		stucDecodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.type, 8);
+		stucDecodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.use, 8);
+		stucDecodeValue(pData, (uint8_t *)&pAttribs->pArr[i].interpolate, 1);
 		int32_t maxNameLen = sizeof(pAttribs->pArr[i].core.name);
-		decodeString(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
+		stucDecodeString(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
 			if (!strncmp(pAttribs->pArr[i].core.name, pAttribs->pArr[j].core.name,
 			    STUC_ATTRIB_NAME_MAX_LEN)) {
@@ -468,10 +468,10 @@ StucResult decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
 static
 StucResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.type, 16);
-		decodeValue(pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
+		stucDecodeValue(pData, (uint8_t *)&pAttribs->pArr[i].core.type, 16);
+		stucDecodeValue(pData, (uint8_t *)&pAttribs->pArr[i].count, 32);
 		int32_t maxNameLen = sizeof(pAttribs->pArr[i].core.name);
-		decodeString(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
+		stucDecodeString(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
 		for (int32_t j = 0; j < i; ++j) {
 			if (!strncmp(pAttribs->pArr[i].core.name, pAttribs->pArr[j].core.name,
 				STUC_ATTRIB_NAME_MAX_LEN)) {
@@ -487,32 +487,32 @@ StucResult decodeIndexedAttribMeta(ByteString *pData, AttribIndexedArr *pAttribs
 static
 void decodeAttribs(StucContext pContext, ByteString *pData, AttribArray *pAttribs,
                    int32_t dataLen) {
-	stageBeginWrap(pContext, "", pAttribs->count * dataLen);
+	stucStageBeginWrap(pContext, "", pAttribs->count * dataLen);
 	const char stageName[] = "Deconding attrib ";
 	char stageBuf[STUC_STAGE_NAME_LEN] = {0};
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		Attrib* pAttrib = pAttribs->pArr + i;
 		memcpy(stageBuf, stageName, sizeof(stageName));
-		setStageName(pContext, strncat(stageBuf, pAttrib->core.name,
+		stucSetStageName(pContext, strncat(stageBuf, pAttrib->core.name,
 		             STUC_STAGE_NAME_LEN - sizeof(stageName)));
-		int32_t attribSize = getAttribSize(pAttrib->core.type);
+		int32_t attribSize = stucGetAttribSizeIntern(pAttrib->core.type);
 		pAttrib->core.pData = dataLen ?
 			pContext->alloc.pCalloc(dataLen, attribSize) : NULL;
 		attribSize *= 8;
 		int32_t progressBase = i * pAttribs->count * dataLen;
 		for (int32_t j = 0; j < dataLen; ++j) {
-			void *pAttribData = attribAsVoid(&pAttrib->core, j);
+			void *pAttribData = stucAttribAsVoid(&pAttrib->core, j);
 			if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
-				decodeString(pData, pAttribData, attribSize);
+				stucDecodeString(pData, pAttribData, attribSize);
 			}
 			else {
-				decodeValue(pData, pAttribData, attribSize);
+				stucDecodeValue(pData, pAttribData, attribSize);
 			}
-			stageProgressWrap(pContext, j + progressBase);
+			stucStageProgressWrap(pContext, j + progressBase);
 		}
 		memset(stageBuf, 0, STUC_STAGE_NAME_LEN);
 	}
-	stageEndWrap(pContext);
+	stucStageEndWrap(pContext);
 }
 
 static
@@ -520,17 +520,17 @@ void decodeIndexedAttribs(StucContext pContext, ByteString *pData,
                           AttribIndexedArr *pAttribs) {
 	for (int32_t i = 0; i < pAttribs->count; ++i) {
 		AttribIndexed* pAttrib = pAttribs->pArr + i;
-		int32_t attribSize = getAttribSize(pAttrib->core.type);
+		int32_t attribSize = stucGetAttribSizeIntern(pAttrib->core.type);
 		pAttrib->core.pData = pAttrib->count ?
 			pContext->alloc.pCalloc(pAttrib->count, attribSize) : NULL;
 		attribSize *= 8;
 		for (int32_t j = 0; j < pAttrib->count; ++j) {
-			void *pAttribData = attribAsVoid(&pAttrib->core, j);
+			void *pAttribData = stucAttribAsVoid(&pAttrib->core, j);
 			if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
-				decodeString(pData, pAttribData, attribSize);
+				stucDecodeString(pData, pAttribData, attribSize);
 			}
 			else {
-				decodeValue(pData, pAttribData, attribSize);
+				stucDecodeValue(pData, pAttribData, attribSize);
 			}
 		}
 	}
@@ -540,14 +540,14 @@ static
 StucHeader decodeStucHeader(StucContext pContext, ByteString *headerByteString,
                             AttribIndexedArr *pIndexedAttribs) {
 	StucHeader header = {0};
-	decodeString(headerByteString, (uint8_t*)&header.format, MAP_FORMAT_NAME_MAX_LEN);
-	decodeValue(headerByteString, (uint8_t *)&header.version, 16);
-	decodeValue(headerByteString, (uint8_t *)&header.dataSizeCompressed, 64);;
-	decodeValue(headerByteString, (uint8_t *)&header.dataSize, 64);
-	decodeValue(headerByteString, (uint8_t *)&pIndexedAttribs->count, 32);
-	decodeValue(headerByteString, (uint8_t *)&header.objCount, 32);
-	decodeValue(headerByteString, (uint8_t *)&header.usgCount, 32);
-	decodeValue(headerByteString, (uint8_t *)&header.flatCutoffCount, 32);
+	stucDecodeString(headerByteString, (uint8_t*)&header.format, MAP_FORMAT_NAME_MAX_LEN);
+	stucDecodeValue(headerByteString, (uint8_t *)&header.version, 16);
+	stucDecodeValue(headerByteString, (uint8_t *)&header.dataSizeCompressed, 64);;
+	stucDecodeValue(headerByteString, (uint8_t *)&header.dataSize, 64);
+	stucDecodeValue(headerByteString, (uint8_t *)&pIndexedAttribs->count, 32);
+	stucDecodeValue(headerByteString, (uint8_t *)&header.objCount, 32);
+	stucDecodeValue(headerByteString, (uint8_t *)&header.usgCount, 32);
+	stucDecodeValue(headerByteString, (uint8_t *)&header.flatCutoffCount, 32);
 
 	return header;
 }
@@ -555,12 +555,12 @@ StucHeader decodeStucHeader(StucContext pContext, ByteString *headerByteString,
 static
 StucResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 	//ensure string is aligned with byte (we need to do this manually,
-	//as decodeValue is being used instead of decodeString, given there's
+	//as stucDecodeValue is being used instead of stucDecodeString, given there's
 	//only 2 characters)
 	pByteString->byteIdx += pByteString->nextBitIdx > 0;
 	pByteString->nextBitIdx = 0;
 	char dataName[2] = {0};
-	decodeValue(pByteString, (uint8_t *)&dataName, 16);
+	stucDecodeValue(pByteString, (uint8_t *)&dataName, 16);
 	if (dataName[0] != pName[0] || dataName[1] != pName[1]) {
 		return STUC_ERROR;
 	}
@@ -571,7 +571,7 @@ StucResult isDataNameInvalid(ByteString *pByteString, char *pName) {
 
 static
 StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteString, bool usesUsg) {
-	createMesh(pContext, pObj, STUC_OBJECT_DATA_MESH_INTERN);
+	stucCreateMesh(pContext, pObj, STUC_OBJECT_DATA_MESH_INTERN);
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
 
 	StucResult err = STUC_NOT_SET;
@@ -583,51 +583,51 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	for (int32_t i = 0; i < 16; ++i) {
 		int32_t x = i % 4;
 		int32_t y = i / 4;
-		decodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
+		stucDecodeValue(pByteString, (uint8_t *)&pObj->transform.d[y][x], 32);
 	}
 	err = isDataNameInvalid(pByteString, "OT"); //object type
 	STUC_THROW_IF(err, true, "Data name did not match 'OT'", 0);
-	decodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8);
-	if (!checkIfMesh(*pObj->pData)) {
+	stucDecodeValue(pByteString, (uint8_t *)&pObj->pData->type, 8);
+	if (!stucCheckIfMesh(*pObj->pData)) {
 		err = STUC_ERROR;
 		STUC_THROW_IF(err, true, "Object is not a mesh", 0);
 	}
 	err = isDataNameInvalid(pByteString, "HD"); //header
 	STUC_THROW_IF(err, true, "Data name did not match 'HD'", 0);
-	decodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->meshAttribs.count, 32);
 	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->meshAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->meshAttribs);
 	STUC_THROW_IF(err, true, "Failed to decode mesh attrib meta", 0);
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->faceAttribs.count, 32);
 	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->faceAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->faceAttribs);
 	STUC_THROW_IF(err, true, "Failed to decode face attrib meta", 0);
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->cornerAttribs.count, 32);
 	pMesh->cornerAttribs.pArr = pMesh->cornerAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->cornerAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->cornerAttribs);
 	STUC_THROW_IF(err, true, "Failed to decode corner attrib meta", 0);
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->edgeAttribs.count, 32);
 	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->edgeAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->edgeAttribs);
 	STUC_THROW_IF(err, true, "Failed to decode edge meta", 0);
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->vertAttribs.count, 32);
 	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
 		pContext->alloc.pCalloc(pMesh->vertAttribs.count + usesUsg, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pByteString, &pMesh->vertAttribs);
 	STUC_THROW_IF(err, true, "Failed to decode vert attrib meta", 0);
 
-	decodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32);
-	decodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->faceCount, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->cornerCount, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->edgeCount, 32);
+	stucDecodeValue(pByteString, (uint8_t *)&pMesh->vertCount, 32);
 
 	//set usg attrib metadata if used
 	if (usesUsg) {
@@ -641,18 +641,18 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	err = isDataNameInvalid(pByteString, "MA"); //mesh attribs
 	STUC_THROW_IF(err, true, "Data name did not match 'MA'", 0);
 	decodeAttribs(pContext, pByteString, &pMesh->meshAttribs, 1);
-	stageEndWrap(pContext);
+	stucStageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FL"); //face list
 	STUC_THROW_IF(err, true, "Data name did not match 'FL'", 0);
 	pMesh->pFaces = pContext->alloc.pCalloc(pMesh->faceCount + 1, sizeof(int32_t));
-	stageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
+	stucStageBeginWrap(pContext, "Decoding faces", pMesh->faceCount);
 	for (int32_t i = 0; i < pMesh->faceCount; ++i) {
-		decodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
+		stucDecodeValue(pByteString, (uint8_t *)&pMesh->pFaces[i], 32);
 		STUC_ASSERT("", pMesh->pFaces[i] >= 0 &&
 		                pMesh->pFaces[i] < pMesh->cornerCount);
-		stageProgressWrap(pContext, i);
+		stucStageProgressWrap(pContext, i);
 	}
-	stageEndWrap(pContext);
+	stucStageEndWrap(pContext);
 	err = isDataNameInvalid(pByteString, "FA"); //face attribs
 	STUC_THROW_IF(err, true, "Data name did not match 'FA'", 0);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->cornerCount;
@@ -662,17 +662,17 @@ StucResult loadObj(StucContext pContext, StucObject *pObj, ByteString *pByteStri
 	STUC_THROW_IF(err, true, "Data name did not match 'LL'", 0);
 	pMesh->pCorners = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
 	pMesh->pEdges = pContext->alloc.pCalloc(pMesh->cornerCount, sizeof(int32_t));
-	stageBeginWrap(pContext, "Decoding corners", pMesh->cornerCount);
+	stucStageBeginWrap(pContext, "Decoding corners", pMesh->cornerCount);
 	for (int32_t i = 0; i < pMesh->cornerCount; ++i) {
-		decodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
+		stucDecodeValue(pByteString, (uint8_t *)&pMesh->pCorners[i], 32);
 		STUC_ASSERT("", pMesh->pCorners[i] >= 0 &&
 		                pMesh->pCorners[i] < pMesh->vertCount);
-		decodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
+		stucDecodeValue(pByteString, (uint8_t *)&pMesh->pEdges[i], 32);
 		STUC_ASSERT("", pMesh->pEdges[i] >= 0 &&
 		                pMesh->pEdges[i] < pMesh->edgeCount);
-		stageProgressWrap(pContext, i);
+		stucStageProgressWrap(pContext, i);
 	}
-	stageEndWrap(pContext);
+	stucStageEndWrap(pContext);
 
 	err = isDataNameInvalid(pByteString, "LA"); //corner attribs
 	STUC_THROW_IF(err, true, "Data name did not match 'LA'", 0);
@@ -750,10 +750,10 @@ StucResult decodeStucData(StucContext pContext, StucHeader *pHeader,
 				return status;
 			}
 			bool hasFlatCutoff = false;
-			decodeValue(dataByteString, (uint8_t *)&hasFlatCutoff, 8);
+			stucDecodeValue(dataByteString, (uint8_t *)&hasFlatCutoff, 8);
 			if (hasFlatCutoff) {
 				int32_t cutoffIdx = 0;
-				decodeValue(dataByteString, (uint8_t *)&cutoffIdx, 32);
+				stucDecodeValue(dataByteString, (uint8_t *)&cutoffIdx, 32);
 				STUC_ASSERT("", cutoffIdx >= 0 &&
 				                cutoffIdx < pHeader->flatCutoffCount);
 				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIdx;
