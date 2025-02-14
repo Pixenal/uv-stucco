@@ -2521,7 +2521,7 @@ I32 checkIfSpecialBufAttrib(Attrib *pAttrib) {
 //differs from regular func, as it checks if special attrib
 //by comparing pointers, to avoid needing to compare a bunch of strings
 static
-SpecialAttrib quickCheckIfSpecialAttrib(Mesh *pMesh, AttribCore *pAttrib) {
+SpecialAttrib quickCheckIfSpecialAttrib(const Mesh *pMesh, const AttribCore *pAttrib) {
 	if (pAttrib->pData == pMesh->pVerts) {
 		return STUC_ATTRIB_SP_VERTS;
 	}
@@ -2559,7 +2559,7 @@ SpecialAttrib quickCheckIfSpecialAttrib(Mesh *pMesh, AttribCore *pAttrib) {
 }
 
 static
-SpecialBufAttrib quickCheckIfSpecialBufAttrib(BufMesh *pMesh, AttribCore *pAttrib) {
+SpecialBufAttrib quickCheckIfSpecialBufAttrib(const BufMesh *pMesh, const AttribCore *pAttrib) {
 	//TODO put obj or mesh type check (either asserts or if statements)
 	// at the start of more functions
 	if (pMesh->mesh.core.type.type != STUC_OBJECT_DATA_MESH_BUF) {
@@ -2677,7 +2677,7 @@ void stucReallocAttribArr(const StucAlloc *pAlloc, Mesh *pMesh,
 	}
 }
 
-void stucReallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
+void stucReallocAndMoveAttribs(const StucAlloc *pAlloc, const BufMesh *pMesh,
                                AttribArray *pAttribArr, const I32 start,
                                const I32 offset, const I32 lenToCopy,
                                const I32 newLen) {
@@ -2877,13 +2877,19 @@ void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin) {
 }
 
 void stucAllocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
-                                 I32 srcCount, Mesh **ppMeshSrcs, bool setCommon) {
+                                 I32 srcCount, const Mesh *const *ppMeshSrcs, bool setCommon) {
 	stucAllocAttribs(pAlloc, &pMeshDest->core.faceAttribs, srcCount,
 	                 ppMeshSrcs, pMeshDest->faceBufSize, STUC_DOMAIN_FACE, setCommon);
 	stucAllocAttribs(pAlloc, &pMeshDest->core.cornerAttribs, srcCount,
 	                 ppMeshSrcs, pMeshDest->cornerBufSize, STUC_DOMAIN_CORNER, setCommon);
-	stucAllocAttribs(pAlloc, &pMeshDest->core.edgeAttribs, srcCount,
-	                 ppMeshSrcs, pMeshDest->edgeBufSize, STUC_DOMAIN_EDGE, setCommon);
+#ifdef STUC_DISABLE_EDGES_IN_BUF
+	if (pMeshDest->core.type.type != STUC_OBJECT_DATA_MESH_BUF) {
+#endif
+		stucAllocAttribs(pAlloc, &pMeshDest->core.edgeAttribs, srcCount,
+		                 ppMeshSrcs, pMeshDest->edgeBufSize, STUC_DOMAIN_EDGE, setCommon);
+#ifdef STUC_DISABLE_EDGES_IN_BUF
+	}
+#endif
 	stucAllocAttribs(pAlloc, &pMeshDest->core.vertAttribs, srcCount,
 	                 ppMeshSrcs, pMeshDest->vertBufSize, STUC_DOMAIN_VERT, setCommon);
 }

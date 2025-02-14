@@ -3,7 +3,7 @@
 #include <ImageUtils.h>
 #include <Types.h>
 
-void setPixelColor(StucImage *pImage, I32 idx, Color *pColor) {
+void setPixelColor(const StucImage *pImage, I32 idx, const Color *pColor) {
 	switch (pImage->type) {
 		case STUC_IMAGE_UI8: {
 			U8 *pPixel =
@@ -55,7 +55,7 @@ I32 getPixelSize(StucImageType type) {
 	}
 }
 
-void *offsetImagePtr(StucImage *pImage, I32 offset) {
+void *offsetImagePtr(const StucImage *pImage, I32 offset) {
 	switch (pImage->type) {
 		case STUC_IMAGE_UI8:
 			return (U8 (*) [4])pImage->pData + offset;

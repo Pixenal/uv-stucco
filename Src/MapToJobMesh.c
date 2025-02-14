@@ -16,6 +16,7 @@ void allocBufMesh(MappingJobVars *pVars, I32 cornerBufSize) {
 	StucMesh *pMeshIn = &pVars->mesh.core;
 	Mesh *pMesh = &pVars->bufMesh.mesh;
 	StucAlloc *pAlloc = &pVars->alloc;
+	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
 	pMesh->faceBufSize = pVars->bufSize;
 	pMesh->cornerBufSize = pVars->cornerBufSize;
 	pMesh->edgeBufSize = pVars->cornerBufSize;

@@ -1239,9 +1239,11 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, k);
 	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
 	STUC_ASSERT("", vert < pBufMesh->mesh.vertBufSize);
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	I32 edge = stucBufMeshGetEdgeIdx(pPiece, pBufMesh, k);
 	STUC_ASSERT("", edge > pBufMesh->mesh.edgeBufSize - 1 - pBufMesh->borderEdgeCount);
 	STUC_ASSERT("", edge < pBufMesh->mesh.edgeBufSize);
+#endif
 	I32 mapCorner = stucGetMapCorner(pEntry, k);
 	STUC_ASSERT("", mapCorner >= 0 && mapCorner < pArgs->pMap->mesh.core.cornerCount);
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
@@ -1333,6 +1335,7 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	//TODO why cant you just determine connected edges with the above corner table?
 	//     is a separate table really needed? If you know 2 corners are connected,
 	//     can't you then connect their edges?
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	U32 valueToHash = inInfo.edge + pEntry->mapFace;
 	hash = stucFnvHash((U8 *)&valueToHash, 4, pArgs->pCTables->edgeTableSize);
 	BorderEdge *pEdgeEntry = pArgs->pCTables->pEdgeTable + hash;
@@ -1362,6 +1365,7 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 			pEdgeEntry = pEdgeEntry->pNext;
 		} while(pEdgeEntry);
 	}
+#endif
 	if (pVertEntry) {
 		pBufMesh->mesh.core.pCorners[corner] = vert;
 		pBufMesh->mesh.core.pEdges[corner] = 0;

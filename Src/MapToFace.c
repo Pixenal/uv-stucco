@@ -1182,9 +1182,11 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 		                     pVars->pCommonAttribList->pCorner,
 		                     pVars->pCommonAttribList->cornerCount, pInFace, pMapFace,
 		                     STUC_DOMAIN_CORNER, pAncestors);
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 		addEdge(pVars, i, &pVars->bufMesh, pCornerBuf->buf, &pVars->alloc,
 		        refFace, &acfVars, pInFace, pMapFace);
 		pBufMesh->mesh.core.pEdges[corner.realIdx] = acfVars.edge;
+#endif
 	}
 	BufMeshIdx face = stucBufMeshAddFace(&pVars->alloc, pBufMesh, isBorderFace,
 	                                     pVars->pDpVars, &realloced);

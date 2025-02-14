@@ -288,8 +288,10 @@ void addFaceToOutMesh(Vars *pVars, I32 *pIndices,
 		I32 outCorner = stucMeshAddCorner(&pArgs->pContext->alloc, pMeshOut, &realloced);
 		STUC_ASSERT("", outCorner == cornerBase + i);
 		pMeshOut->core.pCorners[outCorner] = pVars->cornerBuf.pBuf[bufIdx].corner;
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 		STUC_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].edge >= 0);
 		STUC_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].edge < pMeshOut->core.edgeCount);
+#endif
 		pMeshOut->core.pEdges[outCorner] = pVars->cornerBuf.pBuf[bufIdx].edge;
 		I32 bufCorner = pVars->cornerBuf.pBuf[bufIdx].bufCorner;
 		I32 job = pVars->cornerBuf.pBuf[bufIdx].job;

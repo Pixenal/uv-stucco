@@ -10,8 +10,8 @@ typedef struct {
 	StucAlloc alloc;
 } PlatformContext;
 
-I32 stucPlatformFileOpen(void **file, char *filePath, I32 action,
-                             StucAlloc *pAlloc) {
+I32 stucPlatformFileOpen(void **file, const char *filePath, I32 action,
+                         const StucAlloc *pAlloc) {
 	DWORD access;
 	DWORD disposition;
 	switch (action) {
@@ -40,7 +40,7 @@ I32 stucPlatformFileOpen(void **file, char *filePath, I32 action,
 	return 0;
 }
 
-I32 stucPlatformFileWrite(void *file, unsigned char *data, I32 dataSize) {
+I32 stucPlatformFileWrite(void *file, const unsigned char *data, I32 dataSize) {
 	PlatformContext *pState = file;
 	DWORD bytesWritten;
 	I32 returnCode = WriteFile(pState->pHFile, data, dataSize,

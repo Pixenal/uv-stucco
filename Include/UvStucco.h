@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #endif
 
+#define STUC_DISABLE_EDGES_IN_BUF
+
 #define STUC_DISABLE_TRIANGULATION
 
 
