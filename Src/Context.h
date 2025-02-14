@@ -1,5 +1,6 @@
 #pragma once
 #include <UvStucco.h>
+#include <Types.h>
 
 typedef struct StucContextInternal {
 	void *pCustom;
@@ -7,9 +8,9 @@ typedef struct StucContextInternal {
 	StucAlloc alloc;
 	StucIo io;
 	void *pThreadPoolHandle;
-	int32_t threadCount;
+	I32 threadCount;
 	StucTypeDefaultConfig typeDefaults;
 	StucStageReport stageReport;
-	int32_t stageInterval;
+	I32 stageInterval;
 	char spAttribs[12][STUC_ATTRIB_NAME_MAX_LEN];
 } StucContextInternal;

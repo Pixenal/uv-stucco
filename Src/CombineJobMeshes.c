@@ -11,11 +11,11 @@
 
 static
 void combineJobInFaceLists(StucContext pContext, InFaceArr *pInFaceTable,
-                           SendOffArgs *pJobArgs, int32_t mapJobsSent) {
-	int32_t face = 0;
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
-		int32_t faceCount = pJobArgs[i].bufMesh.mesh.core.faceCount;
-		for (int32_t j = 0; j < faceCount; ++j) {
+                           SendOffArgs *pJobArgs, I32 mapJobsSent) {
+	I32 face = 0;
+	for (I32 i = 0; i < mapJobsSent; ++i) {
+		I32 faceCount = pJobArgs[i].bufMesh.mesh.core.faceCount;
+		for (I32 j = 0; j < faceCount; ++j) {
 			pInFaceTable[face] = pJobArgs[i].pInFaces[j];
 			face++;
 		}
@@ -25,9 +25,9 @@ void combineJobInFaceLists(StucContext pContext, InFaceArr *pInFaceTable,
 
 Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
                             SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-                            int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                            InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
-                            int32_t mapJobsSent) {
+                            I8 *pVertSeamTable, bool *pEdgeSeamTable,
+                            InFaceArr **ppInFaceTable, F32 wScale, Mesh *pInMesh,
+                            I32 mapJobsSent) {
 	Result err = STUC_SUCCESS;
 	//struct timeval start, stop;
 	//CLOCK_START;
@@ -39,7 +39,7 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	pMeshOut->core.type.type = STUC_OBJECT_DATA_MESH_INTERN;
 	MeshCounts totalCount = {0};
 	MeshCounts totalBoundsCount = {0};
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
+	for (I32 i = 0; i < mapJobsSent; ++i) {
 		stucAddToMeshCounts(pContext, &totalCount, &totalBoundsCount,
 		                (Mesh *)&pJobArgs[i].bufMesh);
 	}
@@ -49,15 +49,15 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	pMeshOut->edgeBufSize = 2 + totalCount.edges + totalBoundsCount.edges / 10;
 	pMeshOut->vertBufSize = 2 + totalCount.verts + totalBoundsCount.verts / 10;
 	pMeshOut->core.pFaces =
-		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->faceBufSize);
+		pContext->alloc.pMalloc(sizeof(I32) * pMeshOut->faceBufSize);
 	pMeshOut->core.pCorners =
-		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->cornerBufSize);
+		pContext->alloc.pMalloc(sizeof(I32) * pMeshOut->cornerBufSize);
 	pMeshOut->core.pEdges =
-		pContext->alloc.pMalloc(sizeof(int32_t) * pMeshOut->cornerBufSize);
+		pContext->alloc.pMalloc(sizeof(I32) * pMeshOut->cornerBufSize);
 	//only need to use the first buf mesh, as attribs are the same across all jobs
 	Mesh *src = NULL;
 	//get first bufmesh that isn't empty
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
+	for (I32 i = 0; i < mapJobsSent; ++i) {
 		if (pJobArgs[i].bufSize) {
 			src = &pJobArgs[i].bufMesh.mesh;
 			break;
@@ -66,8 +66,8 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	stucAllocAttribsFromMeshArr(&pContext->alloc, pMeshOut, 1, &src, false);
 	stucSetSpecialAttribs(pContext, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
 	JobBases *pJobBases = pContext->alloc.pMalloc(sizeof(JobBases) * mapJobsSent);
-	uint64_t reallocTime = 0;
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
+	U64 reallocTime = 0;
+	for (I32 i = 0; i < mapJobsSent; ++i) {
 		reallocTime += pJobArgs[i].reallocTime;
 #ifdef WIN32
 		printf("realloc time %llu\n", pJobArgs[i].reallocTime);
@@ -95,7 +95,7 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 	err = stucMergeBorderFaces(pContext, pMap, pMeshOut, pJobArgs, pEdgeVerts, pJobBases,
 	                           pVertSeamTable, pEdgeSeamTable, ppInFaceTable, wScale,
 	                           pInMesh, mapJobsSent);
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
+	for (I32 i = 0; i < mapJobsSent; ++i) {
 		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
 		stucMeshDestroy(pContext, &pBufMesh->mesh.core);
 		pContext->alloc.pFree(pJobArgs[i].borderTable.pTable);
@@ -112,7 +112,7 @@ Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
 //Though for face end, and size, call getFaceRange
 BorderInInfo stucGetBorderEntryInInfo(const BorderFace *pEntry,
                                       const SendOffArgs *pJobArgs,
-                                      const int32_t cornerIdx) {
+                                      const I32 cornerIdx) {
 	BorderInInfo inInfo = {0};
 	STUC_ASSERT("", pEntry->inFace >= 0);
 	STUC_ASSERT("", pEntry->inFace < pJobArgs[pEntry->job].mesh.core.faceCount);
@@ -136,7 +136,7 @@ BorderInInfo stucGetBorderEntryInInfo(const BorderFace *pEntry,
 	return inInfo;
 }
 
-bool stucGetIfStuc(const BorderFace *pEntry, const int32_t cornerIdx) {
+bool stucGetIfStuc(const BorderFace *pEntry, const I32 cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
 			return stucIdxBitArray(((BorderFaceSmall *)pEntry)->isStuc, cornerIdx, 1);
@@ -150,7 +150,7 @@ bool stucGetIfStuc(const BorderFace *pEntry, const int32_t cornerIdx) {
 	return false;
 }
 
-bool stucGetIfOnInVert(const BorderFace *pEntry, const int32_t cornerIdx) {
+bool stucGetIfOnInVert(const BorderFace *pEntry, const I32 cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
 			return stucIdxBitArray(((BorderFaceSmall *)pEntry)->onInVert, cornerIdx, 1);
@@ -163,7 +163,7 @@ bool stucGetIfOnInVert(const BorderFace *pEntry, const int32_t cornerIdx) {
 	return false;
 }
 
-bool stucGetIfOnLine(const BorderFace *pEntry, int32_t cornerIdx) {
+bool stucGetIfOnLine(const BorderFace *pEntry, I32 cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
 			return stucIdxBitArray(((BorderFaceSmall *)pEntry)->onLine, cornerIdx, 1);
@@ -176,7 +176,7 @@ bool stucGetIfOnLine(const BorderFace *pEntry, int32_t cornerIdx) {
 	return false;
 }
 
-int32_t stucGetSegment(const BorderFace *pEntry, int32_t cornerIdx) {
+I32 stucGetSegment(const BorderFace *pEntry, I32 cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
 			return stucIdxBitArray(((BorderFaceSmall *)pEntry)->segment, cornerIdx, 3);
@@ -189,7 +189,7 @@ int32_t stucGetSegment(const BorderFace *pEntry, int32_t cornerIdx) {
 	return false;
 }
 
-int32_t stucGetMapCorner(const BorderFace *pEntry, const int32_t cornerIdx) {
+I32 stucGetMapCorner(const BorderFace *pEntry, const I32 cornerIdx) {
 	switch (pEntry->memType) {
 		case 0:
 			return stucIdxBitArray(((BorderFaceSmall *)pEntry)->stucCorner, cornerIdx, 3);
@@ -202,7 +202,7 @@ int32_t stucGetMapCorner(const BorderFace *pEntry, const int32_t cornerIdx) {
 	return false;
 }
 
-int32_t stucGetBaseCorner(const BorderFace *pEntry, int32_t cornerIdx) {
+I32 stucGetBaseCorner(const BorderFace *pEntry, I32 cornerIdx) {
 	switch (pEntry->memType) {
 	case 0:
 		return stucIdxBitArray(((BorderFaceSmall *)pEntry)->baseCorner, cornerIdx, 2);
@@ -225,22 +225,22 @@ V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry) {
 	return tileMin;
 }
 
-int32_t stucBufMeshGetVertIdx(const Piece *pPiece,
-                          const BufMesh *pBufMesh, const int32_t localCorner) {
+I32 stucBufMeshGetVertIdx(const Piece *pPiece,
+                          const BufMesh *pBufMesh, const I32 localCorner) {
 	bool isStuc = stucGetIfStuc(pPiece->pEntry, localCorner);
 	bool isOnLine = stucGetIfOnLine(pPiece->pEntry, localCorner);
-	int32_t vert = pBufMesh->mesh.core.pCorners[pPiece->bufFace.start - localCorner];
+	I32 vert = pBufMesh->mesh.core.pCorners[pPiece->bufFace.start - localCorner];
 	if (!isStuc || isOnLine) {
 		vert = stucConvertBorderVertIdx(pBufMesh, vert).realIdx;
 	}
 	return vert;
 }
 
-int32_t stucBufMeshGetEdgeIdx(const Piece *pPiece,
-                              const BufMesh *pBufMesh, const int32_t localCorner) {
+I32 stucBufMeshGetEdgeIdx(const Piece *pPiece,
+                              const BufMesh *pBufMesh, const I32 localCorner) {
 	bool isStuc = stucGetIfStuc(pPiece->pEntry, localCorner);
 	bool isOnLine = stucGetIfOnLine(pPiece->pEntry, localCorner);
-	int32_t edge = pBufMesh->mesh.core.pEdges[pPiece->bufFace.start - localCorner];
+	I32 edge = pBufMesh->mesh.core.pEdges[pPiece->bufFace.start - localCorner];
 	if (!isStuc || isOnLine) {
 		edge = stucConvertBorderEdgeIdx(pBufMesh, edge).realIdx;
 	}

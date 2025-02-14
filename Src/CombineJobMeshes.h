@@ -4,46 +4,47 @@
 #include <Utils.h>
 #include <Mesh.h>
 #include <QuadTree.h>
+#include <Types.h>
 
 typedef struct {
 	V3_F32 normal;
 	V2_F32 uv;
 	V2_F32 vertBuf;
-	int32_t bufCorner;
-	int32_t bufFace;
-	int32_t corner;
-	int32_t edge;
-	int8_t job;
+	I32 bufCorner;
+	I32 bufFace;
+	I32 corner;
+	I32 edge;
+	I8 job;
 } BoundsCornerBufEntry;
 
 typedef struct {
 	BoundsCornerBufEntry* pBuf;
-	int32_t count;
+	I32 count;
 } BoundsCornerBuf;
 
 typedef struct {
 	BoundsCornerBufEntry* pCornerBuf;
-	int32_t *pMapCornerBuf;
-	int32_t *pIdxTable;
-	int32_t *pSortedVerts;
-	int32_t size;
+	I32 *pMapCornerBuf;
+	I32 *pIdxTable;
+	I32 *pSortedVerts;
+	I32 size;
 } MergeBufHandles;
 
 
 typedef struct {
-	int32_t start;
-	int32_t end;
-	int32_t size;
-	int32_t cornerLocal;
-	int32_t edgeCorner;
-	int32_t vertCorner;
-	int32_t edge;
-	int32_t vert;
+	I32 start;
+	I32 end;
+	I32 size;
+	I32 cornerLocal;
+	I32 edgeCorner;
+	I32 vertCorner;
+	I32 edge;
+	I32 vert;
 } BorderInInfo;
 
 typedef struct {
-	int32_t edge;
-	int32_t segment;
+	I32 edge;
+	I32 segment;
 } EdgeSegmentPair;
 
 // // indicates only used in createAndJoinPieces
@@ -51,14 +52,14 @@ typedef struct Piece {
 	struct Piece *pNext;
 	BorderFace *pEntry;
 	FaceRange bufFace;
-	int32_t edgeCount;//
+	I32 edgeCount;//
 	EdgeSegmentPair *pEdges;
 	UBitField64 keepSeam;//
 	UBitField64 keepPreserve;
 	UBitField64 keepVertPreserve;//
 	UBitField64 add;
-	uint8_t *pOrder;
-	int32_t entryIdx;//
+	U8 *pOrder;
+	I32 entryIdx;//
 	V2_I16 tile;
 	V3_F32 realNormal;
 	bool listed;
@@ -68,43 +69,43 @@ typedef struct Piece {
 
 typedef struct BorderEdge {
 	struct BorderEdge *pNext;
-	int32_t edge;
-	int32_t inEdge;
-	int32_t mapFace;
+	I32 edge;
+	I32 inEdge;
+	I32 mapFace;
 	bool valid;
 } BorderEdge;
 
 typedef struct {
 	Piece *pArr;
-	int32_t count;
+	I32 count;
 } PieceArr;
 
 typedef struct {
-	int32_t *pArr;
-	int32_t count;
+	I32 *pArr;
+	I32 count;
 } PieceRootsArr;
 
 typedef struct OnLine {
 	struct OnLine *pNext;
-	int32_t baseEdgeOrCorner;
-	int32_t stucVert;
-	int32_t outVert;
-	int32_t type;
+	I32 baseEdgeOrCorner;
+	I32 stucVert;
+	I32 outVert;
+	I32 type;
 } OnLine;
 
 typedef struct BorderVert {
 	struct BorderVert *pNext;
-	int32_t entryIdx;
-	int32_t mapFace;
-	int32_t mapEdge;
-	int32_t vert;
+	I32 entryIdx;
+	I32 mapFace;
+	I32 mapEdge;
+	I32 vert;
 	V2_I16 tile;
-	int32_t corners;
-	int32_t inEdge;
-	int32_t inVert;
-	int32_t cornerIdx;
-	int32_t corner;
-	int8_t job;
+	I32 corners;
+	I32 inEdge;
+	I32 inVert;
+	I32 cornerIdx;
+	I32 corner;
+	I8 job;
 	bool keepBaseCorner;
 	bool divided;
 } BorderVert;
@@ -113,19 +114,19 @@ typedef struct {
 	BorderVert *pVertTable;
 	OnLine *pOnLineTable;
 	BorderEdge *pEdgeTable;
-	int32_t vertTableSize;
-	int32_t onLineTableSize;
-	int32_t edgeTableSize;
+	I32 vertTableSize;
+	I32 onLineTableSize;
+	I32 edgeTableSize;
 } CombineTables;
 
 typedef struct {
-	int32_t vertBase;
-	int32_t edgeBase;
+	I32 vertBase;
+	I32 edgeBase;
 } JobBases;
 
 typedef struct {
 	BorderFace **ppTable;
-	int32_t count;
+	I32 count;
 } CompiledBorderTable;
 
 typedef struct MergeSendOffArgs {
@@ -136,54 +137,54 @@ typedef struct MergeSendOffArgs {
 	InFaceArr **ppInFaceTable;
 	SendOffArgs *pJobArgs;
 	EdgeVerts *pEdgeVerts;
-	int8_t *pVertSeamTable;
+	I8 *pVertSeamTable;
 	bool* pEdgeSeamTable;
 	UBitField8 *pInVertKeep;
 	CompiledBorderTable *pBorderTable;
 	JobBases *pJobBases;
 	CombineTables *pCTables;
-	int32_t jobCount;
+	I32 jobCount;
 	void *pBarrier;
 	PieceArr *pPieceArrTable;
 	PieceRootsArr *pPieceRootTable;
-	int32_t *pTotalVertTable;
-	int32_t totalVerts;
+	I32 *pTotalVertTable;
+	I32 totalVerts;
 	Mesh *pInMesh;
-	int32_t *pCornerMergeTable;
-	int32_t entriesStart;
-	int32_t entriesEnd;
-	int32_t job;
-	float wScale;
+	I32 *pCornerMergeTable;
+	I32 entriesStart;
+	I32 entriesEnd;
+	I32 job;
+	F32 wScale;
 } MergeSendOffArgs;
 
 Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
                             SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-                            JobBases *pJobBases, int8_t *pVertSeamTable,
+                            JobBases *pJobBases, I8 *pVertSeamTable,
                             bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
-                            float wScale, Mesh *pInMesh, int32_t mapJobsSent);
+                            F32 wScale, Mesh *pInMesh, I32 mapJobsSent);
 void stucAllocMergeBufs(StucContext pContext, MergeBufHandles *pHandle,
-                        int32_t totalVerts);
-void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
-                               int32_t entryIdx, PieceArr *pPieceArr,
+                        I32 totalVerts);
+void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, U64 *pTimeSpent,
+                               I32 entryIdx, PieceArr *pPieceArr,
                                FaceRange *pStucFace,
                                MergeBufHandles *pMergeBufHandles,
-                               int32_t *pInFaces, int32_t entryCount);
+                               I32 *pInFaces, I32 entryCount);
 void stucDestroyMergeBufs(StucContext pContext, MergeBufHandles *pHandle);
 Result stucCombineJobMeshes(StucContext pContext, StucMap pMap,  Mesh *pMeshOut,
                             SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-                            int8_t *pVertSeamTable, bool *pEdgeSeamTable,
-                            InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh,
-                            int32_t mapJobsSent);
+                            I8 *pVertSeamTable, bool *pEdgeSeamTable,
+                            InFaceArr **ppInFaceTable, F32 wScale, Mesh *pInMesh,
+                            I32 mapJobsSent);
 BorderInInfo stucGetBorderEntryInInfo(const BorderFace *pEntry,
-                                      const SendOffArgs *pJobArgs, int32_t cornerIdx);
-bool stucGetIfStuc(const BorderFace *pEntry, int32_t cornerIdx);
-bool stucGetIfOnInVert(const BorderFace *pEntry, int32_t cornerIdx);
-bool stucGetIfOnLine(const BorderFace *pEntry, int32_t cornerIdx);
-int32_t stucGetSegment(const BorderFace *pEntry, int32_t cornerIdx);
-int32_t stucGetMapCorner(const BorderFace *pEntry, int32_t cornerIdx);
-int32_t stucGetBaseCorner(const BorderFace *pEntry, int32_t cornerIdx);
+                                      const SendOffArgs *pJobArgs, I32 cornerIdx);
+bool stucGetIfStuc(const BorderFace *pEntry, I32 cornerIdx);
+bool stucGetIfOnInVert(const BorderFace *pEntry, I32 cornerIdx);
+bool stucGetIfOnLine(const BorderFace *pEntry, I32 cornerIdx);
+I32 stucGetSegment(const BorderFace *pEntry, I32 cornerIdx);
+I32 stucGetMapCorner(const BorderFace *pEntry, I32 cornerIdx);
+I32 stucGetBaseCorner(const BorderFace *pEntry, I32 cornerIdx);
 V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry);
-int32_t stucBufMeshGetVertIdx(const Piece *pPiece,
-                              const BufMesh *pBufMesh, int32_t localCorner);
-int32_t stucBufMeshGetEdgeIdx(const Piece *pPiece,
-                              const BufMesh *pBufMesh, int32_t localCorner);
+I32 stucBufMeshGetVertIdx(const Piece *pPiece,
+                              const BufMesh *pBufMesh, I32 localCorner);
+I32 stucBufMeshGetEdgeIdx(const Piece *pPiece,
+                              const BufMesh *pBufMesh, I32 localCorner);

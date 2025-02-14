@@ -29,12 +29,12 @@ typedef struct {
 } TriUv;
 
 typedef struct {
-	int32_t idx;
-	int32_t edgeIdx;
-	int32_t idxNext;
-	int8_t localIdx;
-	int8_t localIdxPrev;
-	int8_t localIdxNext;
+	I32 idx;
+	I32 edgeIdx;
+	I32 idxNext;
+	I8 localIdx;
+	I8 localIdxPrev;
+	I8 localIdxNext;
 	V2_F32 vert;
 	V2_F32 vertNext;
 	V2_F32 dir;
@@ -44,26 +44,26 @@ typedef struct {
 
 typedef struct {
 	CornerBuf *pArr;
-	int32_t count;
-	int32_t size;
+	I32 count;
+	I32 size;
 } CornerAncestors;
 
 typedef struct {
-	int32_t cornerStart;
-	int32_t face;
-	int32_t corner;
-	int32_t  edge;
-	int32_t  vert;
+	I32 cornerStart;
+	I32 face;
+	I32 corner;
+	I32  edge;
+	I32  vert;
 } AddClippedFaceVars;
 
 typedef struct {
 	CornerBufWrap *pIsland;
 	CornerBufWrap *pPending;
-	int32_t corner;
+	I32 corner;
 } IslandIdxPair;
 
 static
-bool checkIfOnVert(CornerBufWrap *pCornerBuf, int32_t i, int32_t iNext) {
+bool checkIfOnVert(CornerBufWrap *pCornerBuf, I32 i, I32 iNext) {
 	return (pCornerBuf->buf[i].baseCorner == pCornerBuf->buf[iNext].baseCorner ||
 	        pCornerBuf->buf[i].isBaseCorner || pCornerBuf->buf[iNext].isBaseCorner) &&
 	        !pCornerBuf->buf[i].isStuc && !pCornerBuf->buf[iNext].isStuc;
@@ -71,10 +71,10 @@ bool checkIfOnVert(CornerBufWrap *pCornerBuf, int32_t i, int32_t iNext) {
 
 static
 void addInsideCornerToBuf(CornerBufWrap *pNewCornerBuf, CornerBufWrap *pCornerBuf,
-                          int32_t *pInsideBuf, int32_t i, int32_t iNext,
-                          int32_t iPrev, CornerInfo *pBaseCorner,
-                          IslandIdxPair *pIntersectCache, float *ptBuf,
-                          int32_t *pCount, bool faceWindDir) {
+                          I32 *pInsideBuf, I32 i, I32 iNext,
+                          I32 iPrev, CornerInfo *pBaseCorner,
+                          IslandIdxPair *pIntersectCache, F32 *ptBuf,
+                          I32 *pCount, bool faceWindDir) {
 	CornerBuf *pNewEntry = pNewCornerBuf->buf + pNewCornerBuf->size;
 	pNewCornerBuf->buf[pNewCornerBuf->size] = pCornerBuf->buf[i];
 	if (pInsideBuf[i] == 2) {
@@ -102,7 +102,7 @@ void addInsideCornerToBuf(CornerBufWrap *pNewCornerBuf, CornerBufWrap *pCornerBu
 			//this corner already resided on a previous base edge,
 			//it must then reside on a base vert, rather than an edge.
 			//determine which vert in the edge it sits on:
-			int32_t onLineBase;
+			I32 onLineBase;
 			if (pCornerBuf->buf[i].corner.d[0] == pBaseCorner->vert.d[0] &&
 			    pCornerBuf->buf[i].corner.d[1] == pBaseCorner->vert.d[1]) {
 
@@ -127,7 +127,7 @@ void addInsideCornerToBuf(CornerBufWrap *pNewCornerBuf, CornerBufWrap *pCornerBu
 }
 
 static
-int32_t appendToAncestors(StucAlloc *pAlloc,
+I32 appendToAncestors(StucAlloc *pAlloc,
                           CornerAncestors *pAncestors, CornerBuf *pCorner) {
 	STUC_ASSERT("", pAncestors->count <= pAncestors->size);
 	if (pAncestors->count == pAncestors->size) {
@@ -135,7 +135,7 @@ int32_t appendToAncestors(StucAlloc *pAlloc,
 		pAncestors->pArr =
 			pAlloc->pRealloc(pAncestors->pArr, sizeof(CornerBuf) * pAncestors->size);
 	}
-	int32_t idx = pAncestors->count;
+	I32 idx = pAncestors->count;
 	pAncestors->pArr[idx] = *pCorner;
 	pAncestors->count++;
 	return idx;
@@ -143,10 +143,10 @@ int32_t appendToAncestors(StucAlloc *pAlloc,
 
 static
 void addIntersectionToBuf(StucAlloc *pAlloc, CornerBufWrap *pNewCornerBuf,
-                          CornerBufWrap *pCornerBuf, int32_t i, CornerInfo *pBaseCorner,
-                          int32_t iNext, bool flippedWind, IslandIdxPair *pIntersectCache,
-                          float *ptBuf, int32_t *pCount, int32_t mapFaceWindDir,
-                          int32_t faceWindDir, CornerAncestors *pAncestors) {
+                          CornerBufWrap *pCornerBuf, I32 i, CornerInfo *pBaseCorner,
+                          I32 iNext, bool flippedWind, IslandIdxPair *pIntersectCache,
+                          F32 *ptBuf, I32 *pCount, I32 mapFaceWindDir,
+                          I32 faceWindDir, CornerAncestors *pAncestors) {
 	pIntersectCache[*pCount].pIsland = pNewCornerBuf;
 	pIntersectCache[*pCount].corner = pNewCornerBuf->size;
 	CornerBuf *pCorner = pCornerBuf->buf + i;
@@ -166,7 +166,7 @@ void addIntersectionToBuf(StucAlloc *pAlloc, CornerBufWrap *pNewCornerBuf,
 	//V3_F32 up = {.0f, .0f, 1.0f};
 	//pNewEntry->normal = up;
 	if (checkIfOnVert(pCornerBuf, i, iNext)) {
-		int32_t lastBaseCorner = mapFaceWindDir ?
+		I32 lastBaseCorner = mapFaceWindDir ?
 			pBaseCorner->idx - 1 : pBaseCorner->idx + 1;
 		bool whichVert = pCornerBuf->buf[i].baseCorner == lastBaseCorner;
 		if (faceWindDir) {
@@ -217,7 +217,7 @@ void initPendingMerge(StucAlloc *pAlloc, CornerBufWrap *pIsland) {
 
 static
 void addToPendingMerge(StucAlloc *pAlloc,
-                       CornerBufWrap *pIsland, int32_t value) {
+                       CornerBufWrap *pIsland, I32 value) {
 	STUC_ASSERT("", pIsland->pPendingMerge);
 	STUC_ASSERT("", pIsland->mergeSize > 0);
 	pIsland->pPendingMerge[pIsland->mergeCount] = value;
@@ -244,8 +244,8 @@ void destroyPendingMerge(StucAlloc *pAlloc, CornerBufWrap *pIsland) {
 
 static
 void addIslandToPendingMerge(StucAlloc *pAlloc, IslandIdxPair *pCornerPair,
-                             IslandIdxPair *pCornerPairNext, int32_t realiNext,
-                             IslandIdxPair *pIntersectCache, int32_t cacheCount) {
+                             IslandIdxPair *pCornerPairNext, I32 realiNext,
+                             IslandIdxPair *pIntersectCache, I32 cacheCount) {
 	STUC_ASSERT("", pCornerPair->pIsland->size > 0);
 	STUC_ASSERT("", pCornerPairNext->pIsland->size > 0);
 	CornerBufWrap *pIsland = pCornerPair->pPending ?
@@ -260,14 +260,14 @@ void addIslandToPendingMerge(StucAlloc *pAlloc, IslandIdxPair *pCornerPair,
 	}
 	addToPendingMerge(pAlloc, pIsland, realiNext);
 	if (pIslandNext->pPendingMerge) {
-		for (int32_t i = 1; i < pIslandNext->mergeCount; ++i) {
+		for (I32 i = 1; i < pIslandNext->mergeCount; ++i) {
 			addToPendingMerge(pAlloc, pIsland, pIslandNext->pPendingMerge[i]);
 		}
 		destroyPendingMerge(pAlloc, pIslandNext);
 	}
 	pCornerPairNext->pIsland->invalid = true;
 	//update references to invalid entry in list
-	for (int32_t i = 0; i < cacheCount; ++i) {
+	for (I32 i = 0; i < cacheCount; ++i) {
 		if (pIntersectCache[i].pIsland == pIslandNext) {
 			pIntersectCache[i].pPending = pIsland;
 		}
@@ -277,17 +277,17 @@ void addIslandToPendingMerge(StucAlloc *pAlloc, IslandIdxPair *pCornerPair,
 static
 void mergeIslands(CornerBufWrap *pIsland, IslandIdxPair *pIntersectCache) {
 	//17 is the max islands possible with a 32 vert map face
-	int32_t idxTable[18] = {-1};
+	I32 idxTable[18] = {-1};
 	if (pIsland->mergeCount > 2) {
 		stucInsertionSort(idxTable + 1, pIsland->mergeCount - 1,
 		                  pIsland->pPendingMerge + 1);
 	}
-	for (int32_t i = 1; i < pIsland->mergeCount; ++i) {
-		int32_t idxPending = pIsland->pPendingMerge[idxTable[i] + 1];
+	for (I32 i = 1; i < pIsland->mergeCount; ++i) {
+		I32 idxPending = pIsland->pPendingMerge[idxTable[i] + 1];
 		CornerBufWrap *pIslandPending = pIntersectCache[idxPending].pIsland;
 		STUC_ASSERT("", pIslandPending->invalid);
 		STUC_ASSERT("", pIslandPending->size > 0);
-		for (int32_t j = 0; j < pIslandPending->size; ++j) {
+		for (I32 j = 0; j < pIslandPending->size; ++j) {
 			pIsland->buf[pIsland->size + j] = pIslandPending->buf[j];
 		}
 		pIsland->size += pIslandPending->size;
@@ -296,7 +296,7 @@ void mergeIslands(CornerBufWrap *pIsland, IslandIdxPair *pIntersectCache) {
 
 static
 void setIsland(StucAlloc *pAlloc, CornerBufWrap **ppIsland,
-               CornerBufWrap *pRoot, bool *pIn, int32_t inCorner,
+               CornerBufWrap *pRoot, bool *pIn, I32 inCorner,
                bool mapFaceWindDir) {
 	if (!*pIn) {
 		if (!*ppIsland) {
@@ -315,14 +315,14 @@ void setIsland(StucAlloc *pAlloc, CornerBufWrap **ppIsland,
 }
 
 typedef struct {
-	float *pArr;
-	int32_t *pIndices;
-	int32_t size;
-	int32_t count;
+	F32 *pArr;
+	I32 *pIndices;
+	I32 size;
+	I32 count;
 } Segments;
 
 static
-void setSegment(IslandIdxPair *pCornerPair, Segments *pSegments, int32_t inCorner) {
+void setSegment(IslandIdxPair *pCornerPair, Segments *pSegments, I32 inCorner) {
 	CornerBuf *pCorner = pCornerPair->pIsland->buf + pCornerPair->corner;
 	if (pCorner->baseCorner == inCorner) {
 		pCorner->segment = pSegments[inCorner].count;
@@ -330,9 +330,9 @@ void setSegment(IslandIdxPair *pCornerPair, Segments *pSegments, int32_t inCorne
 }
 
 static
-void setSegments(StucAlloc *pAlloc, float *ptBuf, Segments *pSegments,
-                 IslandIdxPair *pIntersectCache, int32_t inCorner,
-                 int32_t reali, int32_t realiNext) {
+void setSegments(StucAlloc *pAlloc, F32 *ptBuf, Segments *pSegments,
+                 IslandIdxPair *pIntersectCache, I32 inCorner,
+                 I32 reali, I32 realiNext) {
 	Segments *pSegEntry = pSegments + inCorner;
 	IslandIdxPair *pCorner = pIntersectCache + reali;
 	IslandIdxPair *pCornerNext = pIntersectCache + realiNext;
@@ -342,29 +342,29 @@ void setSegments(StucAlloc *pAlloc, float *ptBuf, Segments *pSegments,
 		pSegEntry->pArr[pSegEntry->count] = ptBuf[reali];
 		pSegEntry->count++;
 		if (pSegEntry->count == pSegEntry->size) {
-			int32_t oldSize = pSegEntry->size;
+			I32 oldSize = pSegEntry->size;
 			pSegEntry->size *= 2;
 			pSegEntry->pArr =
-				pAlloc->pRealloc(pSegEntry->pArr, pSegEntry->size * sizeof(float));
+				pAlloc->pRealloc(pSegEntry->pArr, pSegEntry->size * sizeof(F32));
 			pSegEntry->pIndices =
-				pAlloc->pRealloc(pSegEntry->pIndices, pSegEntry->size * sizeof(int32_t));
-			memset(pSegEntry->pArr + pSegEntry->count, 0, sizeof(float) * oldSize);
-			memset(pSegEntry->pIndices + pSegEntry->count, 0, sizeof(int32_t) * oldSize);
+				pAlloc->pRealloc(pSegEntry->pIndices, pSegEntry->size * sizeof(I32));
+			memset(pSegEntry->pArr + pSegEntry->count, 0, sizeof(F32) * oldSize);
+			memset(pSegEntry->pIndices + pSegEntry->count, 0, sizeof(I32) * oldSize);
 		}
 	}
 }
 
 static
 void clipMapFaceAgainstCorner(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
-                              CornerBufWrap *pNewCornerBuf, int32_t *pInsideBuf,
+                              CornerBufWrap *pNewCornerBuf, I32 *pInsideBuf,
                               FaceRange *pInFace, CornerInfo *pBaseCorner,
                               V2_F32 baseCornerCross, bool flippedWind,
-                              int32_t mapFaceWindDir, int32_t faceWindDir,
+                              I32 mapFaceWindDir, I32 faceWindDir,
                               Segments *pSegments, CornerAncestors *pAncestors) {
-	for (int32_t i = 0; i < pCornerBuf->size; ++i) {
+	for (I32 i = 0; i < pCornerBuf->size; ++i) {
 		V2_F32 stucVert = *(V2_F32 *)&pCornerBuf->buf[i].corner;
 		V2_F32 uvStucDir = _(stucVert V2SUB pBaseCorner->vert);
-		float dot = _(baseCornerCross V2DOT uvStucDir);
+		F32 dot = _(baseCornerCross V2DOT uvStucDir);
 		bool onLine = dot == .0f;
 		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ ((bool)mapFaceWindDir ^ (bool)faceWindDir);
 	}
@@ -372,12 +372,12 @@ void clipMapFaceAgainstCorner(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 	CornerBufWrap *pIsland = NULL;
 	//32 is the max intersections possible with a 32 vert map face
 	IslandIdxPair intersectCache[32] = {0};
-	float tBuf[33] = {-FLT_MAX}; //first element must be low for later sorting
-	float *ptBuf = tBuf + 1;
-	int32_t count = 0;
-	for (int32_t i = 0; i < pCornerBuf->size; ++i) {
-		int32_t iNext = (i + 1) % pCornerBuf->size;
-		int32_t iPrev = i ? i - 1 : pCornerBuf->size - 1;
+	F32 tBuf[33] = {-FLT_MAX}; //first element must be low for later sorting
+	F32 *ptBuf = tBuf + 1;
+	I32 count = 0;
+	for (I32 i = 0; i < pCornerBuf->size; ++i) {
+		I32 iNext = (i + 1) % pCornerBuf->size;
+		I32 iPrev = i ? i - 1 : pCornerBuf->size - 1;
 		if (pInsideBuf[i]) {
 			//point is inside, or on the line
 			setIsland(&pVars->alloc, &pIsland, pNewCornerBuf, &in,
@@ -411,23 +411,23 @@ void clipMapFaceAgainstCorner(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 	}
 	STUC_ASSERT("", count >= 2);
 	STUC_ASSERT("should be even", !(count % 2));
-	int32_t idxTable[65] = {-1}; //first element to point to first tbuf element
-	int32_t *pIdxTable = idxTable + 1;
+	I32 idxTable[65] = {-1}; //first element to point to first tbuf element
+	I32 *pIdxTable = idxTable + 1;
 	if (pBaseCorner->flipEdgeDir) {
-		for (int32_t i = 0; i < count; ++i) {
+		for (I32 i = 0; i < count; ++i) {
 			ptBuf[i] = 1.0f - ptBuf[i];
 		}
 	}
 	stucFInsertionSort(pIdxTable, count, ptBuf);
-	int32_t inCorner = pBaseCorner->localIdx;
+	I32 inCorner = pBaseCorner->localIdx;
 	if (!pIsland->pNext) {
 		setSegments(&pVars->alloc, ptBuf, pSegments, intersectCache, inCorner,
 		            pIdxTable[0], pIdxTable[1]);
 		return;
 	}
-	for (int32_t i = 0; i < count; i += 2) {
-		int32_t reali = pIdxTable[i];
-		int32_t realiNext = pIdxTable[i + 1];
+	for (I32 i = 0; i < count; i += 2) {
+		I32 reali = pIdxTable[i];
+		I32 realiNext = pIdxTable[i + 1];
 		IslandIdxPair *pCorner = intersectCache + reali;
 		IslandIdxPair *pCornerNext = intersectCache + realiNext;
 		setSegments(&pVars->alloc, ptBuf, pSegments, intersectCache, inCorner,
@@ -456,27 +456,27 @@ void clipMapFaceAgainstCorner(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 static
 void cornerBufDecrementBaseCorners(CornerBufWrap* pCornerBuf, FaceRange* pInFace) {
 	for (int i = 0; i < pCornerBuf->size; ++i) {
-		int8_t* pBaseCorner = &pCornerBuf->buf[i].baseCorner;
+		I8* pBaseCorner = &pCornerBuf->buf[i].baseCorner;
 		*pBaseCorner = *pBaseCorner ? *pBaseCorner - 1 : pInFace->size - 1;
 	}
 }
 
 static
 void clipMapFaceAgainstInFace(MappingJobVars *pVars, FaceRange *pInFace,
-                                 CornerBufWrap *pCornerBuf, int32_t faceWindingDir,
-                                 int32_t mapFaceWindDir, Segments *pSegments,
+                                 CornerBufWrap *pCornerBuf, I32 faceWindingDir,
+                                 I32 mapFaceWindDir, Segments *pSegments,
                                  CornerAncestors *pAncestors) {
 	bool flippedWind = !faceWindingDir || !mapFaceWindDir;
-	int32_t start = pCornerBuf->lastInCorner;
-	for (int32_t i = start; mapFaceWindDir ? i < pInFace->size : i >= 0; mapFaceWindDir ? ++i : --i) {
+	I32 start = pCornerBuf->lastInCorner;
+	for (I32 i = start; mapFaceWindDir ? i < pInFace->size : i >= 0; mapFaceWindDir ? ++i : --i) {
 		STUC_ASSERT("", i >= 0 && i < pInFace->size);
 		CornerInfo baseCorner = {0};
 		//why is both this and idxLocal local? Shouldn't this be absolute?
 		baseCorner.idx = i;
 		baseCorner.vert = pVars->mesh.pUvs[i + pInFace->start];
-		int32_t uvNextIdxLocal;
-		int32_t uvPrevIdxLocal;
-		int32_t edgeCorner;
+		I32 uvNextIdxLocal;
+		I32 uvPrevIdxLocal;
+		I32 edgeCorner;
 		if (mapFaceWindDir) {
 			uvNextIdxLocal = ((i + 1) % pInFace->size);
 			uvPrevIdxLocal = i ? i - 1 : pInFace->size - 1;
@@ -489,10 +489,10 @@ void clipMapFaceAgainstInFace(MappingJobVars *pVars, FaceRange *pInFace,
 		}
 		baseCorner.edgeIdx = pVars->mesh.core.pEdges[edgeCorner];
 		//TODO rename verts in pEdgeVerts to corners. They're not verts anymore.
-		int32_t *pEdgeCorners = pVars->pEdgeVerts[baseCorner.edgeIdx].verts;
+		I32 *pEdgeCorners = pVars->pEdgeVerts[baseCorner.edgeIdx].verts;
 		STUC_ASSERT("", pEdgeCorners[0] == edgeCorner || pEdgeCorners[1] == edgeCorner);
 		baseCorner.flipEdgeDir = edgeCorner != pEdgeCorners[0];
-		int32_t uvNextIdx = uvNextIdxLocal + pInFace->start;
+		I32 uvNextIdx = uvNextIdxLocal + pInFace->start;
 		baseCorner.vertNext = pVars->mesh.pUvs[uvNextIdx];
 		baseCorner.idxNext = uvNextIdxLocal;
 		baseCorner.localIdx = i;
@@ -504,7 +504,7 @@ void clipMapFaceAgainstInFace(MappingJobVars *pVars, FaceRange *pInFace,
 			.edgeFace = pCornerBuf->edgeFace,
 			.onLine = pCornerBuf->onLine
 		};
-		int32_t insideBuf[65] = {0};
+		I32 insideBuf[65] = {0};
 		V2_F32 baseCornerCross = v2Cross(baseCorner.dir);
 		clipMapFaceAgainstCorner(pVars, pCornerBuf, &newCornerBuf, insideBuf,
 		                         pInFace, &baseCorner, baseCornerCross,
@@ -528,12 +528,12 @@ void clipMapFaceAgainstInFace(MappingJobVars *pVars, FaceRange *pInFace,
 }
 
 static
-V3_F32 getCornerRealNormal(Mesh *pMesh, FaceRange *pFace, int32_t corner) {
-	int32_t a = corner == 0 ? pFace->size - 1 : corner - 1;
-	int32_t c = (corner + 1) % pFace->size;
-	int32_t aIdx = pMesh->core.pCorners[pFace->start + a];
-	int32_t bIdx = pMesh->core.pCorners[pFace->start + corner];
-	int32_t cIdx = pMesh->core.pCorners[pFace->start + c];
+V3_F32 getCornerRealNormal(Mesh *pMesh, FaceRange *pFace, I32 corner) {
+	I32 a = corner == 0 ? pFace->size - 1 : corner - 1;
+	I32 c = (corner + 1) % pFace->size;
+	I32 aIdx = pMesh->core.pCorners[pFace->start + a];
+	I32 bIdx = pMesh->core.pCorners[pFace->start + corner];
+	I32 cIdx = pMesh->core.pCorners[pFace->start + c];
 	V3_F32 ba = _(pMesh->pVerts[aIdx] V3SUB pMesh->pVerts[bIdx]);
 	V3_F32 bc = _(pMesh->pVerts[cIdx] V3SUB pMesh->pVerts[bIdx]);
 	return v3Normalize(_(ba V3CROSS bc));
@@ -542,11 +542,11 @@ V3_F32 getCornerRealNormal(Mesh *pMesh, FaceRange *pFace, int32_t corner) {
 static
 void transformClippedFaceFromUvToXyz(CornerBufWrap *pCornerBuf, FaceRange *pMapFace,
                                      FaceRange *pInFace, BaseTriVerts *pInTri,
-                                     MappingJobVars *pVars, V2_F32 tileMin, float wScale) {
+                                     MappingJobVars *pVars, V2_F32 tileMin, F32 wScale) {
 	Mesh *pMapMesh = &pVars->pMap->mesh;
 	//replace j, k, l, etc, in code that was moved to a func, but not updated,
 	//eg, the below corner should use i, not j
-	for (int32_t j = 0; j < pCornerBuf->size; ++j) {
+	for (I32 j = 0; j < pCornerBuf->size; ++j) {
 		CornerBuf *pCorner = pCornerBuf->buf + j;
 		pCorner->uvw = pCorner->corner;
 		//uv is just the vert position before transform, so set that here
@@ -555,16 +555,16 @@ void transformClippedFaceFromUvToXyz(CornerBufWrap *pCornerBuf, FaceRange *pMapF
 		_((V2_F32 *)&pCorner->uvw V2SUBEQL tileMin);
 		V3_F32 vertBc = stucGetBarycentricInFace(pInTri->uv, pCorner->triCorners,
 		                                         pInFace->size, *(V2_F32 *)&pCorner->uvw);
-		int8_t *pTriCorners = pCorner->triCorners;
+		I8 *pTriCorners = pCorner->triCorners;
 		V3_F32 vertsXyz[3] = {0};
-		int32_t inVerts[3] = {0};
-		for (int32_t i = 0; i < 3; ++i) {
+		I32 inVerts[3] = {0};
+		for (I32 i = 0; i < 3; ++i) {
 			inVerts[i] = pVars->mesh.core.pCorners[pInFace->start + pTriCorners[i]];
 			vertsXyz[i] = pVars->mesh.pVerts[inVerts[i]];
 		}
 		pCorner->bc = vertBc;
 		pCorner->tbn = stucGetInterpolatedTbn(&pVars->mesh, pInFace, pTriCorners, vertBc);
-		float inVertsWScaleMul = 1.0;
+		F32 inVertsWScaleMul = 1.0;
 		if (pVars->mesh.pWScale) {
 			Attrib wScaleWrap = {
 				.core.pData = &inVertsWScaleMul,
@@ -604,7 +604,7 @@ void transformClippedFaceFromUvToXyz(CornerBufWrap *pCornerBuf, FaceRange *pMapF
 }
 
 static
-lerpIntersect(CornerBuf *pCorner, Attrib *pDestAttrib, int32_t destIdx,
+lerpIntersect(CornerBuf *pCorner, Attrib *pDestAttrib, I32 destIdx,
               Attrib *pMapAttrib, FaceRange *pMapFace, CornerAncestors *pAncestors) {
 	STUC_ASSERT("", pMapAttrib->core.type != STUC_ATTRIB_STRING);
 	if (pCorner->isStuc) {
@@ -612,14 +612,14 @@ lerpIntersect(CornerBuf *pCorner, Attrib *pDestAttrib, int32_t destIdx,
 		           pMapFace->start + pCorner->stucCorner);
 	}
 	else {
-		uint8_t dataA[32] = {0}; //enough for a V4 8 byte type
-		uint8_t dataB[32] = {0}; //enough for a V4 8 byte type
+		U8 dataA[32] = {0}; //enough for a V4 8 byte type
+		U8 dataB[32] = {0}; //enough for a V4 8 byte type
 		Attrib attribA = *pMapAttrib;
 		Attrib attribB = *pMapAttrib;
 		attribA.core.pData = dataA;
 		attribB.core.pData = dataB;
-		int32_t idxA = 0;
-		int32_t idxB = 0;
+		I32 idxA = 0;
+		I32 idxB = 0;
 		CornerBuf *pAncestor = pAncestors->pArr + pCorner->ancestor;
 		CornerBuf *pAncestorNext = pAncestors->pArr + pCorner->ancestorNext;
 		lerpIntersect(pAncestor, &attribA, 0, pMapAttrib, pMapFace, pAncestors);
@@ -641,10 +641,10 @@ static
 void blendCommonAttrib(StucContext pContext, BufMesh *pBufMesh,
                        AttribArray *pDestAttribs, StucAttrib *pDestAttrib,
                        AttribArray *pMapAttribs, AttribArray *pMeshAttribs,
-                       CornerBuf *pCornerBuf, int32_t cornerBufIdx, int32_t dataIdx,
-                       int32_t mapDataIdx, int32_t meshDataIdx,
-                       StucCommonAttrib *pCommonAttribs, int32_t commonAttribCount,
-                       FaceRange *pInFace, int32_t attribIdx) {
+                       CornerBuf *pCornerBuf, I32 cornerBufIdx, I32 dataIdx,
+                       I32 mapDataIdx, I32 meshDataIdx,
+                       StucCommonAttrib *pCommonAttribs, I32 commonAttribCount,
+                       FaceRange *pInFace, I32 attribIdx) {
 	if (pDestAttrib == pBufMesh->mesh.pVertAttrib ||
 	    pDestAttrib == pBufMesh->mesh.pUvAttrib ||
 	    pDestAttrib == pBufMesh->mesh.pNormalAttrib) {
@@ -658,9 +658,9 @@ void blendCommonAttrib(StucContext pContext, BufMesh *pBufMesh,
 	StucAttrib *pMeshAttrib =
 		stucGetAttribIntern(pDestAttribs->pArr[attribIdx].core.name, pMeshAttribs);
 	StucAttribType type = pDestAttribs->pArr[attribIdx].core.type;
-	uint8_t mapDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
+	U8 mapDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
 	StucAttrib mapBuf = {.core.pData = mapDataBuf, .core.type = type};
-	uint8_t meshDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
+	U8 meshDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
 	StucAttrib meshBuf = {.core.pData = meshDataBuf, .core.type = type};
 	//TODO remove 'false' once interpolation is implemented for map attribs
 	if (false && pMapAttrib->interpolate) {
@@ -704,7 +704,7 @@ void blendCommonAttrib(StucContext pContext, BufMesh *pBufMesh,
 		blendConfig = pDefault->blendConfig;
 	}
 	StucAttrib *orderTable[2] = {0};
-	int8_t order = blendConfig.order;
+	I8 order = blendConfig.order;
 	orderTable[0] = order ? &mapBuf : &meshBuf;
 	orderTable[1] = !order ? &mapBuf : &meshBuf;
 	stucBlendAttribs(pDestAttrib, dataIdx, orderTable[0], 0, orderTable[1], 0,
@@ -712,11 +712,11 @@ void blendCommonAttrib(StucContext pContext, BufMesh *pBufMesh,
 }
 
 static
-void interpolateMapAttrib(AttribArray *pDestAttribs, int32_t attribIdx,
+void interpolateMapAttrib(AttribArray *pDestAttribs, I32 attribIdx,
                           AttribArray *pMapAttribs, StucDomain domain,
                           CornerBuf *pCorner, StucAttrib *pDestAttrib,
-                          int32_t dataIdx, FaceRange *pMapFace,
-                          CornerAncestors *pAncestors, int32_t mapDataIdx) {
+                          I32 dataIdx, FaceRange *pMapFace,
+                          CornerAncestors *pAncestors, I32 mapDataIdx) {
 	StucAttrib *pMapAttrib = stucGetAttribIntern(pDestAttribs->pArr[attribIdx].core.name, pMapAttribs);
 	if (pMapAttrib->interpolate && domain == STUC_DOMAIN_CORNER) {
 		StucAttrib *pMapAttrib = stucGetAttribIntern(pDestAttribs->pArr[attribIdx].core.name, pMapAttribs);
@@ -730,11 +730,11 @@ void interpolateMapAttrib(AttribArray *pDestAttribs, int32_t attribIdx,
 }
 
 static
-void interpolateInMeshAttrib(AttribArray *pDestAttribs, int32_t attribIdx,
+void interpolateInMeshAttrib(AttribArray *pDestAttribs, I32 attribIdx,
                              AttribArray *pMeshAttribs, StucAttrib *pDestAttrib,
-                             int32_t dataIdx, FaceRange *pInFace,
-                             CornerBuf *pCornerBuf, int32_t cornerBufIdx,
-                             int32_t meshDataIdx) {
+                             I32 dataIdx, FaceRange *pInFace,
+                             CornerBuf *pCornerBuf, I32 cornerBufIdx,
+                             I32 meshDataIdx) {
 	StucAttrib *pMeshAttrib =
 		stucGetAttribIntern(pDestAttribs->pArr[attribIdx].core.name, pMeshAttribs);
 	if (pMeshAttrib->interpolate) {
@@ -764,16 +764,16 @@ static
 void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh,
                           AttribArray *pDestAttribs, AttribArray *pMapAttribs,
                           AttribArray *pMeshAttribs, CornerBuf *pCornerBuf,
-                          int32_t cornerBufIdx, int32_t dataIdx, int32_t mapDataIdx,
-                          int32_t meshDataIdx, StucCommonAttrib *pCommonAttribs,
-                          int32_t commonAttribCount, FaceRange *pInFace,
+                          I32 cornerBufIdx, I32 dataIdx, I32 mapDataIdx,
+                          I32 meshDataIdx, StucCommonAttrib *pCommonAttribs,
+                          I32 commonAttribCount, FaceRange *pInFace,
                           FaceRange *pMapFace, StucDomain domain,
                           CornerAncestors *pAncestors) {
 	CornerBuf *pCorner = pCornerBuf + cornerBufIdx;
 	//TODO make naming for MeshIn consistent
 	//TODO rename meshBuf in this func to inBuf,
 	//it's ambiguous whether it's refering to in-mesh or bufmesh
-	for (int32_t i = 0; i < pDestAttribs->count; ++i) {
+	for (I32 i = 0; i < pDestAttribs->count; ++i) {
 		StucAttrib *pDestAttrib = pDestAttribs->pArr + i;
 		if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_COMMON) {
 			blendCommonAttrib(pContext, pBufMesh, pDestAttribs, pDestAttrib, pMapAttribs,
@@ -793,9 +793,9 @@ void blendMapAndInAttribs(StucContext pContext, BufMesh *pBufMesh,
 
 static
 void simpleCopyAttribs(AttribArray *pDestAttribs, AttribArray *pMapAttribs,
-                       AttribArray *pMeshAttribs, int32_t destDataIdx,
-                       int32_t srcDataIdx, int32_t idxOrigin) {
-	for (int32_t i = 0; i < pDestAttribs->count; ++i) {
+                       AttribArray *pMeshAttribs, I32 destDataIdx,
+                       I32 srcDataIdx, I32 idxOrigin) {
+	for (I32 i = 0; i < pDestAttribs->count; ++i) {
 		switch (pDestAttribs->pArr[i].origin) {
 			case (STUC_ATTRIB_ORIGIN_COMMON): {
 				StucAttrib *pSrcAttrib;
@@ -838,7 +838,7 @@ void simpleCopyAttribs(AttribArray *pDestAttribs, AttribArray *pMapAttribs,
 static
 void initEdgeTableEntry(MappingJobVars *pVars, LocalEdge *pEntry,
                         AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
-                        int32_t refEdge, int32_t refFace, int32_t isMapEdge) {
+                        I32 refEdge, I32 refFace, I32 isMapEdge) {
 	bool realloced = false;
 	BufMeshIdx edge =
 		stucBufMeshAddEdge(&pVars->alloc, pBufMesh, !isMapEdge, pVars->pDpVars, &realloced);
@@ -853,36 +853,36 @@ void initEdgeTableEntry(MappingJobVars *pVars, LocalEdge *pEntry,
 }
 
 static
-int32_t getRefEdge(MappingJobVars *pVars, FaceRange *pMapFace,
+I32 getRefEdge(MappingJobVars *pVars, FaceRange *pMapFace,
                    FaceRange *pInFace, CornerBuf *pCornerBuf,
-                   int32_t cornerBufIdx) {
+                   I32 cornerBufIdx) {
 	if (pCornerBuf[cornerBufIdx].isStuc) {
-		int32_t stucCorner = pCornerBuf[cornerBufIdx].stucCorner;
+		I32 stucCorner = pCornerBuf[cornerBufIdx].stucCorner;
 		return pVars->pMap->mesh.core.pEdges[pMapFace->start + stucCorner];
 	}
 	else {
-		int32_t baseCorner = pCornerBuf[cornerBufIdx].baseCorner;
+		I32 baseCorner = pCornerBuf[cornerBufIdx].baseCorner;
 		return pVars->mesh.core.pEdges[pInFace->start + baseCorner];
 	}
 }
 
 static
-void addEdge(MappingJobVars *pVars, int32_t cornerBufIdx, BufMesh *pBufMesh,
-             CornerBuf *pCornerBuf, StucAlloc *pAlloc, int32_t refFace,
+void addEdge(MappingJobVars *pVars, I32 cornerBufIdx, BufMesh *pBufMesh,
+             CornerBuf *pCornerBuf, StucAlloc *pAlloc, I32 refFace,
              AddClippedFaceVars *pAcfVars, FaceRange *pInFace, FaceRange *pMapFace) {
-	int32_t refEdge = getRefEdge(pVars, pMapFace, pInFace, pCornerBuf, cornerBufIdx);
-	int32_t isMapEdge = pCornerBuf[cornerBufIdx].isStuc;
-	int32_t key = isMapEdge ? refEdge : (refEdge + 1) * -1;
-	int32_t hash = stucFnvHash((uint8_t *)&key, 4, pVars->localTables.edgeTableSize);
+	I32 refEdge = getRefEdge(pVars, pMapFace, pInFace, pCornerBuf, cornerBufIdx);
+	I32 isMapEdge = pCornerBuf[cornerBufIdx].isStuc;
+	I32 key = isMapEdge ? refEdge : (refEdge + 1) * -1;
+	I32 hash = stucFnvHash((U8 *)&key, 4, pVars->localTables.edgeTableSize);
 	LocalEdge *pEntry = pVars->localTables.pEdgeTable + hash;
-	int32_t depth = 0;
+	I32 depth = 0;
 	do {
 		if (!pEntry->cornerCount) {
 			initEdgeTableEntry(pVars, pEntry, pAcfVars, pBufMesh, refEdge,
 			                   refFace, isMapEdge);
 			break;
 		}
-		int32_t match = pEntry->refEdge == refEdge &&
+		I32 match = pEntry->refEdge == refEdge &&
 		                pEntry->refFace == refFace;
 		if (match) {
 			pAcfVars->edge = pEntry->edge;
@@ -903,7 +903,7 @@ void addEdge(MappingJobVars *pVars, int32_t cornerBufIdx, BufMesh *pBufMesh,
 }
 
 static
-void addNewCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
+void addNewCornerAndOrVert(MappingJobVars *pVars, I32 cornerBufIdx,
                          AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
                          CornerBuf *pCornerBuf, FaceRange *pInFace,
                          FaceRange *pMapFace) {
@@ -927,10 +927,10 @@ void addNewCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 }
 
 static
-void initMapVertTableEntry(MappingJobVars *pVars, int32_t cornerBufIdx,
+void initMapVertTableEntry(MappingJobVars *pVars, I32 cornerBufIdx,
                            AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
                            CornerBuf *pCornerBuf, LocalVert *pEntry, FaceRange *pInFace,
-                           int32_t stucVert, FaceRange *pMapFace, V2_I32 tile) {
+                           I32 stucVert, FaceRange *pMapFace, V2_I32 tile) {
 	bool realloced = false;
 	BufMeshIdx vert = stucBufMeshAddVert(&pVars->alloc, pBufMesh, false,
 	                                     pVars->pDpVars, &realloced);
@@ -952,14 +952,14 @@ void initMapVertTableEntry(MappingJobVars *pVars, int32_t cornerBufIdx,
 }
 
 static
-void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
+void addStucCornerAndOrVert(MappingJobVars *pVars, I32 cornerBufIdx,
                             AddClippedFaceVars *pAcfVars, BufMesh *pBufMesh,
                             CornerBuf *pCornerBufEntry, StucAlloc *pAlloc,
                             FaceRange *pInFace, FaceRange *pMapFace, V2_I32 tile) {
-	int32_t stucCorner = pMapFace->start + pCornerBufEntry[cornerBufIdx].stucCorner;
-	uint32_t uStucVert = pVars->pMap->mesh.core.pCorners[stucCorner];
-	int32_t hash =
-		stucFnvHash((uint8_t *)&uStucVert, 4, pVars->localTables.vertTableSize);
+	I32 stucCorner = pMapFace->start + pCornerBufEntry[cornerBufIdx].stucCorner;
+	U32 uStucVert = pVars->pMap->mesh.core.pCorners[stucCorner];
+	I32 hash =
+		stucFnvHash((U8 *)&uStucVert, 4, pVars->localTables.vertTableSize);
 	LocalVert *pEntry = pVars->localTables.pVertTable + hash;
 	do {
 		if (!pEntry->cornerSize) {
@@ -968,7 +968,7 @@ void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 			                      pMapFace, tile);
 			break;
 		}
-		int32_t match = pEntry->mapVert == uStucVert &&
+		I32 match = pEntry->mapVert == uStucVert &&
 		                pEntry->inFace == pInFace->idx &&
 		                pEntry->tile.d[0] == tile.d[0] &&
 		                pEntry->tile.d[1] == tile.d[1]; //TODO int vector ops don't current have macros
@@ -990,8 +990,8 @@ void addStucCornerAndOrVert(MappingJobVars *pVars, int32_t cornerBufIdx,
 
 static
 void setBorderFaceMapAttrib(BorderFace *pEntry, UBitField8 *pArr,
-                            int32_t corner, int32_t value) {
-	int32_t len = 3 + pEntry->memType;
+                            I32 corner, I32 value) {
+	I32 len = 3 + pEntry->memType;
 	stucSetBitArr(pArr, corner, value, len);
 }
 
@@ -999,13 +999,13 @@ static
 void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                           BorderFace *pEntry, FaceRange *pMapFace,
                           V2_I32 tile, CornerBufWrap *pCornerBuf, FaceRange *pInFace,
-                          bool faceWindDir, bool mapFaceWindDir, int32_t memType,
+                          bool faceWindDir, bool mapFaceWindDir, I32 memType,
                           Segments *pSegments) {
 	pEntry->memType = memType;
 	pEntry->bufFace = pAcfVars->face;
 	pEntry->mapFace = pMapFace->idx;
-	pEntry->tileX = *(uint64_t *)&tile.d[0];
-	pEntry->tileY = *(uint64_t *)&tile.d[1];
+	pEntry->tileX = *(U64 *)&tile.d[0];
+	pEntry->tileY = *(U64 *)&tile.d[1];
 	pEntry->job = pVars->id;
 	pEntry->inFace = pInFace->idx;
 	pEntry->inOrient = faceWindDir;
@@ -1015,7 +1015,7 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 	stucGetBorderFaceBitArrs(pEntry, &bitArrs);
 
 	STUC_ASSERT("", pCornerBuf->size <= 64);
-	for (int32_t i = 0; i < pCornerBuf->size; ++i) {
+	for (I32 i = 0; i < pCornerBuf->size; ++i) {
 		CornerBuf *pCorner = pCornerBuf->buf + i;
 		if (pCorner->onLine != 0) {
 			stucSetBitArr(bitArrs.pOnLine, i, true, 1);
@@ -1030,13 +1030,13 @@ void initBorderTableEntry(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 			stucSetBitArr(bitArrs.pOnInVert, i, true, 1);
 		}
 		if (!pCorner->isStuc && pCorner->segment) {
-			int32_t idx = pCorner->segment - 1;
-			int32_t j = 1;
+			I32 idx = pCorner->segment - 1;
+			I32 j = 1;
 			//if map face orientation is inverted, then the position
 			//of each incorner in the segments array is offset by 1.
 			//This is because pCorner->baseCorner is decremented at the end of
 			//clipping to account for the inverted wind order
-			int32_t segIdx = mapFaceWindDir ?
+			I32 segIdx = mapFaceWindDir ?
 				pCorner->baseCorner : (pCorner->baseCorner + 1) % pInFace->size;
 			for (j; j < pSegments[segIdx].count; ++j) {
 				if (pSegments[segIdx].pIndices[j] == idx) {
@@ -1061,7 +1061,7 @@ void walkBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                      CornerBufWrap *pCornerBuf, FaceRange *pMapFace,
                      V2_I32 tile, FaceRange *pInFace, bool faceWindDir,
                      bool mapFaceWindDir, Segments *pSegments, BorderBucket *pBucket,
-                     BorderFace *pEntry, int32_t memType, int32_t allocSize ) {
+                     BorderFace *pEntry, I32 memType, I32 allocSize ) {
 	do {
 		if (pEntry->mapFace == pMapFace->idx) {
 			if (pBucket->pTail) {
@@ -1092,10 +1092,10 @@ void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
                           CornerBufWrap *pCornerBuf, FaceRange *pMapFace,
                           V2_I32 tile, FaceRange *pInFace, bool faceWindDir,
                           bool mapFaceWindDir, Segments *pSegments) {
-	int32_t memType = stucGetBorderFaceMemType(pMapFace->size, pCornerBuf->size);
-	int32_t allocSize = stucGetBorderFaceSize(memType);
-	int32_t hash =
-		stucFnvHash((uint8_t *)&pMapFace->idx, 4, pVars->borderTable.size);
+	I32 memType = stucGetBorderFaceMemType(pMapFace->size, pCornerBuf->size);
+	I32 allocSize = stucGetBorderFaceSize(memType);
+	I32 hash =
+		stucFnvHash((U8 *)&pMapFace->idx, 4, pVars->borderTable.size);
 	BorderBucket *pBucket = pVars->borderTable.pTable + hash;
 	BorderFace *pEntry = pBucket->pEntry;
 	if (!pEntry) {
@@ -1112,13 +1112,13 @@ void addFaceToBorderTable(MappingJobVars *pVars, AddClippedFaceVars *pAcfVars,
 }
 
 static
-void addInFace(MappingJobVars *pVars, int32_t face, FaceRange *pInFace, FaceRange *pMapFace) {
+void addInFace(MappingJobVars *pVars, I32 face, FaceRange *pInFace, FaceRange *pMapFace) {
 	InFaceArr *pInFaceEntry = pVars->pInFaces + face;
-	pInFaceEntry->pArr = pVars->alloc.pMalloc(sizeof(int32_t));
+	pInFaceEntry->pArr = pVars->alloc.pMalloc(sizeof(I32));
 	*pInFaceEntry->pArr = pInFace->idx + pVars->inFaceOffset;
 	pInFaceEntry->count = 1;
 	pInFaceEntry->usg = pMapFace->idx;
-	int32_t faceCount = pVars->bufMesh.mesh.core.faceCount;
+	I32 faceCount = pVars->bufMesh.mesh.core.faceCount;
 	STUC_ASSERT("", faceCount <= pVars->inFaceSize);
 	if (pVars->inFaceSize == faceCount) {
 		pVars->inFaceSize *= 2;
@@ -1137,13 +1137,13 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 	BufMesh *pBufMesh = &pVars->bufMesh;
 	bool isBorderFace = pCornerBuf->edgeFace || pCornerBuf->onLine;
 	bool invert = !faceWindDir && !isBorderFace;
-	int32_t size = pCornerBuf->size;
-	for (int32_t i = invert ? size - 1 : 0;
+	I32 size = pCornerBuf->size;
+	for (I32 i = invert ? size - 1 : 0;
 		invert ? i >= 0 : i < size;
 		invert ? --i : ++i) {
 
-		int32_t refFace;
-		int32_t isStuc = pCornerBuf->buf[i].isStuc;
+		I32 refFace;
+		I32 isStuc = pCornerBuf->buf[i].isStuc;
 		if (!isStuc || pCornerBuf->buf[i].onLine) {
 			//TODO these only add verts, not corners. Outdated name?
 			addNewCornerAndOrVert(pVars, i, &acfVars, &pVars->bufMesh,
@@ -1211,7 +1211,7 @@ void addClippedFaceToBufMesh(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 
 static
 bool isOnLine(CornerBufWrap *pCornerBuf) {
-	for (int32_t i = 0; i < pCornerBuf->size; ++i) {
+	for (I32 i = 0; i < pCornerBuf->size; ++i) {
 		if (pCornerBuf->buf[i].onLine) {
 			return true;
 		}
@@ -1236,11 +1236,11 @@ bool isTriDegenerate(BaseTriVerts *pTri, FaceRange *pFace) {
 
 static
 void getCellMapFaces(MappingJobVars *pVars, FaceCells *pFaceCellsEntry,
-                     int32_t faceCellsIdx, int32_t **ppCellFaces, Range *pRange) {
+                     I32 faceCellsIdx, I32 **ppCellFaces, Range *pRange) {
 	STUC_ASSERT("", &pVars->bufMesh.mesh.core.faceCount >= 0);
 	STUC_ASSERT("", &pVars->bufMesh.mesh.core.faceCount <
 	                &pVars->bufMesh.mesh.faceBufSize);
-	int32_t cellIdx = pFaceCellsEntry->pCells[faceCellsIdx];
+	I32 cellIdx = pFaceCellsEntry->pCells[faceCellsIdx];
 	Cell *pCell = pVars->pMap->quadTree.cellTable.pArr + cellIdx;
 	STUC_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
 	STUC_ASSERT("", pCell->initialized % 2 == pCell->initialized);
@@ -1262,7 +1262,7 @@ void getCellMapFaces(MappingJobVars *pVars, FaceCells *pFaceCellsEntry,
 
 static
 void resetSegments(Segments *pSegments, FaceRange *pInFace) {
-	for (int32_t i = 0; i < pInFace->size; ++i) {
+	for (I32 i = 0; i < pInFace->size; ++i) {
 		if (pSegments[i].count > 1) {
 			memset(pSegments[i].pIndices + 1, 0, pSegments[i].count - 1);
 			pSegments[i].count = 1;
@@ -1272,10 +1272,10 @@ void resetSegments(Segments *pSegments, FaceRange *pInFace) {
 
 static
 void initCornerBuf(StucMap pMap, V2_F32 fTileMin, CornerBufWrap *pCornerBuf,
-                   FaceRange *pInFace, FaceRange *pMapFace, int32_t mapFaceWindDir) {
+                   FaceRange *pInFace, FaceRange *pMapFace, I32 mapFaceWindDir) {
 	pCornerBuf->size = pMapFace->size;
-	for (int32_t k = 0; k < pMapFace->size; ++k) {
-		int32_t vertIdx = pMap->mesh.core.pCorners[pMapFace->start + k];
+	for (I32 k = 0; k < pMapFace->size; ++k) {
+		I32 vertIdx = pMap->mesh.core.pCorners[pMapFace->start + k];
 		CornerBuf *pCorner = pCornerBuf->buf + k;
 		pCorner->preserve = 0;
 		pCorner->isStuc = 1;
@@ -1291,7 +1291,7 @@ void initCornerBuf(StucMap pMap, V2_F32 fTileMin, CornerBufWrap *pCornerBuf,
 
 static
 void clipMapFaceIntoFaces(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
-                          FaceRange *pInFace, int32_t inFaceWind, int32_t mapFaceWind,
+                          FaceRange *pInFace, I32 inFaceWind, I32 mapFaceWind,
                           Segments *pSegments, CornerAncestors *pAncestors) {
 	CornerBufWrap *pCornerBufPtr = pCornerBuf;
 	do {
@@ -1305,7 +1305,7 @@ void clipMapFaceIntoFaces(MappingJobVars *pVars, CornerBufWrap *pCornerBuf,
 
 static
 void sortSegments(Segments *pSegments, FaceRange *pInFace) {
-	for (int32_t i = 0; i < pInFace->size; ++i) {
+	for (I32 i = 0; i < pInFace->size; ++i) {
 		if (pSegments[i].count > 2) {
 			stucFInsertionSort(pSegments[i].pIndices + 1, pSegments[i].count - 1,
 				pSegments[i].pArr + 1);
@@ -1318,10 +1318,10 @@ void addOrDiscardClippedFaces(MappingJobVars *pVars, V2_F32 fTileMin,
                               CornerBufWrap *pCornerBuf, V2_I32 tile,
                               Segments *pSegments, CornerAncestors *pAncestors,
                               FaceRange *pInFace, FaceRange *pMapFace,
-                              BaseTriVerts *pInTri, int32_t inFaceWind,
-                              int32_t mapFaceWind) {
+                              BaseTriVerts *pInTri, I32 inFaceWind,
+                              I32 mapFaceWind) {
 	CornerBufWrap *pCornerBufPtr = pCornerBuf;
-	int32_t depth = 0;
+	I32 depth = 0;
 	do{
 		if (!pCornerBufPtr->invalid) {
 			if (pCornerBufPtr->size >= 3) {
@@ -1356,8 +1356,8 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	BaseTriVerts inTri = {0};
 	pDpVars->facesNotSkipped++;
 	STUC_ASSERT("", pInFace->size >= 3 && pInFace->size <= 4);
-	for (int32_t i = 0; i < pInFace->size; ++i) {
-		int32_t corner = pInFace->start + i;
+	for (I32 i = 0; i < pInFace->size; ++i) {
+		I32 corner = pInFace->start + i;
 		inTri.uv[i] = _(pVars->mesh.pUvs[corner] V2SUB fTileMin);
 		inTri.xyz[i] = pVars->mesh.pVerts[pVars->mesh.core.pCorners[corner]];
 	}
@@ -1365,16 +1365,16 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	if (isTriDegenerate(&inTri, pInFace)) {
 		return STUC_SUCCESS;
 	}
-	int32_t inFaceWind = stucCalcFaceOrientation(&pVars->mesh, pInFace, true);
+	I32 inFaceWind = stucCalcFaceOrientation(&pVars->mesh, pInFace, true);
 	if (inFaceWind == 2) {
 		//face is degenerate
 		return STUC_SUCCESS;
 	}
 	Segments *pSegments = pVars->alloc.pCalloc(pInFace->size, sizeof(Segments));
-	for (int32_t i = 0; i < pInFace->size; ++i) {
+	for (I32 i = 0; i < pInFace->size; ++i) {
 		pSegments[i].size = 3;
-		pSegments[i].pArr = pVars->alloc.pCalloc(pSegments[i].size, sizeof(float));
-		pSegments[i].pIndices = pVars->alloc.pCalloc(pSegments[i].size, sizeof(int32_t));
+		pSegments[i].pArr = pVars->alloc.pCalloc(pSegments[i].size, sizeof(F32));
+		pSegments[i].pIndices = pVars->alloc.pCalloc(pSegments[i].size, sizeof(I32));
 		pSegments[i].pArr[0] = -FLT_MAX;
 		pSegments[i].pIndices[0] = -1;
 		pSegments[i].count = 1;
@@ -1383,11 +1383,11 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	ancestors.pArr = pVars->alloc.pMalloc(sizeof(CornerBuf) * ancestors.size);
 	FaceCells *pFaceCellsEntry =
 		stucIdxFaceCells(pFaceCellsTable, pInFace->idx, pVars->inFaceRange.start);
-	for (int32_t i = 0; i < pFaceCellsEntry->cellSize; ++i) {
-		int32_t *pCellFaces = NULL;
+	for (I32 i = 0; i < pFaceCellsEntry->cellSize; ++i) {
+		I32 *pCellFaces = NULL;
 		Range range = {0};
 		getCellMapFaces(pVars, pFaceCellsEntry, i, &pCellFaces, &range);
-		for (int32_t j = range.start; j < range.end; ++j) {
+		for (I32 j = range.start; j < range.end; ++j) {
 			pDpVars->totalFacesComp++;
 			FaceRange mapFace =
 				stucGetFaceRange(&pVars->pMap->mesh.core, pCellFaces[j], false);
@@ -1398,7 +1398,7 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 			}
 			pDpVars->facesNotSkipped++;
 			resetSegments(pSegments, pInFace);
-			int32_t mapFaceWind =
+			I32 mapFaceWind =
 				stucCalcFaceOrientation(&pVars->pMap->mesh, &mapFace, false);
 			CornerBufWrap cornerBuf = {0};
 			initCornerBuf(pVars->pMap, fTileMin, &cornerBuf, pInFace, &mapFace,
@@ -1413,7 +1413,7 @@ Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 		}
 	}
 	pVars->alloc.pFree(ancestors.pArr);
-	for (int32_t i = 0; i < pInFace->size; ++i) {
+	for (I32 i = 0; i < pInFace->size; ++i) {
 		pVars->alloc.pFree(pSegments[i].pArr);
 		pVars->alloc.pFree(pSegments[i].pIndices);
 	}

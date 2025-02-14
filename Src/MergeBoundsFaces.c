@@ -20,14 +20,14 @@
 typedef struct SharedEdge {
 	struct SharedEdge *pNext;
 	void *pLast;
-	int32_t entries[2];
-	int32_t refIdx[2];
-	int32_t edge;
-	int32_t validIdx;
-	int16_t corner[2];
+	I32 entries[2];
+	I32 refIdx[2];
+	I32 edge;
+	I32 validIdx;
+	I16 corner[2];
 	V2_I16 tile;
-	int8_t receive;
-	int8_t segment;
+	I8 receive;
+	I8 segment;
 	bool checked : 1;
 	bool preserve : 1;
 	bool idx : 1;
@@ -43,9 +43,9 @@ typedef struct {
 } SharedEdgeWrap;
 
 static
-void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryIdx,
-                         int32_t refIdx, bool isPreserve, bool isReceive,
-                         Piece *pPiece, int32_t i, bool seam, int32_t segment) {
+void initSharedEdgeEntry(SharedEdge *pEntry, I32 baseEdge, I32 entryIdx,
+                         I32 refIdx, bool isPreserve, bool isReceive,
+                         Piece *pPiece, I32 i, bool seam, I32 segment) {
 	STUC_ASSERT("", baseEdge >= 0 && entryIdx >= 0 && i >= 0);
 	STUC_ASSERT("", isPreserve % 2 == isPreserve); //range 0 .. 1
 	STUC_ASSERT("", isReceive % 2 == isReceive);
@@ -67,10 +67,10 @@ void initSharedEdgeEntry(SharedEdge *pEntry, int32_t baseEdge, int32_t entryIdx,
 }
 
 static
-void checkIfSeamOrPreserve(MergeSendOffArgs *pArgs, Piece *pEntries, int32_t entryIdx,
-                           BorderInInfo *pInInfo, bool isOnInVert, int32_t corner,
+void checkIfSeamOrPreserve(MergeSendOffArgs *pArgs, Piece *pEntries, I32 entryIdx,
+                           BorderInInfo *pInInfo, bool isOnInVert, I32 corner,
                            bool *pHasPreserve, bool *pSeam, bool *pIsPreserve,
-                           bool *pIsReceive, int32_t *pRefIdx) {
+                           bool *pIsReceive, I32 *pRefIdx) {
 	Piece *pPiece = pEntries + entryIdx;
 	*pSeam = pArgs->pEdgeSeamTable[pInInfo->edge];
 
@@ -89,11 +89,11 @@ void checkIfSeamOrPreserve(MergeSendOffArgs *pArgs, Piece *pEntries, int32_t ent
 			*pRefIdx = (pInInfo->vert + 1) * -1;
 		}
 		else {
-			int32_t mapCorner = stucGetMapCorner(pPiece->pEntry, corner);
+			I32 mapCorner = stucGetMapCorner(pPiece->pEntry, corner);
 			STUC_ASSERT("", pPiece->pEntry->mapFace < pArgs->pMap->mesh.core.faceCount);
-			int32_t mapFaceStart = pArgs->pMap->mesh.core.pFaces[pPiece->pEntry->mapFace];
+			I32 mapFaceStart = pArgs->pMap->mesh.core.pFaces[pPiece->pEntry->mapFace];
 			STUC_ASSERT("", mapFaceStart < pArgs->pMap->mesh.core.cornerCount);
-			int32_t mapEdge = pArgs->pMap->mesh.core.pEdges[mapFaceStart + mapCorner];
+			I32 mapEdge = pArgs->pMap->mesh.core.pEdges[mapFaceStart + mapCorner];
 			STUC_ASSERT("", mapEdge < pArgs->pMap->mesh.core.edgeCount);
 			*pIsReceive = stucCheckIfEdgeIsReceive(&pArgs->pMap->mesh, mapEdge);
 			*pRefIdx = mapEdge;
@@ -106,9 +106,9 @@ void checkIfSeamOrPreserve(MergeSendOffArgs *pArgs, Piece *pEntries, int32_t ent
 
 static
 void addToTable(MergeSendOffArgs *pArgs, Piece *pPiece, SharedEdgeWrap *pSharedEdges,
-                int32_t tableSize, BorderInInfo *pInInfo, int32_t corner, bool seam,
-                bool isPreserve, bool isReceive, int32_t refIdx, int32_t segment) {
-	int32_t hash = stucFnvHash((uint8_t *)&pInInfo->edge, 4, tableSize);
+                I32 tableSize, BorderInInfo *pInInfo, I32 corner, bool seam,
+                bool isPreserve, bool isReceive, I32 refIdx, I32 segment) {
+	I32 hash = stucFnvHash((U8 *)&pInInfo->edge, 4, tableSize);
 	SharedEdgeWrap *pEdgeEntryWrap = pSharedEdges + hash;
 	SharedEdge *pEdgeEntry = pEdgeEntryWrap->pEntry;
 	if (!pEdgeEntry) {
@@ -162,8 +162,8 @@ void addToTable(MergeSendOffArgs *pArgs, Piece *pPiece, SharedEdgeWrap *pSharedE
 static
 void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
                                SharedEdgeWrap *pSharedEdges, Piece *pEntries,
-                               int32_t tableSize, int32_t entryIdx,
-                               int32_t *pTotalVerts, bool *pHasPreserve) {
+                               I32 tableSize, I32 entryIdx,
+                               I32 *pTotalVerts, bool *pHasPreserve) {
 	StucAlloc *pAlloc = &pArgs->pContext->alloc;
 	STUC_ASSERT("", (tableSize > 0 && entryIdx >= 0) || entryIdx == 0);
 	Piece *pPiece = pEntries + entryIdx;
@@ -175,7 +175,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 	pPiece->pOrder = pAlloc->pCalloc(face.size, 1);
 	pPiece->pEdges = pAlloc->pCalloc(face.size, sizeof(EdgeSegmentPair));
 	pPiece->tile = stucGetTileMinFromBoundsEntry(pEntry);
-	for (int32_t i = 0; i < face.size; ++i) {
+	for (I32 i = 0; i < face.size; ++i) {
 		STUC_ASSERT("", pTotalVerts && *pTotalVerts >= 0 && *pTotalVerts < 10000);
 		++*pTotalVerts;
 		bool isStuc = stucGetIfStuc(pEntry, i);
@@ -187,7 +187,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 		bool isOnInVert = stucGetIfOnInVert(pEntry, i);
 		//Get in mesh details for current buf corner
 		BorderInInfo inInfo = stucGetBorderEntryInInfo(pEntry, pArgs->pJobArgs, i);
-		int32_t lasti = i ? i - 1 : face.size - 1;
+		I32 lasti = i ? i - 1 : face.size - 1;
 		if (stucGetBaseCorner(pEntry, i) == stucGetBaseCorner(pEntry, lasti) &&
 			!(stucGetIfStuc(pEntry, lasti) && !stucGetIfOnLine(pEntry, lasti))) {
 			//Edge belongs to last corner, not this one
@@ -200,7 +200,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			//ie, only corners on the exterior. Interior corners are skipped.
 			pPiece->keepVertPreserve |= true << i;
 		}
-		int32_t* pVerts = pArgs->pEdgeVerts[inInfo.edge].verts;
+		I32* pVerts = pArgs->pEdgeVerts[inInfo.edge].verts;
 		STUC_ASSERT("", pVerts &&
 		                (pVerts[0] == inInfo.edgeCorner ||
 		                 pVerts[1] == inInfo.edgeCorner));
@@ -223,14 +223,14 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 			continue;
 		}
 		pEntries[entryIdx].pEdges[pEntries[entryIdx].edgeCount].edge = inInfo.edge;
-		int32_t segment = stucGetSegment(pPiece->pEntry, i);
+		I32 segment = stucGetSegment(pPiece->pEntry, i);
 		pEntries[entryIdx].pEdges[pEntries[entryIdx].edgeCount].segment = segment;
 		pEntries[entryIdx].edgeCount++;
 
 		bool seam = false;
 		bool isPreserve = false;
 		bool isReceive = false;
-		int32_t refIdx = 0;
+		I32 refIdx = 0;
 		checkIfSeamOrPreserve(pArgs, pEntries, entryIdx, &inInfo, isOnInVert, i,
 		                      pHasPreserve, &seam, &isPreserve, &isReceive, &refIdx);
 
@@ -241,7 +241,7 @@ void addEntryToSharedEdgeTable(MergeSendOffArgs *pArgs, BorderFace *pEntry,
 }
 
 static
-Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
+Piece *getEntryInPiece(Piece *pPieceRoot, I32 otherPiece) {
 	STUC_ASSERT("", pPieceRoot);
 	Piece* pPiece = pPieceRoot;
 	do {
@@ -255,11 +255,11 @@ Piece *getEntryInPiece(Piece *pPieceRoot, int32_t otherPiece) {
 
 static
 Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
-                         int32_t edgeTableSize, Piece *pPiece, Piece *pPieceRoot,
-                         int32_t *pCorner, SharedEdge **ppEdge) {
-	int32_t segment = stucGetSegment(pPiece->pEntry, *pCorner);
+                         I32 edgeTableSize, Piece *pPiece, Piece *pPieceRoot,
+                         I32 *pCorner, SharedEdge **ppEdge) {
+	I32 segment = stucGetSegment(pPiece->pEntry, *pCorner);
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, *pCorner);
-	int32_t hash = stucFnvHash((uint8_t*)&inInfo.edge, 4, edgeTableSize);
+	I32 hash = stucFnvHash((U8*)&inInfo.edge, 4, edgeTableSize);
 	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
 	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
 	while (pEdgeEntry) {
@@ -275,7 +275,7 @@ Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
 			    pPiece->tile.d[1] == pEdgeEntry->tile.d[1]) {
 
 				bool which = pEdgeEntry->entries[1] == pPiece->entryIdx;
-				int32_t otherPiece = pEdgeEntry->entries[!which];
+				I32 otherPiece = pEdgeEntry->entries[!which];
 				Piece *pNeighbour = getEntryInPiece(pPieceRoot, otherPiece);
 				if (pNeighbour) {
 					*pCorner = (pEdgeEntry->corner[!which] + 1) % pNeighbour->bufFace.size;
@@ -294,7 +294,7 @@ Piece *getNeighbourEntry(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
 static
 bool isCornerOnExterior(MergeSendOffArgs *pArgs, Piece *pPiece,
                       Piece *pPieceRoot, SharedEdgeWrap *pEdgeTable,
-                      int32_t edgeTableSize, int32_t corner) {
+                      I32 edgeTableSize, I32 corner) {
 	if (!getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
 	                       pPiece, pPieceRoot, &corner, NULL)) {
 		//corner does not share an edge without any other corner,
@@ -305,11 +305,11 @@ bool isCornerOnExterior(MergeSendOffArgs *pArgs, Piece *pPiece,
 }
 
 static
-int32_t getStartingCorner(Piece **ppPiece, MergeSendOffArgs *pArgs,
+I32 getStartingCorner(Piece **ppPiece, MergeSendOffArgs *pArgs,
                           Piece *pPieceRoot, SharedEdgeWrap *pEdgeTable,
-                          int32_t edgeTableSize) {
+                          I32 edgeTableSize) {
 	do {
-		for (int32_t i = 0; i < (*ppPiece)->bufFace.size; ++i) {
+		for (I32 i = 0; i < (*ppPiece)->bufFace.size; ++i) {
 			if (isCornerOnExterior(pArgs, *ppPiece, pPieceRoot, pEdgeTable,
 			                       edgeTableSize, i)) {
 				return i;
@@ -326,19 +326,19 @@ typedef struct {
 	Piece *pStartPiece;
 	SharedEdge *pActiveEdge;
 	SharedEdge *pQuadEdge;
-	int32_t corner;
-	int32_t cornerPrev;
-	int32_t startCorner;
-	int32_t validBranches;
+	I32 corner;
+	I32 cornerPrev;
+	I32 startCorner;
+	I32 validBranches;
 	bool quad;
 } EdgeStack;
 
 static
 bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *pBufMesh, StucMap pMap,
-                              FaceRange *pMapFace, int32_t *pMapCorner, bool side) {
+                              FaceRange *pMapFace, I32 *pMapCorner, bool side) {
 	Mesh *pMapMesh = &pMap->mesh;
 	STUC_ASSERT("", pItem->pPiece->bufFace.size >= 3);
-	int32_t cornerNext = (pItem->corner + 1) % pItem->pPiece->bufFace.size;
+	I32 cornerNext = (pItem->corner + 1) % pItem->pPiece->bufFace.size;
 	bool isOnInVert;
 	if (side) {
 		isOnInVert = stucGetIfOnInVert(pItem->pPiece->pEntry, cornerNext);
@@ -349,7 +349,7 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 	if (!isOnInVert) {
 		//exterior intersects with a map edge,
 		//so just check if said edge is receive
-		int32_t corner;
+		I32 corner;
 		if (side) {
 			corner = cornerNext;
 		}
@@ -360,7 +360,7 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 		*pMapCorner = stucGetMapCorner(pItem->pPiece->pEntry, corner);
 		STUC_ASSERT("", *pMapCorner >= 0 && *pMapCorner < pMapFace->size);
 		*pMapCorner += pMapFace->start;
-		int32_t mapEdge = pMapMesh->core.pEdges[*pMapCorner];
+		I32 mapEdge = pMapMesh->core.pEdges[*pMapCorner];
 		return pMapMesh->pEdgeReceive[mapEdge];
 	}
 	//exterior does not intersect with a map edge.
@@ -368,27 +368,27 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 	//and use that to see if the base edge would intersect
 	//with a preserve edge, were it to extend out infinitely
 	V2_F32 *pUvStart = pBufMesh->pUvs + pItem->pPiece->bufFace.start;
-	int32_t corner = pItem->corner;
+	I32 corner = pItem->corner;
 	if (side) {
 		corner = cornerNext;
 		cornerNext = pItem->corner;
 	}
-	V2_F32 fTileMin = {(float)pItem->pPiece->tile.d[0],
-	                   (float)pItem->pPiece->tile.d[1]};
+	V2_F32 fTileMin = {(F32)pItem->pPiece->tile.d[0],
+	                   (F32)pItem->pPiece->tile.d[1]};
 	V2_F32 c = _(pUvStart[-corner] V2SUB fTileMin);
 	V2_F32 d = _(pUvStart[-cornerNext] V2SUB fTileMin);
 	V2_F32 cd = _(d V2SUB c);
-	for (int32_t i = 0; i < pMapFace->size; ++i) {
+	for (I32 i = 0; i < pMapFace->size; ++i) {
 		*pMapCorner = pMapFace->start + i;
-		int32_t mapEdge = pMapMesh->core.pEdges[*pMapCorner];
+		I32 mapEdge = pMapMesh->core.pEdges[*pMapCorner];
 		if (!pMapMesh->pEdgeReceive[mapEdge]) {
 			continue;
 		}
-		float t = .0f;
-		int32_t iNext = (i + 1) % pMapFace->size;
-		int32_t mapVert = pMapMesh->core.pCorners[*pMapCorner];
-		int32_t mapCornerNext = pMapFace->start + iNext;
-		int32_t mapVertNext = pMapMesh->core.pCorners[mapCornerNext];
+		F32 t = .0f;
+		I32 iNext = (i + 1) % pMapFace->size;
+		I32 mapVert = pMapMesh->core.pCorners[*pMapCorner];
+		I32 mapCornerNext = pMapFace->start + iNext;
+		I32 mapVertNext = pMapMesh->core.pCorners[mapCornerNext];
 		//STUC_ASSERT("", !_(*(V2_F32 *)&pMapMesh->pVerts[mapVert] V2EQL *(V2_F32 *)&pMapMesh->pVerts[mapVertNext]));
 		V3_F32 intersect = {0};
 		bool valid =  stucCalcIntersection(pMapMesh->pVerts[mapVert],
@@ -398,7 +398,7 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 		//ie, should you track preserve verts hit?
 
 		V2_F32 ci = _(*(V2_F32 *)&intersect V2SUB c);
-		float dot = _(ci V2DOT cd);
+		F32 dot = _(ci V2DOT cd);
 		if (!valid || t < .0f || t > 1.0f || dot > .0f) {
 			continue;
 		}
@@ -412,8 +412,8 @@ bool checkIfIntersectsReceive(MergeSendOffArgs *pArgs, EdgeStack *pItem, Mesh *p
 }
 
 static
-void pushToEdgeStack(EdgeStack *pStack, int32_t *pStackPtr, int32_t treeCount,
-                     SharedEdge *pEdge, Piece *pPiece, int32_t corner) {
+void pushToEdgeStack(EdgeStack *pStack, I32 *pStackPtr, I32 treeCount,
+                     SharedEdge *pEdge, Piece *pPiece, I32 corner) {
 	pStack[*pStackPtr].pActiveEdge = pEdge;
 	pEdge->validIdx = treeCount;
 	++*pStackPtr;
@@ -422,15 +422,15 @@ void pushToEdgeStack(EdgeStack *pStack, int32_t *pStackPtr, int32_t treeCount,
 }
 
 static
-bool handleExterior(EdgeStack *pStack, int32_t *pStackPtr, 
+bool handleExterior(EdgeStack *pStack, I32 *pStackPtr, 
                     EdgeStack *pNeighbour, bool *pValid,
-                    int32_t treeCount, int32_t *pReceive,
+                    I32 treeCount, I32 *pReceive,
                     MergeSendOffArgs *pArgs, FaceRange *pMapFace,
                     SharedEdge *pEdge, bool side) {
 	EdgeStack *pItem = pStack + *pStackPtr;
 	Mesh *pMapMesh = &pArgs->pMap->mesh;
 	Mesh *pBufMesh = (Mesh *)&pArgs->pJobArgs[pItem->pPiece->pEntry->job].bufMesh;
-	int32_t mapCorner = -1;
+	I32 mapCorner = -1;
 	bool isReceive = checkIfIntersectsReceive(pArgs, pNeighbour, pBufMesh, pArgs->pMap,
 	                                          pMapFace, &mapCorner, side);
 	if (isReceive) {
@@ -453,10 +453,10 @@ bool handleExterior(EdgeStack *pStack, int32_t *pStackPtr,
 
 static
 SharedEdge *getIfQuadJunc(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
-                          int32_t edgeTableSize, Piece *pPieceRoot,
+                          I32 edgeTableSize, Piece *pPieceRoot,
                           EdgeStack *pItem, EdgeStack *pNeighbour) {
 	EdgeStack copy = *pItem;
-	int32_t idx = -1;
+	I32 idx = -1;
 	SharedEdge *cache[4] = {0};
 	EdgeStack retNeighbour = {0};
 	do {
@@ -491,7 +491,7 @@ SharedEdge *getIfQuadJunc(MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
 }
 
 static
-void handleIfFullyUnwound(MergeSendOffArgs *pArgs, int32_t *pStackPtr,
+void handleIfFullyUnwound(MergeSendOffArgs *pArgs, I32 *pStackPtr,
                           EdgeStack *pItem, bool *pUnwind) {
 	*pUnwind = !pItem->validBranches;
 	if (!*pUnwind) {
@@ -508,13 +508,13 @@ void handleIfFullyUnwound(MergeSendOffArgs *pArgs, int32_t *pStackPtr,
 }
 
 static
-void decideNextEdge(MergeSendOffArgs *pArgs, EdgeStack *pStack, int32_t *pStackPtr,
-                    bool *pValid, int32_t treeCount, int32_t *pReceive,
-                    SharedEdgeWrap *pEdgeTable, int32_t edgeTableSize, Piece *pPieceRoot,
+void decideNextEdge(MergeSendOffArgs *pArgs, EdgeStack *pStack, I32 *pStackPtr,
+                    bool *pValid, I32 treeCount, I32 *pReceive,
+                    SharedEdgeWrap *pEdgeTable, I32 edgeTableSize, Piece *pPieceRoot,
                     FaceRange *pMapFace, EdgeStack *pItem, EdgeStack *pNeighbour,
                     SharedEdge *pEdge, bool *pRet) {
 	Piece *pPieceNext = pItem->quad ? pNeighbour->pPiece : pItem->pPiece;
-	int32_t cornerNext = pItem->quad ? pNeighbour->corner : pItem->corner;
+	I32 cornerNext = pItem->quad ? pNeighbour->corner : pItem->corner;
 	cornerNext = (cornerNext + 1) % pPieceNext->bufFace.size;
 	if (*pReceive != -1) {
 		bool exterior;
@@ -537,7 +537,7 @@ void decideNextEdge(MergeSendOffArgs *pArgs, EdgeStack *pStack, int32_t *pStackP
 }
 
 static
-void setKeepIfOnInVert(MergeSendOffArgs *pArgs, Piece *pPiece, int32_t corner) {
+void setKeepIfOnInVert(MergeSendOffArgs *pArgs, Piece *pPiece, I32 corner) {
 	bool onInVert = stucGetIfOnInVert(pPiece->pEntry, corner);
 	if (onInVert) {
 		BorderInInfo inInfo =
@@ -547,10 +547,10 @@ void setKeepIfOnInVert(MergeSendOffArgs *pArgs, Piece *pPiece, int32_t corner) {
 }
 
 static
-void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
-                          int32_t treeCount, int32_t *pReceive, 
+void walkEdgesForPreserve(EdgeStack *pStack, I32 *pStackPtr, bool *pValid,
+                          I32 treeCount, I32 *pReceive, 
                           MergeSendOffArgs *pArgs, SharedEdgeWrap *pEdgeTable,
-                          int32_t edgeTableSize, Piece *pPieceRoot,
+                          I32 edgeTableSize, Piece *pPieceRoot,
                           FaceRange *pMapFace, bool *pUnwind) {
 	EdgeStack *pItem = pStack + *pStackPtr;
 	//if pItem->pStartPiece is NULL, then this is the first time
@@ -641,9 +641,9 @@ void walkEdgesForPreserve(EdgeStack *pStack, int32_t *pStackPtr, bool *pValid,
 //     set preserve in the later validate corner
 static
 void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
-                           int32_t piece, SharedEdgeWrap* pEdgeTable,
-                           int32_t edgeTableSize, bool **ppValid,
-                           int32_t *pValidCount, int32_t *pValidSize) {
+                           I32 piece, SharedEdgeWrap* pEdgeTable,
+                           I32 edgeTableSize, bool **ppValid,
+                           I32 *pValidCount, I32 *pValidSize) {
 	//TODO first , check if the map face even has any preserve edges,
 	//     no point doing all this if not
 	StucAlloc *pAlloc = &pArgs->pContext->alloc;
@@ -659,19 +659,19 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 		*pValidSize = 8;
 		*ppValid = pAlloc->pCalloc(*pValidSize, sizeof(bool));
 	}
-	int32_t stackSize = 8;
+	I32 stackSize = 8;
 	EdgeStack *pStack = pAlloc->pCalloc(stackSize, sizeof(EdgeStack));
 	pStack[0].pPiece = pPiece;
-	int32_t stackPtr = 0;
+	I32 stackPtr = 0;
 	pStack[0].corner = getStartingCorner(&pStack[0].pPiece, pArgs, pPiece,
 	                                     pEdgeTable, edgeTableSize);
 	bool unwind = false;
 	//note that order is used here to determine if a corner has already been checked.
 	//Sorting is not done until later, and order is cleared at the end of this func.
-	int32_t receive = -1;
+	I32 receive = -1;
 	do {
 		if (*pValidCount == *pValidSize) {
-			int32_t oldSize = *pValidSize;
+			I32 oldSize = *pValidSize;
 			*pValidSize *= 2;
 			*ppValid = pAlloc->pRealloc(*ppValid, sizeof(bool) * *pValidSize);
 			memset(*ppValid + oldSize, 0, sizeof(bool) * oldSize);
@@ -681,7 +681,7 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 		                     &mapFace, &unwind);
 		STUC_ASSERT("", stackPtr < stackSize);
 		if (stackPtr == stackSize - 1) {
-			int32_t oldSize = stackSize;
+			I32 oldSize = stackSize;
 			stackSize *= 2;
 			pStack = pAlloc->pRealloc(pStack, sizeof(EdgeStack) * stackSize);
 		}
@@ -703,17 +703,17 @@ void validatePreserveEdges(MergeSendOffArgs* pArgs,PieceArr *pPieceArr,
 }
 
 static
-void setValidPreserveAsSeam(SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize,
-                            bool *pValid, int32_t validCount) {
+void setValidPreserveAsSeam(SharedEdgeWrap* pEdgeTable, I32 edgeTableSize,
+                            bool *pValid, I32 validCount) {
 	//mark valid preserve edges as seams
-	for (int32_t i = 0; i < edgeTableSize; ++i) {
+	for (I32 i = 0; i < edgeTableSize; ++i) {
 		SharedEdge *pEntry = pEdgeTable[i].pEntry;
 		while (pEntry) {
 			if (pEntry->checked || !pEntry->preserve) {
 				pEntry = pEntry->pNext;
 				continue;
 			}
-			int32_t validIdx = pEntry->validIdx;
+			I32 validIdx = pEntry->validIdx;
 			STUC_ASSERT("", validIdx >= -1 && validIdx < validCount);
 			if (validIdx == -1 || !pValid[validIdx]) {
 				//edge intersects 1 or no map receive edges or base verts
@@ -731,7 +731,7 @@ void setValidPreserveAsSeam(SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize,
 
 static
 bool areNonListedPiecesLinked(PieceArr *pPieceArr) {
-	for (int32_t i = 0; i < pPieceArr->count; ++i) {
+	for (I32 i = 0; i < pPieceArr->count; ++i) {
 		Piece *pPiece = pPieceArr->pArr + i;
 		if (!pPiece->listed && (pPiece->pNext || pPiece->pEntry->pNext)) {
 			return true;
@@ -748,14 +748,14 @@ void markKeepSeamInAdjPiece(SharedEdge *pEdgeEntry, PieceArr *pPieceArr) {
 	{
 		bool whichCorner = aIsOnInVert;
 
-		int32_t cornerA = pEdgeEntry->corner[whichCorner];
+		I32 cornerA = pEdgeEntry->corner[whichCorner];
 		Piece *pPieceA = pPieceArr->pArr + pEdgeEntry->entries[whichCorner];
 		pPieceA->keepSeam |= 1 << cornerA;
 
-		int32_t cornerB = pEdgeEntry->corner[!whichCorner];
+		I32 cornerB = pEdgeEntry->corner[!whichCorner];
 		Piece *pPieceB = pPieceArr->pArr + pEdgeEntry->entries[!whichCorner];
 		// Also set adjacent corner
-		int32_t adjCorner = (cornerB + 1) % pPieceB->bufFace.size;
+		I32 adjCorner = (cornerB + 1) % pPieceB->bufFace.size;
 		pPieceB->keepSeam |= 1 << adjCorner;
 	}
 }
@@ -765,8 +765,8 @@ void addAdjPiece(SharedEdge *pEdgeEntry, Piece *pPiece, PieceArr *pPieceArr,
                  Piece *pPieceRoot, BorderFace **ppTail, Piece **ppPieceTail) {
 	STUC_ASSERT("", pEdgeEntry->entries[0] == pPiece->entryIdx ||
 	                pEdgeEntry->entries[1] == pPiece->entryIdx);
-	int32_t whichEntry = pEdgeEntry->entries[0] == pPiece->entryIdx;
-	int32_t otherEntryIdx = pEdgeEntry->entries[whichEntry];
+	I32 whichEntry = pEdgeEntry->entries[0] == pPiece->entryIdx;
+	I32 otherEntryIdx = pEdgeEntry->entries[whichEntry];
 	if (pPieceArr->pArr[otherEntryIdx].listed) {
 		return;
 	}
@@ -784,10 +784,10 @@ void addAdjPiece(SharedEdge *pEdgeEntry, Piece *pPiece, PieceArr *pPieceArr,
 
 static
 void getAndAddAdjPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges,
-                       int32_t tableSize, Piece *pPiece, Piece *pPieceRoot,
-                       Piece **ppPieceTail, BorderFace **ppTail, int32_t edgeIdx) {
+                       I32 tableSize, Piece *pPiece, Piece *pPieceRoot,
+                       Piece **ppPieceTail, BorderFace **ppTail, I32 edgeIdx) {
 	EdgeSegmentPair edge = pPiece->pEdges[edgeIdx];
-	int32_t hash = stucFnvHash((uint8_t *)&edge, 4, tableSize);
+	I32 hash = stucFnvHash((U8 *)&edge, 4, tableSize);
 	SharedEdgeWrap *pSharedEdgeWrap = pSharedEdges + hash;
 	SharedEdge *pEdgeEntry = pSharedEdgeWrap->pEntry;
 	while (pEdgeEntry) {
@@ -809,19 +809,19 @@ void getAndAddAdjPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges,
 
 static
 void combineConnectedIntoPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges,
-                               int32_t tableSize, int32_t pieceIdx) {
+                               I32 tableSize, I32 pieceIdx) {
 	Piece *pPiece = pPieceArr->pArr + pieceIdx;
 	Piece* pPieceRoot = pPiece;
 	Piece *pPieceTail = pPiece;
 	BorderFace *pTail = pPiece->pEntry;
 	pPiece->listed = true;
-	int32_t depth = 0;
+	I32 depth = 0;
 	do {
 		STUC_ASSERT("", pPiece->edgeCount <= 64);
 		//TODO can you just get the edges in the piece by calling getNeighbourEntry?
 		//     Rather than storing a list of edges in the piece?
 		//     Is there a perf cost?
-		for (int32_t j = 0; j < pPiece->edgeCount; ++j) {
+		for (I32 j = 0; j < pPiece->edgeCount; ++j) {
 			getAndAddAdjPiece(pPieceArr, pSharedEdges, tableSize, pPiece,
 			                  pPieceRoot, &pPieceTail, &pTail, j);
 			STUC_ASSERT("", j < pPiece->edgeCount);
@@ -837,7 +837,7 @@ void combineConnectedIntoPiece(PieceArr *pPieceArr, SharedEdgeWrap *pSharedEdges
 }
 
 static 
-bool isEntryInPiece(Piece *pPiece, int32_t entryIdx) {
+bool isEntryInPiece(Piece *pPiece, I32 entryIdx) {
 	STUC_ASSERT("", pPiece);
 	do {
 		if (pPiece->entryIdx == entryIdx) {
@@ -851,10 +851,10 @@ bool isEntryInPiece(Piece *pPiece, int32_t entryIdx) {
 static
 void joinAdjIntoPieceArr(MergeSendOffArgs *pArgs, bool hasPreserve,
                          PieceRootsArr *pPieceRoots, PieceArr *pPieceArr,
-                         SharedEdgeWrap *pEdgeTable, int32_t edgeTableSize,
-                         bool **ppValid, int32_t *pValidCount,
-                         int32_t *pValidSize, int32_t i) {
-	for (int32_t j = 0; j < pPieceArr->count; ++j) {
+                         SharedEdgeWrap *pEdgeTable, I32 edgeTableSize,
+                         bool **ppValid, I32 *pValidCount,
+                         I32 *pValidSize, I32 i) {
+	for (I32 j = 0; j < pPieceArr->count; ++j) {
 		if (pPieceArr->pArr[j].listed) {
 			continue;
 		}
@@ -878,9 +878,9 @@ void joinAdjIntoPieceArr(MergeSendOffArgs *pArgs, bool hasPreserve,
 
 static
 void flipSharedEdgeEntry(SharedEdge *pEntry) {
-	int32_t entryBuf = pEntry->entries[0];
-	int32_t cornerBuf = pEntry->corner[0];
-	int32_t refIdxBuf = pEntry->refIdx[0];
+	I32 entryBuf = pEntry->entries[0];
+	I32 cornerBuf = pEntry->corner[0];
+	I32 refIdxBuf = pEntry->refIdx[0];
 	pEntry->entries[0] = pEntry->entries[1];
 	pEntry->entries[1] = entryBuf;
 	pEntry->corner[0] = pEntry->corner[1];
@@ -891,7 +891,7 @@ void flipSharedEdgeEntry(SharedEdge *pEntry) {
 
 static
 void breakPieceLinks(PieceArr *pPieceArr) {
-	for (int32_t i = 0; i < pPieceArr->count; ++i) {
+	for (I32 i = 0; i < pPieceArr->count; ++i) {
 		pPieceArr->pArr[i].pNext = NULL;
 		pPieceArr->pArr[i].pEntry->pNext = NULL;
 	}
@@ -900,13 +900,13 @@ void breakPieceLinks(PieceArr *pPieceArr) {
 static
 void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
                          PieceRootsArr *pPieceRoots, PieceArr *pPieceArr,
-                         SharedEdgeWrap *pEdgeTable, int32_t edgeTableSize) {
+                         SharedEdgeWrap *pEdgeTable, I32 edgeTableSize) {
 	//A first pass separates pieces by connectivity only, then validates preserve edges.
 	//Once that's done, a second pass is done with preserve edges
 	bool *pValid = NULL;
-	int32_t validCount = 1; //first is reserved and is always false
-	int32_t validSize = 0;
-	int32_t i = 0;
+	I32 validCount = 1; //first is reserved and is always false
+	I32 validSize = 0;
+	I32 i = 0;
 	do {
 		if (areNonListedPiecesLinked(pPieceArr)) {
 			STUC_ASSERT("Linked pieces here will cause an infinite corner", false);
@@ -918,7 +918,7 @@ void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
 		if (hasPreserve && !i) {
 			setValidPreserveAsSeam(pEdgeTable, edgeTableSize, pValid, validCount);
 			pArgs->pContext->alloc.pFree(pValid);
-			for (int32_t j = 0; j < pPieceArr->count; ++j) {
+			for (I32 j = 0; j < pPieceArr->count; ++j) {
 				pPieceArr->pArr[j].listed = false;
 			}
 			pPieceRoots->count = 0;
@@ -934,12 +934,12 @@ void linkConnectedPieces(MergeSendOffArgs *pArgs, bool hasPreserve,
 static
 void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
                      BorderFace *pEntry, SharedEdgeWrap **ppSharedEdges,
-                     int32_t *pEdgeTableSize, PieceArr *pPieceArr,
-                     int32_t *pTotalVerts) {
+                     I32 *pEdgeTableSize, PieceArr *pPieceArr,
+                     I32 *pTotalVerts) {
 	//CLOCK_INIT;
 	//CLOCK_START;
 	*pEdgeTableSize = 0;
-	int32_t entryCount = pPieceArr->count;
+	I32 entryCount = pPieceArr->count;
 	if (entryCount > 1) {
 		*pEdgeTableSize = entryCount;
 		*ppSharedEdges =
@@ -947,10 +947,10 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 	}
 	STUC_ASSERT("", entryCount > 0);
 	Piece *pEntries = pArgs->pContext->alloc.pCalloc(entryCount, sizeof(Piece));
-	pPieceRoots->pArr = pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * entryCount);
+	pPieceRoots->pArr = pArgs->pContext->alloc.pMalloc(sizeof(I32) * entryCount);
 	pPieceArr->pArr = pEntries;
 	pPieceArr->count = entryCount;
-	int32_t entryIdx = 0;
+	I32 entryIdx = 0;
 	bool hasPreserve = false;
 	//CLOCK_START;
 	do {
@@ -981,7 +981,7 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 		linkConnectedPieces(pArgs, hasPreserve, pPieceRoots, pPieceArr,
 		                    *ppSharedEdges, *pEdgeTableSize);
 	}
-	for (int32_t i = 0; i < entryCount; ++i) {
+	for (I32 i = 0; i < entryCount; ++i) {
 		SharedEdgeWrap* pBucket = *ppSharedEdges + i;
 		//correctEdgeDir(pArgs, pPieceArr, pBucket);
 		STUC_ASSERT("", i < entryCount);
@@ -990,7 +990,7 @@ void splitIntoPieces(MergeSendOffArgs *pArgs, PieceRootsArr *pPieceRoots,
 }
 
 static
-void compileEntryInfo(BorderFace *pEntry, int32_t *pCount) {
+void compileEntryInfo(BorderFace *pEntry, I32 *pCount) {
 	*pCount = 0;
 	while (pEntry) {
 		++*pCount;
@@ -1000,8 +1000,8 @@ void compileEntryInfo(BorderFace *pEntry, int32_t *pCount) {
 
 static
 void destroySharedEdgeTable(StucAlloc *pAlloc,
-                            SharedEdgeWrap *pSharedEdges, int32_t tableSize) {
-	for (int32_t i = 0; i < tableSize; ++i) {
+                            SharedEdgeWrap *pSharedEdges, I32 tableSize) {
+	for (I32 i = 0; i < tableSize; ++i) {
 		SharedEdge* pEdgeEntry = pSharedEdges[i].pEntry;
 		while (pEdgeEntry) {
 			SharedEdge* pNext = pEdgeEntry->pNext;
@@ -1015,7 +1015,7 @@ void destroySharedEdgeTable(StucAlloc *pAlloc,
 
 static
 void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece *pPieceRoot,
-                              Piece* pPiece, int32_t k) {
+                              Piece* pPiece, I32 k) {
 	bool keepInVert = false;
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pPiece->pEntry, pArgs->pJobArgs, k);
 	bool onInVert = stucGetIfOnInVert(pPiece->pEntry, k);
@@ -1031,7 +1031,7 @@ static
 void markKeepInVertsPreserve(MergeSendOffArgs *pArgs, StucMap pMap, Piece* pPiece) {
 	Piece* pPieceRoot = pPiece;
 	do {
-		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
+		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 			if (stucGetIfStuc(pPiece->pEntry, i)) {
 				continue;
 			}
@@ -1042,8 +1042,8 @@ void markKeepInVertsPreserve(MergeSendOffArgs *pArgs, StucMap pMap, Piece* pPiec
 }
 
 static
-int32_t getPieceCount(Piece* pPiece) {
-	int32_t count = 0;
+I32 getPieceCount(Piece* pPiece) {
+	I32 count = 0;
 	do {
 		count++;
 		pPiece = pPiece->pNext;
@@ -1053,14 +1053,14 @@ int32_t getPieceCount(Piece* pPiece) {
 
 static
 void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
-                 SharedEdgeWrap* pEdgeTable, int32_t edgeTableSize, int32_t *pCount) {
+                 SharedEdgeWrap* pEdgeTable, I32 edgeTableSize, I32 *pCount) {
 	bool single = false;
 	if (!pPiece->pNext) {
 		single = true;
 	}
 	Mesh* pBufMesh = &pArgs->pJobArgs[0].mesh;
 	Piece* pPieceRoot = pPiece;
-	int32_t corner = 0;
+	I32 corner = 0;
 	if (!single) {
 		// get starting corner
 		// This is done to ensure we don't start inside the face
@@ -1069,7 +1069,7 @@ void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 	}
 	STUC_ASSERT("No valid starting corner found", corner >= 0);
 	bool adj = false;
-	int32_t sort = 1;
+	I32 sort = 1;
 	Piece *pOtherPiece = NULL;
 	if (!single) {
 		pOtherPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
@@ -1097,7 +1097,7 @@ void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 			adj = false;
 			continue;
 		}
-		int32_t otherCorner = corner;
+		I32 otherCorner = corner;
 		pOtherPiece = NULL;
 		if (!single) {
 			pOtherPiece = getNeighbourEntry(pArgs, pEdgeTable, edgeTableSize,
@@ -1144,13 +1144,13 @@ void sortCorners(MergeSendOffArgs* pArgs, Piece* pPiece, PieceArr *pPieceArr,
 }
 
 static
-void getPieceInFaces(StucAlloc *pAlloc, int32_t **ppInFaces,
-                     Piece *pPiece, int32_t pieceCount,
+void getPieceInFaces(StucAlloc *pAlloc, I32 **ppInFaces,
+                     Piece *pPiece, I32 pieceCount,
                      SendOffArgs *pJobArgs) {
-	*ppInFaces = pAlloc->pCalloc(pieceCount, sizeof(int32_t));
-	int32_t i = 0;
+	*ppInFaces = pAlloc->pCalloc(pieceCount, sizeof(I32));
+	I32 i = 0;
 	do {
-		int32_t offset = pJobArgs[pPiece->pEntry->job].inFaceOffset;
+		I32 offset = pJobArgs[pPiece->pEntry->job].inFaceOffset;
 		(*ppInFaces)[i] = pPiece->pEntry->inFace + offset;
 		pPiece = pPiece->pNext;
 		i++;
@@ -1160,12 +1160,12 @@ void getPieceInFaces(StucAlloc *pAlloc, int32_t **ppInFaces,
 static
 void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
                         BorderFace *pEntry, BufMesh *pBufMesh,
-                        int32_t mapEdge, int32_t *pVert,
-                        BorderInInfo *pInInfo, int32_t mapFace,
-                        int32_t corner, int32_t cornerLocal,
+                        I32 mapEdge, I32 *pVert,
+                        BorderInInfo *pInInfo, I32 mapFace,
+                        I32 corner, I32 cornerLocal,
                         Piece *pPieceRoot, V2_I16 tile) {
 	bool realloced = false;
-	int32_t outVert = stucMeshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
+	I32 outVert = stucMeshAddVert(&pArgs->pContext->alloc, pArgs->pMeshOut, &realloced);
 	stucCopyAllAttribs(&pArgs->pMeshOut->core.vertAttribs, outVert,
 	                   &pBufMesh->mesh.core.vertAttribs, *pVert);
 	*pVert = outVert;
@@ -1183,11 +1183,11 @@ void initVertTableEntry(MergeSendOffArgs *pArgs, BorderVert *pVertEntry,
 
 static
 void initEdgeTableEntry(MergeSendOffArgs *pArgs, BorderEdge *pSeamEntry,
-                        BufMesh *pBufMesh, int32_t *pEdge, int32_t inEdge,
-                        int32_t mapFace) {
+                        BufMesh *pBufMesh, I32 *pEdge, I32 inEdge,
+                        I32 mapFace) {
 	StucContext pContext = pArgs->pContext;
 	bool realloced = false;
-	int32_t edgeOut = stucMeshAddEdge(&pContext->alloc, pArgs->pMeshOut, &realloced);
+	I32 edgeOut = stucMeshAddEdge(&pContext->alloc, pArgs->pMeshOut, &realloced);
 	stucCopyAllAttribs(&pArgs->pMeshOut->core.edgeAttribs, edgeOut,
 	                   &pBufMesh->mesh.core.edgeAttribs, *pEdge);
 	*pEdge = edgeOut;
@@ -1198,10 +1198,10 @@ void initEdgeTableEntry(MergeSendOffArgs *pArgs, BorderEdge *pSeamEntry,
 
 static
 void blendMergedCornerAttribs(BlendConfig config,
-                              AttribArray *pDestArr, int32_t iDest,
-                              AttribArray *pSrcArr, int32_t iSrc,
+                              AttribArray *pDestArr, I32 iDest,
+                              AttribArray *pSrcArr, I32 iSrc,
                               Attrib *pDestNormalAttrib) {
-	for (int32_t i = 0; i < pDestArr->count; ++i) {
+	for (I32 i = 0; i < pDestArr->count; ++i) {
 		Attrib *pDest = pDestArr->pArr + i;
 		Attrib *pSrc = pSrcArr->pArr + i;
 		STUC_ASSERT("", !strncmp(pDest->core.name, pSrc->core.name, STUC_ATTRIB_NAME_MAX_LEN));
@@ -1215,9 +1215,9 @@ void blendMergedCornerAttribs(BlendConfig config,
 }
 
 static
-void divideCornerAttribsByScalar(AttribArray *pCornerAttribs, int32_t corner,
-                                 int32_t scalar, Attrib *pNormalAttrib) {
-	for (int32_t i = 0; i < pCornerAttribs->count; ++i) {
+void divideCornerAttribsByScalar(AttribArray *pCornerAttribs, I32 corner,
+                                 I32 scalar, Attrib *pNormalAttrib) {
+	for (I32 i = 0; i < pCornerAttribs->count; ++i) {
 		Attrib *pAttrib = pCornerAttribs->pArr + i;
 		if (pAttrib != pNormalAttrib &&
 		    (!pAttrib->origin == STUC_ATTRIB_ORIGIN_MAP ||
@@ -1231,35 +1231,35 @@ void divideCornerAttribsByScalar(AttribArray *pCornerAttribs, int32_t corner,
 
 static
 void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
-                            Piece *pPieceRoot, int32_t k, bool addToTables) {
+                            Piece *pPieceRoot, I32 k, bool addToTables) {
 	BorderFace *pEntry = pPiece->pEntry;
 	STUC_ASSERT("This should not be called on a map corner", !stucGetIfStuc(pEntry, k));
 	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
-	int32_t corner = pPiece->bufFace.start - k;
-	int32_t vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, k);
+	I32 corner = pPiece->bufFace.start - k;
+	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, k);
 	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
 	STUC_ASSERT("", vert < pBufMesh->mesh.vertBufSize);
-	int32_t edge = stucBufMeshGetEdgeIdx(pPiece, pBufMesh, k);
+	I32 edge = stucBufMeshGetEdgeIdx(pPiece, pBufMesh, k);
 	STUC_ASSERT("", edge > pBufMesh->mesh.edgeBufSize - 1 - pBufMesh->borderEdgeCount);
 	STUC_ASSERT("", edge < pBufMesh->mesh.edgeBufSize);
-	int32_t mapCorner = stucGetMapCorner(pEntry, k);
+	I32 mapCorner = stucGetMapCorner(pEntry, k);
 	STUC_ASSERT("", mapCorner >= 0 && mapCorner < pArgs->pMap->mesh.core.cornerCount);
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	bool isOnInVert = stucGetIfOnInVert(pEntry, k);
 	if (!isOnInVert) {
 		inInfo.vert = -1;
 	}
-	int32_t hash;
-	int32_t mapEdge;
+	I32 hash;
+	I32 mapEdge;
 	if (isOnInVert) {
-		hash = stucFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
+		hash = stucFnvHash((U8 *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
 		mapEdge = -1;
 	}
 	else {
 		FaceRange mapFace =
 			stucGetFaceRange(&pArgs->pMap->mesh.core, pEntry->mapFace, false);
 		mapEdge = pArgs->pMap->mesh.core.pEdges[mapFace.start + mapCorner];
-		hash = stucFnvHash((uint8_t *)&mapEdge, 4, pArgs->pCTables->vertTableSize);
+		hash = stucFnvHash((U8 *)&mapEdge, 4, pArgs->pCTables->vertTableSize);
 	}
 	BlendConfig blendConfigAdd = {.blend = STUC_BLEND_ADD};
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
@@ -1333,8 +1333,8 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 	//TODO why cant you just determine connected edges with the above corner table?
 	//     is a separate table really needed? If you know 2 corners are connected,
 	//     can't you then connect their edges?
-	uint32_t valueToHash = inInfo.edge + pEntry->mapFace;
-	hash = stucFnvHash((uint8_t *)&valueToHash, 4, pArgs->pCTables->edgeTableSize);
+	U32 valueToHash = inInfo.edge + pEntry->mapFace;
+	hash = stucFnvHash((U8 *)&valueToHash, 4, pArgs->pCTables->edgeTableSize);
 	BorderEdge *pEdgeEntry = pArgs->pCTables->pEdgeTable + hash;
 	if (!pEdgeEntry->valid) {
 		if (addToTables) {
@@ -1371,10 +1371,10 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 		UBitField16 mask = -0x1 ^ (0x1 << k);
 		pPiece->add &= mask;
 		//correct sort, as this corner will not be kept
-		int32_t sort = pPiece->pOrder[k];
+		I32 sort = pPiece->pOrder[k];
 		pPiece = pPieceRoot;
 		do {
-			for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
+			for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 				if (pPiece->pOrder[i] > sort) {
 					pPiece->pOrder[i]--;
 				}
@@ -1385,20 +1385,20 @@ void addBorderCornerAndVert(MergeSendOffArgs *pArgs, Piece *pPiece,
 }
 
 static
-void mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, int32_t k) {
+void mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, I32 k) {
 	BorderFace *pEntry = pPiece->pEntry;
 	STUC_ASSERT("This should only be called on onInVert corners",
 	            stucGetIfOnInVert(pEntry, k));
-	int32_t mapCorner = stucGetMapCorner(pEntry, k);
+	I32 mapCorner = stucGetMapCorner(pEntry, k);
 	STUC_ASSERT("", mapCorner >= 0 && mapCorner < pArgs->pMap->mesh.core.cornerCount);
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
-	int32_t hash;
-	hash = stucFnvHash((uint8_t *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
+	I32 hash;
+	hash = stucFnvHash((U8 *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
 	STUC_ASSERT("No entry was initialized for this corner", pVertEntry->corners);
 
 	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
-	int32_t corner = pPiece->bufFace.start - k;
+	I32 corner = pPiece->bufFace.start - k;
 
 	BlendConfig blendConfigReplace = {.blend = STUC_BLEND_REPLACE};
 	do {
@@ -1437,29 +1437,29 @@ void mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, int32_t
 static
 void addToOutMesh(MergeSendOffArgs *pArgs) {
 	CLOCK_INIT;
-	uint64_t timeSpent[7] = {0};
+	U64 timeSpent[7] = {0};
 	StucContext pContext = pArgs->pContext;
 	StucAlloc *pAlloc = &pContext->alloc;
-	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
+	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	MergeBufHandles mergeBufHandles = {0};
 	stucAllocMergeBufs(pArgs->pContext, &mergeBufHandles, pArgs->totalVerts);
-	for (int32_t i = 0; i < count; ++i) {
-		int32_t reali = pArgs->entriesStart + i;
+	for (I32 i = 0; i < count; ++i) {
+		I32 reali = pArgs->entriesStart + i;
 		CLOCK_START;
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
 		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
 		FaceRange mapFace =
 			stucGetFaceRange(&pArgs->pMap->mesh.core, pPieceArr->pArr[0].pEntry->mapFace, false);
-		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
+		for (I32 j = 0; j < pPieceRoots->count; ++j) {
 			Piece *pPieceRoot = pPieceArr->pArr + pPieceRoots->pArr[j];
-			int32_t *pInFaces = NULL;
-			int32_t pieceCount = 0; //this is only need if getting in faces
+			I32 *pInFaces = NULL;
+			I32 pieceCount = 0; //this is only need if getting in faces
 			if (pArgs->ppInFaceTable) {
 				pieceCount = getPieceCount(pPieceRoot); 
 				getPieceInFaces(&pArgs->pContext->alloc, &pInFaces,
 				                pPieceRoot, pieceCount, pArgs->pJobArgs);
 			}
-			int32_t job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
+			I32 job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
 			STUC_ASSERT("", job >= 0 && job < pContext->threadCount);
 			stucMergeSingleBorderFace(pArgs, timeSpent, pPieceRoots->pArr[j], pPieceArr,
 			                          &mapFace, &mergeBufHandles, pInFaces, pieceCount);
@@ -1484,7 +1484,7 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 	pAlloc->pFree(pArgs->pPieceRootTable);
 	pAlloc->pFree(pArgs->pTotalVertTable);
 	printf("Combine time breakdown: \n");
-	for(int32_t i = 0; i < 7; ++i) {
+	for(I32 i = 0; i < 7; ++i) {
 #ifdef WIN32
 		printf("	%llu\n", timeSpent[i]);
 #else
@@ -1497,11 +1497,11 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 static
 void addPieceBorderCornersAndVerts(MergeSendOffArgs *pArgs, PieceArr *pPieceArr,
                                    PieceRootsArr *pPieceRoots, bool preserve,
-                                   int32_t pieceIdx) {
+                                   I32 pieceIdx) {
 	Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[pieceIdx];
 	Piece *pPieceRoot = pPiece;
 	do {
-		for (int32_t k = 0; k < pPiece->bufFace.size; ++k) {
+		for (I32 k = 0; k < pPiece->bufFace.size; ++k) {
 			if (stucGetIfStuc(pPiece->pEntry, k)) {
 				continue;
 			}
@@ -1524,12 +1524,12 @@ void addPieceBorderCornersAndVerts(MergeSendOffArgs *pArgs, PieceArr *pPieceArr,
 
 static
 void mergeIntersectionCorners(MergeSendOffArgs *pArgs, bool preserve) {
-	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
-	for (int32_t i = 0; i < count; ++i) {
-		int32_t reali = pArgs->entriesStart + i;
+	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
+	for (I32 i = 0; i < count; ++i) {
+		I32 reali = pArgs->entriesStart + i;
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
 		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
-		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
+		for (I32 j = 0; j < pPieceRoots->count; ++j) {
 			addPieceBorderCornersAndVerts(pArgs, pPieceArr, pPieceRoots, preserve, j);
 		}
 		STUC_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
@@ -1538,11 +1538,11 @@ void mergeIntersectionCorners(MergeSendOffArgs *pArgs, bool preserve) {
 
 static
 void mergePieceCornerAttribs(MergeSendOffArgs *pArgs, PieceArr *pPieceArr,
-                             PieceRootsArr *pPieceRoots, int32_t pieceIdx) {
+                             PieceRootsArr *pPieceRoots, I32 pieceIdx) {
 	Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[pieceIdx];
 	Piece *pPieceRoot = pPiece;
 	do {
-		for (int32_t k = 0; k < pPiece->bufFace.size; ++k) {
+		for (I32 k = 0; k < pPiece->bufFace.size; ++k) {
 			if ((pPiece->add >> k & 0x1) &&
 			    !stucGetIfStuc(pPiece->pEntry, k) &&
 			    stucGetIfOnInVert(pPiece->pEntry, k)) {
@@ -1556,12 +1556,12 @@ void mergePieceCornerAttribs(MergeSendOffArgs *pArgs, PieceArr *pPieceArr,
 
 static
 void mergeCornerAttribs(MergeSendOffArgs *pArgs) {
-	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
-	for (int32_t i = 0; i < count; ++i) {
-		int32_t reali = pArgs->entriesStart + i;
+	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
+	for (I32 i = 0; i < count; ++i) {
+		I32 reali = pArgs->entriesStart + i;
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
 		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
-		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
+		for (I32 j = 0; j < pPieceRoots->count; ++j) {
 			mergePieceCornerAttribs(pArgs, pPieceArr, pPieceRoots, j);
 		}
 		STUC_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
@@ -1569,22 +1569,22 @@ void mergeCornerAttribs(MergeSendOffArgs *pArgs) {
 }
 
 static
-void transformVertsInUsg(MergeSendOffArgs *pArgs, BufMesh *pBufMesh, int32_t corner,
+void transformVertsInUsg(MergeSendOffArgs *pArgs, BufMesh *pBufMesh, I32 corner,
                          FaceRange *pMapFace, BorderFace *pEntry, V3_F32 *pPos,
                          V3_F32 *pPosFlat, V3_F32 *pNormal, bool *pNormalTransformed,
-                         Mat3x3 *pTbn, float w, V2_F32 fTileMin) {
+                         Mat3x3 *pTbn, F32 w, V2_F32 fTileMin) {
 	V3_F32 uvw = {0};
 	*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[corner] V2SUB fTileMin);
 	uvw.d[2] = pBufMesh->pW[corner];
 	StucMap pMap = pArgs->pMap;
 	V3_F32 usgBc = {0};
 	bool transformed = false;
-	for (int32_t i = 0; i < pMapFace->size; ++i) {
-		int32_t mapVert = pMap->mesh.core.pCorners[pMapFace->start + i];
+	for (I32 i = 0; i < pMapFace->size; ++i) {
+		I32 mapVert = pMap->mesh.core.pCorners[pMapFace->start + i];
 		if (!pMap->mesh.pUsg) {
 			continue;
 		}
-		int32_t usgIdx = pMap->mesh.pUsg[mapVert];
+		I32 usgIdx = pMap->mesh.pUsg[mapVert];
 		if (!usgIdx) {
 			continue;
 		}
@@ -1593,7 +1593,7 @@ void transformVertsInUsg(MergeSendOffArgs *pArgs, BufMesh *pBufMesh, int32_t cor
 		if (stucIsPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pMesh)) {
 			bool flatCutoff = pUsg->pFlatCutoff &&
 				stucIsPointInsideMesh(&pArgs->pContext->alloc, uvw, pUsg->pFlatCutoff);
-			int32_t inFaceOffset = pArgs->pJobArgs[pEntry->job].inFaceOffset;
+			I32 inFaceOffset = pArgs->pJobArgs[pEntry->job].inFaceOffset;
 			bool inside = stucSampleUsg(i, uvw, pPosFlat, &transformed, &usgBc, pMapFace,
 			                            pMap, pEntry->inFace + inFaceOffset, pArgs->pInMesh,
 			                            pNormal, fTileMin, flatCutoff, true, pTbn);
@@ -1612,22 +1612,22 @@ void transformVertsInUsg(MergeSendOffArgs *pArgs, BufMesh *pBufMesh, int32_t cor
 static
 void transformDeferredVert(MergeSendOffArgs *pArgs, Piece *pPiece,
                            BufMesh *pBufMesh, FaceRange *pMapFace,
-                           int32_t cornerLocal, V2_I16 tile) {
+                           I32 cornerLocal, V2_I16 tile) {
 	BorderFace *pEntry = pPiece->pEntry;
-	int32_t corner = pPiece->bufFace.start - cornerLocal;
-	int32_t vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, cornerLocal);
+	I32 corner = pPiece->bufFace.start - cornerLocal;
+	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, cornerLocal);
 	V3_F32 posFlat = pBufMesh->mesh.pVerts[vert];
-	float w = pBufMesh->pW[corner];
+	F32 w = pBufMesh->pW[corner];
 	V3_F32 projNormal = pBufMesh->pInNormal[corner];
 	V3_F32 inTangent = pBufMesh->pInTangent[corner];
-	float inTSign = pBufMesh->pInTSign[corner];
+	F32 inTSign = pBufMesh->pInTSign[corner];
 	Mat3x3 tbn = {0};
 	*(V3_F32 *)&tbn.d[0] = inTangent;
 	*(V3_F32 *)&tbn.d[1] = _(_(projNormal V3CROSS inTangent) V3MULS inTSign);
 	*(V3_F32 *)&tbn.d[2] = projNormal;
 	V3_F32 pos = _(posFlat V3ADD _(projNormal V3MULS w * pArgs->wScale));
 	V3_F32 normal = {0};
-	V2_F32 fTileMin = {(float)tile.d[0], (float)tile.d[1]};
+	V2_F32 fTileMin = {(F32)tile.d[0], (F32)tile.d[1]};
 	bool normalTransformed = false;
 	if (!stucGetIfOnInVert(pEntry, cornerLocal) && !pArgs->ppInFaceTable) {
 		transformVertsInUsg(pArgs, pBufMesh, corner, pMapFace, pEntry, &pos, &posFlat,
@@ -1645,7 +1645,7 @@ void transformDefferedCorners(MergeSendOffArgs *pArgs,
                               FaceRange *pMapFace, Piece *pPiece) {
 	do {
 		BufMesh *pBufMesh = &pArgs->pJobArgs[pPiece->pEntry->job].bufMesh;
-		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
+		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 			if (stucGetIfStuc(pPiece->pEntry, i) || !(pPiece->add >> i & 0x1)) {
 				continue;
 			}
@@ -1657,10 +1657,10 @@ void transformDefferedCorners(MergeSendOffArgs *pArgs,
 }
 
 static
-void invertWind(Piece *pPiece, int32_t count) {
+void invertWind(Piece *pPiece, I32 count) {
 	count++;
 	do {
-		for (int32_t i = 0; i < pPiece->bufFace.size; ++i) {
+		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 			if (!(pPiece->add >> i & 0x1)) {
 				continue;
 			}
@@ -1675,20 +1675,20 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 	CLOCK_INIT;
 	StucContext pContext = pArgs->pContext;
 	StucAlloc *pAlloc = &pContext->alloc;
-	uint64_t timeSpent[7] = {0};
-	int32_t count = pArgs->entriesEnd - pArgs->entriesStart;
+	U64 timeSpent[7] = {0};
+	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	pArgs->pPieceArrTable = pAlloc->pCalloc(count, sizeof(PieceArr));
 	pArgs->pPieceRootTable = pAlloc->pCalloc(count, sizeof(PieceRootsArr));
-	pArgs->pTotalVertTable = pAlloc->pCalloc(count, sizeof(int32_t));
+	pArgs->pTotalVertTable = pAlloc->pCalloc(count, sizeof(I32));
 	pArgs->pInVertKeep = pAlloc->pCalloc(pArgs->pInMesh->core.vertCount, 1);
-	for (int32_t i = 0; i < count; ++i) {
-		int32_t reali = pArgs->entriesStart + i;
+	for (I32 i = 0; i < count; ++i) {
+		I32 reali = pArgs->entriesStart + i;
 		CLOCK_START;
 		BorderFace *pEntry = pArgs->pBorderTable->ppTable[reali];
-		int32_t entryCount = 0;
+		I32 entryCount = 0;
 		compileEntryInfo(pEntry, &entryCount);
 		STUC_ASSERT("", entryCount);
-		//int32_t seamFace = ;
+		//I32 seamFace = ;
 		FaceRange mapFace =
 			stucGetFaceRange(&pArgs->pMap->mesh.core, pEntry->mapFace, false);
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
@@ -1697,17 +1697,17 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 		pPieceArr->count = entryCount;
 		pPieceArr->pArr = NULL;
 		SharedEdgeWrap *pSharedEdges = NULL;
-		int32_t edgeTableSize = 0;
+		I32 edgeTableSize = 0;
 		CLOCK_STOP_NO_PRINT;
 		timeSpent[0] += CLOCK_TIME_DIFF(start, stop);
 		CLOCK_START;
-		int32_t totalVerts = 0;
+		I32 totalVerts = 0;
 		splitIntoPieces(pArgs, pPieceRoots, pEntry, &pSharedEdges, &edgeTableSize,
 		                pPieceArr, &totalVerts);
 		STUC_ASSERT("", pPieceRoots->count > 0);
-		int32_t aproxVertsPerPiece = totalVerts / pPieceRoots->count;
+		I32 aproxVertsPerPiece = totalVerts / pPieceRoots->count;
 		STUC_ASSERT("", aproxVertsPerPiece != 0);
-		for (int32_t j = 0; j < pPieceRoots->count; ++j) {
+		for (I32 j = 0; j < pPieceRoots->count; ++j) {
 			Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[j];
 			STUC_ASSERT("", pPiece->pEntry);
 			markKeepInVertsPreserve(pArgs, pArgs->pMap, pPiece);
@@ -1753,12 +1753,12 @@ static
 StucResult mergeAndAddToOutMesh(StucContext pContext, void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
 	MergeSendOffArgs *pArgs = pArgsVoid;
-	for (int32_t i = 0; i < pArgs->jobCount; ++i) {
+	for (I32 i = 0; i < pArgs->jobCount; ++i) {
 		mergeIntersectionCorners(pArgs->pArgArr + i, false);
 		mergeIntersectionCorners(pArgs->pArgArr + i, true);
 		mergeCornerAttribs(pArgs->pArgArr + i);
 	}
-	for (int32_t i = 0; i < pArgs->jobCount; ++i) {
+	for (I32 i = 0; i < pArgs->jobCount; ++i) {
 		addToOutMesh(pArgs->pArgArr + i);
 	}
 	pContext->alloc.pFree(pArgs->pInVertKeep);
@@ -1766,7 +1766,7 @@ StucResult mergeAndAddToOutMesh(StucContext pContext, void *pArgsVoid) {
 }
 
 static
-linkOtherEntry(BorderBucket *pBucketOther, BorderBucket *pBucket, int32_t mapFace) {
+linkOtherEntry(BorderBucket *pBucketOther, BorderBucket *pBucket, I32 mapFace) {
 	if (mapFace == pBucketOther->pEntry->mapFace) {
 		BorderFace *pEntry = pBucket->pEntry;
 		while (pEntry->pNext) {
@@ -1779,9 +1779,9 @@ linkOtherEntry(BorderBucket *pBucketOther, BorderBucket *pBucket, int32_t mapFac
 
 static
 void linkEntriesFromOtherJobs(StucContext pContext, SendOffArgs *pJobArgs,
-                              BorderBucket *pBucket, int32_t mapFace,
-                              int32_t hash, int32_t job, int32_t mapJobsSent) {
-	for (int32_t j = job + 1; j < mapJobsSent; ++j) {
+                              BorderBucket *pBucket, I32 mapFace,
+                              I32 hash, I32 job, I32 mapJobsSent) {
+	for (I32 j = job + 1; j < mapJobsSent; ++j) {
 		if (!pJobArgs[j].bufSize) {
 			continue;
 		}
@@ -1800,15 +1800,15 @@ void linkEntriesFromOtherJobs(StucContext pContext, SendOffArgs *pJobArgs,
 
 static
 void walkBucketsAndLink(StucContext pContext, SendOffArgs *pJobArgs,
-                        CompiledBorderTable *pBorderTable, int32_t totalBorderFaces,
-                        int32_t mapJobsSent, int32_t jobIdx, int32_t hash) {
+                        CompiledBorderTable *pBorderTable, I32 totalBorderFaces,
+                        I32 mapJobsSent, I32 jobIdx, I32 hash) {
 	STUC_ASSERT("", pJobArgs[jobIdx].borderTable.size > 0);
 	STUC_ASSERT("", pJobArgs[jobIdx].borderTable.pTable);
 	BorderBucket *pBucket = pJobArgs[jobIdx].borderTable.pTable + hash;
-	int32_t depth = 0;
+	I32 depth = 0;
 	do {
 		if (pBucket->pEntry) {
-			int32_t mapFace = pBucket->pEntry->mapFace;
+			I32 mapFace = pBucket->pEntry->mapFace;
 			STUC_ASSERT("", mapFace >= 0);
 			linkEntriesFromOtherJobs(pContext, pJobArgs, pBucket, mapFace, hash, jobIdx,
 			                         mapJobsSent);
@@ -1829,14 +1829,14 @@ void walkBucketsAndLink(StucContext pContext, SendOffArgs *pJobArgs,
 static
 void compileBorderTables(StucContext pContext, SendOffArgs *pJobArgs,
                          CompiledBorderTable *pBorderTable,
-                         int32_t totalBorderFaces, int32_t mapJobsSent) {
+                         I32 totalBorderFaces, I32 mapJobsSent) {
 	pBorderTable->ppTable = pContext->alloc.pMalloc(sizeof(void *) * totalBorderFaces);
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
+	for (I32 i = 0; i < mapJobsSent; ++i) {
 		if (!pJobArgs[i].bufSize) {
 			//TODO why is bufsize zero? how? find out
 			continue; //skip if buf mesh is empty
 		}
-		for (int32_t hash = 0; hash < pJobArgs[i].borderTable.size; ++hash) {
+		for (I32 hash = 0; hash < pJobArgs[i].borderTable.size; ++hash) {
 			walkBucketsAndLink(pContext, pJobArgs, pBorderTable, totalBorderFaces,
 			                   mapJobsSent, i, hash);
 			STUC_ASSERT("", hash >= 0 && hash < pJobArgs[i].borderTable.size);
@@ -1847,7 +1847,7 @@ void compileBorderTables(StucContext pContext, SendOffArgs *pJobArgs,
 
 static
 void allocCombineTables(StucAlloc *pAlloc, CombineTables *pCTables,
-                        int32_t totalBorderFaces, int32_t totalBorderEdges) {
+                        I32 totalBorderFaces, I32 totalBorderEdges) {
 	pCTables->pVertTable =
 		pAlloc->pCalloc(totalBorderFaces, sizeof(BorderVert));
 	pCTables->pOnLineTable =
@@ -1861,7 +1861,7 @@ void allocCombineTables(StucAlloc *pAlloc, CombineTables *pCTables,
 
 static
 void destroyCombineTables(StucAlloc *pAlloc, CombineTables *pCTables) {
-	for (int32_t i = 0; i < pCTables->vertTableSize; ++i) {
+	for (I32 i = 0; i < pCTables->vertTableSize; ++i) {
 		BorderVert *pEntry = pCTables->pVertTable[i].pNext;
 		while (pEntry) {
 			BorderVert *pNextEntry = pEntry->pNext;
@@ -1870,7 +1870,7 @@ void destroyCombineTables(StucAlloc *pAlloc, CombineTables *pCTables) {
 		}
 	}
 	pAlloc->pFree(pCTables->pVertTable);
-	for (int32_t i = 0; i < pCTables->onLineTableSize; ++i) {
+	for (I32 i = 0; i < pCTables->onLineTableSize; ++i) {
 		OnLine *pEntry = pCTables->pOnLineTable[i].pNext;
 		while (pEntry) {
 			OnLine *pNextEntry = pEntry->pNext;
@@ -1879,7 +1879,7 @@ void destroyCombineTables(StucAlloc *pAlloc, CombineTables *pCTables) {
 		}
 	}
 	pAlloc->pFree(pCTables->pOnLineTable);
-	for (int32_t i = 0; i < pCTables->edgeTableSize; ++i) {
+	for (I32 i = 0; i < pCTables->edgeTableSize; ++i) {
 		BorderEdge *pEntry = pCTables->pEdgeTable[i].pNext;
 		while (pEntry) {
 			BorderEdge *pNextEntry = pEntry->pNext;
@@ -1892,22 +1892,22 @@ void destroyCombineTables(StucAlloc *pAlloc, CombineTables *pCTables) {
 
 static
 void sendOffMergeJobs(StucContext pContext, CompiledBorderTable *pBorderTable,
-                      int32_t *pJobCount, void ***pppJobHandles, MergeSendOffArgs **ppMergeJobArgs, StucMap pMap,
+                      I32 *pJobCount, void ***pppJobHandles, MergeSendOffArgs **ppMergeJobArgs, StucMap pMap,
                       Mesh *pMeshOut, SendOffArgs *pMapJobArgs,
-                      EdgeVerts *pEdgeVerts, int8_t *pVertSeamTable,
+                      EdgeVerts *pEdgeVerts, I8 *pVertSeamTable,
                       CombineTables *pCTables, JobBases *pJobBases,
-                      bool *pEdgeSeamTable, InFaceArr **ppInFaceTable, float wScale, Mesh *pInMesh, void **ppBarrier) {
+                      bool *pEdgeSeamTable, InFaceArr **ppInFaceTable, F32 wScale, Mesh *pInMesh, void **ppBarrier) {
 	*pJobCount = MAX_SUB_MAPPING_JOBS;
 	*pJobCount += *pJobCount == 0;
-	int32_t entriesPerJob = pBorderTable->count / *pJobCount;
+	I32 entriesPerJob = pBorderTable->count / *pJobCount;
 	bool singleThread = !entriesPerJob;
 	void *jobArgPtrs[MAX_THREADS] = {0};
 	*pJobCount = singleThread ? 1 : *pJobCount;
 	pContext->threadPool.pBarrierGet(pContext->pThreadPoolHandle, ppBarrier, *pJobCount);
 	*ppMergeJobArgs = pContext->alloc.pCalloc(*pJobCount, sizeof(MergeSendOffArgs));
-	for (int32_t i = 0; i < *pJobCount; ++i) {
-		int32_t entriesStart = entriesPerJob * i;
-		int32_t entriesEnd = i == *pJobCount - 1 ?
+	for (I32 i = 0; i < *pJobCount; ++i) {
+		I32 entriesStart = entriesPerJob * i;
+		I32 entriesEnd = i == *pJobCount - 1 ?
 			pBorderTable->count : entriesStart + entriesPerJob;
 		//TODO make a struct for these common variables, like pContext,
 		//pMap, pEdgeVerts, etc, so you don't need to move them
@@ -1942,13 +1942,13 @@ void sendOffMergeJobs(StucContext pContext, CompiledBorderTable *pBorderTable,
 
 Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
                             SendOffArgs *pJobArgs, EdgeVerts *pEdgeVerts,
-                            JobBases *pJobBases, int8_t *pVertSeamTable,
+                            JobBases *pJobBases, I8 *pVertSeamTable,
                             bool *pEdgeSeamTable, InFaceArr **ppInFaceTable,
-                            float wScale, Mesh *pInMesh, int32_t mapJobsSent) {
+                            F32 wScale, Mesh *pInMesh, I32 mapJobsSent) {
 	StucResult err = STUC_SUCCESS;
-	int32_t totalBorderFaces = 0;
-	int32_t totalBorderEdges = 0;
-	for (int32_t i = 0; i < mapJobsSent; ++i) {
+	I32 totalBorderFaces = 0;
+	I32 totalBorderEdges = 0;
+	for (I32 i = 0; i < mapJobsSent; ++i) {
 		totalBorderFaces += pJobArgs[i].bufMesh.borderFaceCount;
 		totalBorderEdges += pJobArgs[i].bufMesh.borderEdgeCount;
 		STUC_ASSERT("", i < mapJobsSent);
@@ -1963,9 +1963,9 @@ Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
 	CombineTables cTables = {0};
 	allocCombineTables(&pContext->alloc, &cTables, totalBorderFaces,
 	                   totalBorderEdges);
-	for (int32_t i = 0; i < pJobArgs[0].mesh.core.vertCount; ++i) {
-		int32_t preserve = pJobArgs[0].pInVertTable[i];
-		for (int32_t j = 1; j < mapJobsSent; ++j) {
+	for (I32 i = 0; i < pJobArgs[0].mesh.core.vertCount; ++i) {
+		I32 preserve = pJobArgs[0].pInVertTable[i];
+		for (I32 j = 1; j < mapJobsSent; ++j) {
 			preserve |= pJobArgs[j].pInVertTable[i];
 			STUC_ASSERT("", j >= 0 && j < mapJobsSent);
 		}
@@ -1973,8 +1973,8 @@ Result stucMergeBorderFaces(StucContext pContext, StucMap pMap, Mesh *pMeshOut,
 		STUC_ASSERT("", i >= 0 && i < pJobArgs[0].mesh.core.vertCount);
 	}
 	MergeSendOffArgs *pMergeJobArgs = NULL;
-	int32_t jobCount = 0;
-	int32_t fence = 0;
+	I32 jobCount = 0;
+	I32 fence = 0;
 	void *pBarrier = NULL;
 	void **ppJobHandles = NULL;
 	sendOffMergeJobs(pContext, &borderTable, &jobCount, &ppJobHandles, &pMergeJobArgs,

@@ -45,22 +45,22 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 #define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->core.pData)[i][c]
 //TODO you'll need to make an unsigned wide macro as well when you implement
 //proper unsigned attribs
-#define INDEX_ATTRIB_WIDE(t, pD, i, v, c) (double)(((t (*)[v])pD->core.pData)[i][c])
+#define INDEX_ATTRIB_WIDE(t, pD, i, v, c) (F64)(((t (*)[v])pD->core.pData)[i][c])
 //TODO add a way to pass the max value here rather than just using 255.0f,
 //one may want to use 16 or 32 bit color depth
 #define INDEX_ATTRIB_NORM(t, tMax, pD, i, v, c) \
-	((double)((t (*)[v])pD->core.pData)[i][c] / (double)tMax)
+	((F64)((t (*)[v])pD->core.pData)[i][c] / (F64)tMax)
 
 #define CLAMP_AND_LERP(t, tMax, o, pA, iA, v, c, d) (\
 	(d = LERP_SIMPLE(INDEX_ATTRIB_WIDE(t,pA,iA,v,c), d, o)),\
-	(d = d < 0 ? 0 : (d > (double)tMax ? tMax : d)),\
+	(d = d < 0 ? 0 : (d > (F64)tMax ? tMax : d)),\
 	(t)(d)\
 )
 
 #define CLAMP_AND_LERP_NORM(t, tMax, o, pA, iA, v, c, d) (\
 	(d = LERP_SIMPLE(INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c), d, o)),\
 	(d = d < .0 ? .0 : (d > 1.0 ? 1.0 : d)),\
-	(t)(d * (double)tMax)\
+	(t)(d * (F64)tMax)\
 )
 
 #define BLEND_REPLACE(t, tMax, o, pD, iD, pA, iA, pB, iB, v, c)\
@@ -71,48 +71,48 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c);\
 	}\
 	else {\
-		double b = INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c);\
+		F64 b = INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c);\
 		INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,b);\
 	}
 
 #define BLEND_MULTIPLY(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) * INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
+	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) * INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
 }
 
 #define BLEND_MULTIPLY_NORM(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) *\
+	F64 d = INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) *\
 		INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c);\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
 }
 
 #define BLEND_DIVIDE(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB_WIDE(t,pB,iB,v,c) != (t)0 ?\
-		INDEX_ATTRIB_WIDE(t,pA,iA,v,c) / INDEX_ATTRIB_WIDE(t,pB,iB,v,c) : (double)tMax;\
+	F64 d = INDEX_ATTRIB_WIDE(t,pB,iB,v,c) != (t)0 ?\
+		INDEX_ATTRIB_WIDE(t,pA,iA,v,c) / INDEX_ATTRIB_WIDE(t,pB,iB,v,c) : (F64)tMax;\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
 }
 
 #define BLEND_DIVIDE_NORM(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB(t,pB,iB,v,c) != (t)0 ?\
+	F64 d = INDEX_ATTRIB(t,pB,iB,v,c) != (t)0 ?\
 		(INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) / INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c)) : 1.0f;\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
 }
 
 #define BLEND_ADD(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) + INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
+	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) + INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
 }
 
 //TODO add clamping as an option
 #define BLEND_SUBTRACT(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) - INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
+	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) - INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
 }
 
 //TODO addsub result is slightly off from other programs
 #define BLEND_ADD_SUB(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) +\
-		INDEX_ATTRIB_WIDE(t,pB,iB,v,c) - ((double)tMax - INDEX_ATTRIB_WIDE(t,pB,iB,v,c));\
+	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) +\
+		INDEX_ATTRIB_WIDE(t,pB,iB,v,c) - ((F64)tMax - INDEX_ATTRIB_WIDE(t,pB,iB,v,c));\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
 }
 
@@ -127,7 +127,7 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c);\
 	}\
 	else {\
-		double dNorm = (double)d / (double)tMax;\
+		F64 dNorm = (F64)d / (F64)tMax;\
 		INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,dNorm);\
 	}\
 }
@@ -143,13 +143,13 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c);\
 	}\
 	else {\
-		double dNorm = (double)d / (double)tMax;\
+		F64 dNorm = (F64)d / (F64)tMax;\
 		INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,dNorm);\
 	}\
 }
 
 #define BLEND_OVERLAY(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = (INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) < .5 ?\
+	F64 d = (INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) < .5 ?\
 	2.0 * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) :\
 	1.0 - 2.0 * (1.0 - INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c)) *\
 	(1.0 - INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c)));\
@@ -158,7 +158,7 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 }
 
 #define BLEND_SOFT_LIGHT(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = (INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) < .5 ?\
+	F64 d = (INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) < .5 ?\
 \
 	2.0 * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) +\
 	INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) *\
@@ -171,7 +171,7 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 }
 
 #define BLEND_COLOR_DODGE(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	double d = (1.0 - INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c));\
+	F64 d = (1.0 - INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c));\
 	d = d == .0 ? 1.0 : INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) / d;\
 	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
 }
@@ -180,25 +180,25 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 	INDEX_ATTRIB(t,pAttrib,idx,v,c) /= (t)scalar;
 
 #define LERP_SCALAR(t, pD, iD, pA, iA, pB, iB, a) { \
-	float aInverse = 1.0f - a; \
+	F32 aInverse = 1.0f - a; \
 	INDEX_ATTRIB(t, pD, iD, 1, 0) = INDEX_ATTRIB(t, pA, iA, 1, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 1, 0) * a; \
 }
 
 #define LERP_V2(t, pD, iD, pA, iA, pB, iB, a) { \
-	float aInverse = 1.0f - a; \
+	F32 aInverse = 1.0f - a; \
 	INDEX_ATTRIB(t, pD, iD, 2, 0) = INDEX_ATTRIB(t, pA, iA, 2, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 2, 0) * a; \
 	INDEX_ATTRIB(t, pD, iD, 2, 1) = INDEX_ATTRIB(t, pA, iA, 2, 1) * aInverse + INDEX_ATTRIB(t, pB, iB, 2, 1) * a; \
 }
 
 #define LERP_V3(t, pD, iD, pA, iA, pB, iB, a) { \
-	float aInverse = 1.0f - a; \
+	F32 aInverse = 1.0f - a; \
 	INDEX_ATTRIB(t, pD, iD, 3, 0) = INDEX_ATTRIB(t, pA, iA, 3, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 3, 0) * a; \
 	INDEX_ATTRIB(t, pD, iD, 3, 1) = INDEX_ATTRIB(t, pA, iA, 3, 1) * aInverse + INDEX_ATTRIB(t, pB, iB, 3, 1) * a; \
 	INDEX_ATTRIB(t, pD, iD, 3, 2) = INDEX_ATTRIB(t, pA, iA, 3, 2) * aInverse + INDEX_ATTRIB(t, pB, iB, 3, 2) * a; \
 }
 
 #define LERP_V4(t, pD, iD, pA, iA, pB, iB, a) { \
-	float aInverse = 1.0f - a; \
+	F32 aInverse = 1.0f - a; \
 	INDEX_ATTRIB(t, pD, iD, 4, 0) = INDEX_ATTRIB(t, pA, iA, 4, 0) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 0) * a; \
 	INDEX_ATTRIB(t, pD, iD, 4, 1) = INDEX_ATTRIB(t, pA, iA, 4, 1) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 1) * a; \
 	INDEX_ATTRIB(t, pD, iD, 4, 2) = INDEX_ATTRIB(t, pA, iA, 4, 2) * aInverse + INDEX_ATTRIB(t, pB, iB, 4, 2) * a; \
@@ -218,7 +218,7 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 	INDEX_ATTRIB(t,pD,iD,2,1) += INDEX_ATTRIB(t,pS,iB,2,1) * bc.d[1];\
 	INDEX_ATTRIB(t,pD,iD,2,0) += INDEX_ATTRIB(t,pS,iC,2,0) * bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,2,1) += INDEX_ATTRIB(t,pS,iC,2,1) * bc.d[2];\
-	float sum = bc.d[0] + bc.d[1] + bc.d[2];\
+	F32 sum = bc.d[0] + bc.d[1] + bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,2,0) /= sum;\
 	INDEX_ATTRIB(t,pD,iD,2,1) /= sum;\
 }
@@ -233,7 +233,7 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 	INDEX_ATTRIB(t,pD,iD,3,0) += INDEX_ATTRIB(t,pS,iC,3,0) * bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,3,1) += INDEX_ATTRIB(t,pS,iC,3,1) * bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,3,2) += INDEX_ATTRIB(t,pS,iC,3,2) * bc.d[2];\
-	float sum = bc.d[0] + bc.d[1] + bc.d[2];\
+	F32 sum = bc.d[0] + bc.d[1] + bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,3,0) /= sum;\
 	INDEX_ATTRIB(t,pD,iD,3,1) /= sum;\
 	INDEX_ATTRIB(t,pD,iD,3,2) /= sum;\
@@ -252,14 +252,14 @@ void stucSetDefaultSpecialAttribNames(StucContext pContext) {
 	INDEX_ATTRIB(t,pD,iD,4,1) += INDEX_ATTRIB(t,pS,iC,4,1) * bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,4,2) += INDEX_ATTRIB(t,pS,iC,4,2) * bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,4,3) += INDEX_ATTRIB(t,pS,iC,4,3) * bc.d[2];\
-	float sum = bc.d[0] + bc.d[1] + bc.d[2];\
+	F32 sum = bc.d[0] + bc.d[1] + bc.d[2];\
 	INDEX_ATTRIB(t,pD,iD,4,0) /= sum;\
 	INDEX_ATTRIB(t,pD,iD,4,1) /= sum;\
 	INDEX_ATTRIB(t,pD,iD,4,2) /= sum;\
 	INDEX_ATTRIB(t,pD,iD,4,3) /= sum;\
 }
 
-int32_t stucGetAttribSizeIntern(AttribType type) {
+I32 stucGetAttribSizeIntern(AttribType type) {
 	switch (type) {
 		case STUC_ATTRIB_I8:
 			return 1;
@@ -318,7 +318,7 @@ int32_t stucGetAttribSizeIntern(AttribType type) {
 }
 
 Attrib *stucGetAttribIntern(char *pName, AttribArray *pAttribs) {
-	for (int32_t i = 0; i < pAttribs->count; ++i) {
+	for (I32 i = 0; i < pAttribs->count; ++i) {
 		if (!strncmp(pName, pAttribs->pArr[i].core.name,
 		             STUC_ATTRIB_NAME_MAX_LEN)) {
 			return pAttribs->pArr + i;
@@ -327,76 +327,76 @@ Attrib *stucGetAttribIntern(char *pName, AttribArray *pAttribs) {
 	return NULL;
 }
 
-V3_F32 *stucAttribAsV3(AttribCore *pAttrib, int32_t idx) {
+V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx) {
 	return (V3_F32 *)pAttrib->pData + idx;
 }
 
-V2_F32 *stucAttribAsV2(AttribCore *pAttrib, int32_t idx) {
+V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx) {
 	return (V2_F32 *)pAttrib->pData + idx;
 }
 
-int32_t *stucAttribAsI32(AttribCore *pAttrib, int32_t idx) {
-	return (int32_t *)pAttrib->pData + idx;
+I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx) {
+	return (I32 *)pAttrib->pData + idx;
 }
 
-int8_t *stucAttribAsI8(AttribCore *pAttrib, int32_t idx) {
-	return (int8_t *)pAttrib->pData + idx;
+I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx) {
+	return (I8 *)pAttrib->pData + idx;
 }
 
-char *stucAttribAsStr(AttribCore *pAttrib, int32_t idx) {
+char *stucAttribAsStr(AttribCore *pAttrib, I32 idx) {
 	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData) + idx;
 }
 
-void *stucAttribAsVoid(AttribCore *pAttrib, int32_t idx) {
+void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx) {
 	switch (pAttrib->type) {
 		case STUC_ATTRIB_I8:
-			return ((int8_t *)pAttrib->pData) + idx;
+			return ((I8 *)pAttrib->pData) + idx;
 		case STUC_ATTRIB_I16:
-			return ((int16_t *)pAttrib->pData) + idx;
+			return ((I16 *)pAttrib->pData) + idx;
 		case STUC_ATTRIB_I32:
-			return ((int32_t *)pAttrib->pData) + idx;
+			return ((I32 *)pAttrib->pData) + idx;
 		case STUC_ATTRIB_I64:
-			return ((int64_t *)pAttrib->pData) + idx;
+			return ((I64 *)pAttrib->pData) + idx;
 		case STUC_ATTRIB_F32:
-			return ((float *)pAttrib->pData) + idx;
+			return ((F32 *)pAttrib->pData) + idx;
 		case STUC_ATTRIB_F64:
-			return ((double *)pAttrib->pData) + idx;
+			return ((F64 *)pAttrib->pData) + idx;
 		case STUC_ATTRIB_V2_I8:
-			return ((int8_t (*)[2])pAttrib->pData) + idx;
+			return ((I8 (*)[2])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V2_I16:
-			return ((int16_t (*)[2])pAttrib->pData) + idx;
+			return ((I16 (*)[2])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V2_I32:
-			return ((int32_t (*)[2])pAttrib->pData) + idx;
+			return ((I32 (*)[2])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V2_I64:
-			return ((int64_t (*)[2])pAttrib->pData) + idx;
+			return ((I64 (*)[2])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V2_F32:
-			return ((float (*)[2])pAttrib->pData) + idx;
+			return ((F32 (*)[2])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V2_F64:
-			return ((double (*)[2])pAttrib->pData) + idx;
+			return ((F64 (*)[2])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V3_I8:
-			return ((int8_t (*)[3])pAttrib->pData) + idx;
+			return ((I8 (*)[3])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V3_I16:
-			return ((int16_t (*)[3])pAttrib->pData) + idx;
+			return ((I16 (*)[3])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V3_I32:
-			return ((int32_t (*)[3])pAttrib->pData) + idx;
+			return ((I32 (*)[3])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V3_I64:
-			return ((int64_t (*)[3])pAttrib->pData) + idx;
+			return ((I64 (*)[3])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V3_F32:
-			return ((float (*)[3])pAttrib->pData) + idx;
+			return ((F32 (*)[3])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V3_F64:
-			return ((double (*)[3])pAttrib->pData) + idx;
+			return ((F64 (*)[3])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V4_I8:
-			return ((int8_t (*)[4])pAttrib->pData) + idx;
+			return ((I8 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V4_I16:
-			return ((int16_t (*)[4])pAttrib->pData) + idx;
+			return ((I16 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V4_I32:
-			return ((int32_t (*)[4])pAttrib->pData) + idx;
+			return ((I32 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V4_I64:
-			return ((int64_t (*)[4])pAttrib->pData) + idx;
+			return ((I64 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V4_F32:
-			return ((float (*)[4])pAttrib->pData) + idx;
+			return ((F32 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_V4_F64:
-			return ((double (*)[4])pAttrib->pData) + idx;
+			return ((F64 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_STRING:
 			return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData) + idx;
 		default:
@@ -405,8 +405,8 @@ void *stucAttribAsVoid(AttribCore *pAttrib, int32_t idx) {
 	}
 }
 
-int32_t stucCopyAttrib(Attrib *pDest, int32_t iDest,
-                       Attrib *pSrc, int32_t iSrc) {
+I32 stucCopyAttrib(Attrib *pDest, I32 iDest,
+                       Attrib *pSrc, I32 iSrc) {
 	if (pSrc->origin == STUC_ATTRIB_DONT_COPY) {
 		return 0;
 	}
@@ -415,107 +415,107 @@ int32_t stucCopyAttrib(Attrib *pDest, int32_t iDest,
 	}
 	switch (pSrc->core.type) {
 		case STUC_ATTRIB_I8:
-			((int8_t *)pDest->core.pData)[iDest] = ((int8_t *)pSrc->core.pData)[iSrc];
+			((I8 *)pDest->core.pData)[iDest] = ((I8 *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_I16:
-			((int16_t *)pDest->core.pData)[iDest] = ((int16_t *)pSrc->core.pData)[iSrc];
+			((I16 *)pDest->core.pData)[iDest] = ((I16 *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_I32:
-			((int32_t *)pDest->core.pData)[iDest] = ((int32_t *)pSrc->core.pData)[iSrc];
+			((I32 *)pDest->core.pData)[iDest] = ((I32 *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_I64:
-			((int64_t *)pDest->core.pData)[iDest] = ((int64_t *)pSrc->core.pData)[iSrc];
+			((I64 *)pDest->core.pData)[iDest] = ((I64 *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_F32:
-			((float *)pDest->core.pData)[iDest] = ((float *)pSrc->core.pData)[iSrc];
+			((F32 *)pDest->core.pData)[iDest] = ((F32 *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_F64:
-			((double *)pDest->core.pData)[iDest] = ((double *)pSrc->core.pData)[iSrc];
+			((F64 *)pDest->core.pData)[iDest] = ((F64 *)pSrc->core.pData)[iSrc];
 			break;
 		case STUC_ATTRIB_V2_I8:
-			memcpy(((int8_t (*)[2])pDest->core.pData)[iDest],
-			       ((int8_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int8_t[2]));
+			memcpy(((I8 (*)[2])pDest->core.pData)[iDest],
+			       ((I8 (*)[2])pSrc->core.pData)[iSrc], sizeof(I8[2]));
 			break;
 		case STUC_ATTRIB_V2_I16:
-			memcpy(((int16_t (*)[2])pDest->core.pData)[iDest],
-			       ((int16_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int16_t[2]));
+			memcpy(((I16 (*)[2])pDest->core.pData)[iDest],
+			       ((I16 (*)[2])pSrc->core.pData)[iSrc], sizeof(I16[2]));
 			break;
 		case STUC_ATTRIB_V2_I32:
-			memcpy(((int32_t (*)[2])pDest->core.pData)[iDest],
-			       ((int32_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int32_t[2]));
+			memcpy(((I32 (*)[2])pDest->core.pData)[iDest],
+			       ((I32 (*)[2])pSrc->core.pData)[iSrc], sizeof(I32[2]));
 			break;
 		case STUC_ATTRIB_V2_I64:
-			memcpy(((int64_t (*)[2])pDest->core.pData)[iDest],
-			       ((int64_t (*)[2])pSrc->core.pData)[iSrc], sizeof(int64_t[2]));
+			memcpy(((I64 (*)[2])pDest->core.pData)[iDest],
+			       ((I64 (*)[2])pSrc->core.pData)[iSrc], sizeof(I64[2]));
 			break;
 		case STUC_ATTRIB_V2_F32:
-			memcpy(((float (*)[2])pDest->core.pData)[iDest],
-			       ((float (*)[2])pSrc->core.pData)[iSrc], sizeof(float[2]));
+			memcpy(((F32 (*)[2])pDest->core.pData)[iDest],
+			       ((F32 (*)[2])pSrc->core.pData)[iSrc], sizeof(F32[2]));
 			break;
 		case STUC_ATTRIB_V2_F64:
-			memcpy(((double (*)[2])pDest->core.pData)[iDest],
-			       ((double (*)[2])pSrc->core.pData)[iSrc], sizeof(double[2]));
+			memcpy(((F64 (*)[2])pDest->core.pData)[iDest],
+			       ((F64 (*)[2])pSrc->core.pData)[iSrc], sizeof(F64[2]));
 			break;
 		case STUC_ATTRIB_V3_I8:
-			memcpy(((int8_t (*)[3])pDest->core.pData)[iDest],
-			       ((int8_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int8_t[3]));
+			memcpy(((I8 (*)[3])pDest->core.pData)[iDest],
+			       ((I8 (*)[3])pSrc->core.pData)[iSrc], sizeof(I8[3]));
 			break;
 		case STUC_ATTRIB_V3_I16:
-			memcpy(((int16_t (*)[3])pDest->core.pData)[iDest],
-			       ((int16_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int16_t[3]));
+			memcpy(((I16 (*)[3])pDest->core.pData)[iDest],
+			       ((I16 (*)[3])pSrc->core.pData)[iSrc], sizeof(I16[3]));
 			break;
 		case STUC_ATTRIB_V3_I32:
-			memcpy(((int32_t (*)[3])pDest->core.pData)[iDest],
-			       ((int32_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int32_t[3]));
+			memcpy(((I32 (*)[3])pDest->core.pData)[iDest],
+			       ((I32 (*)[3])pSrc->core.pData)[iSrc], sizeof(I32[3]));
 			break;
 		case STUC_ATTRIB_V3_I64:
-			memcpy(((int64_t (*)[3])pDest->core.pData)[iDest],
-			       ((int64_t (*)[3])pSrc->core.pData)[iSrc], sizeof(int64_t[3]));
+			memcpy(((I64 (*)[3])pDest->core.pData)[iDest],
+			       ((I64 (*)[3])pSrc->core.pData)[iSrc], sizeof(I64[3]));
 			break;
 		case STUC_ATTRIB_V3_F32:
-			memcpy(((float (*)[3])pDest->core.pData)[iDest],
-			       ((float (*)[3])pSrc->core.pData)[iSrc], sizeof(float[3]));
+			memcpy(((F32 (*)[3])pDest->core.pData)[iDest],
+			       ((F32 (*)[3])pSrc->core.pData)[iSrc], sizeof(F32[3]));
 			break;
 		case STUC_ATTRIB_V3_F64:
-			memcpy(((double (*)[3])pDest->core.pData)[iDest],
-			       ((double (*)[3])pSrc->core.pData)[iSrc], sizeof(double[3]));
+			memcpy(((F64 (*)[3])pDest->core.pData)[iDest],
+			       ((F64 (*)[3])pSrc->core.pData)[iSrc], sizeof(F64[3]));
 			break;
 		case STUC_ATTRIB_V4_I8:
-			memcpy(((int8_t (*)[4])pDest->core.pData)[iDest],
-			       ((int8_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int8_t[4]));
+			memcpy(((I8 (*)[4])pDest->core.pData)[iDest],
+			       ((I8 (*)[4])pSrc->core.pData)[iSrc], sizeof(I8[4]));
 			break;
 		case STUC_ATTRIB_V4_I16:
-			memcpy(((int16_t (*)[4])pDest->core.pData)[iDest],
-			       ((int16_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int16_t[4]));
+			memcpy(((I16 (*)[4])pDest->core.pData)[iDest],
+			       ((I16 (*)[4])pSrc->core.pData)[iSrc], sizeof(I16[4]));
 			break;
 		case STUC_ATTRIB_V4_I32:
-			memcpy(((int32_t (*)[4])pDest->core.pData)[iDest],
-			       ((int32_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int32_t[4]));
+			memcpy(((I32 (*)[4])pDest->core.pData)[iDest],
+			       ((I32 (*)[4])pSrc->core.pData)[iSrc], sizeof(I32[4]));
 			break;
 		case STUC_ATTRIB_V4_I64:
-			memcpy(((int64_t (*)[4])pDest->core.pData)[iDest],
-			       ((int64_t (*)[4])pSrc->core.pData)[iSrc], sizeof(int64_t[4]));
+			memcpy(((I64 (*)[4])pDest->core.pData)[iDest],
+			       ((I64 (*)[4])pSrc->core.pData)[iSrc], sizeof(I64[4]));
 			break;
 		case STUC_ATTRIB_V4_F32:
-			memcpy(((float (*)[4])pDest->core.pData)[iDest],
-			       ((float (*)[4])pSrc->core.pData)[iSrc], sizeof(float[4]));
+			memcpy(((F32 (*)[4])pDest->core.pData)[iDest],
+			       ((F32 (*)[4])pSrc->core.pData)[iSrc], sizeof(F32[4]));
 			break;
 		case STUC_ATTRIB_V4_F64:
-			memcpy(((double (*)[4])pDest->core.pData)[iDest],
-			       ((double (*)[4])pSrc->core.pData)[iSrc], sizeof(double[4]));
+			memcpy(((F64 (*)[4])pDest->core.pData)[iDest],
+			       ((F64 (*)[4])pSrc->core.pData)[iSrc], sizeof(F64[4]));
 			break;
 		case STUC_ATTRIB_STRING:
 			memcpy(((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pDest->core.pData)[iDest],
 			       ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pSrc->core.pData)[iSrc],
-			       sizeof(double[STUC_ATTRIB_STRING_MAX_LEN]));
+			       sizeof(F64[STUC_ATTRIB_STRING_MAX_LEN]));
 			break;
 	}
 	return 0;
 }
 
-void stucCopyAllAttribs(AttribArray *pDest, int32_t iDest,
-                        AttribArray *pSrc, int32_t iSrc) {
-	for (int32_t i = 0; i < pDest->count; ++i) {
+void stucCopyAllAttribs(AttribArray *pDest, I32 iDest,
+                        AttribArray *pSrc, I32 iSrc) {
+	for (I32 i = 0; i < pDest->count; ++i) {
 		Attrib *pSrcAttrib = stucGetAttribIntern(pDest->pArr[i].core.name, pSrc);
 		if (pSrcAttrib) {
 			stucCopyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
@@ -612,9 +612,9 @@ StucTypeDefault *stucGetTypeDefaultConfig(StucTypeDefaultConfig *pConfig,
 	}
 }
 
-StucCommonAttrib *stucGetCommonAttrib(StucCommonAttrib *pAttribs, int32_t attribCount,
+StucCommonAttrib *stucGetCommonAttrib(StucCommonAttrib *pAttribs, I32 attribCount,
                                       char *pName) {
-	for (int32_t i = 0; i < attribCount; ++i) {
+	for (I32 i = 0; i < attribCount; ++i) {
 		if (!strncmp(pName, pAttribs[i].name, STUC_ATTRIB_NAME_MAX_LEN)) {
 			return pAttribs + i;
 		}
@@ -624,7 +624,7 @@ StucCommonAttrib *stucGetCommonAttrib(StucCommonAttrib *pAttribs, int32_t attrib
 
 //TODO replace manual searches of indexed attribs with this func
 AttribIndexed *stucGetAttribIndexedIntern(AttribIndexedArr *pAttribArr, char *pName) {
-	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+	for (I32 i = 0; i < pAttribArr->count; ++i) {
 		AttribIndexed *pAttrib = pAttribArr->pArr + i;
 		if (!strncmp(pName, pAttrib->core.name, STUC_ATTRIB_NAME_MAX_LEN)) {
 			return pAttrib;
@@ -633,8 +633,8 @@ AttribIndexed *stucGetAttribIndexedIntern(AttribIndexedArr *pAttribArr, char *pN
 	return NULL;
 }
 
-void stucLerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
-                    int32_t iSrcA, Attrib *pSrcB, int32_t iSrcB, float alpha) {
+void stucLerpAttrib(Attrib *pDest, I32 iDest, Attrib *pSrcA,
+                    I32 iSrcA, Attrib *pSrcB, I32 iSrcB, F32 alpha) {
 	if (pDest->core.type != pSrcA->core.type ||
 		pDest->core.type != pSrcB->core.type) {
 		printf("Type mismatch in interpolateAttrib\n");
@@ -644,92 +644,92 @@ void stucLerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
 	AttribType type = pDest->core.type;
 	switch (type) {
 		case STUC_ATTRIB_I8:
-			LERP_SCALAR(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			LERP_SCALAR(I8, pDest, iDest, pSrcA, iSrcA, pSrcB,
 			                   iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_I16:
-			LERP_SCALAR(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			LERP_SCALAR(I16, pDest, iDest, pSrcA, iSrcA, pSrcB,
 			                   iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_I32:
-			LERP_SCALAR(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			LERP_SCALAR(I32, pDest, iDest, pSrcA, iSrcA, pSrcB,
 			                   iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_I64:
-			LERP_SCALAR(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			LERP_SCALAR(I64, pDest, iDest, pSrcA, iSrcA, pSrcB,
 			                   iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_F32:
-			LERP_SCALAR(float, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			LERP_SCALAR(F32, pDest, iDest, pSrcA, iSrcA, pSrcB,
 			                   iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_F64:
-			LERP_SCALAR(double, pDest, iDest, pSrcA, iSrcA, pSrcB,
+			LERP_SCALAR(F64, pDest, iDest, pSrcA, iSrcA, pSrcB,
 			                   iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V2_I8:
-			LERP_V2(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V2(I8, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V2_I16:
-			LERP_V2(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V2(I16, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V2_I32:
-			LERP_V2(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V2(I32, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V2_I64:
-			LERP_V2(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V2(I64, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V2_F32:
-			LERP_V2(float, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V2(F32, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V2_F64:
-			LERP_V2(double, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V2(F64, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V3_I8:
-			LERP_V3(int8_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V3(I8, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V3_I16:
-			LERP_V3(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V3(I16, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V3_I32:
-			LERP_V3(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V3(I32, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V3_I64:
-			LERP_V3(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V3(I64, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V3_F32:
-			LERP_V3(float, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V3(F32, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V3_F64:
-			LERP_V3(double, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V3(F64, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V4_I8:
 			//TODO using unsigned here temporarily for vert color
 			//make a proper set of attrib types for unsigned types
-			LERP_V4(uint8_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V4(U8, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V4_I16:
-			LERP_V4(int16_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V4(I16, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V4_I32:
-			LERP_V4(int32_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V4(I32, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V4_I64:
-			LERP_V4(int64_t, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V4(I64, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V4_F32:
-			LERP_V4(float, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V4(F32, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_V4_F64:
-			LERP_V4(double, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
+			LERP_V4(F64, pDest, iDest, pSrcA, iSrcA, pSrcB, iSrcB, alpha);
 			break;
 		case STUC_ATTRIB_STRING:
 			break;
 	}
 }
 
-void stucTriInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
-                              int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc) {
+void stucTriInterpolateAttrib(Attrib *pDest, I32 iDest, Attrib *pSrc,
+                              I32 iSrcA, I32 iSrcB, I32 iSrcC, V3_F32 bc) {
 	if (pDest->core.type != pSrc->core.type) {
 		printf("Type mismatch in interpolateAttrib\n");
 		//TODO remove all uses of abort(), and add proper exception handling
@@ -738,84 +738,84 @@ void stucTriInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
 	AttribType type = pDest->core.type;
 	switch (type) {
 		case STUC_ATTRIB_I8:
-			TRI_INTERPOLATE_SCALAR(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(I8, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case STUC_ATTRIB_I16:
-			TRI_INTERPOLATE_SCALAR(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(I16, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case STUC_ATTRIB_I32:
-			TRI_INTERPOLATE_SCALAR(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(I32, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case STUC_ATTRIB_I64:
-			TRI_INTERPOLATE_SCALAR(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(I64, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case STUC_ATTRIB_F32:
-			TRI_INTERPOLATE_SCALAR(float, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(F32, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case STUC_ATTRIB_F64:
-			TRI_INTERPOLATE_SCALAR(double, pDest, iDest, pSrc, iSrcA, iSrcB,
+			TRI_INTERPOLATE_SCALAR(F64, pDest, iDest, pSrc, iSrcA, iSrcB,
 			                   iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V2_I8:
-			TRI_INTERPOLATE_V2(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(I8, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V2_I16:
-			TRI_INTERPOLATE_V2(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(I16, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V2_I32:
-			TRI_INTERPOLATE_V2(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(I32, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V2_I64:
-			TRI_INTERPOLATE_V2(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(I64, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V2_F32:
-			TRI_INTERPOLATE_V2(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(F32, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V2_F64:
-			TRI_INTERPOLATE_V2(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V2(F64, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V3_I8:
-			TRI_INTERPOLATE_V3(int8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(I8, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V3_I16:
-			TRI_INTERPOLATE_V3(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(I16, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V3_I32:
-			TRI_INTERPOLATE_V3(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(I32, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V3_I64:
-			TRI_INTERPOLATE_V3(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(I64, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V3_F32:
-			TRI_INTERPOLATE_V3(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(F32, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V3_F64:
-			TRI_INTERPOLATE_V3(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V3(F64, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V4_I8:
 			//TODO using unsigned here temporarily for vert color
 			//make a proper set of attrib types for unsigned types
-			TRI_INTERPOLATE_V4(uint8_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(U8, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V4_I16:
-			TRI_INTERPOLATE_V4(int16_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(I16, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V4_I32:
-			TRI_INTERPOLATE_V4(int32_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(I32, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V4_I64:
-			TRI_INTERPOLATE_V4(int64_t, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(I64, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V4_F32:
-			TRI_INTERPOLATE_V4(float, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(F32, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_V4_F64:
-			TRI_INTERPOLATE_V4(double, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
+			TRI_INTERPOLATE_V4(F64, pDest, iDest, pSrc, iSrcA, iSrcB, iSrcC, bc);
 			break;
 		case STUC_ATTRIB_STRING:
 			break;
@@ -829,45 +829,45 @@ void appendOnNonString() {
 }
 
 //TODO this name should not be plural
-void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
-                      Attrib *pB, int32_t iB, StucBlendConfig blendConfig) {
+void stucBlendAttribs(Attrib *pD, I32 iD, Attrib *pA, I32 iA,
+                      Attrib *pB, I32 iB, StucBlendConfig blendConfig) {
 	AttribType type = pD->core.type;
-	double opacity = (double)blendConfig.opacity; //casting as blending is done with doubles
+	F64 opacity = (F64)blendConfig.opacity; //casting as blending is done with F64s
 	switch (type) {
 		case STUC_ATTRIB_I8:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -877,37 +877,37 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_I16:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -917,37 +917,37 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_I32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -957,37 +957,37 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_I64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -997,37 +997,37 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_F32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1037,37 +1037,37 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_F64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1077,48 +1077,48 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V2_I8:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1128,48 +1128,48 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V2_I16:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1179,48 +1179,48 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V2_I32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1230,48 +1230,48 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V2_I64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1281,48 +1281,48 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V2_F32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1332,48 +1332,48 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V2_F64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1383,59 +1383,59 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V3_I8:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1445,59 +1445,59 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V3_I16:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1507,59 +1507,59 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V3_I32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1569,59 +1569,59 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V3_I64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1631,59 +1631,59 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V3_F32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1693,59 +1693,59 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V3_F64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -1760,16 +1760,16 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 					//and use that here. NONE should probably cause an error, or just default to
 					//generic blending?
 					case STUC_ATTRIB_USE_NONE:
-						BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-						BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-						BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-						BLEND_REPLACE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 						break;
 					case STUC_ATTRIB_USE_COLOR:
-						BLEND_REPLACE(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-						BLEND_REPLACE(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-						BLEND_REPLACE(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-						BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+						BLEND_REPLACE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+						BLEND_REPLACE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+						BLEND_REPLACE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+						BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 						break;
 					}
 					break;
@@ -1779,161 +1779,161 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 						//This will only be relevent for non-color attribs. As if use is color,
 						//attribs will always be normalized
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_MULTIPLY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_MULTIPLY_NORM(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_MULTIPLY_NORM(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_MULTIPLY_NORM(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_MULTIPLY_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_MULTIPLY_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_MULTIPLY_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_DIVIDE:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_DIVIDE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_DIVIDE_NORM(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DIVIDE_NORM(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DIVIDE_NORM(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_DIVIDE_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_DIVIDE_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_DIVIDE_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_ADD:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_ADD(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_ADD(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_ADD(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_ADD(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_ADD(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_SUBTRACT:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_SUBTRACT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_SUBTRACT(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SUBTRACT(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SUBTRACT(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_SUBTRACT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_SUBTRACT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_SUBTRACT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_ADD_SUB:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_ADD_SUB(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_ADD_SUB(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD_SUB(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD_SUB(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_ADD_SUB(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_ADD_SUB(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_ADD_SUB(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
 							//TODO add options for replacing or blending alpha channel
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_LIGHTEN:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_LIGHTEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_LIGHTEN(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_LIGHTEN(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_LIGHTEN(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_LIGHTEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_LIGHTEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_LIGHTEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_DARKEN:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_DARKEN(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_DARKEN(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DARKEN(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DARKEN(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_DARKEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_DARKEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_DARKEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_OVERLAY:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_OVERLAY(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_OVERLAY(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_OVERLAY(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_OVERLAY(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_OVERLAY(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_OVERLAY(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_OVERLAY(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_SOFT_LIGHT(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_SOFT_LIGHT(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SOFT_LIGHT(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SOFT_LIGHT(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_SOFT_LIGHT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_SOFT_LIGHT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_SOFT_LIGHT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
 				case STUC_BLEND_COLOR_DODGE:
 					switch (pD->core.use) {
 						case STUC_ATTRIB_USE_NONE:
-							BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_COLOR_DODGE(int8_t, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 						case STUC_ATTRIB_USE_COLOR:
-							BLEND_COLOR_DODGE(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_COLOR_DODGE(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_COLOR_DODGE(uint8_t, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(uint8_t, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
+							BLEND_COLOR_DODGE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+							BLEND_COLOR_DODGE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+							BLEND_COLOR_DODGE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
 							break;
 					}
 					break;
@@ -1945,70 +1945,70 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V4_I16:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(int16_t, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -2018,70 +2018,70 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V4_I32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(int32_t, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -2091,70 +2091,70 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V4_I64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(int64_t, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -2164,70 +2164,70 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V4_F32:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(float, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -2237,70 +2237,70 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 		case STUC_ATTRIB_V4_F64:
 			switch (blendConfig.blend) {
 				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD:
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(double, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
+					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
 					break;
 				case STUC_BLEND_APPEND:
 					appendOnNonString();
@@ -2313,115 +2313,115 @@ void stucBlendAttribs(Attrib *pD, int32_t iD, Attrib *pA, int32_t iA,
 	}
 }
 
-void stucDivideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar) {
+void stucDivideAttribByScalarInt(Attrib *pAttrib, I32 idx, U64 scalar) {
 	switch (pAttrib->core.type) {
 		case STUC_ATTRIB_I8:
-			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 1, 0, scalar);
+			DIVIDE_BY_SCALAR(I8, pAttrib, idx, 1, 0, scalar);
 			break;
 		case STUC_ATTRIB_I16:
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 1, 0, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 1, 0, scalar);
 			break;
 		case STUC_ATTRIB_I32:
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 1, 0, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 1, 0, scalar);
 			break;
 		case STUC_ATTRIB_I64:
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 1, 0, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 1, 0, scalar);
 			break;
 		case STUC_ATTRIB_F32:
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 1, 0, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 1, 0, scalar);
 			break;
 		case STUC_ATTRIB_F64:
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 1, 0, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 1, 0, scalar);
 			break;
 		case STUC_ATTRIB_V2_I8:
-			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 2, 0, scalar);
-			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 2, 1, scalar);
+			DIVIDE_BY_SCALAR(I8, pAttrib, idx, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(I8, pAttrib, idx, 2, 1, scalar);
 			break;
 		case STUC_ATTRIB_V2_I16:
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 2, 0, scalar);
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 2, 1, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 2, 1, scalar);
 			break;
 		case STUC_ATTRIB_V2_I32:
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 2, 0, scalar);
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 2, 1, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 2, 1, scalar);
 			break;
 		case STUC_ATTRIB_V2_I64:
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 2, 0, scalar);
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 2, 1, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 2, 1, scalar);
 			break;
 		case STUC_ATTRIB_V2_F32:
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 2, 0, scalar);
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 2, 1, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 2, 1, scalar);
 			break;
 		case STUC_ATTRIB_V2_F64:
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 2, 0, scalar);
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 2, 1, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 2, 0, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 2, 1, scalar);
 			break;
 		case STUC_ATTRIB_V3_I8:
-			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 3, 0, scalar);
-			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 3, 1, scalar);
-			DIVIDE_BY_SCALAR(int8_t, pAttrib, idx, 3, 2, scalar);
+			DIVIDE_BY_SCALAR(I8, pAttrib, idx, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(I8, pAttrib, idx, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(I8, pAttrib, idx, 3, 2, scalar);
 			break;
 		case STUC_ATTRIB_V3_I16:
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 3, 0, scalar);
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 3, 1, scalar);
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 3, 2, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 3, 2, scalar);
 			break;
 		case STUC_ATTRIB_V3_I32:
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 3, 0, scalar);
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 3, 1, scalar);
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 3, 2, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 3, 2, scalar);
 			break;
 		case STUC_ATTRIB_V3_I64:
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 3, 0, scalar);
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 3, 1, scalar);
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 3, 2, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 3, 2, scalar);
 			break;
 		case STUC_ATTRIB_V3_F32:
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 3, 0, scalar);
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 3, 1, scalar);
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 3, 2, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 3, 2, scalar);
 			break;
 		case STUC_ATTRIB_V3_F64:
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 3, 0, scalar);
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 3, 1, scalar);
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 3, 2, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 3, 0, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 3, 1, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 3, 2, scalar);
 			break;
 		case STUC_ATTRIB_V4_I8:
-			DIVIDE_BY_SCALAR(uint8_t, pAttrib, idx, 4, 0, scalar);
-			DIVIDE_BY_SCALAR(uint8_t, pAttrib, idx, 4, 1, scalar);
-			DIVIDE_BY_SCALAR(uint8_t, pAttrib, idx, 4, 2, scalar);
-			DIVIDE_BY_SCALAR(uint8_t, pAttrib, idx, 4, 3, scalar);
+			DIVIDE_BY_SCALAR(U8, pAttrib, idx, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(U8, pAttrib, idx, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(U8, pAttrib, idx, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(U8, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_V4_I16:
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 4, 0, scalar);
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 4, 1, scalar);
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 4, 2, scalar);
-			DIVIDE_BY_SCALAR(int16_t, pAttrib, idx, 4, 3, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(I16, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_V4_I32:
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 4, 0, scalar);
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 4, 1, scalar);
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 4, 2, scalar);
-			DIVIDE_BY_SCALAR(int32_t, pAttrib, idx, 4, 3, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(I32, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_V4_I64:
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 4, 0, scalar);
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 4, 1, scalar);
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 4, 2, scalar);
-			DIVIDE_BY_SCALAR(int64_t, pAttrib, idx, 4, 3, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(I64, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_V4_F32:
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 4, 0, scalar);
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 4, 1, scalar);
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 4, 2, scalar);
-			DIVIDE_BY_SCALAR(float, pAttrib, idx, 4, 3, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(F32, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_V4_F64:
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 4, 0, scalar);
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 4, 1, scalar);
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 4, 2, scalar);
-			DIVIDE_BY_SCALAR(double, pAttrib, idx, 4, 3, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 4, 0, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 4, 1, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 4, 2, scalar);
+			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_STRING:
 			STUC_ASSERT("Can't divide a string by 1", false);
@@ -2447,8 +2447,8 @@ AttribArray *getAttribArrFromDomain(StucMesh *pMesh, StucDomain domain) {
 
 static
 void allocAttribsFromArr(StucAlloc *pAlloc, AttribArray *pDest, AttribArray *pSrc,
-                         int32_t dataLen, bool setCommon) {
-	for (int32_t j = 0; j < pSrc->count; ++j) {
+                         I32 dataLen, bool setCommon) {
+	for (I32 j = 0; j < pSrc->count; ++j) {
 		if (pSrc->pArr[j].origin == STUC_ATTRIB_DONT_COPY) {
 			continue;
 		}
@@ -2472,18 +2472,18 @@ void allocAttribsFromArr(StucAlloc *pAlloc, AttribArray *pDest, AttribArray *pSr
 		pDest->pArr[pDest->count].origin = pSrc->pArr[j].origin;
 		pDest->pArr[pDest->count].core.use = pSrc->pArr[j].core.use;
 		pDest->pArr[pDest->count].interpolate = pSrc->pArr[j].interpolate;
-		int32_t attribSize = stucGetAttribSizeIntern(pSrc->pArr[j].core.type);
+		I32 attribSize = stucGetAttribSizeIntern(pSrc->pArr[j].core.type);
 		pDest->pArr[pDest->count].core.pData = pAlloc->pCalloc(dataLen, attribSize);
 		pDest->count++;
 	}
 }
 
 void stucAllocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
-                      int32_t srcCount, Mesh **ppSrcArr,
-                      int32_t dataLen, StucDomain domain, bool setCommon) {
+                      I32 srcCount, Mesh **ppSrcArr,
+                      I32 dataLen, StucDomain domain, bool setCommon) {
 	pDest->size = 2;
 	pDest->pArr = pAlloc->pCalloc(pDest->size, sizeof(Attrib));
-	for (int32_t i = 0; i < srcCount; ++i) {
+	for (I32 i = 0; i < srcCount; ++i) {
 		AttribArray *pSrc = getAttribArrFromDomain(&ppSrcArr[i]->core, domain);
 		if (pSrc && pSrc->count) {
 			allocAttribsFromArr(pAlloc, pDest, pSrc, dataLen, setCommon);
@@ -2497,9 +2497,9 @@ void stucAllocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
 }
 
 static
-int32_t checkIfSpecialAttrib(StucContext pContext, Attrib *pAttrib) {
-	int32_t size = sizeof(pContext->spAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
-	for (int32_t i = 1; i < size; ++i) {
+I32 checkIfSpecialAttrib(StucContext pContext, Attrib *pAttrib) {
+	I32 size = sizeof(pContext->spAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
+	for (I32 i = 1; i < size; ++i) {
 		if (!strncmp(pAttrib->core.name, pContext->spAttribs[i], STUC_ATTRIB_NAME_MAX_LEN)) {
 			return i;
 		}
@@ -2508,9 +2508,9 @@ int32_t checkIfSpecialAttrib(StucContext pContext, Attrib *pAttrib) {
 }
 
 static
-int32_t checkIfSpecialBufAttrib(Attrib *pAttrib) {
-	int32_t size = sizeof(spBufAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
-	for (int32_t i = 1; i < size; ++i) {
+I32 checkIfSpecialBufAttrib(Attrib *pAttrib) {
+	I32 size = sizeof(spBufAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
+	for (I32 i = 1; i < size; ++i) {
 		if (!strncmp(pAttrib->core.name, spBufAttribs[i], STUC_ATTRIB_NAME_MAX_LEN)) {
 			return i;
 		}
@@ -2648,16 +2648,16 @@ void reassignIfSpecialBuf(BufMesh *pMesh, AttribCore *pAttrib, SpecialBufAttrib 
 }
 
 void stucReallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
-                       AttribCore *pAttrib, const int32_t newLen) {
+                       AttribCore *pAttrib, const I32 newLen) {
 	SpecialAttrib special = quickCheckIfSpecialAttrib(pMesh, pAttrib);
 	SpecialBufAttrib specialBuf = STUC_ATTRIB_SP_BUF_NONE;
 	if (pMesh->core.type.type == STUC_OBJECT_DATA_MESH_BUF) {
 		specialBuf = quickCheckIfSpecialBufAttrib((BufMesh *)pMesh, pAttrib);
 	}
-	int8_t oldFirstElement = *(int8_t *)stucAttribAsVoid(pAttrib, 0);
-	int32_t attribSize = stucGetAttribSizeIntern(pAttrib->type);
+	I8 oldFirstElement = *(I8 *)stucAttribAsVoid(pAttrib, 0);
+	I32 attribSize = stucGetAttribSizeIntern(pAttrib->type);
 	pAttrib->pData = pAlloc->pRealloc(pAttrib->pData, attribSize * newLen);
-	int8_t newFirstElement = *(int8_t *)stucAttribAsVoid(pAttrib, 0);
+	I8 newFirstElement = *(I8 *)stucAttribAsVoid(pAttrib, 0);
 	STUC_ASSERT("", newFirstElement == oldFirstElement);
 	reassignIfSpecial(pMesh, pAttrib, special);
 	if (pMesh->core.type.type == STUC_OBJECT_DATA_MESH_BUF) {
@@ -2666,9 +2666,9 @@ void stucReallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
 }
 
 void stucReallocAttribArr(const StucAlloc *pAlloc, Mesh *pMesh,
-                          AttribArray *pAttribArr, const int32_t newLen) {
+                          AttribArray *pAttribArr, const I32 newLen) {
 	STUC_ASSERT("", newLen >= 0 && newLen < 100000000);
-	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+	for (I32 i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
 		//Check entry is valid
 		STUC_ASSERT("corrupt attrib", pAttrib->interpolate % 2 == pAttrib->interpolate);
@@ -2678,32 +2678,32 @@ void stucReallocAttribArr(const StucAlloc *pAlloc, Mesh *pMesh,
 }
 
 void stucReallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
-                               AttribArray *pAttribArr, const int32_t start,
-                               const int32_t offset, const int32_t lenToCopy,
-                               const int32_t newLen) {
+                               AttribArray *pAttribArr, const I32 start,
+                               const I32 offset, const I32 lenToCopy,
+                               const I32 newLen) {
 	STUC_ASSERT("", newLen >= 0 && newLen < 100000000);
 	STUC_ASSERT("", start >= 0 && start < newLen);
-	for (int32_t i = 0; i < pAttribArr->count; ++i) {
+	for (I32 i = 0; i < pAttribArr->count; ++i) {
 		//this func has stuff unique to bufmeshes, and so doesn't use stucReallocAttrib()
 		Attrib *pAttrib = pAttribArr->pArr + i;
 		SpecialAttrib special = quickCheckIfSpecialAttrib((Mesh *)pMesh, &pAttrib->core);
 		SpecialBufAttrib specialBuf = quickCheckIfSpecialBufAttrib(pMesh, &pAttrib->core);
 		//Check entry is valid
 		STUC_ASSERT("", pAttrib->interpolate % 2 == pAttrib->interpolate);
-		int8_t oldFirstElement =
-			*(int8_t *)stucAttribAsVoid(&pAttrib->core, start);
-		int8_t oldLastElement =
-			*(int8_t *)stucAttribAsVoid(&pAttrib->core, start + lenToCopy - 1);
-		int32_t attribSize = stucGetAttribSizeIntern(pAttrib->core.type);
+		I8 oldFirstElement =
+			*(I8 *)stucAttribAsVoid(&pAttrib->core, start);
+		I8 oldLastElement =
+			*(I8 *)stucAttribAsVoid(&pAttrib->core, start + lenToCopy - 1);
+		I32 attribSize = stucGetAttribSizeIntern(pAttrib->core.type);
 		pAttrib->core.pData =
 			pAlloc->pRealloc(pAttrib->core.pData, attribSize * newLen);
 		if (lenToCopy) {
 			memmove(stucAttribAsVoid(&pAttrib->core, start + offset),
 			        stucAttribAsVoid(&pAttrib->core, start), attribSize * lenToCopy);
-			int8_t newFirstElement =
-				*(int8_t *)stucAttribAsVoid(&pAttrib->core, start + offset);
-			int8_t newLastElement =
-				*(int8_t *)stucAttribAsVoid(&pAttrib->core, start + offset + lenToCopy - 1);
+			I8 newFirstElement =
+				*(I8 *)stucAttribAsVoid(&pAttrib->core, start + offset);
+			I8 newLastElement =
+				*(I8 *)stucAttribAsVoid(&pAttrib->core, start + offset + lenToCopy - 1);
 			STUC_ASSERT("", newFirstElement == oldFirstElement);
 			STUC_ASSERT("", newLastElement == oldLastElement);
 		}
@@ -2849,9 +2849,9 @@ void stucAppendBufOnlySpecialAttribs(StucAlloc *pAlloc, BufMesh *pBufMesh) {
 
 static
 void setAttribArrToDontCopy(StucContext pContext, AttribArray *pArr, UBitField16 flags) {
-	for (int32_t i = 0; i < pArr->count; ++i) {
+	for (I32 i = 0; i < pArr->count; ++i) {
 		Attrib *pAttrib = pArr->pArr + i;
-		int32_t specIdx = checkIfSpecialAttrib(pContext, pAttrib);
+		I32 specIdx = checkIfSpecialAttrib(pContext, pAttrib);
 		STUC_ASSERT("there's no 0 special attrib", specIdx != 0);
 		if (specIdx <= 0) {
 			continue; // not a special attrib, skip
@@ -2871,13 +2871,13 @@ void stucSetAttribToDontCopy(StucContext pContext, Mesh *pMesh, UBitField16 flag
 }
 
 void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin) {
-	for (int32_t i = 0; i < pAttribs->count; ++i) {
+	for (I32 i = 0; i < pAttribs->count; ++i) {
 		pAttribs->pArr[i].origin = origin;
 	}
 }
 
 void stucAllocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
-                                 int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon) {
+                                 I32 srcCount, Mesh **ppMeshSrcs, bool setCommon) {
 	stucAllocAttribs(pAlloc, &pMeshDest->core.faceAttribs, srcCount,
 	                 ppMeshSrcs, pMeshDest->faceBufSize, STUC_DOMAIN_FACE, setCommon);
 	stucAllocAttribs(pAlloc, &pMeshDest->core.cornerAttribs, srcCount,
@@ -2888,14 +2888,14 @@ void stucAllocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
 	                 ppMeshSrcs, pMeshDest->vertBufSize, STUC_DOMAIN_VERT, setCommon);
 }
 
-void stucInitAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
+void stucInitAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, I32 dataLen,
                     bool interpolate, AttribOrigin origin, AttribType type) {
 	stucInitAttribCore(pAlloc, &pAttrib->core, pName, dataLen, type);
 	pAttrib->interpolate = interpolate;
 	pAttrib->origin = origin;
 }
 
-void stucInitAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, int32_t dataLen,
+void stucInitAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, I32 dataLen,
                         AttribType type) {
 	memcpy(pAttrib->name, pName, STUC_ATTRIB_NAME_MAX_LEN);
 	pAttrib->pData = pAlloc->pCalloc(dataLen, stucGetAttribSizeIntern(type));
@@ -2903,7 +2903,7 @@ void stucInitAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, int
 }
 
 void stucAppendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,
-                      int32_t dataLen, bool interpolate, AttribOrigin origin, AttribType type) {
+                      I32 dataLen, bool interpolate, AttribOrigin origin, AttribType type) {
 	STUC_ASSERT("", pArr->count <= pArr->size);
 	if (pArr->count == pArr->size) {
 		pArr->size *= 2;
@@ -2914,8 +2914,8 @@ void stucAppendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, c
 	stucInitAttrib(pAlloc, *ppAttrib, pName, dataLen, interpolate, origin, type);
 }
 
-int32_t stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName) {
-	for (int32_t k = 0; k < pMats->count; ++k) {
+I32 stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName) {
+	for (I32 k = 0; k < pMats->count; ++k) {
 		if (!strncmp(stucAttribAsStr(&pMats->core, k), pMatName,
 		    STUC_ATTRIB_STRING_MAX_LEN)) {
 

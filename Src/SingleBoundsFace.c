@@ -18,34 +18,34 @@
 #include <Error.h>
 
 typedef struct {
-	int32_t *pBuf;
-	int32_t count;
+	I32 *pBuf;
+	I32 count;
 } MapCornerBuf;
 
 typedef struct {
 	BoundsCornerBuf cornerBuf;
 	MapCornerBuf mapCornerBuf;
-	int32_t *pIdxTable;
-	int32_t *pIndices;
-	int32_t *pSortedVertBuf;
-	int32_t size;
+	I32 *pIdxTable;
+	I32 *pIndices;
+	I32 *pSortedVertBuf;
+	I32 size;
 } MergeBufs;
 
 typedef struct {
 	Mat3x3 tbnInv;
 	FaceRange mapFace;
-	int32_t bufSize;
+	I32 bufSize;
 	BoundsCornerBuf cornerBuf;
 	MapCornerBuf mapCornerBuf;
 	MergeSendOffArgs *pArgs;
-	int32_t *pIdxTable;
-	int32_t *pSortedVertBuf;
+	I32 *pIdxTable;
+	I32 *pSortedVertBuf;
 	PieceArr *pPieceArr;
 	Piece *pPieceRoot;
-	int32_t *pInFaces;
-	int32_t infoBufSize;
-	int32_t entryCount;
-	int32_t bufFace;
+	I32 *pInFaces;
+	I32 infoBufSize;
+	I32 entryCount;
+	I32 bufFace;
 	bool seamFace;
 	bool fullSort;
 } Vars;
@@ -60,21 +60,21 @@ void stucDestroyMergeBufs(StucContext pContext, MergeBufHandles *pHandle) {
 }
 
 void stucAllocMergeBufs(StucContext pContext, MergeBufHandles *pHandle,
-                        int32_t totalVerts) {
+                        I32 totalVerts) {
 	STUC_ASSERT("", totalVerts >= 0 && totalVerts < 100000);
 	pHandle->size = totalVerts;
 	pHandle->pCornerBuf =
 		pContext->alloc.pMalloc(sizeof(BoundsCornerBufEntry) * (pHandle->size + 1));
-	pHandle->pMapCornerBuf = pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
-	pHandle->pIdxTable = pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
-	pHandle->pSortedVerts = pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
-	pHandle->pIdxTable = pContext->alloc.pMalloc(sizeof(int32_t) * pHandle->size);
+	pHandle->pMapCornerBuf = pContext->alloc.pMalloc(sizeof(I32) * pHandle->size);
+	pHandle->pIdxTable = pContext->alloc.pMalloc(sizeof(I32) * pHandle->size);
+	pHandle->pSortedVerts = pContext->alloc.pMalloc(sizeof(I32) * pHandle->size);
+	pHandle->pIdxTable = pContext->alloc.pMalloc(sizeof(I32) * pHandle->size);
 }
 
 static
 void buildApproximateTbnInverse(Vars *pVars) {
 	V3_F32 normal = {0};
-	int32_t entryCount = 0;
+	I32 entryCount = 0;
 	Piece *pPiece = pVars->pPieceRoot;
 	do {
 		BorderFace *pEntry = pPiece->pEntry;
@@ -96,7 +96,7 @@ void buildApproximateTbnInverse(Vars *pVars) {
 	} while (pPiece);
 	STUC_ASSERT("", entryCount > 0 && entryCount < 100000);
 	_(&normal V3DIVEQLS entryCount);
-	float normalLen = sqrt(normal.d[0] * normal.d[0] +
+	F32 normalLen = sqrt(normal.d[0] * normal.d[0] +
 	                       normal.d[1] * normal.d[1] +
 	                       normal.d[2] * normal.d[2]);
 	_(&normal V3DIVEQLS normalLen);
@@ -116,8 +116,8 @@ void buildApproximateTbnInverse(Vars *pVars) {
 }
 
 static
-bool checkIfDup(Vars *pVars, int32_t stucCorner) {
-	for (int32_t i = 0; i < pVars->mapCornerBuf.count; ++i) {
+bool checkIfDup(Vars *pVars, I32 stucCorner) {
+	for (I32 i = 0; i < pVars->mapCornerBuf.count; ++i) {
 		if (stucCorner == pVars->mapCornerBuf.pBuf[i]) {
 			return true;
 		}
@@ -128,11 +128,11 @@ bool checkIfDup(Vars *pVars, int32_t stucCorner) {
 
 static
 void initOnLineTableEntry(MergeSendOffArgs *pArgs, OnLine *pEntry, BufMesh *pBufMesh,
-                          int32_t base, bool isBaseCorner, int32_t stucVert,
-                          int32_t *pVert) {
+                          I32 base, bool isBaseCorner, I32 stucVert,
+                          I32 *pVert) {
 	StucContext pContext = pArgs->pContext;
 	bool realloced = false;
-	int32_t outVert = stucMeshAddVert(&pContext->alloc, pArgs->pMeshOut, &realloced);
+	I32 outVert = stucMeshAddVert(&pContext->alloc, pArgs->pMeshOut, &realloced);
 	stucCopyAllAttribs(&pArgs->pMeshOut->core.vertAttribs, outVert,
 	                   &pBufMesh->mesh.core.vertAttribs, *pVert);
 	*pVert = outVert;
@@ -143,14 +143,14 @@ void initOnLineTableEntry(MergeSendOffArgs *pArgs, OnLine *pEntry, BufMesh *pBuf
 }
 
 static
-void addOnLineVert(Vars *pVars, int32_t stucCorner,
-                   BorderFace *pEntry, int32_t *pVert, int32_t k) {
+void addOnLineVert(Vars *pVars, I32 stucCorner,
+                   BorderFace *pEntry, I32 *pVert, I32 k) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pEntry, pArgs->pJobArgs, k);
 	bool isOnInVert = stucGetIfOnInVert(pEntry, k);
-	int32_t base = isOnInVert ? inInfo.vert : inInfo.edge;
-	int32_t stucVert = pArgs->pMap->mesh.core.pCorners[pVars->mapFace.start + stucCorner];
-	int32_t hash = stucFnvHash((uint8_t *)&base, 4, pArgs->pCTables->onLineTableSize);
+	I32 base = isOnInVert ? inInfo.vert : inInfo.edge;
+	I32 stucVert = pArgs->pMap->mesh.core.pCorners[pVars->mapFace.start + stucCorner];
+	I32 hash = stucFnvHash((U8 *)&base, 4, pArgs->pCTables->onLineTableSize);
 	OnLine *pOnLineEntry = pArgs->pCTables->pOnLineTable + hash;
 	if (!pOnLineEntry->type) {
 		initOnLineTableEntry(pArgs, pOnLineEntry,
@@ -181,7 +181,7 @@ void addOnLineVert(Vars *pVars, int32_t stucCorner,
 
 static
 void addMapCorner(Vars *pVars, BufMesh *pBufMesh, Piece *pPiece, BorderFace *pEntry,
-                  int32_t *pVert, int32_t *pEdge, int32_t idx) {
+                  I32 *pVert, I32 *pEdge, I32 idx) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	FaceRange face = pPiece->bufFace;
 	//is an stuc corner (this includes stuc corners sitting on base edges or verts)
@@ -193,7 +193,7 @@ void addMapCorner(Vars *pVars, BufMesh *pBufMesh, Piece *pPiece, BorderFace *pEn
 	//Or just make a new hash table just for stuc corners with zero dot.
 	//That would probably be cleaner, and more memory concious tbh.
 	bool onLine = stucGetIfOnLine(pEntry, idx);
-	int32_t mapCorner = stucGetMapCorner(pEntry, idx);
+	I32 mapCorner = stucGetMapCorner(pEntry, idx);
 	*pEdge = pBufMesh->mesh.core.pEdges[face.start - idx];
 	if (onLine) {
 		*pVert = stucBufMeshGetVertIdx(pPiece, pBufMesh, idx);
@@ -230,13 +230,13 @@ bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 		//Check entry is valid
 		BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
 		FaceRange face = pPiece->bufFace;
-		for (int32_t k = 0; k < face.size; ++k) {
+		for (I32 k = 0; k < face.size; ++k) {
 			//CLOCK_START;
 			if (!(pPiece->add >> k & 0x01)) {
 				continue;
 			}
-			int32_t vert;
-			int32_t edge;
+			I32 vert;
+			I32 edge;
 			bool isStuc = stucGetIfStuc(pEntry, k);
 			if (!isStuc) {
 				//is not an stuc corner (is an intersection, or base corner))
@@ -275,35 +275,35 @@ bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 }
 
 static
-void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
-                      int32_t count, int32_t *pIdxTable) {
+void addFaceToOutMesh(Vars *pVars, I32 *pIndices,
+                      I32 count, I32 *pIdxTable) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
 	Mesh *pMeshOut = pVars->pArgs->pMeshOut;
-	int32_t cornerBase = pMeshOut->core.cornerCount;
+	I32 cornerBase = pMeshOut->core.cornerCount;
 	bool realloced = false;
-	for (int32_t i = 0; i < count; ++i) {
-		int32_t bufIdx = pIdxTable[pIndices[i]];
+	for (I32 i = 0; i < count; ++i) {
+		I32 bufIdx = pIdxTable[pIndices[i]];
 		STUC_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].corner >= 0);
 		STUC_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].corner < pMeshOut->core.vertCount);
-		int32_t outCorner = stucMeshAddCorner(&pArgs->pContext->alloc, pMeshOut, &realloced);
+		I32 outCorner = stucMeshAddCorner(&pArgs->pContext->alloc, pMeshOut, &realloced);
 		STUC_ASSERT("", outCorner == cornerBase + i);
 		pMeshOut->core.pCorners[outCorner] = pVars->cornerBuf.pBuf[bufIdx].corner;
 		STUC_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].edge >= 0);
 		STUC_ASSERT("", pVars->cornerBuf.pBuf[bufIdx].edge < pMeshOut->core.edgeCount);
 		pMeshOut->core.pEdges[outCorner] = pVars->cornerBuf.pBuf[bufIdx].edge;
-		int32_t bufCorner = pVars->cornerBuf.pBuf[bufIdx].bufCorner;
-		int32_t job = pVars->cornerBuf.pBuf[bufIdx].job;
+		I32 bufCorner = pVars->cornerBuf.pBuf[bufIdx].bufCorner;
+		I32 job = pVars->cornerBuf.pBuf[bufIdx].job;
 		BufMesh *pBufMesh = &pArgs->pJobArgs[job].bufMesh;
 		stucCopyAllAttribs(&pMeshOut->core.cornerAttribs, outCorner,
 		                   &pBufMesh->mesh.core.cornerAttribs, bufCorner);
 		STUC_ASSERT("", i >= 0 && i < count);
 	}
 	realloced = false;
-	int32_t outFace = stucMeshAddFace(&pArgs->pContext->alloc, pMeshOut, &realloced);
+	I32 outFace = stucMeshAddFace(&pArgs->pContext->alloc, pMeshOut, &realloced);
 	if (pArgs->ppInFaceTable) {
 		if (realloced) {
 			//realloc to match meshOut face buf
-			int32_t byteCount = sizeof(InFaceArr) * pMeshOut->faceBufSize;
+			I32 byteCount = sizeof(InFaceArr) * pMeshOut->faceBufSize;
 			*pArgs->ppInFaceTable =
 				pArgs->pContext->alloc.pRealloc(*pArgs->ppInFaceTable, byteCount);
 		}
@@ -312,8 +312,8 @@ void addFaceToOutMesh(Vars *pVars, int32_t *pIndices,
 		InFaceArr *pInFaceEntry = *pArgs->ppInFaceTable + outFace;
 		STUC_ASSERT("", pVars->entryCount > 0);
 		pInFaceEntry->pArr =
-			pArgs->pContext->alloc.pCalloc(pVars->entryCount, sizeof(int32_t));
-		memcpy(pInFaceEntry->pArr, pVars->pInFaces, sizeof(int32_t) * pVars->entryCount);
+			pArgs->pContext->alloc.pCalloc(pVars->entryCount, sizeof(I32));
+		memcpy(pInFaceEntry->pArr, pVars->pInFaces, sizeof(I32) * pVars->entryCount);
 		pInFaceEntry->count = pVars->entryCount;
 		pInFaceEntry->usg = pVars->mapFace.idx;
 	}
@@ -342,10 +342,10 @@ void destroyEntries(StucContext pContext, Piece *pPiece) {
 	} while(pPiece);
 }
 
-void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
-                               int32_t entryIdx, PieceArr *pPieceArr,
+void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, U64 *pTimeSpent,
+                               I32 entryIdx, PieceArr *pPieceArr,
                                FaceRange *pMapFace, MergeBufHandles *pMergeBufHandles,
-                               int32_t *pInFaces, int32_t entryCount) {
+                               I32 *pInFaces, I32 entryCount) {
 	CLOCK_INIT
 	CLOCK_START;
 	Vars vars = {0};
@@ -360,7 +360,7 @@ void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	vars.pInFaces = pInFaces;
 	vars.entryCount = entryCount;
 	BufMesh *pBufMesh = &pArgs->pJobArgs[vars.pPieceRoot->pEntry->job].bufMesh;
-	int32_t bufFaceVirtual = vars.pPieceRoot->pEntry->bufFace;
+	I32 bufFaceVirtual = vars.pPieceRoot->pEntry->bufFace;
 	vars.bufFace = stucConvertBorderFaceIdx(pBufMesh, bufFaceVirtual).realIdx;
 	if (!vars.pPieceRoot->pEntry) {
 		return;
@@ -381,15 +381,15 @@ void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	if (vars.pPieceRoot->triangulate) {
 		FaceRange tempFace = {0};
 		tempFace.end = tempFace.size = vars.cornerBuf.count;
-		for (int32_t i = 0; i < vars.cornerBuf.count; ++i) {
-			int32_t vertIdx = vars.cornerBuf.pBuf[vars.pIdxTable[i]].corner;
+		for (I32 i = 0; i < vars.cornerBuf.count; ++i) {
+			I32 vertIdx = vars.cornerBuf.pBuf[vars.pIdxTable[i]].corner;
 			vars.pSortedVertBuf[i] = vertIdx;
 			STUC_ASSERT("", i >= 0 && i < vars.cornerBuf.count);
 		}
 		FaceTriangulated tris = {0};
 		tris = stucTriangulateFace(pArgs->pContext->alloc, &tempFace, pArgs->pMeshOut->pVerts,
 		                           vars.pSortedVertBuf, false);
-		for (int32_t i = 0; i < tris.triCount; ++i) {
+		for (I32 i = 0; i < tris.triCount; ++i) {
 			addFaceToOutMesh(&vars, tris.pCorners + (i * 3), 3, vars.pIdxTable);
 			STUC_ASSERT("", i >= 0 && i < tris.triCount);
 		}
@@ -397,9 +397,9 @@ void stucMergeSingleBorderFace(MergeSendOffArgs *pArgs, uint64_t *pTimeSpent,
 	}
 	else {
 		//STUC_ASSERT("", vars.cornerBuf.count <= 16);
-		int32_t *pIndices =
-			pArgs->pContext->alloc.pMalloc(sizeof(int32_t) * vars.cornerBuf.count);
-		for (int32_t i = 0; i < vars.cornerBuf.count; ++i) {
+		I32 *pIndices =
+			pArgs->pContext->alloc.pMalloc(sizeof(I32) * vars.cornerBuf.count);
+		for (I32 i = 0; i < vars.cornerBuf.count; ++i) {
 			pIndices[i] = i;
 		}
 		addFaceToOutMesh(&vars, pIndices, vars.cornerBuf.count, vars.pIdxTable);

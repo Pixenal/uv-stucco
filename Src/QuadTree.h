@@ -2,94 +2,95 @@
 #include <MathUtils.h>
 #include <Utils.h>
 #include <Error.h>
+#include <Types.h>
 
 #define CELL_MAX_VERTS 32
 
 typedef struct Cell {
-	uint32_t localIdx;
-	uint32_t initialized;
+	U32 localIdx;
+	U32 initialized;
 	struct Cell *pChildren;
-	int32_t faceSize;
-	int32_t *pFaces;
-	int32_t edgeFaceSize;
-	int32_t *pEdgeFaces;
-	int32_t cellIdx;
+	I32 faceSize;
+	I32 *pFaces;
+	I32 edgeFaceSize;
+	I32 *pEdgeFaces;
+	I32 cellIdx;
 	V2_F32 boundsMin;
 	V2_F32 boundsMax;
-	int32_t linkEdgeSize;
-	int32_t *pLinkEdges;
+	I32 linkEdgeSize;
+	I32 *pLinkEdges;
 	Range* pLinkEdgeRanges;
 } Cell;
 
 typedef struct {
 	Cell *pArr;
-	int32_t size;
+	I32 size;
 } CellTable;
 
 typedef struct {
 	Cell *pRootCell;
 	CellTable cellTable;
-	int32_t edgeSize;
-	int32_t *pEdges;
-	int32_t edgeFaceSize;
-	int32_t *pEdgeFaces;
-	int32_t cellCount;
-	int32_t leafCount;
+	I32 edgeSize;
+	I32 *pEdges;
+	I32 edgeFaceSize;
+	I32 *pEdgeFaces;
+	I32 cellCount;
+	I32 leafCount;
 } QuadTree;
 
 typedef struct {
 	Range *pRangeBuf;
-	int32_t *pCells;
-	int32_t cellSize;
-	int32_t faceTotal;
-	int32_t faceTotalNoDup;
-	int8_t *pCellType;
+	I32 *pCells;
+	I32 cellSize;
+	I32 faceTotal;
+	I32 faceTotalNoDup;
+	I8 *pCellType;
 } EncasingCells;
 
 typedef struct {
 	FaceBounds faceBounds;
-	int32_t *pCells;
-	int8_t *pCellType;
+	I32 *pCells;
+	I8 *pCellType;
 	Range* pRanges;
-	int32_t cellSize;
-	int32_t faceSize;
+	I32 cellSize;
+	I32 faceSize;
 } FaceCells;
 
 typedef struct {
-	int32_t cellFacesTotal;
-	int32_t cellFacesMax;
+	I32 cellFacesTotal;
+	I32 cellFacesMax;
 	FaceCells *pFaceCells;
-	int32_t uniqueFaces;
+	I32 uniqueFaces;
 } FaceCellsTable;
 
 typedef struct {
 	StucMap pMap;
 	StucAlloc *pAlloc;
-	int32_t *pCells;
-	int8_t *pCellInits;
-	int8_t *pCellFlags;
-	int8_t *pCellType;
+	I32 *pCells;
+	I8 *pCellInits;
+	I8 *pCellFlags;
+	I8 *pCellType;
 } QuadTreeSearch;
 
 void stucInitFaceCellsTable(StucAlloc *pAlloc, FaceCellsTable *pTable,
-                            int32_t faceCount);
+                            I32 faceCount);
 void stucDestroyFaceCellsTable(StucAlloc *pAlloc,
                                FaceCellsTable *pFaceCellsTable);
 void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, FaceCells *pEntry);
 void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pState);
-void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
+void stucGetCellsForSingleFace(QuadTreeSearch *pState, I32 vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
-                               FaceBounds *pFaceBounds, int32_t faceIdx, Range faceRange);
+                               FaceBounds *pFaceBounds, I32 faceIdx, Range faceRange);
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
 Result stucCreateQuadTree(StucContext pContext, StucMap pMap);
 void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree);
 void stucGetEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range inFaceRange,
                           Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
-                          int8_t maskIdx, int32_t *pAverageMapFacesPerFace);
-int32_t stucCheckIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
+                          I8 maskIdx, I32 *pAverageMapFacesPerFace);
+I32 stucCheckIfFaceIsInsideTile(I32 vertCount, V2_F32 *pVerts,
                                     FaceBounds *pFaceBounds, V2_I32 tileMin);
 void stucGetFaceBoundsForTileTest(FaceBounds *pFaceBounds,
                                   Mesh *pMesh, FaceRange *pFace);
 FaceCells *stucIdxFaceCells(FaceCellsTable *pFaceCellsTable,
-                            int32_t faceIdx, int32_t faceOffset);
+                            I32 faceIdx, I32 faceOffset);

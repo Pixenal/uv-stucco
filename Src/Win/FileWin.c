@@ -3,13 +3,14 @@
 #include <stdio.h>
 
 #include <PlatformIo.h>
+#include <Types.h>
 
 typedef struct {
 	HANDLE *pHFile;
 	StucAlloc alloc;
 } PlatformContext;
 
-int32_t stucPlatformFileOpen(void **file, char *filePath, int32_t action,
+I32 stucPlatformFileOpen(void **file, char *filePath, I32 action,
                              StucAlloc *pAlloc) {
 	DWORD access;
 	DWORD disposition;
@@ -39,10 +40,10 @@ int32_t stucPlatformFileOpen(void **file, char *filePath, int32_t action,
 	return 0;
 }
 
-int32_t stucPlatformFileWrite(void *file, unsigned char *data, int32_t dataSize) {
+I32 stucPlatformFileWrite(void *file, unsigned char *data, I32 dataSize) {
 	PlatformContext *pState = file;
 	DWORD bytesWritten;
-	int32_t returnCode = WriteFile(pState->pHFile, data, dataSize,
+	I32 returnCode = WriteFile(pState->pHFile, data, dataSize,
 	                               &bytesWritten, NULL);
 	if (!returnCode) {
 		DWORD lastError =  GetLastError();
@@ -56,10 +57,10 @@ int32_t stucPlatformFileWrite(void *file, unsigned char *data, int32_t dataSize)
 	return 0;
 }
 
-int32_t stucPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRead) {
+I32 stucPlatformFileRead(void *file, unsigned char *data, I32 bytesToRead) {
 	PlatformContext *pState = file;
 	DWORD bytesRead;
-	int32_t returnCode = ReadFile(pState->pHFile, data, bytesToRead,
+	I32 returnCode = ReadFile(pState->pHFile, data, bytesToRead,
 	                              &bytesRead, NULL);
 	if (!returnCode) {
 		DWORD lastError =  GetLastError();
@@ -73,7 +74,7 @@ int32_t stucPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRea
 	return 0;
 }
 
-int32_t stucPlatformFileClose(void *file) {
+I32 stucPlatformFileClose(void *file) {
 	PlatformContext *pState = file;
 	CloseHandle(pState->pHFile);
 	pState->alloc.pFree(pState);

@@ -7,34 +7,35 @@
 #include <DebugAndPerf.h>
 #include <Usg.h>
 #include <Error.h>
+#include <Types.h>
 
 #define STUC_TILE_MIN_BIT_LEN 11
 
-typedef uint64_t UBitField64;
-typedef uint32_t UBitField32;
-typedef uint16_t UBitField16;
-typedef uint8_t UBitField8;
+typedef U64 UBitField64;
+typedef U32 UBitField32;
+typedef U16 UBitField16;
+typedef U8 UBitField8;
 
 typedef struct {
-	int32_t start;
-	int32_t end;
+	I32 start;
+	I32 end;
 } Range;
 
 typedef struct {
-	float d[4];
+	F32 d[4];
 } Color;
 
 typedef struct BorderFace {
 	struct BorderFace *pNext;
-	int32_t mapFace;
-	int32_t bufFace;
-	int32_t inFace;
-	uint32_t tileX : STUC_TILE_MIN_BIT_LEN;
-	uint32_t tileY : STUC_TILE_MIN_BIT_LEN;
+	I32 mapFace;
+	I32 bufFace;
+	I32 inFace;
+	U32 tileX : STUC_TILE_MIN_BIT_LEN;
+	U32 tileY : STUC_TILE_MIN_BIT_LEN;
 	UBitField32 job : 6;
-	uint32_t inOrient : 1;
-	uint32_t mapOrient : 1;
-	uint32_t memType : 2;
+	U32 inOrient : 1;
+	U32 mapOrient : 1;
+	U32 memType : 2;
 } BorderFace;
 
 //max map corners: 8
@@ -83,12 +84,12 @@ typedef struct BorderBucket {
 } BorderBucket;
 
 typedef struct {
-	int32_t verts[2];
+	I32 verts[2];
 } EdgeVerts;
 
 typedef struct {
 	BorderBucket *pTable;
-	int32_t size;
+	I32 size;
 } BorderTable;
 
 typedef struct {
@@ -97,19 +98,19 @@ typedef struct {
 	StucMap pMap;
 	InFaceArr *pInFaces;
 	bool getInFaces;
-	uint64_t reallocTime;
+	U64 reallocTime;
 	StucContext pContext;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
 	StucCommonAttribList *pCommonAttribList;
-	int32_t *pActiveJobs;
+	I32 *pActiveJobs;
 	Range inFaceRange;
-	int32_t bufSize;
-	int32_t rawBufSize;
-	int32_t finalBufSize;
-	int32_t inFaceOffset;
-	int8_t *pInVertTable;
-	int32_t id;
-	float wScale;
-	int8_t maskIdx;
+	I32 bufSize;
+	I32 rawBufSize;
+	I32 finalBufSize;
+	I32 inFaceOffset;
+	I8 *pInVertTable;
+	I32 id;
+	F32 wScale;
+	I8 maskIdx;
 } SendOffArgs;

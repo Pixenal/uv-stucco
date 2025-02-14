@@ -3,6 +3,7 @@
 #include <UvStucco.h>
 #include <QuadTree.h>
 #include <Utils.h>
+#include <Types.h>
 
 typedef struct CornerBuf {
 	Mat3x3 tbn;
@@ -15,31 +16,31 @@ typedef struct CornerBuf {
 	V2_F32 uv;
 	V3_F32 projNormal;
 	V3_F32 projNormalMasked;
-	int32_t ancestor;
-	int32_t ancestorNext;
-	float scale;
-	float alpha;
-	float mapAlpha;
-	float inTSign;
-	int8_t triCorners[3];
-	int8_t baseCorner;
-	int8_t stucCorner;
-	int8_t segment;
-	uint8_t onLine : 1;
-	uint8_t isBaseCorner : 1;
-	uint8_t preserve : 1;
-	uint8_t isStuc : 1;
+	I32 ancestor;
+	I32 ancestorNext;
+	F32 scale;
+	F32 alpha;
+	F32 mapAlpha;
+	F32 inTSign;
+	I8 triCorners[3];
+	I8 baseCorner;
+	I8 stucCorner;
+	I8 segment;
+	U8 onLine : 1;
+	U8 isBaseCorner : 1;
+	U8 preserve : 1;
+	U8 isStuc : 1;
 	bool transformed;
 } CornerBuf;
 
 typedef struct CornerBufWrap {
 	CornerBuf buf[64];
 	struct CornerBufWrap *pNext;
-	int32_t *pPendingMerge;
-	int32_t mergeCount;
-	int32_t mergeSize;
-	int32_t size;
-	int32_t lastInCorner;
+	I32 *pPendingMerge;
+	I32 mergeCount;
+	I32 mergeSize;
+	I32 size;
+	I32 lastInCorner;
 	bool invalid;
 	bool edgeFace;
 	bool onLine;
@@ -47,26 +48,26 @@ typedef struct CornerBufWrap {
 
 typedef struct LocalVert {
 	struct LocalVert *pNext;
-	int32_t vert;
-	int32_t cornerSize;
-	int32_t inFace;
-	int32_t mapVert;
+	I32 vert;
+	I32 cornerSize;
+	I32 inFace;
+	I32 mapVert;
 	V2_I32 tile;
 } LocalVert;
 
 typedef struct LocalEdge  {
 	struct LocalEdge *pNext;
-	int32_t edge;
-	int32_t refFace;
-	int32_t refEdge;
-	int32_t cornerCount;
+	I32 edge;
+	I32 refFace;
+	I32 refEdge;
+	I32 cornerCount;
 } LocalEdge;
 
 typedef struct {
 	LocalVert *pVertTable;
 	LocalEdge *pEdgeTable;
-	uint32_t vertTableSize;
-	int32_t edgeTableSize;
+	U32 vertTableSize;
+	I32 edgeTableSize;
 } LocalTables;
 
 typedef struct {
@@ -75,7 +76,7 @@ typedef struct {
 	Mesh mesh;
 	StucMap pMap;
 	InFaceArr *pInFaces;
-	int32_t inFaceSize;
+	I32 inFaceSize;
 	bool getInFaces;
 	DebugAndPerfVars *pDpVars;
 	StucAlloc alloc;
@@ -85,16 +86,16 @@ typedef struct {
 	StucCommonAttribList *pCommonAttribList;
 	BorderTable borderTable;
 	EdgeVerts *pEdgeVerts;
-	int8_t *pInVertTable;
+	I8 *pInVertTable;
 	Range inFaceRange;
-	int32_t id;
-	int32_t bufSize;
-	int32_t rawBufSize;
-	int32_t finalBufSize;
-	int32_t cornerBufSize;
-	int32_t inFaceOffset;
-	float wScale;
-	int8_t maskIdx;
+	I32 id;
+	I32 bufSize;
+	I32 rawBufSize;
+	I32 finalBufSize;
+	I32 cornerBufSize;
+	I32 inFaceOffset;
+	F32 wScale;
+	I8 maskIdx;
 } MappingJobVars;
 
 Result stucMapToJobMesh(void *pArgsPtr);

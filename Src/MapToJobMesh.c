@@ -11,7 +11,7 @@
 #include <Error.h>
 
 static
-void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
+void allocBufMesh(MappingJobVars *pVars, I32 cornerBufSize) {
 	StucMap pMap = pVars->pMap;
 	StucMesh *pMeshIn = &pVars->mesh.core;
 	Mesh *pMesh = &pVars->bufMesh.mesh;
@@ -20,9 +20,9 @@ void allocBufMesh(MappingJobVars *pVars, int32_t cornerBufSize) {
 	pMesh->cornerBufSize = pVars->cornerBufSize;
 	pMesh->edgeBufSize = pVars->cornerBufSize;
 	pMesh->vertBufSize = pVars->bufSize;
-	pMesh->core.pFaces = pAlloc->pMalloc(sizeof(int32_t) * pMesh->faceBufSize);
-	pMesh->core.pCorners = pAlloc->pMalloc(sizeof(int32_t) * pMesh->cornerBufSize);
-	pMesh->core.pEdges = pAlloc->pMalloc(sizeof(int32_t) * pMesh->edgeBufSize);
+	pMesh->core.pFaces = pAlloc->pMalloc(sizeof(I32) * pMesh->faceBufSize);
+	pMesh->core.pCorners = pAlloc->pMalloc(sizeof(I32) * pMesh->cornerBufSize);
+	pMesh->core.pEdges = pAlloc->pMalloc(sizeof(I32) * pMesh->edgeBufSize);
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
 	stucAllocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
 	stucAppendBufOnlySpecialAttribs(&pVars->alloc, &pVars->bufMesh);
@@ -42,7 +42,7 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 	pVars->rawBufSize = pVars->bufSize;
 	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
 	pVars->bufSize += pVars->bufSize % 2; //ensure it's even, so realloc is easier
-	int32_t cornerBufSize = pVars->bufSize * 2;
+	I32 cornerBufSize = pVars->bufSize * 2;
 	pVars->cornerBufSize = cornerBufSize;
 	pVars->borderTable.pTable =
 		pAlloc->pCalloc(pVars->borderTable.size, sizeof(BorderBucket));
@@ -62,12 +62,12 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 static
 Result mapPerTile(MappingJobVars *pMVars, FaceRange *pInFace,
                   FaceCellsTable *pFaceCellsTable,
-                  DebugAndPerfVars *pDpVars, int32_t faceIdx) {
+                  DebugAndPerfVars *pDpVars, I32 faceIdx) {
 	Result result = STUC_NOT_SET;
 	FaceBounds *pFaceBounds = 
 		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pMVars->inFaceRange.start)->faceBounds;
-	for (int32_t j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
-		for (int32_t k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
+	for (I32 j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
+		for (I32 k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
 			STUC_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
 			V2_F32 fTileMin = {k, j};
 			V2_I32 tile = {k, j};
@@ -83,7 +83,7 @@ Result mapPerTile(MappingJobVars *pMVars, FaceRange *pInFace,
 
 static
 void destroyMappingTables(StucAlloc *pAlloc, LocalTables *pLocalTables) {
-	for (int32_t i = 0; i < pLocalTables->vertTableSize; ++i) {
+	for (I32 i = 0; i < pLocalTables->vertTableSize; ++i) {
 		LocalVert *pEntry = pLocalTables->pVertTable + i;
 		if (!pEntry->cornerSize) {
 			continue;
@@ -95,7 +95,7 @@ void destroyMappingTables(StucAlloc *pAlloc, LocalTables *pLocalTables) {
 			pEntry = pNextEntry;
 		};
 	}
-	for (int32_t i = 0; i < pLocalTables->edgeTableSize; ++i) {
+	for (I32 i = 0; i < pLocalTables->edgeTableSize; ++i) {
 		LocalEdge *pEntry = pLocalTables->pEdgeTable + i;
 		if (!pEntry->cornerCount) {
 			continue;
@@ -130,10 +130,10 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	vars.inFaceOffset = pSend->inFaceOffset;
 	vars.maskIdx = pSend->maskIdx;
 	vars.inFaceRange = pSend->inFaceRange;
-	int32_t inFaceRangeSize = vars.inFaceRange.end - vars.inFaceRange.start;
+	I32 inFaceRangeSize = vars.inFaceRange.end - vars.inFaceRange.start;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
-	int32_t averageMapFacesPerFace = 0;
+	I32 averageMapFacesPerFace = 0;
 	stucGetEncasingCells(&vars.alloc, vars.pMap, vars.inFaceRange, &vars.mesh,
 	                     &faceCellsTable, vars.maskIdx, &averageMapFacesPerFace);
 	//CLOCK_STOP("Get Encasing Cells Time");
@@ -143,13 +143,13 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	//CLOCK_STOP("Alloc buffers and tables time");
 	DebugAndPerfVars dpVars = {0};
 	vars.pDpVars = &dpVars;
-	//uint64_t mappingTime;
+	//U64 mappingTime;
 	//mappingTime = 0;
 	if (vars.getInFaces) {
 		vars.inFaceSize = 8;
 		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
-	for (int32_t i = vars.inFaceRange.start; i < vars.inFaceRange.end; ++i) {
+	for (I32 i = vars.inFaceRange.start; i < vars.inFaceRange.end; ++i) {
 		if (vars.maskIdx != -1 && vars.mesh.pMatIdx &&
 		    vars.mesh.pMatIdx[i] != vars.maskIdx) {
 
@@ -183,8 +183,8 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 			// a face into tris). Will probably need to merge the resulting
 			//clipped faces into a single one in this func?
 			/*
-			for (int32_t j = 0; j < faceTris.triCount; ++j) {
-				int32_t triFaceStart = j * 3;
+			for (I32 j = 0; j < faceTris.triCount; ++j) {
+				I32 triFaceStart = j * 3;
 				inFace.start = faceTris.pCorners[triFaceStart];
 				inFace.end = faceTris.pCorners[triFaceStart + 2];
 				inFace.size = inFace.end - inFace.start;

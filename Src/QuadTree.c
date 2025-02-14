@@ -15,13 +15,13 @@
 #include <Error.h>
 
 typedef struct {
-	int32_t d[4];
+	I32 d[4];
 } Children;
 
 static
 void calcCellBounds(Cell *cell) {
-	float xSide = (float)(cell->localIdx % 2);
-	float ySide = (float)(((cell->localIdx + 2) / 2) % 2);
+	F32 xSide = (F32)(cell->localIdx % 2);
+	F32 ySide = (F32)(((cell->localIdx + 2) / 2) % 2);
 	STUC_ASSERT("", isfinite(xSide) && isfinite(ySide));
 	cell->boundsMin.d[0] = xSide * .5;
 	cell->boundsMin.d[1] = ySide * .5;
@@ -35,15 +35,15 @@ void calcCellBounds(Cell *cell) {
 
 static
 void addCellToEncasingCells(StucMap pMap, Cell *cell,
-                            EncasingCells *pEncasingCells, int32_t edge) {
+                            EncasingCells *pEncasingCells, I32 edge) {
 	STUC_ASSERT("", edge % 2 == edge);
 	STUC_ASSERT("", cell->initialized % 2 == cell->initialized);
-	int32_t faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
+	I32 faceSize = edge ? cell->edgeFaceSize : cell->faceSize;
 	STUC_ASSERT("", faceSize >= 0 && faceSize < 100000000);
 	STUC_ASSERT("", pEncasingCells->faceTotal >= 0);
 	pEncasingCells->faceTotal += faceSize;
-	int32_t dupIdx = -1;
-	for (int32_t i = 0; i < pEncasingCells->cellSize; ++i) {
+	I32 dupIdx = -1;
+	for (I32 i = 0; i < pEncasingCells->cellSize; ++i) {
 		STUC_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->pCells[i]].localIdx >= 0);
 		STUC_ASSERT("", pMap->quadTree.cellTable.pArr[pEncasingCells->pCells[i]].localIdx < 4);
 		if (pEncasingCells->pCells[i] == cell->cellIdx) {
@@ -65,15 +65,15 @@ void addCellToEncasingCells(StucMap pMap, Cell *cell,
 }
 
 static
-int32_t findFaceQuadrantUv(StucAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
+I32 findFaceQuadrantUv(StucAlloc* pAlloc, I32 vertCount, V2_F32 *pVerts,
                            V2_F32 midPoint, V2_I32 *commonSides, V2_I32 *signs) {
 	commonSides->d[0] = commonSides->d[1] = 1;
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * vertCount);
-	for (int32_t i = 0; i < vertCount; ++i) {
+	for (I32 i = 0; i < vertCount; ++i) {
 		STUC_ASSERT("", v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
 		pSides[i].d[0] = pVerts[i].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pVerts[i].d[1] < midPoint.d[1];
-		for (int32_t j = 0; j < i; ++j) {
+		for (I32 j = 0; j < i; ++j) {
 			commonSides->d[0] *= pSides[i].d[0] == pSides[j].d[0];
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
@@ -98,17 +98,17 @@ int32_t findFaceQuadrantUv(StucAlloc* pAlloc, int32_t vertCount, V2_F32 *pVerts,
 }
 
 static
-int32_t findFaceQuadrant(StucAlloc* pAlloc, FaceRange *pFace,
+I32 findFaceQuadrant(StucAlloc* pAlloc, FaceRange *pFace,
                          Mesh* pMesh, V2_F32 midPoint,
                          V2_I32* commonSides, V2_I32* signs) {
 	commonSides->d[0] = commonSides->d[1] = 1;
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * pFace->size);
-	for (int32_t i = 0; i < pFace->size; ++i) {
-		int32_t vertIdx = pMesh->core.pCorners[pFace->start + i];
+	for (I32 i = 0; i < pFace->size; ++i) {
+		I32 vertIdx = pMesh->core.pCorners[pFace->start + i];
 		STUC_ASSERT("", v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIdx]));
 		pSides[i].d[0] = pMesh->pVerts[vertIdx].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pMesh->pVerts[vertIdx].d[1] < midPoint.d[1];
-		for (int32_t j = 0; j < i; ++j) {
+		for (I32 j = 0; j < i; ++j) {
 			commonSides->d[0] *= pSides[i].d[0] == pSides[j].d[0];
 			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
 		}
@@ -133,7 +133,7 @@ int32_t findFaceQuadrant(StucAlloc* pAlloc, FaceRange *pFace,
 }
 
 static
-void getChildrenFromResult(int32_t result, Children* pChildren,
+void getChildrenFromResult(I32 result, Children* pChildren,
                            V2_I32* pCommonSides, V2_I32* pSigns) {
 	STUC_ASSERT("", result >= 0 && result <= 2);
 	switch (result) {
@@ -156,8 +156,8 @@ void getChildrenFromResult(int32_t result, Children* pChildren,
 			break;
 		}
 		case 2: {
-			int32_t top, bottom = top = pCommonSides->d[1];
-			int32_t left, right = left = pCommonSides->d[0];
+			I32 top, bottom = top = pCommonSides->d[1];
+			I32 left, right = left = pCommonSides->d[0];
 			top *= !pSigns->d[1];
 			bottom *= pSigns->d[1];
 			left *= !pSigns->d[0];
@@ -173,7 +173,7 @@ void getChildrenFromResult(int32_t result, Children* pChildren,
 
 static
 void findEncasingChildCells(StucAlloc *pAlloc, Cell *pCell, Children *pChildren,
-                            int32_t *pCellStackPtr, int32_t vertCount,
+                            I32 *pCellStackPtr, I32 vertCount,
                             V2_F32 *pVerts, V2_I32 *pTileMin) {
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
@@ -184,20 +184,20 @@ void findEncasingChildCells(StucAlloc *pAlloc, Cell *pCell, Children *pChildren,
 	STUC_ASSERT("", v2IsFinite(midPoint));
 	V2_I32 signs;
 	V2_I32 commonSides;
-	midPoint.d[0] += (float)pTileMin->d[0];
-	midPoint.d[1] += (float)pTileMin->d[1];
-	int32_t result = findFaceQuadrantUv(pAlloc, vertCount, pVerts, midPoint,
+	midPoint.d[0] += (F32)pTileMin->d[0];
+	midPoint.d[1] += (F32)pTileMin->d[1];
+	I32 result = findFaceQuadrantUv(pAlloc, vertCount, pVerts, midPoint,
 	                                    &commonSides, &signs);
 	getChildrenFromResult(result, pChildren + *pCellStackPtr, &commonSides, &signs);
 }
 
 static
-void getNextChild(QuadTreeSearch *pState, Cell **ppCellStack, int32_t *pCellStackPtr,
+void getNextChild(QuadTreeSearch *pState, Cell **ppCellStack, I32 *pCellStackPtr,
                   Cell *pCell, Children *pChildren) {
-	int32_t nextChild = -1;
-	for (int32_t i = 0; i < 4; ++i) {
+	I32 nextChild = -1;
+	for (I32 i = 0; i < 4; ++i) {
 		if (!pState->pCellInits[pCell->pChildren[i].cellIdx] &&
-			*((int32_t *)(pChildren + *pCellStackPtr) + i)) {
+			*((I32 *)(pChildren + *pCellStackPtr) + i)) {
 			nextChild = i;
 			break;
 		}
@@ -214,7 +214,7 @@ void getNextChild(QuadTreeSearch *pState, Cell **ppCellStack, int32_t *pCellStac
 
 static
 void stucGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCells,
-                             int32_t vertCount, V2_F32 *pVerts, V2_I32 tileMin) {
+                             I32 vertCount, V2_F32 *pVerts, V2_I32 tileMin) {
 	QuadTree *pTree = &pState->pMap->quadTree;
 	Cell *cellStack[16] = {0};
 	Children children[16] = {0};
@@ -222,8 +222,8 @@ void stucGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 	STUC_ASSERT("", pRootCell->cellIdx == 0 && pRootCell->localIdx == 0);
 	cellStack[0] = pRootCell;
 	pState->pCellInits[0] = 0;
-	int32_t cellStackPtr = 0;
-	for (int32_t i = 0; i < 4; ++i) {
+	I32 cellStackPtr = 0;
+	for (I32 i = 0; i < 4; ++i) {
 		STUC_ASSERT("", pRootCell->pChildren[i].localIdx >= 0);
 		STUC_ASSERT("", pRootCell->pChildren[i].localIdx < 4);
 		pState->pCellInits[pRootCell->pChildren[i].cellIdx] = 0;
@@ -254,13 +254,13 @@ void stucGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 		addCellToEncasingCells(pState->pMap, pCell, pEncasingCells, 1);
 		STUC_ASSERT("", !pState->pCellInits[pCell->cellIdx]);
 		pState->pCellInits[pCell->cellIdx] = 1;
-		for (int32_t i = 0; i < 4; ++i) {
+		for (I32 i = 0; i < 4; ++i) {
 			pState->pCellInits[pCell->pChildren[i].cellIdx] = 0;
 			STUC_ASSERT("", i >= 0 && i < 4);
 		}
-		int32_t nextChild = 0;
-		for (int32_t i = 0; i < 4; ++i) {
-			if (*((int32_t *)(children + cellStackPtr) + i)) {
+		I32 nextChild = 0;
+		for (I32 i = 0; i < 4; ++i) {
+			if (*((I32 *)(children + cellStackPtr) + i)) {
 				nextChild = i;
 				break;
 			}
@@ -271,19 +271,19 @@ void stucGetAllEncasingCells(QuadTreeSearch *pState, EncasingCells *pEncasingCel
 	} while (cellStackPtr >= 0);
 }
 
-int32_t stucCheckIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
+I32 stucCheckIfFaceIsInsideTile(I32 vertCount, V2_F32 *pVerts,
                                     FaceBounds *pFaceBounds, V2_I32 tileMin) {
-	int32_t isInsideBuf[4] = {1, 1, 1, 1};
-	int32_t faceVertInside = 0;
-	for (int32_t i = 0; i < vertCount; ++i) {
+	I32 isInsideBuf[4] = {1, 1, 1, 1};
+	I32 faceVertInside = 0;
+	for (I32 i = 0; i < vertCount; ++i) {
 		//check if current edge intersects tile
-		int32_t nexti = (i + 1) % vertCount;
+		I32 nexti = (i + 1) % vertCount;
 		V2_F32 cornerDir = _(pVerts[nexti] V2SUB pVerts[i]);
 		V2_F32 cornerCross = v2Cross(cornerDir);
-		for (int32_t j = 0; j < 4; ++j) {
+		for (I32 j = 0; j < 4; ++j) {
 			V2_F32 cellPoint = {tileMin.d[0] + j % 2, tileMin.d[1] + j / 2};
 			V2_F32 cellDir = _(cellPoint V2SUB pVerts[i]);
-			float dot = _(cornerCross V2DOT cellDir);
+			F32 dot = _(cornerCross V2DOT cellDir);
 			isInsideBuf[j] *= dot < .0f;
 		}
 		//in addition, test for face verts inside tile
@@ -293,9 +293,9 @@ int32_t stucCheckIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
 		faceVertInside += _(pVerts[i] V2GREAT pFaceBounds->fMin) &&
 		                    _(pVerts[i] V2LESSEQL pFaceBounds->fMax);
 	}
-	int32_t isInside = isInsideBuf[0] || isInsideBuf[1] ||
+	I32 isInside = isInsideBuf[0] || isInsideBuf[1] ||
 	                   isInsideBuf[2] || isInsideBuf[3];
-	int32_t isFullyEnclosed = isInsideBuf[0] && isInsideBuf[1] &&
+	I32 isFullyEnclosed = isInsideBuf[0] && isInsideBuf[1] &&
 	                          isInsideBuf[2] && isInsideBuf[3];
 	if (isFullyEnclosed) {
 		return 2;
@@ -308,7 +308,7 @@ int32_t stucCheckIfFaceIsInsideTile(int32_t vertCount, V2_F32 *pVerts,
 }
 
 static
-int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
+I32 getCellsForFaceWithinTile(QuadTreeSearch *pState, I32 vertCount,
                                   V2_F32 *pVerts, FaceBounds *pFaceBounds,
                                   EncasingCells *pCellsBuf, V2_I32 tileMin) {
 	//find fully encasing cell using clipped face
@@ -317,8 +317,8 @@ int32_t getCellsForFaceWithinTile(QuadTreeSearch *pState, int32_t vertCount,
 }
 
 static
-void checkIfInLinkEdges(Cell *pCell, Cell *pLeaf, Range *pRange, int32_t *pLinked) {
-	for (int32_t k = 0; k < pLeaf->linkEdgeSize; ++k) {
+void checkIfInLinkEdges(Cell *pCell, Cell *pLeaf, Range *pRange, I32 *pLinked) {
+	for (I32 k = 0; k < pLeaf->linkEdgeSize; ++k) {
 		if (pCell->cellIdx == pLeaf->pLinkEdges[k]) {
 			if (!*pLinked) {
 				*pLinked = 1;
@@ -335,16 +335,16 @@ void checkIfInLinkEdges(Cell *pCell, Cell *pLeaf, Range *pRange, int32_t *pLinke
 }
 
 static
-int32_t checkBranchCellIsLinked(StucMap pMap, EncasingCells *pCellsBuf,
-                                int32_t idx, Range *pRange) {
-	int32_t linked = 0;
-	int32_t cellIdx = pCellsBuf->pCells[idx];
+I32 checkBranchCellIsLinked(StucMap pMap, EncasingCells *pCellsBuf,
+                                I32 idx, Range *pRange) {
+	I32 linked = 0;
+	I32 cellIdx = pCellsBuf->pCells[idx];
 	Cell *pCell = pMap->quadTree.cellTable.pArr + cellIdx;
-	for (int32_t j = 0; j < pCellsBuf->cellSize; ++j) {
+	for (I32 j = 0; j < pCellsBuf->cellSize; ++j) {
 		if (pCellsBuf->pCellType[j] || idx == j) {
 			continue;
 		}
-		int32_t leafIdx = pCellsBuf->pCells[j];
+		I32 leafIdx = pCellsBuf->pCells[j];
 		Cell *pLeaf = pMap->quadTree.cellTable.pArr + leafIdx;
 		checkIfInLinkEdges(pCell, pLeaf, pRange, &linked);
 	}
@@ -353,7 +353,7 @@ int32_t checkBranchCellIsLinked(StucMap pMap, EncasingCells *pCellsBuf,
 
 static
 void removeNonLinkedBranchCells(StucMap pMap, EncasingCells *pCellsBuf) {
-	for (int32_t i = 0; i < pCellsBuf->cellSize;) {
+	for (I32 i = 0; i < pCellsBuf->cellSize;) {
 		if (!pCellsBuf->pCellType[i]) {
 			i++;
 			continue;
@@ -364,11 +364,11 @@ void removeNonLinkedBranchCells(StucMap pMap, EncasingCells *pCellsBuf) {
 			i++;
 			continue;
 		}
-		int32_t cellIdx = pCellsBuf->pCells[i];
+		I32 cellIdx = pCellsBuf->pCells[i];
 		Cell *pCell = pMap->quadTree.cellTable.pArr + cellIdx;
 		pCellsBuf->faceTotal -= pCell->edgeFaceSize;
 		pCellsBuf->faceTotalNoDup -= pCell->edgeFaceSize;
-		for (int32_t j = i; j < pCellsBuf->cellSize - 1; ++j) {
+		for (I32 j = i; j < pCellsBuf->cellSize - 1; ++j) {
 			pCellsBuf->pCells[j] = pCellsBuf->pCells[j + 1];
 			pCellsBuf->pCellType[j] = pCellsBuf->pCellType[j + 1];
 		}
@@ -378,13 +378,13 @@ void removeNonLinkedBranchCells(StucMap pMap, EncasingCells *pCellsBuf) {
 
 static
 void copyCellsIntoTotalList(StucAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
-                            EncasingCells *pCellsBuf, int32_t faceIdx, Range faceRange) {
+                            EncasingCells *pCellsBuf, I32 faceIdx, Range faceRange) {
 	FaceCells *pEntry = stucIdxFaceCells(pFaceCellsTable, faceIdx, faceRange.start);
 	pFaceCellsTable->cellFacesTotal += pCellsBuf->faceTotalNoDup;
-	pEntry->pCells = pAlloc->pMalloc(sizeof(int32_t) * pCellsBuf->cellSize);
+	pEntry->pCells = pAlloc->pMalloc(sizeof(I32) * pCellsBuf->cellSize);
 	pEntry->pCellType = pAlloc->pMalloc(pCellsBuf->cellSize);
 	memcpy(pEntry->pCells, pCellsBuf->pCells,
-	       sizeof(int32_t) * pCellsBuf->cellSize);
+	       sizeof(I32) * pCellsBuf->cellSize);
 	memcpy(pEntry->pCellType, pCellsBuf->pCellType, pCellsBuf->cellSize);
 	pEntry->cellSize = pCellsBuf->cellSize;
 	pEntry->faceSize = pCellsBuf->faceTotalNoDup;
@@ -397,15 +397,15 @@ void copyCellsIntoTotalList(StucAlloc *pAlloc, FaceCellsTable *pFaceCellsTable,
 
 static
 void removeChildFacesFromCount(QuadTreeSearch *pState, FaceCellsTable *pFaceCellsTable,
-                               Cell *pCell, Cell **ppStack, int32_t *pStackPtr,
-                               int8_t *pChildrenLeft) {
+                               Cell *pCell, Cell **ppStack, I32 *pStackPtr,
+                               I8 *pChildrenLeft) {
 	Cell *pChild = ppStack[*pStackPtr];
-	int32_t nextChild = pChildrenLeft[*pStackPtr];
+	I32 nextChild = pChildrenLeft[*pStackPtr];
 	if (nextChild > 3) {
 		--*pStackPtr;
 		return;
 	}
-	int32_t childType = pState->pCellFlags[pChild->cellIdx];
+	I32 childType = pState->pCellFlags[pChild->cellIdx];
 	if (pChild != pCell) {
 		//must be > 0, so that cells with an entry of -1 arn't touched,
 		// as they haven't been added to uniqueFaces
@@ -429,19 +429,19 @@ void removeChildFacesFromCount(QuadTreeSearch *pState, FaceCellsTable *pFaceCell
 static
 void recordCellsInTable(QuadTreeSearch *pState, FaceCellsTable *pFaceCellsTable,
                         EncasingCells *pCellsBuf) {
-	for (int32_t i = 0; i < pCellsBuf->cellSize; ++i) {
-		int32_t cellIdx = pCellsBuf->pCells[i];
+	for (I32 i = 0; i < pCellsBuf->cellSize; ++i) {
+		I32 cellIdx = pCellsBuf->pCells[i];
 		Cell *pCell = pState->pMap->quadTree.cellTable.pArr + cellIdx;
 		//must be != 0, not > 0, so as to catch entries set to -1
 		if (pState->pCellFlags[pCell->cellIdx] != 0) {
 			continue;
 		}
-		int32_t cellType = pCellsBuf->pCellType[i];
+		I32 cellType = pCellsBuf->pCellType[i];
 		pState->pCellFlags[pCell->cellIdx] = cellType + 1;
 		Cell *pStack[32] = {0};
-		int8_t childrenLeft[32] = {0};
+		I8 childrenLeft[32] = {0};
 		pStack[0] = pCell;
-		int32_t stackPtr = 0;
+		I32 stackPtr = 0;
 		pFaceCellsTable->uniqueFaces += cellType == 1 ?
 			pCell->edgeFaceSize : pCell->faceSize;
 		if (cellType != 0 || pCell->pChildren == NULL) {
@@ -459,7 +459,7 @@ void recordCellsInTable(QuadTreeSearch *pState, FaceCellsTable *pFaceCellsTable,
 }
 
 void stucInitFaceCellsTable(StucAlloc *pAlloc, FaceCellsTable *pTable,
-                            int32_t faceCount) {
+                            I32 faceCount) {
 	pTable->pFaceCells = pAlloc->pMalloc(sizeof(FaceCells) * faceCount);
 }
 
@@ -481,8 +481,8 @@ void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pSt
 	pState->pAlloc = pAlloc;
 	pState->pMap = pMap;
 	pState->pCellInits = pAlloc->pMalloc(pMap->quadTree.cellCount);
-	pState->pCellFlags = pAlloc->pCalloc(pMap->quadTree.cellCount, sizeof(int8_t));
-	pState->pCells = pAlloc->pMalloc(sizeof(int32_t) * pMap->quadTree.cellCount);
+	pState->pCellFlags = pAlloc->pCalloc(pMap->quadTree.cellCount, sizeof(I8));
+	pState->pCells = pAlloc->pMalloc(sizeof(I32) * pMap->quadTree.cellCount);
 	pState->pCellType = pAlloc->pMalloc(pMap->quadTree.cellCount);
 }
 
@@ -494,32 +494,32 @@ void stucDestroyQuadTreeSearch(QuadTreeSearch *pState) {
 }
 
 static
-int32_t getLinearTileIdx(int32_t x, int32_t y, V2_I32 minTile, V2_I32 maxTile) {
+I32 getLinearTileIdx(I32 x, I32 y, V2_I32 minTile, V2_I32 maxTile) {
 	return (maxTile.d[0] - minTile.d[0] + 1) * (y - minTile.d[1]) + x - minTile.d[0];
 }
 
 static
-bool getTilesFaceResidesIn(int32_t vertCount, V2_F32 *pVerts,
+bool getTilesFaceResidesIn(I32 vertCount, V2_F32 *pVerts,
                            FaceBounds *pFaceBounds, V2_I32 minTile, V2_I32 maxTile,
-                           bool *pInTileList, int32_t tileCount) {
-	for (int32_t i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
-		for (int32_t j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
+                           bool *pInTileList, I32 tileCount) {
+	for (I32 i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
+		for (I32 j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
 			V2_I32 tile = { j, i };
 			//Don't check if in tile, if pFaceBounds is NULL
-			int32_t in = stucCheckIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, tile);
+			I32 in = stucCheckIfFaceIsInsideTile(vertCount, pVerts, pFaceBounds, tile);
 			if (in == 2) {
 				return true;
 			}
-			int32_t tileIdx = getLinearTileIdx(j, i, minTile, maxTile);
+			I32 tileIdx = getLinearTileIdx(j, i, minTile, maxTile);
 			pInTileList[tileIdx] = in;
 		}
 	}
 	return false;
 }
 
-void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
+void stucGetCellsForSingleFace(QuadTreeSearch *pState, I32 vertCount,
                                V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
-                               FaceBounds *pFaceBounds, int32_t faceIdx, Range faceRange) {
+                               FaceBounds *pFaceBounds, I32 faceIdx, Range faceRange) {
 	EncasingCells cellsBuf = {0};
 	cellsBuf.pCells = pState->pCells;
 	cellsBuf.pCellType = pState->pCellType;
@@ -532,7 +532,7 @@ void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 		minTile = pFaceBounds->min;
 		maxTile = pFaceBounds->max;
 	}
-	int32_t tileCount = (maxTile.d[0] - minTile.d[0] + 1) *
+	I32 tileCount = (maxTile.d[0] - minTile.d[0] + 1) *
 	                    (maxTile.d[1] - minTile.d[1] + 1);
 	bool *pInTileList = NULL;
 	bool fullyEnclosed = false;
@@ -545,9 +545,9 @@ void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 	if (fullyEnclosed) {
 		//add only root cell
 		//TODO rename cell->faceSize to faceCount
-		int32_t faceCount = pState->pMap->quadTree.pRootCell->faceSize;
+		I32 faceCount = pState->pMap->quadTree.pRootCell->faceSize;
 		pEntry->pCells = pState->pAlloc->pMalloc(sizeof(Cell *));
-		pEntry->pCellType = pState->pAlloc->pMalloc(sizeof(int8_t));
+		pEntry->pCellType = pState->pAlloc->pMalloc(sizeof(I8));
 		pEntry->pRanges = pState->pAlloc->pMalloc(sizeof(Range));
 		pEntry->pCellType[0] = 0;
 		pEntry->pCells[0] = 0;
@@ -562,10 +562,10 @@ void stucGetCellsForSingleFace(QuadTreeSearch *pState, int32_t vertCount,
 		}
 		return;
 	}
-	for (int32_t i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
-		for (int32_t j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
+	for (I32 i = minTile.d[1]; i <= maxTile.d[1]; ++i) {
+		for (I32 j = minTile.d[0]; j <= maxTile.d[0]; ++j) {
 			V2_I32 tile = { j, i };
-			int32_t tileIdx = getLinearTileIdx(j, i, minTile, maxTile);
+			I32 tileIdx = getLinearTileIdx(j, i, minTile, maxTile);
 			if (pFaceBounds && !pInTileList[tileIdx]) {
 				continue;
 			}
@@ -584,7 +584,7 @@ Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos) {
 	V2_F32 cellBoundsMin = {.d[0] = .0, .d[1] = .0};
 	V2_F32 cellBoundsMax = {.d[0] = 1.0, .d[1] = 1.0};
 	Cell *cell = rootCell;
-	int32_t depth = -1;
+	I32 depth = -1;
 	while (true) {
 		if (!cell->pChildren) {
 			return cell;
@@ -592,7 +592,7 @@ Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos) {
 		V2_F32 midPoint = _(_(cellBoundsMax V2SUB cellBoundsMin) V2MULS .5);
 		_(&midPoint V2ADDEQL cellBoundsMin);
 		depth++;
-		int32_t childIdx = (pos.d[0] >= midPoint.d[0]) + (pos.d[1] < midPoint.d[1]) * 2;
+		I32 childIdx = (pos.d[0] >= midPoint.d[0]) + (pos.d[1] < midPoint.d[1]) * 2;
 		cell = cell->pChildren + childIdx;
 		cellBoundsMin = cell->boundsMin;
 		cellBoundsMax = cell->boundsMax;
@@ -600,10 +600,10 @@ Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos) {
 }
 
 static
-void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPtr) {
+void setCellBounds(Cell *cell, Cell *parentCell, I32 cellStackPtr) {
 	calcCellBounds(cell);
-	_(&cell->boundsMin V2DIVSEQL (float)pow(2.0, cellStackPtr));
-	_(&cell->boundsMax V2DIVSEQL (float)pow(2.0, cellStackPtr));
+	_(&cell->boundsMin V2DIVSEQL (F32)pow(2.0, cellStackPtr));
+	_(&cell->boundsMax V2DIVSEQL (F32)pow(2.0, cellStackPtr));
 	V2_F32 *ancestorBoundsMin = &parentCell->boundsMin;
 	_(&cell->boundsMin V2ADDEQL *ancestorBoundsMin);
 	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
@@ -614,10 +614,10 @@ void setCellBounds(Cell *cell, Cell *parentCell, int32_t cellStackPtr) {
 }
 
 static
-int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRange) {
-	int32_t linked = 0;
-	for (int32_t i = 0; i < pAncestor->edgeFaceSize; ++i) {
-		int32_t faceIdx = pAncestor->pEdgeFaces[i];
+I32 checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRange) {
+	I32 linked = 0;
+	for (I32 i = 0; i < pAncestor->edgeFaceSize; ++i) {
+		I32 faceIdx = pAncestor->pEdgeFaces[i];
 		FaceRange face = stucGetFaceRange(&pMesh->core, faceIdx, false);
 		//doesn't catch cases where edge intersect with bounds,
 		//replace with a better method
@@ -636,18 +636,18 @@ int32_t checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRa
 }
 
 static
-void addLinkEdgesToCells(StucContext pContext, int32_t parentCell,
-                         Mesh *pMesh, CellTable *pTable, int32_t *pCellStack,
-                         int32_t cellStackPtr) {
-	int32_t buf[32] = {0};
+void addLinkEdgesToCells(StucContext pContext, I32 parentCell,
+                         Mesh *pMesh, CellTable *pTable, I32 *pCellStack,
+                         I32 cellStackPtr) {
+	I32 buf[32] = {0};
 	Range rangeBuf[32] = {0};
-	int32_t bufSize;
-	for (int32_t i = 0; i < 4; ++i) {
+	I32 bufSize;
+	for (I32 i = 0; i < 4; ++i) {
 		bufSize = 0;
 		Cell *pChild = pTable->pArr[parentCell].pChildren + i;
 		STUC_ASSERT("", pChild->initialized == 0);
 		STUC_ASSERT("", pChild->localIdx >= 0 && pChild->localIdx < 4);
-		for (int32_t j = 0; j <= cellStackPtr; ++j) {
+		for (I32 j = 0; j <= cellStackPtr; ++j) {
 			Cell *pAncestor = pTable->pArr + pCellStack[j];
 			STUC_ASSERT("", pAncestor->initialized % 2 == pAncestor->initialized);
 			STUC_ASSERT("", pAncestor->localIdx >= 0);
@@ -662,8 +662,8 @@ void addLinkEdgesToCells(StucContext pContext, int32_t parentCell,
 		}
 		if (bufSize) {
 			pChild->pLinkEdges =
-				pContext->alloc.pMalloc(sizeof(int32_t) * bufSize);
-			memcpy(pChild->pLinkEdges, buf, sizeof(int32_t) * bufSize);
+				pContext->alloc.pMalloc(sizeof(I32) * bufSize);
+			memcpy(pChild->pLinkEdges, buf, sizeof(I32) * bufSize);
 			//Add link edge ranges
 			pChild->pLinkEdgeRanges = pContext->alloc.pMalloc(sizeof(Range) * bufSize);
 				memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
@@ -674,8 +674,8 @@ void addLinkEdgesToCells(StucContext pContext, int32_t parentCell,
 }
 
 static
-void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
-                            Mesh *pMesh, CellTable* pTable, int8_t *pFaceFlag) {
+void addEnclosedVertsToCell(StucContext pContext, I32 parentCellIdx,
+                            Mesh *pMesh, CellTable* pTable, I8 *pFaceFlag) {
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
 	Cell* pParentCell = pTable->pArr + parentCellIdx;
@@ -683,14 +683,14 @@ void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
 	STUC_ASSERT("", v2IsFinite(midPoint));
 	STUC_ASSERT("", midPoint.d[0] < 1.0f && midPoint.d[1] < 1.0f);
 	STUC_ASSERT("", midPoint.d[0] > .0f && midPoint.d[1] > .0f);
-	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
+	for (I32 i = 0; i < pParentCell->faceSize; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, pParentCell->pFaces[i], false);
 		V2_I32 signs;
 		V2_I32 commonSides;
-		int32_t result = findFaceQuadrant(&pContext->alloc, &face, pMesh,
+		I32 result = findFaceQuadrant(&pContext->alloc, &face, pMesh,
 		                                  midPoint, &commonSides, &signs);
 		if (result == 1) {
-			int32_t childIdx = signs.d[0] + signs.d[1] * 2;
+			I32 childIdx = signs.d[0] + signs.d[1] * 2;
 			Cell *pChild = pParentCell->pChildren + childIdx;
 			pFaceFlag[i] = childIdx + 1;
 			STUC_ASSERT("", pChild->faceSize >= 0);
@@ -705,13 +705,13 @@ void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
 		}
 		STUC_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
-	for (int32_t i = 0; i < 4; ++i) {
+	for (I32 i = 0; i < 4; ++i) {
 		Cell *cell = pParentCell->pChildren + i;
 		STUC_ASSERT("", cell->initialized == 0 && cell->localIdx == i);
 		STUC_ASSERT("", cell->faceSize >= 0);
 		STUC_ASSERT("", cell->faceSize <= pParentCell->faceSize);
 		if (cell->faceSize) {
-			cell->pFaces = pContext->alloc.pMalloc(sizeof(int32_t) * cell->faceSize);
+			cell->pFaces = pContext->alloc.pMalloc(sizeof(I32) * cell->faceSize);
 		}
 		STUC_ASSERT("", i >= 0 && i < 4);
 	}
@@ -719,17 +719,17 @@ void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
 	STUC_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 	if (pParentCell->edgeFaceSize) {
 		pParentCell->pEdgeFaces =
-			pContext->alloc.pMalloc(sizeof(int32_t) * pParentCell->edgeFaceSize);
+			pContext->alloc.pMalloc(sizeof(I32) * pParentCell->edgeFaceSize);
 	}
-	int32_t facesSize[4] = {0};
-	int32_t edgeFacesSize = 0;
-	for (int32_t i = 0; i < pParentCell->faceSize; ++i) {
+	I32 facesSize[4] = {0};
+	I32 edgeFacesSize = 0;
+	for (I32 i = 0; i < pParentCell->faceSize; ++i) {
 		if (!pFaceFlag[i]) {
 			continue;
 		}
 		STUC_ASSERT("", pFaceFlag[i] <= 5);
 		if (pFaceFlag[i] > 0) {
-			int32_t child = pFaceFlag[i] - 1;
+			I32 child = pFaceFlag[i] - 1;
 			Cell *cell = pParentCell->pChildren + child;
 			STUC_ASSERT("", cell->initialized == 0 && cell->localIdx < 4);
 			STUC_ASSERT("", cell->faceSize >= 0);
@@ -753,10 +753,10 @@ void addEnclosedVertsToCell(StucContext pContext, int32_t parentCellIdx,
 
 static
 void updateCellPtrs(QuadTree *pTree, Cell *pOldPtr) {
-	for (int32_t i = 0; i < pTree->cellCount; ++i) {
+	for (I32 i = 0; i < pTree->cellCount; ++i) {
 		Cell *pCell = pTree->cellTable.pArr + i;
 		if (pCell->pChildren) {
-			int64_t offset = pCell->pChildren - pOldPtr;
+			I64 offset = pCell->pChildren - pOldPtr;
 			pCell->pChildren = pTree->cellTable.pArr + offset;
 		}
 	}
@@ -764,7 +764,7 @@ void updateCellPtrs(QuadTree *pTree, Cell *pOldPtr) {
 
 static
 void reallocCellTable(const StucContext pContext, QuadTree *pTree,
-                      const int32_t sizeDiff) {
+                      const I32 sizeDiff) {
 	if (!sizeDiff) {
 		return;
 	}
@@ -781,13 +781,13 @@ void reallocCellTable(const StucContext pContext, QuadTree *pTree,
 }
 
 static
-void allocateChildren(StucContext pContext, int32_t parentCell,
-                      int32_t cellStackPtr, StucMap pMap) {
+void allocateChildren(StucContext pContext, I32 parentCell,
+                      I32 cellStackPtr, StucMap pMap) {
 	QuadTree *pTree = &pMap->quadTree;
 	STUC_ASSERT("", pTree->cellCount > 0);
 	STUC_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
 	if (pTree->cellCount + 4 > pTree->cellTable.size) {
-		int32_t sizeIncrease = (pTree->cellTable.size + 4) * 2;
+		I32 sizeIncrease = (pTree->cellTable.size + 4) * 2;
 		reallocCellTable(pContext, pTree, sizeIncrease);
 	}
 	STUC_ASSERT("", pTree->cellTable.size >= pTree->cellCount + 4);
@@ -795,14 +795,14 @@ void allocateChildren(StucContext pContext, int32_t parentCell,
 	STUC_ASSERT("", !pTree->cellTable.pArr[0].cellIdx);
 	STUC_ASSERT("", !pTree->cellTable.pArr[0].localIdx);
 	pTree->cellTable.pArr[parentCell].pChildren = pTree->cellTable.pArr + pTree->cellCount;
-	for (int32_t i = 0; i < 4; ++i) {
+	for (I32 i = 0; i < 4; ++i) {
 		// v for visualizing quadtree v
 		//cell->children[i].cellIdx = rand();
 		Cell *cell = pTree->cellTable.pArr[parentCell].pChildren + i;
 		STUC_ASSERT("", !cell->initialized);
 		cell->cellIdx = pMap->quadTree.cellCount;
 		pTree->cellCount++;
-		cell->localIdx = (uint32_t)i;
+		cell->localIdx = (U32)i;
 		setCellBounds(cell, pTree->cellTable.pArr + parentCell, cellStackPtr);
 		STUC_ASSERT("", i >= 0 && i < 4);
 	}
@@ -810,14 +810,14 @@ void allocateChildren(StucContext pContext, int32_t parentCell,
 }
 
 static
-Result processCell(StucContext pContext, int32_t *pCellStack,
-                 int32_t *pCellStackPtr, Mesh *pMesh, int8_t *pFaceFlag,
-                 StucMap pMap, int32_t *pProgress) {
+Result processCell(StucContext pContext, I32 *pCellStack,
+                 I32 *pCellStackPtr, Mesh *pMesh, I8 *pFaceFlag,
+                 StucMap pMap, I32 *pProgress) {
 	Result err = STUC_SUCCESS;
 	QuadTree *pTree = &pMap->quadTree;
 	CellTable *pCellTable = &pTree->cellTable;
 	STUC_THROW_IF(err, pTree && pCellTable, "", 0);
-	int32_t cell = pCellStack[*pCellStackPtr];
+	I32 cell = pCellStack[*pCellStackPtr];
 	STUC_ASSERT("", pCellTable->pArr[cell].initialized % 2 ==
 	                pCellTable->pArr[cell].initialized);
 	STUC_ASSERT("", pCellTable->pArr[cell].cellIdx >= 0 &&
@@ -827,10 +827,10 @@ Result processCell(StucContext pContext, int32_t *pCellStack,
 	STUC_ASSERT("", pCellTable->pArr[cell].faceSize >= 0 &&
 	                pCellTable->pArr[cell].faceSize < 100000000);
 	// If more than CELL_MAX_VERTS in cell, then subdivide cell
-	int32_t hasChildren = pCellTable->pArr[cell].faceSize > CELL_MAX_VERTS;
+	I32 hasChildren = pCellTable->pArr[cell].faceSize > CELL_MAX_VERTS;
 	if (hasChildren) {
 		// Get number of children
-		int32_t childSize = 0;
+		I32 childSize = 0;
 		if (!pCellTable->pArr[cell].pChildren) {
 			pMap->quadTree.leafCount--;
 			allocateChildren(pContext, cell, *pCellStackPtr, pMap);
@@ -839,8 +839,8 @@ Result processCell(StucContext pContext, int32_t *pCellStack,
 			                    pCellStack, *pCellStackPtr);
 		}
 		STUC_ASSERT("", childSize >= 0);
-		for (int32_t i = 0; i < 4; ++i) {
-			childSize += (int32_t)pCellTable->pArr[cell].pChildren[i].initialized;
+		for (I32 i = 0; i < 4; ++i) {
+			childSize += (I32)pCellTable->pArr[cell].pChildren[i].initialized;
 			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		// If the cell has children, and they are not yet all initialized,
@@ -863,8 +863,8 @@ Result processCell(StucContext pContext, int32_t *pCellStack,
 }
 
 static
-Result initRootAndChildren(StucContext pContext, int32_t *pCellStack, 
-                         QuadTree *pTree, StucMap pMap, Mesh *pMesh, int8_t *pFaceFlag) {
+Result initRootAndChildren(StucContext pContext, I32 *pCellStack, 
+                         QuadTree *pTree, StucMap pMap, Mesh *pMesh, I8 *pFaceFlag) {
 	CellTable* pTable = &pTree->cellTable;
 	Cell *pRoot = pTable->pArr;
 	pRoot->cellIdx = 0;
@@ -872,11 +872,11 @@ Result initRootAndChildren(StucContext pContext, int32_t *pCellStack,
 	pCellStack[0] = 0;
 	pRoot->boundsMax.d[0] = pRoot->boundsMax.d[1] = 1.0f;
 	pRoot->initialized = 1;
-	pRoot->pFaces = pContext->alloc.pMalloc(sizeof(int32_t) * pMesh->core.faceCount);
-	for (int32_t i = 0; i < pMesh->core.faceCount; ++i) {
+	pRoot->pFaces = pContext->alloc.pMalloc(sizeof(I32) * pMesh->core.faceCount);
+	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, i, false);
 		bool inside = false;
-		for (int32_t j = 0; j < face.size; ++j) {
+		for (I32 j = 0; j < face.size; ++j) {
 			V3_F32 vert = pMesh->pVerts[pMesh->core.pCorners[face.start + j]];
 			if (vert.d[0] > .0f && vert.d[0] < 1.0f &&
 				vert.d[1] > .0f && vert.d[1] < 1.0f) {
@@ -911,14 +911,14 @@ Result stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 	Mesh *pMesh = &pMap->mesh;
 	pTree->cellCount = 0;
 	pTree->leafCount = 0;
-	int8_t *pFaceFlag = pContext->alloc.pCalloc(pMesh->core.faceCount, sizeof(int8_t));
+	I8 *pFaceFlag = pContext->alloc.pCalloc(pMesh->core.faceCount, sizeof(I8));
 
 	pTree->pRootCell = pTree->cellTable.pArr;
-	int32_t cellStack[STUC_CELL_STACK_SIZE];
+	I32 cellStack[STUC_CELL_STACK_SIZE];
 	err =  initRootAndChildren(pContext, cellStack, pTree, pMap, pMesh, pFaceFlag);
 	STUC_THROW_IF(err, true, "All faces were outside 0-1 tile", 0);
-	int32_t cellStackPtr = 1;
-	int32_t progress = 0;
+	I32 cellStackPtr = 1;
+	I32 progress = 0;
 	do {
 		STUC_ASSERT("", cellStackPtr < STUC_CELL_STACK_SIZE);
 		processCell(pContext, cellStack, &cellStackPtr, pMesh,
@@ -926,7 +926,7 @@ Result stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 	} while(cellStackPtr >= 0);
 	STUC_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
 	STUC_ASSERT("", pTree->pRootCell->initialized == 1);
-	int32_t sizeDecrease = pTree->cellCount - pTree->cellTable.size;
+	I32 sizeDecrease = pTree->cellCount - pTree->cellTable.size;
 	STUC_ASSERT("", sizeDecrease < 0);
 	printf("Created quadTree -- cells: %d, leaves: %d\n",
 	       pTree->cellCount, pTree->leafCount);
@@ -938,7 +938,7 @@ Result stucCreateQuadTree(StucContext pContext, StucMap pMap) {
 }
 
 void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree) {
-	for (int32_t i = 0; i < pTree->cellCount; ++i) {
+	for (I32 i = 0; i < pTree->cellCount; ++i) {
 		Cell *cell = pTree->cellTable.pArr + i;
 		if (cell->pLinkEdges) {
 			pContext->alloc.pFree(cell->pLinkEdges);
@@ -968,13 +968,13 @@ void stucGetFaceBoundsForTileTest(FaceBounds *pFaceBounds,
 
 void stucGetEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range faceRange,
                           Mesh *pMesh, FaceCellsTable *pFaceCellsTable,
-                          int8_t maskIdx, int32_t *pAverageMapFacesPerFace) {
+                          I8 maskIdx, I32 *pAverageMapFacesPerFace) {
 	*pAverageMapFacesPerFace = 0;
-	int32_t inFaceRangeSize = faceRange.end - faceRange.start;
+	I32 inFaceRangeSize = faceRange.end - faceRange.start;
 	stucInitFaceCellsTable(pAlloc, pFaceCellsTable, inFaceRangeSize);
 	QuadTreeSearch searchState = {0};
 	stucInitQuadTreeSearch(pAlloc, pMap, &searchState);
-	for (int32_t i = faceRange.start; i < faceRange.end; ++i) {
+	for (I32 i = faceRange.start; i < faceRange.end; ++i) {
 		if (maskIdx != -1 && pMesh->pMatIdx && pMesh->pMatIdx[i] != maskIdx) {
 			continue;
 		}
@@ -982,7 +982,7 @@ void stucGetEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range faceRange,
 		FaceBounds faceBounds = {0};
 		stucGetFaceBoundsForTileTest(&faceBounds, pMesh, &faceInfo);
 		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);
-		for (int32_t j = 0; j < faceInfo.size; ++j) {
+		for (I32 j = 0; j < faceInfo.size; ++j) {
 			pVertBuf[j] = pMesh->pUvs[faceInfo.start + j];
 		}
 		stucGetCellsForSingleFace(&searchState, faceInfo.size, pVertBuf,
@@ -995,6 +995,6 @@ void stucGetEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range faceRange,
 }
 
 FaceCells *stucIdxFaceCells(FaceCellsTable *pFaceCellsTable,
-                            int32_t faceIdx, int32_t faceOffset) {
+                            I32 faceIdx, I32 faceOffset) {
 	return pFaceCellsTable->pFaceCells + (faceIdx - faceOffset);
 }

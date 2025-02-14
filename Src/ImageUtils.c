@@ -1,34 +1,35 @@
 #include <stdint.h>
 
 #include <ImageUtils.h>
+#include <Types.h>
 
-void setPixelColor(StucImage *pImage, int32_t idx, Color *pColor) {
+void setPixelColor(StucImage *pImage, I32 idx, Color *pColor) {
 	switch (pImage->type) {
 		case STUC_IMAGE_UI8: {
-			uint8_t *pPixel =
-				(uint8_t *)((uint8_t (*) [4])pImage->pData + idx);
-			pPixel[0] = pColor->d[0] * (float)UINT8_MAX;
-			pPixel[1] = pColor->d[1] * (float)UINT8_MAX;
-			pPixel[2] = pColor->d[2] * (float)UINT8_MAX;
-			pPixel[3] = pColor->d[3] * (float)UINT8_MAX;
+			U8 *pPixel =
+				(U8 *)((U8 (*) [4])pImage->pData + idx);
+			pPixel[0] = pColor->d[0] * (F32)UINT8_MAX;
+			pPixel[1] = pColor->d[1] * (F32)UINT8_MAX;
+			pPixel[2] = pColor->d[2] * (F32)UINT8_MAX;
+			pPixel[3] = pColor->d[3] * (F32)UINT8_MAX;
 			return;
 		}
 		case STUC_IMAGE_UI16: {
-			uint16_t *pPixel =
-				(uint16_t *)((uint16_t (*) [4])pImage->pData + idx);
-			pPixel[0] = pColor->d[0] * (float)UINT16_MAX;
-			pPixel[1] = pColor->d[1] * (float)UINT16_MAX;
-			pPixel[2] = pColor->d[2] * (float)UINT16_MAX;
-			pPixel[3] = pColor->d[3] * (float)UINT16_MAX;
+			U16 *pPixel =
+				(U16 *)((U16 (*) [4])pImage->pData + idx);
+			pPixel[0] = pColor->d[0] * (F32)UINT16_MAX;
+			pPixel[1] = pColor->d[1] * (F32)UINT16_MAX;
+			pPixel[2] = pColor->d[2] * (F32)UINT16_MAX;
+			pPixel[3] = pColor->d[3] * (F32)UINT16_MAX;
 			return;
 		 }
 		case STUC_IMAGE_UI32: {
-			uint32_t *pPixel =
-				(uint32_t *)((uint32_t (*) [4])pImage->pData + idx);
-			pPixel[0] = pColor->d[0] * (float)UINT32_MAX;
-			pPixel[1] = pColor->d[1] * (float)UINT32_MAX;
-			pPixel[2] = pColor->d[2] * (float)UINT32_MAX;
-			pPixel[3] = pColor->d[3] * (float)UINT32_MAX;
+			U32 *pPixel =
+				(U32 *)((U32 (*) [4])pImage->pData + idx);
+			pPixel[0] = pColor->d[0] * (F32)UINT32_MAX;
+			pPixel[1] = pColor->d[1] * (F32)UINT32_MAX;
+			pPixel[2] = pColor->d[2] * (F32)UINT32_MAX;
+			pPixel[3] = pColor->d[3] * (F32)UINT32_MAX;
 			return;
 		 }
 		case STUC_IMAGE_F32: {
@@ -38,7 +39,7 @@ void setPixelColor(StucImage *pImage, int32_t idx, Color *pColor) {
 	}
 }
 
-int32_t getPixelSize(StucImageType type) {
+I32 getPixelSize(StucImageType type) {
 	switch (type) {
 		case STUC_IMAGE_UI8:
 			return 4;
@@ -54,14 +55,14 @@ int32_t getPixelSize(StucImageType type) {
 	}
 }
 
-void *offsetImagePtr(StucImage *pImage, int32_t offset) {
+void *offsetImagePtr(StucImage *pImage, I32 offset) {
 	switch (pImage->type) {
 		case STUC_IMAGE_UI8:
-			return (uint8_t (*) [4])pImage->pData + offset;
+			return (U8 (*) [4])pImage->pData + offset;
 		case STUC_IMAGE_UI16:
-			return (uint16_t (*) [4])pImage->pData + offset;
+			return (U16 (*) [4])pImage->pData + offset;
 		case STUC_IMAGE_UI32:
-			return (uint32_t (*) [4])pImage->pData + offset;
+			return (U32 (*) [4])pImage->pData + offset;
 		case STUC_IMAGE_F32:
 			return (Color *)pImage->pData + offset;
 		default:

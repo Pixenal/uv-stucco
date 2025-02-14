@@ -4,6 +4,7 @@
 #include <UvStuccoIntern.h>
 #include <MathUtils.h>
 #include <Mesh.h>
+#include <Types.h>
 
 typedef StucAttribCore AttribCore;
 typedef StucAttrib Attrib;
@@ -16,7 +17,7 @@ typedef StucBlendConfig BlendConfig;
 typedef StucCommonAttrib CommonAttrib;
 typedef StucCommonAttribList CommonAttribList;
 
-//TODO switch pAttrib pData ptr from void * to uint8_t *?
+//TODO switch pAttrib pData ptr from void * to U8 *?
 
 typedef enum {
 	STUC_ATTRIB_SP_NONE,
@@ -43,51 +44,51 @@ typedef enum {
 } SpecialBufAttrib;
 
 void stucSetDefaultSpecialAttribNames(StucContext pContext);
-int32_t stucGetAttribSizeIntern(AttribType type);
+I32 stucGetAttribSizeIntern(AttribType type);
 StucAttrib *stucGetAttribIntern(char *pName, AttribArray *pAttribs);
-V3_F32 *stucAttribAsV3(AttribCore *pAttrib, int32_t idx);
-V2_F32 *stucAttribAsV2(AttribCore *pAttrib, int32_t idx);
-int32_t *stucAttribAsI32(AttribCore *pAttrib, int32_t idx);
-int8_t *stucAttribAsI8(AttribCore *pAttrib, int32_t idx);
-char *stucAttribAsStr(AttribCore *pAttrib, int32_t idx);
-void *stucAttribAsVoid(AttribCore *pAttrib, int32_t idx);
-int32_t stucCopyAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc, int32_t iSrc);
-void stucCopyAllAttribs(AttribArray *pDest, int32_t iDest,
-                        AttribArray *pSrc, int32_t iSrc);
+V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx);
+V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx);
+I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx);
+I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx);
+char *stucAttribAsStr(AttribCore *pAttrib, I32 idx);
+void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx);
+I32 stucCopyAttrib(Attrib *pDest, I32 iDest, Attrib *pSrc, I32 iSrc);
+void stucCopyAllAttribs(AttribArray *pDest, I32 iDest,
+                        AttribArray *pSrc, I32 iSrc);
 void stucSetTypeDefaultConfig(StucContext pContext);
 StucTypeDefault *stucGetTypeDefaultConfig(StucTypeDefaultConfig *pConfig,
                                           AttribType type);
-StucCommonAttrib *stucGetCommonAttrib(StucCommonAttrib *pAttribs, int32_t attribCount,
+StucCommonAttrib *stucGetCommonAttrib(StucCommonAttrib *pAttribs, I32 attribCount,
                                       char *pName);
 AttribIndexed *stucGetAttribIndexedIntern(AttribIndexedArr *pAttribArr, char *pName);
-void stucLerpAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrcA,
-                    int32_t iSrcA, Attrib *pSrcB, int32_t iSrcB, float alpha);
-void stucTriInterpolateAttrib(Attrib *pDest, int32_t iDest, Attrib *pSrc,
-                              int32_t iSrcA, int32_t iSrcB, int32_t iSrcC, V3_F32 bc);
-void stucBlendAttribs(Attrib *pDest, int32_t iDest, Attrib *pA, int32_t iA,
-                      Attrib *pB, int32_t iB, StucBlendConfig blendConfig);
-void stucDivideAttribByScalarInt(Attrib *pAttrib, int32_t idx, uint64_t scalar);
+void stucLerpAttrib(Attrib *pDest, I32 iDest, Attrib *pSrcA,
+                    I32 iSrcA, Attrib *pSrcB, I32 iSrcB, F32 alpha);
+void stucTriInterpolateAttrib(Attrib *pDest, I32 iDest, Attrib *pSrc,
+                              I32 iSrcA, I32 iSrcB, I32 iSrcC, V3_F32 bc);
+void stucBlendAttribs(Attrib *pDest, I32 iDest, Attrib *pA, I32 iA,
+                      Attrib *pB, I32 iB, StucBlendConfig blendConfig);
+void stucDivideAttribByScalarInt(Attrib *pAttrib, I32 idx, U64 scalar);
 void stucAllocAttribs(StucAlloc *pAlloc, AttribArray *pDest,
-                      int32_t srcCount, Mesh **ppSrcArr,
-                      int32_t dataLen, StucDomain domain, bool setCommon);
+                      I32 srcCount, Mesh **ppSrcArr,
+                      I32 dataLen, StucDomain domain, bool setCommon);
 void stucReallocAttrib(const StucAlloc *pAlloc, Mesh *pMesh,
-                       AttribCore *pAttrib, const int32_t newLen);
+                       AttribCore *pAttrib, const I32 newLen);
 void stucReallocAttribArr(const StucAlloc *pAlloc, Mesh *pMesh,
-                          AttribArray *pAttribArr, int32_t newLen);
+                          AttribArray *pAttribArr, I32 newLen);
 void stucReallocAndMoveAttribs(const StucAlloc *pAlloc, BufMesh *pMesh,
-                               AttribArray *pAttribArr, int32_t start,
-                               int32_t offset, int32_t lenToCopy, int32_t newLen);
+                               AttribArray *pAttribArr, I32 start,
+                               I32 offset, I32 lenToCopy, I32 newLen);
 void stucSetSpecialAttribs(StucContext pContext, Mesh *pMesh, UBitField16 flags);
 void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags);
 void stucAppendBufOnlySpecialAttribs(StucAlloc *pAlloc, BufMesh *pBufMesh);
 void stucSetAttribToDontCopy(StucContext pContext, Mesh *pMesh, UBitField16 flags);
 void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin);
 void stucAllocAttribsFromMeshArr(StucAlloc *pAlloc, Mesh *pMeshDest,
-                                 int32_t srcCount, Mesh **ppMeshSrcs, bool setCommon);
-void stucInitAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, int32_t dataLen,
+                                 I32 srcCount, Mesh **ppMeshSrcs, bool setCommon);
+void stucInitAttrib(StucAlloc *pAlloc, Attrib *pAttrib, char *pName, I32 dataLen,
                     bool interpolate, AttribOrigin origin, AttribType type);
-void stucInitAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, int32_t dataLen,
+void stucInitAttribCore(StucAlloc *pAlloc, AttribCore *pAttrib, char *pName, I32 dataLen,
                         AttribType type);
 void stucAppendAttrib(StucAlloc *pAlloc, AttribArray *pArr, Attrib **ppAttrib, char *pName,
-                      int32_t dataLen, bool interpolate, AttribOrigin origin, AttribType type);
-int32_t stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName);
+                      I32 dataLen, bool interpolate, AttribOrigin origin, AttribType type);
+I32 stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName);

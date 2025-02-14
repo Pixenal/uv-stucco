@@ -4,29 +4,30 @@
 
 #include <QuadTree.h>
 #include <UvStucco.h>
+#include <Types.h>
 
 typedef struct {
     unsigned char *pString;
-    int64_t size;
-    int64_t nextBitIdx;
-    int64_t byteIdx;
+    I64 size;
+    I64 nextBitIdx;
+    I64 byteIdx;
 } ByteString;
 
 //void stucWriteDebugImage(Cell *pRootCell);
 StucResult stucWriteStucFile(StucContext pContext, char *pName,
-                             int32_t objCount, StucObject *pObjArr,
-                             int32_t usgCount, StucUsg *pUsgArr,
+                             I32 objCount, StucObject *pObjArr,
+                             I32 usgCount, StucUsg *pUsgArr,
                              StucAttribIndexedArr *pIndexedAttribs);
 StucResult stucLoadStucFile(StucContext pContext, char *filePath,
-                            int32_t *pObjCount, StucObject **ppObjArr,
-                            int32_t *pUsgCount, StucUsg **ppUsgArr,
-                            int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
+                            I32 *pObjCount, StucObject **ppObjArr,
+                            I32 *pUsgCount, StucUsg **ppUsgArr,
+                            I32 *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
                             bool forEdit, StucAttribIndexedArr *pIndexedAttribs);
 
 void stucIoSetCustom(StucContext pContext, StucIo *pIo);
 void stucIoSetDefault(StucContext pContext);
-void stucEncodeValue(StucAlloc *pAlloc, ByteString *byteString, uint8_t *value,
-                     int32_t lengthInBits);
-void stucEncodeString(StucAlloc *pAlloc, ByteString *byteString, uint8_t *string);
-void stucDecodeValue(ByteString *byteString, uint8_t *value, int32_t lengthInBits);
-void stucDecodeString(ByteString *byteString, char *string, int32_t maxLen);
+void stucEncodeValue(StucAlloc *pAlloc, ByteString *byteString, U8 *value,
+                     I32 lengthInBits);
+void stucEncodeString(StucAlloc *pAlloc, ByteString *byteString, U8 *string);
+void stucDecodeValue(ByteString *byteString, U8 *value, I32 lengthInBits);
+void stucDecodeString(ByteString *byteString, char *string, I32 maxLen);
