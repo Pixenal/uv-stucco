@@ -14,20 +14,36 @@ typedef struct {
 } ByteString;
 
 //void stucWriteDebugImage(Cell *pRootCell);
-StucResult stucWriteStucFile(StucContext pContext, char *pName,
-                             I32 objCount, StucObject *pObjArr,
-                             I32 usgCount, StucUsg *pUsgArr,
-                             StucAttribIndexedArr *pIndexedAttribs);
-StucResult stucLoadStucFile(StucContext pContext, char *filePath,
-                            I32 *pObjCount, StucObject **ppObjArr,
-                            I32 *pUsgCount, StucUsg **ppUsgArr,
-                            I32 *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
-                            bool forEdit, StucAttribIndexedArr *pIndexedAttribs);
+StucResult stucWriteStucFile(
+	StucContext pCtx,
+	char *pName,
+	I32 objCount,
+	StucObject *pObjArr,
+	I32 usgCount,
+	StucUsg *pUsgArr,
+	StucAttribIndexedArr *pIndexedAttribs
+);
+StucResult stucLoadStucFile(
+	StucContext pCtx,
+	char *filePath,
+	I32 *pObjCount,
+	StucObject **ppObjArr,
+	I32 *pUsgCount,
+	StucUsg **ppUsgArr,
+	I32 *pFlatCutoffCount,
+	StucObject **ppFlatCutoffArr,
+	bool forEdit,
+	StucAttribIndexedArr *pIndexedAttribs
+);
 
-void stucIoSetCustom(StucContext pContext, StucIo *pIo);
-void stucIoSetDefault(StucContext pContext);
-void stucEncodeValue(StucAlloc *pAlloc, ByteString *byteString, U8 *value,
-                     I32 lengthInBits);
-void stucEncodeString(StucAlloc *pAlloc, ByteString *byteString, U8 *string);
+void stucIoSetCustom(StucContext pCtx, StucIo *pIo);
+void stucIoSetDefault(StucContext pCtx);
+void stucEncodeValue(
+	const StucAlloc *pAlloc,
+	ByteString *byteString,
+	U8 *value,
+	I32 lengthInBits
+);
+void stucEncodeString(const StucAlloc *pAlloc, ByteString *byteString, U8 *string);
 void stucDecodeValue(ByteString *byteString, U8 *value, I32 lengthInBits);
 void stucDecodeString(ByteString *byteString, char *string, I32 maxLen);

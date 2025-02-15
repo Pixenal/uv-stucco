@@ -8,28 +8,28 @@ void setPixelColor(const StucImage *pImage, I32 idx, const Color *pColor) {
 		case STUC_IMAGE_UI8: {
 			U8 *pPixel =
 				(U8 *)((U8 (*) [4])pImage->pData + idx);
-			pPixel[0] = pColor->d[0] * (F32)UINT8_MAX;
-			pPixel[1] = pColor->d[1] * (F32)UINT8_MAX;
-			pPixel[2] = pColor->d[2] * (F32)UINT8_MAX;
-			pPixel[3] = pColor->d[3] * (F32)UINT8_MAX;
+			pPixel[0] = (U8)(pColor->d[0] * (F32)UINT8_MAX);
+			pPixel[1] = (U8)(pColor->d[1] * (F32)UINT8_MAX);
+			pPixel[2] = (U8)(pColor->d[2] * (F32)UINT8_MAX);
+			pPixel[3] = (U8)(pColor->d[3] * (F32)UINT8_MAX);
 			return;
 		}
 		case STUC_IMAGE_UI16: {
 			U16 *pPixel =
 				(U16 *)((U16 (*) [4])pImage->pData + idx);
-			pPixel[0] = pColor->d[0] * (F32)UINT16_MAX;
-			pPixel[1] = pColor->d[1] * (F32)UINT16_MAX;
-			pPixel[2] = pColor->d[2] * (F32)UINT16_MAX;
-			pPixel[3] = pColor->d[3] * (F32)UINT16_MAX;
+			pPixel[0] = (U8)(pColor->d[0] * (F32)UINT16_MAX);
+			pPixel[1] = (U8)(pColor->d[1] * (F32)UINT16_MAX);
+			pPixel[2] = (U8)(pColor->d[2] * (F32)UINT16_MAX);
+			pPixel[3] = (U8)(pColor->d[3] * (F32)UINT16_MAX);
 			return;
 		 }
 		case STUC_IMAGE_UI32: {
 			U32 *pPixel =
 				(U32 *)((U32 (*) [4])pImage->pData + idx);
-			pPixel[0] = pColor->d[0] * (F32)UINT32_MAX;
-			pPixel[1] = pColor->d[1] * (F32)UINT32_MAX;
-			pPixel[2] = pColor->d[2] * (F32)UINT32_MAX;
-			pPixel[3] = pColor->d[3] * (F32)UINT32_MAX;
+			pPixel[0] = (U8)(pColor->d[0] * (F32)UINT32_MAX);
+			pPixel[1] = (U8)(pColor->d[1] * (F32)UINT32_MAX);
+			pPixel[2] = (U8)(pColor->d[2] * (F32)UINT32_MAX);
+			pPixel[3] = (U8)(pColor->d[3] * (F32)UINT32_MAX);
 			return;
 		 }
 		case STUC_IMAGE_F32: {

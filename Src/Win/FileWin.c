@@ -10,8 +10,12 @@ typedef struct {
 	StucAlloc alloc;
 } PlatformContext;
 
-I32 stucPlatformFileOpen(void **file, const char *filePath, I32 action,
-                         const StucAlloc *pAlloc) {
+I32 stucPlatformFileOpen(
+	void **file,
+	const char *filePath,
+	I32 action,
+	const StucAlloc *pAlloc
+) {
 	DWORD access;
 	DWORD disposition;
 	switch (action) {
@@ -29,8 +33,14 @@ I32 stucPlatformFileOpen(void **file, const char *filePath, I32 action,
 	}
 	PlatformContext *pState = pAlloc->pMalloc(sizeof(PlatformContext));
 	pState->alloc = *pAlloc;
-	pState->pHFile = CreateFile(filePath, access, false, NULL, disposition,
-	                            FILE_ATTRIBUTE_NORMAL, NULL);
+	pState->pHFile = CreateFile(
+		filePath,
+		access,
+		false,
+		NULL,
+		disposition,
+		FILE_ATTRIBUTE_NORMAL, NULL
+	);
 	if (pState->pHFile == INVALID_HANDLE_VALUE) {
 		DWORD lastError =  GetLastError();
 		printf("Failed to open UVGP file for write. Error: %lu\n", lastError);
@@ -40,11 +50,14 @@ I32 stucPlatformFileOpen(void **file, const char *filePath, I32 action,
 	return 0;
 }
 
-I32 stucPlatformFileWrite(void *file, const unsigned char *data, I32 dataSize) {
+I32 stucPlatformFileWrite(
+	void *file,
+	const unsigned char *data,
+	I32 dataSize
+) {
 	PlatformContext *pState = file;
 	DWORD bytesWritten;
-	I32 returnCode = WriteFile(pState->pHFile, data, dataSize,
-	                               &bytesWritten, NULL);
+	I32 returnCode = WriteFile(pState->pHFile, data, dataSize, &bytesWritten, NULL);
 	if (!returnCode) {
 		DWORD lastError =  GetLastError();
 		printf("Failed to write to UVGP file. Error: %lu\n", lastError);
@@ -57,11 +70,14 @@ I32 stucPlatformFileWrite(void *file, const unsigned char *data, I32 dataSize) {
 	return 0;
 }
 
-I32 stucPlatformFileRead(void *file, unsigned char *data, I32 bytesToRead) {
+I32 stucPlatformFileRead(
+	void *file,
+	unsigned char *data,
+	I32 bytesToRead
+) {
 	PlatformContext *pState = file;
 	DWORD bytesRead;
-	I32 returnCode = ReadFile(pState->pHFile, data, bytesToRead,
-	                              &bytesRead, NULL);
+	I32 returnCode = ReadFile(pState->pHFile, data, bytesToRead, &bytesRead, NULL);
 	if (!returnCode) {
 		DWORD lastError =  GetLastError();
 		printf("Failed to read from UVGP file. Error: %lu\n", lastError);

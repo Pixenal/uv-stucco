@@ -2,6 +2,6 @@
 #include <UvStuccoIntern.h>
 #include <UvStucco.h>
 
-void setPixelColor(StucImage *pImage, int32_t index, Color *pColor);
+void setPixelColor(const StucImage *pImage, I32 idx, const Color *pColor);
 int32_t getPixelSize(StucImageType type);
-void *offsetImagePtr(StucImage *pImage, int32_t offset);
+void *offsetImagePtr(const StucImage *pImage, I32 offset);

@@ -71,22 +71,15 @@ typedef struct {
 } LocalTables;
 
 typedef struct {
-	StucContext pContext;
+	MapToMeshBasic *pBasic;
 	BufMesh bufMesh;
-	Mesh mesh;
-	StucMap pMap;
+	DebugAndPerfVars *pDpVars;
 	InFaceArr *pInFaces;
 	I32 inFaceSize;
-	bool getInFaces;
-	DebugAndPerfVars *pDpVars;
-	StucAlloc alloc;
 	LocalTables localTables;
 	Mat3x3 tbn;
 	Mat3x3 tbnInv;
-	StucCommonAttribList *pCommonAttribList;
 	BorderTable borderTable;
-	EdgeVerts *pEdgeVerts;
-	I8 *pInVertTable;
 	Range inFaceRange;
 	I32 id;
 	I32 bufSize;
@@ -94,11 +87,14 @@ typedef struct {
 	I32 finalBufSize;
 	I32 cornerBufSize;
 	I32 inFaceOffset;
-	F32 wScale;
-	I8 maskIdx;
 } MappingJobVars;
 
 Result stucMapToJobMesh(void *pArgsPtr);
-Result stucMapToSingleFace(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable,
-                           DebugAndPerfVars *pDpVars, V2_F32 fTileMin, V2_I32 tile,
-                           FaceRange *pInFace);
+Result stucMapToSingleFace(
+	MappingJobVars *pVars,
+	FaceCellsTable *pFaceCellsTable,
+	DebugAndPerfVars *pDpVars,
+	V2_F32 fTileMin,
+	V2_I32 tile,
+	FaceRange *pInFace
+);

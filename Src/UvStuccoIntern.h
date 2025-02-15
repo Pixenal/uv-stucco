@@ -93,24 +93,32 @@ typedef struct {
 } BorderTable;
 
 typedef struct {
-	Mesh mesh;
-	BufMesh bufMesh;
-	StucMap pMap;
-	InFaceArr *pInFaces;
-	bool getInFaces;
-	U64 reallocTime;
-	StucContext pContext;
-	BorderTable borderTable;
+	const StucContext pCtx;
+	const Mesh *pInMesh;
+	Mesh outMesh;
+	const StucMap pMap;
+	InFaceArr **ppInFaceTable;
+	const StucCommonAttribList *pCommonAttribList;
 	EdgeVerts *pEdgeVerts;
-	StucCommonAttribList *pCommonAttribList;
+	I8 *pInVertTable;
+	I8 *pVertSeamTable;
+	bool *pEdgeSeamTable;
+	I32 inFaceSize;
+	const F32 wScale;
+	const I8 maskIdx;
+} MapToMeshBasic;
+
+typedef struct {
+	MapToMeshBasic *pBasic;
+	InFaceArr *pInFaces;
+	BufMesh bufMesh;
+	U64 reallocTime;
+	BorderTable borderTable;
 	I32 *pActiveJobs;
 	Range inFaceRange;
 	I32 bufSize;
 	I32 rawBufSize;
 	I32 finalBufSize;
 	I32 inFaceOffset;
-	I8 *pInVertTable;
 	I32 id;
-	F32 wScale;
-	I8 maskIdx;
 } SendOffArgs;

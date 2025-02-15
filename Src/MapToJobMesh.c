@@ -12,10 +12,10 @@
 
 static
 void allocBufMesh(MappingJobVars *pVars, I32 cornerBufSize) {
-	StucMap pMap = pVars->pMap;
-	StucMesh *pMeshIn = &pVars->mesh.core;
+	StucMap pMap = pVars->pBasic->pMap;
+	const StucMesh *pMeshIn = &pVars->pBasic->pInMesh->core;
 	Mesh *pMesh = &pVars->bufMesh.mesh;
-	StucAlloc *pAlloc = &pVars->alloc;
+	const StucAlloc *pAlloc = &pVars->pBasic->pCtx->alloc;
 	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
 	pMesh->faceBufSize = pVars->bufSize;
 	pMesh->cornerBufSize = pVars->cornerBufSize;
@@ -25,21 +25,20 @@ void allocBufMesh(MappingJobVars *pVars, I32 cornerBufSize) {
 	pMesh->core.pCorners = pAlloc->pMalloc(sizeof(I32) * pMesh->cornerBufSize);
 	pMesh->core.pEdges = pAlloc->pMalloc(sizeof(I32) * pMesh->edgeBufSize);
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
-	stucAllocAttribsFromMeshArr(&pVars->alloc, pMesh, 2, srcs, true);
-	stucAppendBufOnlySpecialAttribs(&pVars->alloc, &pVars->bufMesh);
+	stucAllocAttribsFromMeshArr(&pVars->pBasic->pCtx->alloc, pMesh, 2, srcs, true);
+	stucAppendBufOnlySpecialAttribs(&pVars->pBasic->pCtx->alloc, &pVars->bufMesh);
 	stucSetSpecialBufAttribs((BufMesh *)pMesh, 0x3e); //set all
-	stucSetSpecialAttribs(pVars->pContext, pMesh, 0x40e); //set vert, normal, uv, and w scale
-	stucSetAttribToDontCopy(pVars->pContext, pMesh, 0x400); //set w scale to DONT_COPY
+	stucSetSpecialAttribs(pVars->pBasic->pCtx, pMesh, 0x40e); //set vert, normal, uv, and w scale
+	stucSetAttribToDontCopy(pVars->pBasic->pCtx, pMesh, 0x400); //set w scale to DONT_COPY
 
 	pMesh->cornerBufSize = cornerBufSize;
 	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
 }
 
 static
-void allocBufMeshAndTables(MappingJobVars *pVars,
-                           FaceCellsTable *pFaceCellsTable) {
+void allocBufMeshAndTables(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable) {
 	//struct timeval start, stop;
-	StucAlloc *pAlloc = &pVars->alloc;
+	const StucAlloc *pAlloc = &pVars->pBasic->pCtx->alloc;
 	pVars->rawBufSize = pVars->bufSize;
 	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
 	pVars->bufSize += pVars->bufSize % 2; //ensure it's even, so realloc is easier
@@ -61,19 +60,29 @@ void allocBufMeshAndTables(MappingJobVars *pVars,
 }
 
 static
-Result mapPerTile(MappingJobVars *pMVars, FaceRange *pInFace,
-                  FaceCellsTable *pFaceCellsTable,
-                  DebugAndPerfVars *pDpVars, I32 faceIdx) {
+Result mapPerTile(
+	MappingJobVars *pVars,
+	FaceRange *pInFace,
+	FaceCellsTable *pFaceCellsTable,
+	DebugAndPerfVars *pDpVars,
+	I32 faceIdx
+) {
 	Result result = STUC_NOT_SET;
 	FaceBounds *pFaceBounds = 
-		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pMVars->inFaceRange.start)->faceBounds;
+		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pVars->inFaceRange.start)->faceBounds;
 	for (I32 j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (I32 k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
 			STUC_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
-			V2_F32 fTileMin = {k, j};
+			V2_F32 fTileMin = {(F32)k, (F32)j};
 			V2_I32 tile = {k, j};
-			result = stucMapToSingleFace(pMVars, pFaceCellsTable, pDpVars,
-			                             fTileMin, tile, pInFace);
+			result = stucMapToSingleFace(
+				pVars,
+				pFaceCellsTable,
+				pDpVars,
+				fTileMin,
+				tile,
+				pInFace
+			);
 			if (result != STUC_SUCCESS) {
 				return result;
 			}
@@ -83,7 +92,7 @@ Result mapPerTile(MappingJobVars *pMVars, FaceRange *pInFace,
 }
 
 static
-void destroyMappingTables(StucAlloc *pAlloc, LocalTables *pLocalTables) {
+void destroyMappingTables(const StucAlloc *pAlloc, LocalTables *pLocalTables) {
 	for (I32 i = 0; i < pLocalTables->vertTableSize; ++i) {
 		LocalVert *pEntry = pLocalTables->pVertTable + i;
 		if (!pEntry->cornerSize) {
@@ -117,26 +126,25 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	Result result = STUC_NOT_SET;
 	SendOffArgs *pSend = pVarsPtr;
 	MappingJobVars vars = {0};
-	vars.pContext = pSend->pContext;
-	vars.alloc = pSend->pContext->alloc;
-	vars.pEdgeVerts = pSend->pEdgeVerts;
+	vars.pBasic = pSend->pBasic;
 	vars.id = pSend->id;
 	vars.borderTable.size = pSend->borderTable.size;
-	vars.mesh = pSend->mesh;
-	vars.pMap = pSend->pMap;
-	vars.pCommonAttribList = pSend->pCommonAttribList;
 	vars.pInFaces = pSend->pInFaces;
-	vars.getInFaces = pSend->getInFaces;
-	vars.wScale = pSend->wScale;
 	vars.inFaceOffset = pSend->inFaceOffset;
-	vars.maskIdx = pSend->maskIdx;
 	vars.inFaceRange = pSend->inFaceRange;
 	I32 inFaceRangeSize = vars.inFaceRange.end - vars.inFaceRange.start;
 	//CLOCK_START;
 	FaceCellsTable faceCellsTable = {0};
 	I32 averageMapFacesPerFace = 0;
-	stucGetEncasingCells(&vars.alloc, vars.pMap, vars.inFaceRange, &vars.mesh,
-	                     &faceCellsTable, vars.maskIdx, &averageMapFacesPerFace);
+	stucGetEncasingCells(
+		&vars.pBasic->pCtx->alloc,
+		vars.pBasic->pMap,
+		vars.pBasic->pInMesh,
+		vars.pBasic->maskIdx,
+		vars.inFaceRange,
+		&faceCellsTable,
+		&averageMapFacesPerFace
+	);
 	//CLOCK_STOP("Get Encasing Cells Time");
 	//CLOCK_START;
 	vars.bufSize = inFaceRangeSize + faceCellsTable.cellFacesTotal;
@@ -146,23 +154,23 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	vars.pDpVars = &dpVars;
 	//U64 mappingTime;
 	//mappingTime = 0;
-	if (vars.getInFaces) {
+	if (vars.pBasic->ppInFaceTable) {
 		vars.inFaceSize = 8;
-		vars.pInFaces = vars.alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
+		vars.pInFaces = vars.pBasic->pCtx->alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
 	}
 	for (I32 i = vars.inFaceRange.start; i < vars.inFaceRange.end; ++i) {
-		if (vars.maskIdx != -1 && vars.mesh.pMatIdx &&
-		    vars.mesh.pMatIdx[i] != vars.maskIdx) {
+		if (vars.pBasic->maskIdx != -1 && vars.pBasic->pInMesh->pMatIdx &&
+		    vars.pBasic->pInMesh->pMatIdx[i] != vars.pBasic->maskIdx) {
 
 			continue;
 		}
 		//CLOCK_START;
 		FaceRange inFace = {0};
-		inFace.start = vars.mesh.core.pFaces[i];
-		inFace.end = vars.mesh.core.pFaces[i + 1];
+		inFace.start = vars.pBasic->pInMesh->core.pFaces[i];
+		inFace.end = vars.pBasic->pInMesh->core.pFaces[i + 1];
 		inFace.size = inFace.end - inFace.start;
 		inFace.idx = i;
-		vars.tbn = stucBuildFaceTbn(inFace, &vars.mesh, NULL);
+		vars.tbn = stucBuildFaceTbn(inFace, vars.pBasic->pInMesh, NULL);
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
 		if (inFace.size > 4) {
@@ -173,8 +181,7 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 		}
 		if (inFace.size <= 4) {
 			//face is a quad, or a tri
-			result = mapPerTile(&vars, &inFace, &faceCellsTable,
-			                    &dpVars, i);
+			result = mapPerTile(&vars, &inFace, &faceCellsTable, &dpVars, i);
 		}
 		else {
 			result = STUC_SUCCESS;
@@ -198,14 +205,14 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 			*/
 		}
 		if (faceTris.pCorners) {
-			vars.alloc.pFree(faceTris.pCorners);
+			vars.pBasic->pCtx->alloc.pFree(faceTris.pCorners);
 			faceTris.pCorners = NULL;
 		}
 		//CLOCK_STOP_NO_PRINT;
 		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
 		FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, vars.inFaceRange.start);
-		stucDestroyFaceCellsEntry(&vars.alloc, pFaceCellsEntry);
+		stucDestroyFaceCellsEntry(&vars.pBasic->pCtx->alloc, pFaceCellsEntry);
 		//CLOCK_STOP_NO_PRINT;
 		if (result != STUC_SUCCESS) {
 			break;
@@ -213,7 +220,7 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	}
 	bool empty = !(vars.bufMesh.mesh.core.faceCount || vars.bufMesh.borderFaceCount);
 	if (result == STUC_SUCCESS && !empty) {
-		stucBufMeshSetLastFaces(&vars.alloc, &vars.bufMesh, &dpVars);
+		stucBufMeshSetLastFaces(&vars.pBasic->pCtx->alloc, &vars.bufMesh, &dpVars);
 		pSend->reallocTime = dpVars.reallocTime;
 		pSend->bufSize = vars.bufSize;
 		pSend->rawBufSize = vars.rawBufSize;
@@ -227,8 +234,8 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 	else if (empty) {
 		result = STUC_SUCCESS;
 	}
-	destroyMappingTables(&vars.alloc, &vars.localTables);
-	stucDestroyFaceCellsTable(&vars.alloc, &faceCellsTable);
+	destroyMappingTables(&vars.pBasic->pCtx->alloc, &vars.localTables);
+	stucDestroyFaceCellsTable(&vars.pBasic->pCtx->alloc, &faceCellsTable);
 	STUC_ASSERT("", pSend->bufSize > 0 || empty);
 	//printf("Average Faces Not Skipped: %d\n", dpVars.facesNotSkipped / inFaceRangeSize);
 	//printf("Average total Faces comped: %d\n", dpVars.totalFacesComp / inFaceRangeSize);

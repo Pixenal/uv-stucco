@@ -64,33 +64,60 @@ typedef struct {
 } FaceCellsTable;
 
 typedef struct {
-	StucMap pMap;
-	StucAlloc *pAlloc;
+	const StucMap pMap;
+	const StucAlloc *pAlloc;
 	I32 *pCells;
 	I8 *pCellInits;
 	I8 *pCellFlags;
 	I8 *pCellType;
 } QuadTreeSearch;
 
-void stucInitFaceCellsTable(StucAlloc *pAlloc, FaceCellsTable *pTable,
-                            I32 faceCount);
-void stucDestroyFaceCellsTable(StucAlloc *pAlloc,
-                               FaceCellsTable *pFaceCellsTable);
-void stucDestroyFaceCellsEntry(StucAlloc *pAlloc, FaceCells *pEntry);
-void stucInitQuadTreeSearch(StucAlloc *pAlloc, StucMap pMap, QuadTreeSearch *pState);
-void stucGetCellsForSingleFace(QuadTreeSearch *pState, I32 vertCount,
-                               V2_F32 *pVerts, FaceCellsTable *pFaceCellsTable,
-                               FaceBounds *pFaceBounds, I32 faceIdx, Range faceRange);
+void stucInitFaceCellsTable(
+	const StucAlloc *pAlloc,
+	FaceCellsTable *pTable,
+	I32 faceCount
+);
+void stucDestroyFaceCellsTable(
+	const StucAlloc *pAlloc,
+	FaceCellsTable *pFaceCellsTable
+);
+void stucDestroyFaceCellsEntry(const StucAlloc *pAlloc, FaceCells *pEntry);
+void stucInitQuadTreeSearch(QuadTreeSearch *pState);
+void stucGetCellsForSingleFace(
+	QuadTreeSearch *pState,
+	I32 vertCount,
+	V2_F32 *pVerts,
+	FaceCellsTable *pFaceCellsTable,
+	FaceBounds *pFaceBounds,
+	I32 faceIdx,
+	Range faceRange
+);
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
-Result stucCreateQuadTree(StucContext pContext, StucMap pMap);
-void stucDestroyQuadTree(StucContext pContext, QuadTree *pTree);
-void stucGetEncasingCells(StucAlloc *pAlloc, StucMap pMap, Range inFaceRange,
-                          Mesh *pMeshIn, FaceCellsTable *pFaceCellsTable,
-                          I8 maskIdx, I32 *pAverageMapFacesPerFace);
-I32 stucCheckIfFaceIsInsideTile(I32 vertCount, V2_F32 *pVerts,
-                                    FaceBounds *pFaceBounds, V2_I32 tileMin);
-void stucGetFaceBoundsForTileTest(FaceBounds *pFaceBounds,
-                                  Mesh *pMesh, FaceRange *pFace);
-FaceCells *stucIdxFaceCells(FaceCellsTable *pFaceCellsTable,
-                            I32 faceIdx, I32 faceOffset);
+Result stucCreateQuadTree(StucContext pCtx, StucMap pMap);
+void stucDestroyQuadTree(StucContext pCtx, QuadTree *pTree);
+void stucGetEncasingCells(
+	const StucAlloc *pAlloc,
+	const StucMap pMap,
+	const Mesh *pInMesh,
+	I8 maskIdx,
+	Range faceRange,
+	FaceCellsTable *pFaceCellsTable,
+	I32 *pAverageMapFacesPerFace
+);
+I32 stucCheckIfFaceIsInsideTile(
+	I32 vertCount,
+	V2_F32 *pVerts,
+	FaceBounds *pFaceBounds,
+	V2_I32 tileMin
+);
+void stucGetFaceBoundsForTileTest(
+	FaceBounds *pFaceBounds,
+	const Mesh *pMesh,
+	FaceRange *pFace
+);
+FaceCells *stucIdxFaceCells(
+	FaceCellsTable *pFaceCellsTable,
+	I32 faceIdx,
+	I32 faceOffset
+);

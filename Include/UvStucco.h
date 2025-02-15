@@ -338,8 +338,13 @@ typedef struct {
 typedef struct {
 	void (*pInit)(void **, int32_t *, const StucAlloc *);
 	void (*pJobStackGetJob)(void *, void **);
-	int32_t (*pJobStackPushJobs)(void *, int32_t , void **, StucResult (*)(void *),
-	                             void **);
+	int32_t (*pJobStackPushJobs)(
+		void *,
+		int32_t,
+		void **,
+		StucResult (*)(void *),
+		void **
+	);
 	StucResult (*pWaitForJobs)(void *, int32_t, void **, bool, bool *);
 	StucResult (*pJobHandleDestroy)(void *, void **);
 	StucResult (*pGetJobErr)(void *, void *, StucResult *);
@@ -383,71 +388,131 @@ typedef struct StucStageReport {
 } StucStageReport;
 
 STUC_EXPORT
-StucResult stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
+StucResult stucThreadPoolSetCustom(
+	StucContext context,
+	const StucThreadPool *pThreadPool
+);
 STUC_EXPORT
-StucResult stucContextInit(StucContext *pContext, StucAlloc *pAlloc,
-                           StucThreadPool *pTheadPool, StucIo *pIo,
-                           StucTypeDefaultConfig *pTypeDefaultConfig,
-                           StucStageReport *pStageReport);
+StucResult stucContextInit(
+	StucContext *pCtx,
+	StucAlloc *pAlloc,
+	StucThreadPool *pTheadPool,
+	StucIo *pIo,
+	StucTypeDefaultConfig *pTypeDefaultConfig,
+	StucStageReport *pStageReport
+);
 STUC_EXPORT
-StucResult stucMapFileExport(StucContext context, char *pName,
-                             int32_t objCount, StucObject* pObjArr,
-                             int32_t usgCount, StucUsg* pUsgArr,
-                             StucAttribIndexedArr *pIndexedAttribs);
+StucResult stucMapFileExport(
+	StucContext context,
+	char *pName,
+	int32_t objCount,
+	StucObject *pObjArr,
+	int32_t usgCount,
+	StucUsg *pUsgArr,
+	StucAttribIndexedArr *pIndexedAttribs
+);
 STUC_EXPORT
-StucResult stucMapFileLoadForEdit(StucContext pContext, char *filePath,
-                                  int32_t *pObjCount, StucObject **ppObjArr,
-                                  int32_t *pUsgCount, StucUsg **ppUsgArr,
-                                  int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
-                                  StucAttribIndexedArr *pIndexedAttribs);
+StucResult stucMapFileLoadForEdit(
+	StucContext pCtx,
+	char *filePath,
+	int32_t *pObjCount,
+	StucObject **ppObjArr,
+	int32_t *pUsgCount,
+	StucUsg **ppUsgArr,
+	int32_t *pFlatCutoffCount,
+	StucObject **ppFlatCutoffArr,
+	StucAttribIndexedArr *pIndexedAttribs
+);
 STUC_EXPORT
-StucResult stucMapFileLoad(StucContext context, StucMap *pMapHandle,
-                           char *filePath);
+StucResult stucMapFileLoad(StucContext context, StucMap *pMapHandle, char *filePath);
 STUC_EXPORT
 StucResult stucMapFileUnload(StucContext context, StucMap pMap);
 STUC_EXPORT
-StucResult stucQueryCommonAttribs(StucContext pContext, StucMap pMap, StucMesh *pMesh,
-                                  StucCommonAttribList *pCommonAttribs);
+StucResult stucQueryCommonAttribs(
+	StucContext pCtx,
+	StucMap pMap,
+	StucMesh *pMesh,
+	StucCommonAttribList *pCommonAttribs
+);
 STUC_EXPORT
-StucResult stucDestroyCommonAttribs(StucContext pContext,
-                                    StucCommonAttribList *pCommonAttribs);
+StucResult stucDestroyCommonAttribs(
+	StucContext pCtx,
+	StucCommonAttribList *pCommonAttribs
+);
 STUC_EXPORT
-StucResult stucQueueMapToMesh(StucContext pContext, void **ppJobHandle, StucMapArr *pMapArr,
-                              StucMesh *pMeshIn, StucAttribIndexedArr *pInIndexedAttribs,
-                              StucMesh *pMeshOut, StucAttribIndexedArr *pOutIndexedAttribs,
-                              StucCommonAttribList *pCommonAttribList, float wScale);
+StucResult stucQueueMapToMesh(
+	StucContext pCtx,
+	void **ppJobHandle,
+	StucMapArr *pMapArr,
+	StucMesh *pMeshIn,
+	StucAttribIndexedArr *pInIndexedAttribs,
+	StucMesh *pMeshOut,
+	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucCommonAttribList *pCommonAttribList,
+	float wScale
+);
 STUC_EXPORT
-StucResult stucMapToMesh(StucContext pContext, StucMapArr *pMapArr,
-                         StucMesh *pMeshIn, StucAttribIndexedArr *pInIndexedAttribs,
-                         StucMesh *pMeshOut, StucAttribIndexedArr *pOutIndexedAttribs,
-                         StucCommonAttribList *pCommonAttribList, float wScale);
+StucResult stucMapToMesh(
+	StucContext pCtx,
+	StucMapArr *pMapArr,
+	StucMesh *pMeshIn,
+	StucAttribIndexedArr *pInIndexedAttribs,
+	StucMesh *pMeshOut,
+	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucCommonAttribList *pCommonAttribList,
+	float wScale
+);
 STUC_EXPORT
-StucResult stucObjArrDestroy(StucContext pContext,
-                             int32_t objCount, StucObject *pObjArr);
+StucResult stucObjArrDestroy(
+	StucContext pCtx,
+	int32_t objCount,
+	StucObject *pObjArr
+);
 STUC_EXPORT
-StucResult stucUsgArrDestroy(StucContext pContext,
-                                    int32_t count, StucUsg *pUsgArr);
+StucResult stucUsgArrDestroy(StucContext pCtx, int32_t count, StucUsg *pUsgArr);
 STUC_EXPORT
-StucResult stucMeshDestroy(StucContext pContext, StucMesh *pMesh);
+StucResult stucMeshDestroy(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucResult stucContextDestroy(StucContext pContext);
+StucResult stucContextDestroy(StucContext pCtx);
 STUC_EXPORT
 StucResult stucGetAttribSize(StucAttrib *pAttrib, int32_t *pSize);
 STUC_EXPORT
 StucResult stucGetAttrib(char *pName, StucAttribArray *pAttribs, StucAttrib **ppAttrib);
 STUC_EXPORT
-StucResult stucGetAttribIndexed(char *pName, StucAttribIndexedArr *pAttribs,
-                                StucAttribIndexed **ppAttrib);
+StucResult stucGetAttribIndexed(
+	char *pName,
+	StucAttribIndexedArr *pAttribs,
+	StucAttribIndexed **ppAttrib
+);
 STUC_EXPORT
-StucResult stucMapFileGenPreviewImage(StucContext pContext, StucMap pMap,  StucImage *pImage);
+StucResult stucMapFileGenPreviewImage(
+	StucContext pCtx,
+	StucMap pMap,
+	StucImage *pImage
+);
 STUC_EXPORT
-void stucMapIndexedAttribsGet(StucContext pContext, StucMap pMap,
-                              StucAttribIndexedArr *pIndexedAttribs);
+void stucMapIndexedAttribsGet(
+	StucContext pCtx,
+	StucMap pMap,
+	StucAttribIndexedArr *pIndexedAttribs
+);
 STUC_EXPORT
-StucResult stucWaitForJobs(StucContext pContext, int32_t count, void **ppHandles,
-                           bool wait, bool *pDone);
+StucResult stucWaitForJobs(
+	StucContext pCtx,
+	int32_t count,
+	void **ppHandles,
+	bool wait,
+	bool *pDone
+);
 STUC_EXPORT
-StucResult stucJobGetErrs(StucContext pContext, int32_t jobCount, void ***pppJobHandles);
+StucResult stucJobGetErrs(
+	StucContext pCtx,
+	int32_t jobCount,
+	void ***pppJobHandles
+);
 STUC_EXPORT
-StucResult stucJobDestroyHandles(StucContext pContext, int32_t jobCount,
-                             void ***pppJobHandles);
+StucResult stucJobDestroyHandles(
+	StucContext pCtx,
+	int32_t jobCount,
+	void ***pppJobHandles
+);

@@ -4,9 +4,21 @@
 
 V4_F32 v4MultiplyMat4x4(V4_F32 a, const Mat4x4 *pB) {
 	V4_F32 c = {0};
-	c.d[0] = a.d[0] * pB->d[0][0] + a.d[1] * pB->d[1][0] + a.d[2] * pB->d[2][0] + a.d[3] * pB->d[3][0];
-	c.d[1] = a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1] + a.d[3] * pB->d[3][1];
-	c.d[2] = a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2] + a.d[3] * pB->d[3][2];
+	c.d[0] = 
+		a.d[0] * pB->d[0][0] +
+		a.d[1] * pB->d[1][0] +
+		a.d[2] * pB->d[2][0] +
+		a.d[3] * pB->d[3][0];
+	c.d[1] =
+		a.d[0] * pB->d[0][1] +
+		a.d[1] * pB->d[1][1] +
+		a.d[2] * pB->d[2][1] +
+		a.d[3] * pB->d[3][1];
+	c.d[2] =
+		a.d[0] * pB->d[0][2] +
+		a.d[1] * pB->d[1][2] +
+		a.d[2] * pB->d[2][2] +
+		a.d[3] * pB->d[3][2];
 	return c;
 }
 
@@ -445,30 +457,35 @@ Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b) {
 }
 
 F32 customFloor(F32 a) {
-	I32 aTrunc = a;
+	I32 aTrunc = (I32)a;
 	aTrunc -= ((F32)aTrunc != a) && (a < .0f);
-	return aTrunc;
+	return (F32)aTrunc;
 }
 
 V2_I32 v2FloorAssign(V2_F32 *pA) {
 	V2_I32 c = {0};
-	c.d[0] = pA->d[0] = customFloor(pA->d[0]);
-	c.d[1] = pA->d[1] = customFloor(pA->d[1]);
+	pA->d[0] = customFloor((F32)pA->d[0]);
+	pA->d[1] = customFloor((F32)pA->d[1]);
+	c.d[0] = (I32)pA->d[0];
+	c.d[1] = (I32)pA->d[1];
 	return c;
 }
 
 
 V3_F32 barycentricToCartesian(const V3_F32 *pTri, const V3_F32 *pPoint) {
 	V3_F32 pointCartesian = {0};
-	pointCartesian.d[0] = (pPoint->d[0] * pTri[0].d[0]) +
-	                      (pPoint->d[1] * pTri[1].d[0]) +
-	                      (pPoint->d[2] * pTri[2].d[0]);
-	pointCartesian.d[1] = (pPoint->d[0] * pTri[0].d[1]) +
-	                      (pPoint->d[1] * pTri[1].d[1]) +
-	                      (pPoint->d[2] * pTri[2].d[1]);
-	pointCartesian.d[2] = (pPoint->d[0] * pTri[0].d[2]) +
-	                      (pPoint->d[1] * pTri[1].d[2]) +
-	                      (pPoint->d[2] * pTri[2].d[2]);
+	pointCartesian.d[0] =
+		(pPoint->d[0] * pTri[0].d[0]) +
+		(pPoint->d[1] * pTri[1].d[0]) +
+		(pPoint->d[2] * pTri[2].d[0]);
+	pointCartesian.d[1] =
+		(pPoint->d[0] * pTri[0].d[1]) +
+		(pPoint->d[1] * pTri[1].d[1]) +
+		(pPoint->d[2] * pTri[2].d[1]);
+	pointCartesian.d[2] =
+		(pPoint->d[0] * pTri[0].d[2]) +
+		(pPoint->d[1] * pTri[1].d[2]) +
+		(pPoint->d[2] * pTri[2].d[2]);
 	return pointCartesian;
 }
 

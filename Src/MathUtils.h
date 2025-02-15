@@ -5,10 +5,12 @@
 
 #define FLOAT_EQUAL_MARGIN .000002f
 
-#define STUC_IDENT_MAT4X4 {1.0, .0, .0, .0,\
-                           .0, 1.0, .0, .0,\
-                           .0, .0, 1.0, .0,\
-                           .0, .0, .0, 1.0}
+#define STUC_IDENT_MAT4X4 {\
+	1.0, .0, .0, .0,\
+	.0, 1.0, .0, .0,\
+	.0, .0, 1.0, .0,\
+	.0, .0, .0, 1.0\
+}
 
 static Stuc_M4x4_F32 identM4x4 = STUC_IDENT_MAT4X4;
 
@@ -48,9 +50,9 @@ typedef Stuc_M4x4_F32 Mat4x4;
 
 V2_I32 v2FloorAssign(V2_F32 *pA);
 
-V4_F32 v4MultiplyMat4x4(V4_F32 a, Mat4x4 *pB);
-void v4MultiplyEqualMat4x4(V4_F32 *pA, Mat4x4 *pB);
-V3_F32 divideByW(V4_F32 *pA);
+V4_F32 v4MultiplyMat4x4(V4_F32 a, const Mat4x4 *pB);
+void v4MultiplyEqualMat4x4(V4_F32 *pA, const Mat4x4 *pB);
+V3_F32 divideByW(const V4_F32 *pA);
 
 V3_F32 v3MultiplyScalar(V3_F32 a, F32 b);
 void v3DivideEqualScalar(V3_F32 *pA, F32 b);
@@ -66,8 +68,8 @@ I32 v3AproxEqual(V3_F32 a, V3_F32 b);
 V3_F32 v3Lerp(V3_F32 a, V3_F32 b, F32 alpha);
 V3_F32 v3Cross(V3_F32 a, V3_F32 b);
 V3_F32 v3UnitFromPoints(V3_F32 a, V3_F32 b);
-V3_F32 v3MultiplyMat3x3(V3_F32 a, Mat3x3 *pB);
-void v3MultiplyEqualMat3x3(V3_F32 *pA, Mat3x3 *pB);
+V3_F32 v3MultiplyMat3x3(V3_F32 a, const Mat3x3 *pB);
+void v3MultiplyEqualMat3x3(V3_F32 *pA, const Mat3x3 *pB);
 V3_F32 v3Normalize(V3_F32 a);
 F32 v3Dot(V3_F32 a, V3_F32 b);
 I32 v3IsFinite(V3_F32);
@@ -76,8 +78,8 @@ F32 v3TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
 F32 v3SquareLen(V3_F32);
 F32 v3Len(V3_F32 a);
 F32 v3TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
-V3_F32 cartesianToBarycentric(V2_F32 *pTri, V2_F32 *pPoint);
-V3_F32 barycentricToCartesian(V3_F32 *pTri, V3_F32 *pPoint);
+V3_F32 cartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
+V3_F32 barycentricToCartesian(const V3_F32 *pTri, const V3_F32 *pPoint);
 
 V2_F32 v2Abs(V2_F32 a);
 V2_F32 v2Multiply(V2_F32 a, V2_F32 b);
@@ -119,11 +121,11 @@ F32 mat2x2Determinate(Mat2x2 a);
 void mat2x2MultiplyEqualScalar(Mat2x2 *pA, F32 b);
 Mat2x2 mat2x2Invert(Mat2x2 a);
 Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b);
-I32 mat2x2IsFinite(Mat2x2 *pA);
+I32 mat2x2IsFinite(const Mat2x2 *pA);
 Mat3x3 mat3x3FromV3_F32(V3_F32 a, V3_F32 b, V3_F32 c);
-Mat3x3 Mat3x3FromMat4x4(Mat4x4 *pA);
-Mat3x3 mat3x3Invert(Mat3x3 *pA);
-I32 mat3x3IsFinite(Mat3x3 *pA);
+Mat3x3 Mat3x3FromMat4x4(const Mat4x4 *pA);
+Mat3x3 mat3x3Invert(const Mat3x3 *pA);
+I32 mat3x3IsFinite(const Mat3x3 *pA);
 
 F32 customFloor(F32 a);
 
