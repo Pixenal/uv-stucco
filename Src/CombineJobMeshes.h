@@ -138,6 +138,9 @@ typedef struct MergeSendOffArgs {
 	CombineTables *pCTables;
 	PieceArr *pPieceArrTable;
 	PieceRootsArr *pPieceRootTable;
+	void *pOrderAlloc;
+	void *pEdgeSegPairAlloc;
+	void *pSharedEdgeAlloc;
 	I32 *pTotalVertTable;
 	I32 *pCornerMergeTable;
 	I32 jobCount;

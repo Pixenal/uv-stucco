@@ -8,6 +8,7 @@
 #include <Usg.h>
 #include <Error.h>
 #include <Types.h>
+#include <Alloc.h>
 
 #define STUC_TILE_MIN_BIT_LEN 11
 
@@ -109,11 +110,18 @@ typedef struct {
 } MapToMeshBasic;
 
 typedef struct {
+	void *pSmall;
+	void *pMid;
+	void *pLarge;
+} BorderTableAlloc;
+
+typedef struct {
 	MapToMeshBasic *pBasic;
 	InFaceArr *pInFaces;
 	BufMesh bufMesh;
 	U64 reallocTime;
 	BorderTable borderTable;
+	BorderTableAlloc borderTableAlloc;
 	I32 *pActiveJobs;
 	Range inFaceRange;
 	I32 bufSize;

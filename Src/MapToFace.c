@@ -13,6 +13,7 @@
 #include <AttribUtils.h>
 #include <Utils.h>
 #include <Error.h>
+#include <Alloc.h>
 
 #define FLOAT_BC_MARGIN .0001f
 
@@ -234,12 +235,6 @@ void addIntersectionToBuf(
 }
 
 static
-CornerBufWrap *createNewCornerBuf(const StucAlloc *pAlloc) {
-	CornerBufWrap *pCornerBuf = pAlloc->pCalloc(1, sizeof(CornerBufWrap));
-	return pCornerBuf;
-}
-
-static
 void initPendingMerge(const StucAlloc *pAlloc, CornerBufWrap *pIsland) {
 	pIsland->mergeSize = 3;
 	pIsland->pPendingMerge = pAlloc->pCalloc(pIsland->mergeSize, sizeof(void *));
@@ -336,13 +331,14 @@ void mergeIslands(CornerBufWrap *pIsland, IslandIdxPair *pIntersectCache) {
 
 static
 void setIsland(
-	const StucAlloc *pAlloc,
+	const MappingJobVars *pVars,
 	CornerBufWrap **ppIsland,
 	CornerBufWrap *pRoot,
 	bool *pIn,
 	I32 inCorner,
 	bool mapFaceWindDir
 ) {
+	const StucAlloc *pAlloc = &pVars->pBasic->pCtx->alloc;
 	if (!*pIn) {
 		if (!*ppIsland) {
 			*ppIsland = pRoot;
@@ -351,7 +347,9 @@ void setIsland(
 			while ((*ppIsland)->pNext) {
 				*ppIsland = (*ppIsland)->pNext;
 			}
-			*ppIsland = (*ppIsland)->pNext = createNewCornerBuf(pAlloc);
+			stucLinAlloc(pVars->pCornerBufWrapAlloc, &(*ppIsland)->pNext, 1);
+			*ppIsland = (*ppIsland)->pNext;
+			STUC_ASSERT("", (*ppIsland)->edgeFace == 0 && (*ppIsland)->invalid == 0);
 			(*ppIsland)->lastInCorner = inCorner;
 			(*ppIsland)->lastInCorner += mapFaceWindDir ? 1 : -1;
 		}
@@ -438,7 +436,7 @@ void clipMapFaceAgainstCorner(
 		if (pInsideBuf[i]) {
 			//point is inside, or on the line
 			setIsland(
-				&pVars->pBasic->pCtx->alloc,
+				pVars,
 				&pIsland,
 				pNewCornerBuf,
 				&in,
@@ -469,7 +467,7 @@ void clipMapFaceAgainstCorner(
 			//fact that insideBuf can be negative if the point is on the line.
 			//The != converts the value to absolute, thus ignoring this.
 			setIsland(
-				&pVars->pBasic->pCtx->alloc,
+				pVars,
 				&pIsland,
 				pNewCornerBuf,
 				&in,
@@ -1158,7 +1156,8 @@ void addEdge(
 			break;
 		}
 		if (!pEntry->pNext) {
-			pEntry = pEntry->pNext = pAlloc->pCalloc(1, sizeof(LocalEdge));
+			stucLinAlloc(pVars->localTables.pEdgeTableAlloc, &pEntry->pNext, 1);
+			pEntry = pEntry->pNext;
 			initEdgeTableEntry(
 				pVars,
 				pEntry,
@@ -1189,8 +1188,13 @@ void addNewCornerAndOrVert(
 	FaceRange *pMapFace
 ) {
 		bool realloced = false;
-		BufMeshIdx vert =
-			stucBufMeshAddVert(&pVars->pBasic->pCtx->alloc, pBufMesh, true, pVars->pDpVars, &realloced);
+		BufMeshIdx vert = stucBufMeshAddVert(
+			&pVars->pBasic->pCtx->alloc,
+			pBufMesh,
+			true,
+			pVars->pDpVars,
+			&realloced
+		);
 		pAcfVars->vert = vert.idx;
 		pBufMesh->mesh.pVerts[vert.realIdx] = pCornerBuf[cornerBufIdx].corner;
 		//TODO temporarily setting mesh data idx to 0, as it's only needed if interpolation is disabled
@@ -1304,7 +1308,8 @@ void addStucCornerAndOrVert(
 			break;
 		}
 		if (!pEntry->pNext) {
-			pEntry = pEntry->pNext = pAlloc->pCalloc(1, sizeof(LocalVert));
+			stucLinAlloc(pVars->localTables.pVertTableAlloc, &pEntry->pNext, 1);
+			pEntry = pEntry->pNext;
 			initMapVertTableEntry(
 				pVars,
 				cornerBufIdx,
@@ -1412,15 +1417,15 @@ void walkBorderTable(
 	Segments *pSegments,
 	BorderBucket *pBucket,
 	BorderFace *pEntry,
-	I32 memType,
-	I32 allocSize
+	I32 memType
 ) {
 	do {
 		if (pEntry->mapFace == pMapFace->idx) {
 			if (pBucket->pTail) {
 				pEntry = pBucket->pTail;
 			}
-			pEntry = pEntry->pNext = pVars->pBasic->pCtx->alloc.pCalloc(1, allocSize);
+			stucAllocBorderFace(memType, &pVars->borderTableAlloc, &pEntry->pNext);
+			pEntry = pEntry->pNext;
 			pBucket->pTail = pEntry;
 			initBorderTableEntry(
 				pVars,
@@ -1439,7 +1444,8 @@ void walkBorderTable(
 		}
 		if (!pBucket->pNext) {
 			pBucket = pBucket->pNext = pVars->pBasic->pCtx->alloc.pCalloc(1, sizeof(BorderBucket));
-			pEntry = pBucket->pEntry = pVars->pBasic->pCtx->alloc.pCalloc(1, allocSize);
+			stucAllocBorderFace(memType, &pVars->borderTableAlloc, &pBucket->pEntry);
+			pEntry = pBucket->pEntry;
 			initBorderTableEntry(
 				pVars,
 				pAcfVars,
@@ -1474,12 +1480,12 @@ void addFaceToBorderTable(
 ) {
 	I32 memType = stucGetBorderFaceMemType(pMapFace->size, pCornerBuf->size);
 	I32 allocSize = stucGetBorderFaceSize(memType);
-	I32 hash =
-		stucFnvHash((U8 *)&pMapFace->idx, 4, pVars->borderTable.size);
+	I32 hash = stucFnvHash((U8 *)&pMapFace->idx, 4, pVars->borderTable.size);
 	BorderBucket *pBucket = pVars->borderTable.pTable + hash;
 	BorderFace *pEntry = pBucket->pEntry;
 	if (!pEntry) {
-		pEntry = pBucket->pEntry = pVars->pBasic->pCtx->alloc.pCalloc(1, allocSize);
+		stucAllocBorderFace(memType, &pVars->borderTableAlloc, &pBucket->pEntry);
+		pEntry = pBucket->pEntry;
 		initBorderTableEntry(
 			pVars,
 			pAcfVars,
@@ -1507,8 +1513,7 @@ void addFaceToBorderTable(
 			pSegments,
 			pBucket,
 			pEntry,
-			memType,
-			allocSize
+			memType
 		);
 	}
 }
@@ -1859,7 +1864,7 @@ void addOrDiscardClippedFaces(
 		}
 		CornerBufWrap *pNextBuf = pCornerBufPtr->pNext;
 		if (depth) {
-			pVars->pBasic->pCtx->alloc.pFree(pCornerBufPtr);
+			//pVars->pBasic->pCtx->alloc.pFree(pCornerBufPtr);
 		}
 		pCornerBufPtr = pNextBuf;
 		depth++;
@@ -1969,6 +1974,7 @@ Result stucMapToSingleFace(
 				inFaceWind,
 				mapFaceWind
 			);
+			stucLinAllocClear(pVars->pCornerBufWrapAlloc, true);
 		}
 	}
 	pVars->pBasic->pCtx->alloc.pFree(ancestors.pArr);

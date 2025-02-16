@@ -379,15 +379,12 @@ static
 void destroyEntries(StucContext pCtx, Piece *pPiece) {
 	do {
 		if (pPiece->pEntry) {
-			pCtx->alloc.pFree(pPiece->pEntry);
 			pPiece->pEntry = NULL;
 		}
 		if (pPiece->pOrder) {
-			pCtx->alloc.pFree(pPiece->pOrder);
 			pPiece->pOrder = NULL;
 		}
 		if (pPiece->pEdges) {
-			pCtx->alloc.pFree(pPiece->pEdges);
 			pPiece->pEdges = NULL;
 		}
 		pPiece = pPiece->pNext;

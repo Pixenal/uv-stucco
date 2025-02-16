@@ -15,6 +15,7 @@
 #include <AttribUtils.h>
 #include <ThreadPool.h>
 #include <Error.h>
+#include <Alloc.h>
 #include <DebugDump.h>
 
 typedef struct SharedEdge {
@@ -140,8 +141,8 @@ void addToTable(
 	SharedEdgeWrap *pEdgeEntryWrap = pSharedEdges + hash;
 	SharedEdge *pEdgeEntry = pEdgeEntryWrap->pEntry;
 	if (!pEdgeEntry) {
-		pEdgeEntry = pEdgeEntryWrap->pEntry =
-			pArgs->pBasic->pCtx->alloc.pCalloc(1, sizeof(SharedEdge));
+		stucLinAlloc(pArgs->pSharedEdgeAlloc, &pEdgeEntryWrap->pEntry, 1);
+		pEdgeEntry = pEdgeEntryWrap->pEntry;
 		pEdgeEntry->pLast = pEdgeEntryWrap;
 		initSharedEdgeEntry(
 			pEdgeEntry,
@@ -185,8 +186,7 @@ void addToTable(
 			break;
 		}
 		if (!pEdgeEntry->pNext) {
-			pEdgeEntry->pNext =
-				pArgs->pBasic->pCtx->alloc.pCalloc(1, sizeof(SharedEdge));
+			stucLinAlloc(pArgs->pSharedEdgeAlloc, &pEdgeEntry->pNext, 1);
 			pEdgeEntry->pNext->pLast = pEdgeEntry;
 			pEdgeEntry = pEdgeEntry->pNext;
 			initSharedEdgeEntry(
@@ -226,8 +226,8 @@ void addEntryToSharedEdgeTable(
 	pPiece->bufFace = face;
 	pPiece->pEntry = pEntry;
 	pPiece->entryIdx = entryIdx;
-	pPiece->pOrder = pAlloc->pCalloc(face.size, 1);
-	pPiece->pEdges = pAlloc->pCalloc(face.size, sizeof(EdgeSegmentPair));
+	stucLinAlloc(pArgs->pOrderAlloc, &pPiece->pOrder, face.size);
+	stucLinAlloc(pArgs->pEdgeSegPairAlloc, &pPiece->pEdges, face.size);
 	pPiece->tile = stucGetTileMinFromBoundsEntry(pEntry);
 	for (I32 i = 0; i < face.size; ++i) {
 		STUC_ASSERT("", pTotalVerts && *pTotalVerts >= 0 && *pTotalVerts < 10000);
@@ -1323,24 +1323,6 @@ void compileEntryInfo(BorderFace *pEntry, I32 *pCount) {
 }
 
 static
-void destroySharedEdgeTable(
-	const StucAlloc *pAlloc,
-	SharedEdgeWrap *pSharedEdges,
-	I32 tableSize
-) {
-	for (I32 i = 0; i < tableSize; ++i) {
-		SharedEdge* pEdgeEntry = pSharedEdges[i].pEntry;
-		while (pEdgeEntry) {
-			SharedEdge* pNext = pEdgeEntry->pNext;
-			pAlloc->pFree(pEdgeEntry);
-			pEdgeEntry = pNext;
-		}
-		STUC_ASSERT("", i < tableSize);
-	}
-	pAlloc->pFree(pSharedEdges);
-}
-
-static
 void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece* pPiece, I32 k) {
 	bool keepInVert = false;
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pPiece->pEntry, k);
@@ -2184,6 +2166,30 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 	pArgs->pPieceRootTable = pAlloc->pCalloc(count, sizeof(PieceRootsArr));
 	pArgs->pTotalVertTable = pAlloc->pCalloc(count, sizeof(I32));
 	pArgs->pInVertKeep = pAlloc->pCalloc(pArgs->pBasic->pInMesh->core.vertCount, 1);
+	{
+		I32 sizeEstimate = count * 4;
+		stucLinAllocInit(
+			&pCtx->alloc,
+			&pArgs->pOrderAlloc,
+			1,
+			sizeEstimate
+		);
+		stucLinAllocInit(
+			&pCtx->alloc,
+			&pArgs->pEdgeSegPairAlloc,
+			sizeof(EdgeSegmentPair),
+			sizeEstimate
+		);
+	}
+	{
+		I32 sizeEstimate = count / 8 + 1;
+		stucLinAllocInit(
+			&pCtx->alloc,
+			&pArgs->pSharedEdgeAlloc,
+			sizeof(SharedEdge),
+			sizeEstimate
+		);
+	}
 	for (I32 i = 0; i < count; ++i) {
 		I32 reali = pArgs->entriesStart + i;
 		CLOCK_START;
@@ -2247,12 +2253,12 @@ void createAndJoinPieces(MergeSendOffArgs *pArgs) {
 			}
 		}
 		if (pSharedEdges) {
-			destroySharedEdgeTable(
-				&pArgs->pBasic->pCtx->alloc,
-				pSharedEdges,
-				edgeTableSize
-			);
+			pArgs->pBasic->pCtx->alloc.pFree(pSharedEdges);
 		}
+	}
+	if (pArgs->pSharedEdgeAlloc) {
+		stucLinAllocDestroy(pArgs->pSharedEdgeAlloc);
+		pArgs->pSharedEdgeAlloc = NULL;
 	}
 	CLOCK_STOP_NO_PRINT;
 	timeSpent[1] += CLOCK_TIME_DIFF(start, stop);
@@ -2281,6 +2287,14 @@ StucResult mergeAndAddToOutMesh(
 	for (I32 i = 0; i < jobCount; ++i) {
 		addToOutMesh(pArgArr + i);
 		pCtx->alloc.pFree(pArgArr[i].pInVertKeep);
+		if (pArgArr[i].pOrderAlloc) {
+			stucLinAllocDestroy(pArgArr[i].pOrderAlloc);
+			pArgArr[i].pOrderAlloc = NULL;
+		}
+		if (pArgArr[i].pEdgeSegPairAlloc) {
+			stucLinAllocDestroy(pArgArr[i].pEdgeSegPairAlloc);
+			pArgArr[i].pEdgeSegPairAlloc = NULL;
+		}
 	}
 	return err;
 }

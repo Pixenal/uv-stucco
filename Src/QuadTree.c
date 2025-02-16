@@ -70,7 +70,7 @@ void addCellToEncasingCells(
 
 static
 I32 findFaceQuadrantUv(
-	const StucAlloc *pAlloc,
+	void *pV2_32_Alloc,
 	I32 vertCount,
 	V2_F32 *pVerts,
 	V2_F32 midPoint,
@@ -78,27 +78,26 @@ I32 findFaceQuadrantUv(
 	V2_I32 *signs
 ) {
 	commonSides->d[0] = commonSides->d[1] = 1;
-	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * vertCount);
+	STUC_ASSERT("", vertCount <= 4);
+	V2_I32 sides[4] = {0};
 	for (I32 i = 0; i < vertCount; ++i) {
 		STUC_ASSERT("", v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
-		pSides[i].d[0] = pVerts[i].d[0] >= midPoint.d[0];
-		pSides[i].d[1] = pVerts[i].d[1] < midPoint.d[1];
+		sides[i].d[0] = pVerts[i].d[0] >= midPoint.d[0];
+		sides[i].d[1] = pVerts[i].d[1] < midPoint.d[1];
 		for (I32 j = 0; j < i; ++j) {
-			commonSides->d[0] *= pSides[i].d[0] == pSides[j].d[0];
-			commonSides->d[1] *= pSides[i].d[1] == pSides[j].d[1];
+			commonSides->d[0] *= sides[i].d[0] == sides[j].d[0];
+			commonSides->d[1] *= sides[i].d[1] == sides[j].d[1];
 		}
 	}
 	STUC_ASSERT("", commonSides->d[0] % 2 == commonSides->d[0]);
 	STUC_ASSERT("", commonSides->d[1] % 2 == commonSides->d[1]);
 	if (!commonSides->d[0] && !commonSides->d[1]) {
-		pAlloc->pFree(pSides);
 		return 0;
 	}
-	STUC_ASSERT("", pSides->d[0] % 2 == pSides->d[0]);
-	STUC_ASSERT("", pSides->d[1] % 2 == pSides->d[1]);
-	signs->d[0] = pSides[0].d[0];
-	signs->d[1] = pSides[0].d[1];
-	pAlloc->pFree(pSides);
+	STUC_ASSERT("", sides->d[0] % 2 == sides->d[0]);
+	STUC_ASSERT("", sides->d[1] % 2 == sides->d[1]);
+	signs->d[0] = sides[0].d[0];
+	signs->d[1] = sides[0].d[1];
 	if (commonSides->d[0] && commonSides->d[1]) {
 		return 1;
 	}
@@ -549,12 +548,18 @@ void stucDestroyFaceCellsTable(
 }
 
 void stucDestroyFaceCellsEntry(const StucAlloc *pAlloc, FaceCells *pEntry) {
-	pAlloc->pFree(pEntry->pCells);
-	pAlloc->pFree(pEntry->pCellType);
+	if (pEntry->pCells) {
+		pAlloc->pFree(pEntry->pCells);
+	}
+	if (pEntry->pCellType) {
+		pAlloc->pFree(pEntry->pCellType);
+	}
 	//TODO segfault when mapping a single quad larger than the 0-1 uv tile
 	//i've not really tested the code thats supposed to handle this case,
 	//so no surprise it crashes
-	pAlloc->pFree(pEntry->pRanges);
+	if (pEntry->pRanges) {
+		pAlloc->pFree(pEntry->pRanges);
+	}
 }
 
 void stucInitQuadTreeSearch(QuadTreeSearch *pState) {
@@ -1129,6 +1134,9 @@ void stucGetEncasingCells(
 			continue;
 		}
 		FaceRange faceInfo = stucGetFaceRange(&pInMesh->core, i, false);
+		if (faceInfo.size > 4) {
+			continue;
+		}
 		FaceBounds faceBounds = {0};
 		stucGetFaceBoundsForTileTest(&faceBounds, pInMesh, &faceInfo);
 		V2_F32 *pVertBuf = pAlloc->pMalloc(sizeof(V2_F32) * faceInfo.size);

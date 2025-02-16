@@ -6,12 +6,13 @@
 
 typedef StucResult Result;
 
-//TODO implement STUC_ERROR() if not debug build
 #define STUC_ASSERT(message, condition) \
 	if (!(condition)) \
 	printf("STUC ASSERT in %s, MESSAGE: %s\n", __func__, message); \
 	assert(condition);
 
+//TODO add ifdef for putting assert inside STUC_THROW macros for debug builds,
+// or if specified with a define
 #define STUC_THROW_IF(err, condition, message, idx) \
 	{\
 		bool isError = err != STUC_SUCCESS;\

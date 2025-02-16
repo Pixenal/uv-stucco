@@ -9,6 +9,7 @@
 #include <AttribUtils.h>
 #include <Utils.h>
 #include <Error.h>
+#include <Alloc.h>
 
 static
 void allocBufMesh(MappingJobVars *pVars, I32 cornerBufSize) {
@@ -46,17 +47,53 @@ void allocBufMeshAndTables(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTabl
 	pVars->cornerBufSize = cornerBufSize;
 	pVars->borderTable.pTable =
 		pAlloc->pCalloc(pVars->borderTable.size, sizeof(BorderBucket));
+	{
+		I32 initSize = pVars->borderTable.size / 16 + 1;
+		stucLinAllocInit(
+			pAlloc,
+			&pVars->borderTableAlloc.pSmall,
+			sizeof(BorderFaceSmall),
+			initSize
+		);
+		stucLinAllocInit(
+			pAlloc,
+			&pVars->borderTableAlloc.pMid,
+			sizeof(BorderFaceMid),
+			initSize
+		);
+		stucLinAllocInit(
+			pAlloc,
+			&pVars->borderTableAlloc.pLarge,
+			sizeof(BorderFaceLarge),
+			initSize
+		);
+	}
 	allocBufMesh(pVars, cornerBufSize);
 	//pVars->pInVertTable = pAlloc->pCalloc(pVars->mesh.vertCount, 1);
 	//TODO: maybe reduce further if unifaces if low,
 	//as a larger buf seems more necessary at higher face counts.
 	//Doesn't provie much speed up at lower resolutions.
-	pVars->localTables.vertTableSize = pFaceCellsTable->uniqueFaces / 10;
-	pVars->localTables.edgeTableSize = pFaceCellsTable->uniqueFaces / 7;
-	pVars->localTables.pVertTable =
-		pAlloc->pCalloc(pVars->localTables.vertTableSize, sizeof(LocalVert));
-	pVars->localTables.pEdgeTable =
-		pAlloc->pCalloc(pVars->localTables.edgeTableSize, sizeof(LocalEdge));
+	LocalTables *pLocalTables = &pVars->localTables;
+	pLocalTables->vertTableSize = pFaceCellsTable->uniqueFaces / 4 + 1;
+	pLocalTables->edgeTableSize = pFaceCellsTable->uniqueFaces / 3 + 1;
+	pLocalTables->pVertTable =
+		pAlloc->pCalloc(pLocalTables->vertTableSize, sizeof(LocalVert));
+	pLocalTables->pEdgeTable =
+		pAlloc->pCalloc(pLocalTables->edgeTableSize, sizeof(LocalEdge));
+	stucLinAllocInit(pAlloc,
+		&pLocalTables->pVertTableAlloc,
+		sizeof(LocalVert),
+		pLocalTables->vertTableSize / 8 + 1
+	);
+#ifndef STUC_DISABLE_EDGES_IN_BUF
+	stucLinAllocInit(pAlloc,
+		&pLocalTables->pEdgeTableAlloc,
+		sizeof(LocalEdge),
+		pLocalTables->edgeTableSize / 8 + 1
+	);
+#endif
+
+	stucLinAllocInit(pAlloc, &pVars->pCornerBufWrapAlloc, sizeof(CornerBufWrap), 1);
 }
 
 static
@@ -93,32 +130,18 @@ Result mapPerTile(
 
 static
 void destroyMappingTables(const StucAlloc *pAlloc, LocalTables *pLocalTables) {
-	for (I32 i = 0; i < pLocalTables->vertTableSize; ++i) {
-		LocalVert *pEntry = pLocalTables->pVertTable + i;
-		if (!pEntry->cornerSize) {
-			continue;
-		}
-		pEntry = pEntry->pNext;
-		while (pEntry) {
-			LocalVert *pNextEntry = pEntry->pNext;
-			pAlloc->pFree(pEntry);
-			pEntry = pNextEntry;
-		};
+	if (pLocalTables->pVertTableAlloc) {
+		stucLinAllocDestroy(pLocalTables->pVertTableAlloc);
 	}
-	for (I32 i = 0; i < pLocalTables->edgeTableSize; ++i) {
-		LocalEdge *pEntry = pLocalTables->pEdgeTable + i;
-		if (!pEntry->cornerCount) {
-			continue;
-		}
-		pEntry = pEntry->pNext;
-		while (pEntry) {
-			LocalEdge *pNextEntry = pEntry->pNext;
-			pAlloc->pFree(pEntry);
-			pEntry = pNextEntry;
-		};
+	if (pLocalTables->pEdgeTableAlloc) {
+		stucLinAllocDestroy(pLocalTables->pEdgeTableAlloc);
 	}
-	pAlloc->pFree(pLocalTables->pVertTable);
-	pAlloc->pFree(pLocalTables->pEdgeTable);
+	if (pLocalTables->pVertTable) {
+		pAlloc->pFree(pLocalTables->pVertTable);
+	}
+	if (pLocalTables->pEdgeTable) {
+		pAlloc->pFree(pLocalTables->pEdgeTable);
+	}
 }
 
 StucResult stucMapToJobMesh(void *pVarsPtr) {
@@ -173,6 +196,7 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 		vars.tbn = stucBuildFaceTbn(inFace, vars.pBasic->pInMesh, NULL);
 		//vars.tbnInv = mat3x3Invert(&vars.tbn);
 		FaceTriangulated faceTris = {0};
+		bool skipped = false;
 		if (inFace.size > 4) {
 			//TODO reimplement at some point
 			// disabled cause current triangulation method is bad
@@ -184,6 +208,7 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 			result = mapPerTile(&vars, &inFace, &faceCellsTable, &dpVars, i);
 		}
 		else {
+			skipped = true;
 			result = STUC_SUCCESS;
 			//face is an ngon. ngons are processed per tri
 			//TODO re-enable when triangulation method is improved.
@@ -211,8 +236,10 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 		//CLOCK_STOP_NO_PRINT;
 		//mappingTime += CLOCK_TIME_DIFF(start, stop);
 		//CLOCK_START;
-		FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, vars.inFaceRange.start);
-		stucDestroyFaceCellsEntry(&vars.pBasic->pCtx->alloc, pFaceCellsEntry);
+		if (!skipped) {
+			FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, vars.inFaceRange.start);
+			stucDestroyFaceCellsEntry(&vars.pBasic->pCtx->alloc, pFaceCellsEntry);
+		}
 		//CLOCK_STOP_NO_PRINT;
 		if (result != STUC_SUCCESS) {
 			break;
@@ -230,10 +257,12 @@ StucResult stucMapToJobMesh(void *pVarsPtr) {
 		pSend->borderTable.pTable = vars.borderTable.pTable;
 		pSend->bufMesh = vars.bufMesh;
 		pSend->pInFaces = vars.pInFaces;
+		pSend->borderTableAlloc = vars.borderTableAlloc;
 	}
 	else if (empty) {
 		result = STUC_SUCCESS;
 	}
+	stucLinAllocDestroy(vars.pCornerBufWrapAlloc);
 	destroyMappingTables(&vars.pBasic->pCtx->alloc, &vars.localTables);
 	stucDestroyFaceCellsTable(&vars.pBasic->pCtx->alloc, &faceCellsTable);
 	STUC_ASSERT("", pSend->bufSize > 0 || empty);

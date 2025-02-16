@@ -66,6 +66,8 @@ typedef struct LocalEdge  {
 typedef struct {
 	LocalVert *pVertTable;
 	LocalEdge *pEdgeTable;
+	void *pVertTableAlloc;
+	void *pEdgeTableAlloc;
 	U32 vertTableSize;
 	I32 edgeTableSize;
 } LocalTables;
@@ -80,6 +82,8 @@ typedef struct {
 	Mat3x3 tbn;
 	Mat3x3 tbnInv;
 	BorderTable borderTable;
+	BorderTableAlloc borderTableAlloc;
+	void *pCornerBufWrapAlloc;
 	Range inFaceRange;
 	I32 id;
 	I32 bufSize;
