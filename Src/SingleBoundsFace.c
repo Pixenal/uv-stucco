@@ -10,7 +10,6 @@
 #include <MapFile.h>
 #include <Mesh.h>
 #include <Context.h>
-#include <Clock.h>
 #include <MathUtils.h>
 #include <Utils.h>
 #include <AttribUtils.h>
@@ -83,7 +82,6 @@ void buildApproximateTbnInverse(Vars *pVars) {
 	do {
 		BorderFace *pEntry = pPiece->pEntry;
 		BufMesh* pBufMesh = &pVars->pArgs->pJobArgs[pEntry->job].bufMesh;
-		FaceRange face = pPiece->bufFace;
 		Mesh *pMesh = &pBufMesh->mesh;
 		STUC_ASSERT("", face.size >= 3);
 		V3_F32 vertA = pMesh->pVerts[stucBufMeshGetVertIdx(pPiece, pBufMesh, 0)];
@@ -254,17 +252,13 @@ void addMapCorner(Vars *pVars,
 	}
 	*pEdge += pArgs->pJobBases[pEntry->job].edgeBase;
 				
-	//CLOCK_START;
 	pVars->mapCornerBuf.pBuf[pVars->mapCornerBuf.count] = mapCorner;
 	pVars->mapCornerBuf.count++;
-	//CLOCK_STOP_NO_PRINT;
-	//pTimeSpent[5] += CLOCK_TIME_DIFF(start, stop);
 }
 
 static
-bool addCornersToBufAndVertsToMesh(Vars *pVars) {
+void addCornersToBufAndVertsToMesh(Vars *pVars) {
 	MergeSendOffArgs *pArgs = pVars->pArgs;
-	//CLOCK_INIT;
 	//pieces should be called sub pieces here
 	Piece *pPiece = pVars->pPieceRoot;
 	do {
@@ -273,7 +267,6 @@ bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 		BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
 		FaceRange face = pPiece->bufFace;
 		for (I32 k = 0; k < face.size; ++k) {
-			//CLOCK_START;
 			if (!(pPiece->add >> k & 0x01)) {
 				continue;
 			}
@@ -303,9 +296,6 @@ bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 			pCornerBuf->pBuf[pCornerBuf->count].corner = vert;
 			pCornerBuf->pBuf[pCornerBuf->count].edge = edge;
 			pCornerBuf->pBuf[pCornerBuf->count].uv = pBufMesh->mesh.pUvs[face.start - k];
-			//CLOCK_START;
-			//CLOCK_STOP_NO_PRINT;
-			//pTimeSpent[6] += CLOCK_TIME_DIFF(start, stop);
 			pVars->cornerBuf.count++;
 			STUC_ASSERT("", pCornerBuf->count <= pVars->bufSize);
 			pVars->infoBufSize++;
@@ -313,7 +303,6 @@ bool addCornersToBufAndVertsToMesh(Vars *pVars) {
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
-	return false;
 }
 
 static
@@ -393,7 +382,6 @@ void destroyEntries(StucContext pCtx, Piece *pPiece) {
 
 void stucMergeSingleBorderFace(
 	MergeSendOffArgs *pArgs,
-	U64 *pTimeSpent,
 	I32 entryIdx,
 	PieceArr *pPieceArr,
 	FaceRange *pMapFace,
@@ -402,8 +390,6 @@ void stucMergeSingleBorderFace(
 	I32 entryCount
 ) {
 	StucContext pCtx = pArgs->pBasic->pCtx;
-	CLOCK_INIT
-	CLOCK_START;
 	Vars vars = {0};
 	vars.pArgs = pArgs;
 	vars.pPieceArr = pPieceArr;
@@ -422,18 +408,11 @@ void stucMergeSingleBorderFace(
 		return;
 	}
 	vars.mapFace = *pMapFace;
-	CLOCK_STOP_NO_PRINT;
-	pTimeSpent[2] += CLOCK_TIME_DIFF(start, stop);
-	CLOCK_START;
-	if (addCornersToBufAndVertsToMesh(&vars)) {
-		return;
-	}
+	addCornersToBufAndVertsToMesh(&vars);
+
 	if (vars.cornerBuf.count <= 2) {
 		return;
 	}
-	CLOCK_STOP_NO_PRINT;
-	pTimeSpent[4] += CLOCK_TIME_DIFF(start, stop);
-	CLOCK_START;
 	if (vars.pPieceRoot->triangulate) {
 		FaceRange tempFace = {0};
 		tempFace.end = tempFace.size = vars.cornerBuf.count;
@@ -467,6 +446,4 @@ void stucMergeSingleBorderFace(
 		pCtx->alloc.pFree(pIndices);
 	}
 	destroyEntries(pCtx, vars.pPieceRoot);
-	CLOCK_STOP_NO_PRINT;
-	pTimeSpent[5] += CLOCK_TIME_DIFF(start, stop);
 }

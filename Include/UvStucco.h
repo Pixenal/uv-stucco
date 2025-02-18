@@ -338,7 +338,7 @@ typedef struct {
 typedef struct {
 	void (*pInit)(void **, int32_t *, const StucAlloc *);
 	void (*pJobStackGetJob)(void *, void **);
-	int32_t (*pJobStackPushJobs)(
+	StucResult (*pJobStackPushJobs)(
 		void *,
 		int32_t,
 		void **,
@@ -511,8 +511,8 @@ StucResult stucJobGetErrs(
 	void ***pppJobHandles
 );
 STUC_EXPORT
-StucResult stucJobDestroyHandles(
+void stucJobDestroyHandles(
 	StucContext pCtx,
 	int32_t jobCount,
-	void ***pppJobHandles
+	void **ppJobHandles
 );

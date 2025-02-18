@@ -56,20 +56,20 @@ StucResult stucSampleInAttribsAtUsgOrigins(
 	StucMesh *pSquares,
 	InFaceArr *pInFaceTable
 );
-bool stucSampleUsg(
+UsgInFace *stucGetUsgForCorner(
 	I32 stucCorner,
+	StucMap pMap,
+	FaceRange *pMapFace,
+	I32 inFace,
+	bool *pAboveCutoff
+);
+void stucUsgVertTransform(
+	UsgInFace *pEntry,
 	V3_F32 uvw,
 	V3_F32 *pPos,
-	bool *pTransformed,
-	V3_F32 *pUsgBc,
-	FaceRange *pMapFace,
-	StucMap pMap,
-	I32 inFace,
 	const Mesh *pInMesh,
-	V3_F32 *pNormal,
 	V2_F32 tileMin,
-	bool useFlatCutoff,
-	bool flatCutoffOveride,
 	Mat3x3 *pTbn
 );
+void stucUsgVertSetNormal(UsgInFace *pEntry, V3_F32 *pNormal);
 bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh);

@@ -30,7 +30,6 @@ typedef struct CornerBuf {
 	U8 isBaseCorner : 1;
 	U8 preserve : 1;
 	U8 isStuc : 1;
-	bool transformed;
 } CornerBuf;
 
 typedef struct CornerBufWrap {

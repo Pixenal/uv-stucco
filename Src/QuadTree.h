@@ -72,18 +72,14 @@ typedef struct {
 	I8 *pCellType;
 } QuadTreeSearch;
 
-void stucInitFaceCellsTable(
-	const StucAlloc *pAlloc,
-	FaceCellsTable *pTable,
-	I32 faceCount
-);
 void stucDestroyFaceCellsTable(
 	const StucAlloc *pAlloc,
-	FaceCellsTable *pFaceCellsTable
+	FaceCellsTable *pFaceCellsTable,
+	Range faceRange
 );
 void stucDestroyFaceCellsEntry(const StucAlloc *pAlloc, FaceCells *pEntry);
 void stucInitQuadTreeSearch(QuadTreeSearch *pState);
-void stucGetCellsForSingleFace(
+Result stucGetCellsForSingleFace(
 	QuadTreeSearch *pState,
 	I32 vertCount,
 	V2_F32 *pVerts,
@@ -96,7 +92,7 @@ void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
 Result stucCreateQuadTree(StucContext pCtx, StucMap pMap);
 void stucDestroyQuadTree(StucContext pCtx, QuadTree *pTree);
-void stucGetEncasingCells(
+Result stucGetEncasingCells(
 	const StucAlloc *pAlloc,
 	const StucMap pMap,
 	const Mesh *pInMesh,

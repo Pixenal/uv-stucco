@@ -35,8 +35,6 @@ Result stucCombineJobMeshes(
 	//TODO fix this naming inconsistancy. fix with in-mesh as well
 	Mesh *pMeshOut = &pBasic->outMesh;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	//struct timeval start, stop;
-	//CLOCK_START;
 	//TODO figure out how to handle edges in local meshes,
 	//probably just add internal edges to local mesh,
 	//and figure out edges in border faces after jobs are finished?
@@ -70,23 +68,26 @@ Result stucCombineJobMeshes(
 		}
 	}
 	stucAllocAttribsFromMeshArr(pAlloc, pMeshOut, 1, &src, false);
-	stucSetSpecialAttribs(pBasic->pCtx, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
-	JobBases *pJobBases = pAlloc->pMalloc(sizeof(JobBases) * mapJobsSent);
+	err = stucSetSpecialAttribs(pBasic->pCtx, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
+	JobBases *pJobBases = NULL;
+	STUC_THROW_IFNOT(err, "", 0);
+	pJobBases = pAlloc->pMalloc(sizeof(JobBases) * mapJobsSent);
 	U64 reallocTime = 0;
 	for (I32 i = 0; i < mapJobsSent; ++i) {
 		reallocTime += pJobArgs[i].reallocTime;
 #ifdef WIN32
-		printf("realloc time %llu\n", pJobArgs[i].reallocTime);
+		//printf("realloc time %llu\n", pJobArgs[i].reallocTime);
 #else
-		printf("realloc time %lu\n", pJobArgs[i].reallocTime);
+		//printf("realloc time %lu\n", pJobArgs[i].reallocTime);
 #endif
-		printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
-		printf("bufSize: %d | ", pJobArgs[i].bufSize);
-		printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
+		//printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
+		//printf("bufSize: %d | ", pJobArgs[i].bufSize);
+		//printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
 		if (pJobArgs[i].bufSize) { //don't copy if mesh is empty
 			pJobBases[i].vertBase = pMeshOut->core.vertCount;
 			pJobBases[i].edgeBase = pMeshOut->core.edgeCount;
-			stucCopyMesh(&pMeshOut->core, &pJobArgs[i].bufMesh.mesh.core);
+			err = stucCopyMesh(&pMeshOut->core, &pJobArgs[i].bufMesh.mesh.core);
+			STUC_THROW_IFNOT(err, "", 0);
 		}
 	}
 	if (pBasic->ppInFaceTable) {
@@ -94,19 +95,20 @@ Result stucCombineJobMeshes(
 		combineJobInFaceLists(pBasic, pJobArgs, mapJobsSent);
 	}
 #ifdef WIN32
-	printf("realloc time total %llu\n", reallocTime);
+	//printf("realloc time total %llu\n", reallocTime);
 #else
-	printf("realloc time total %lu\n", reallocTime);
+	//printf("realloc time total %lu\n", reallocTime);
 #endif
 	err = stucMergeBorderFaces(pBasic, pJobArgs, pJobBases, mapJobsSent);
-	for (I32 i = 0; i < mapJobsSent; ++i) {
-		BufMesh *pBufMesh = &pJobArgs[i].bufMesh;
-		stucMeshDestroy(pBasic->pCtx, &pBufMesh->mesh.core);
-		pBasic->pCtx->alloc.pFree(pJobArgs[i].borderTable.pTable);
-	}
-	pBasic->pCtx->alloc.pFree(pJobBases);
+	STUC_THROW_IFNOT(err, "", 0);
+
 	stucMeshSetLastFace(&pBasic->pCtx->alloc, pMeshOut);
-	//CLOCK_STOP("moving to work mesh");
+	STUC_CATCH(0, err,
+		stucMeshDestroy(pBasic->pCtx, &pBasic->outMesh.core);
+	;);
+	if (pJobBases) {
+		pBasic->pCtx->alloc.pFree(pJobBases);
+	}
 	return err;
 }
 

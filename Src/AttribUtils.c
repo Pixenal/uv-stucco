@@ -2762,7 +2762,9 @@ void stucReallocAndMoveAttribs(
 	}
 }
 
-void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
+Result stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
+	Result err = STUC_SUCCESS;
+	STUC_RETURN_ERR_IFNOT_COND(err, pCtx && pMesh, "");
 	//TODO replace hard coded attribute pCtx->spAttribs with function parameters.
 	//User can specify which attributes should be treated as vert, uv, and normal.
 
@@ -2773,7 +2775,7 @@ void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
 			pCtx->spAttribs[STUC_ATTRIB_SP_VERTS],
 			&pCore->vertAttribs
 		);
-		STUC_ASSERT("", pMesh->pVertAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pVertAttrib, "in-mesh has no position attrib ");
 		pMesh->pVerts = pMesh->pVertAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_UVS & 0x01) {
@@ -2781,7 +2783,7 @@ void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
 			pCtx->spAttribs[STUC_ATTRIB_SP_UVS],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pUvAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pUvAttrib, "in-mesh has no uv attrib ");
 		pMesh->pUvs = pMesh->pUvAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_NORMALS & 0x01) {
@@ -2789,7 +2791,7 @@ void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
 			pCtx->spAttribs[STUC_ATTRIB_SP_NORMALS],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pNormalAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pNormalAttrib, "in-mesh has no normal attrib ");
 		pMesh->pNormals = pMesh->pNormalAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_PRESERVE & 0x01) {
@@ -2833,7 +2835,7 @@ void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
 			pCtx->spAttribs[STUC_ATTRIB_SP_TANGENTS],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pTangentAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pTangentAttrib, "in-mesh has no tangent attrib ");
 		pMesh->pTangents = pMesh->pTangentAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_TSIGNS & 0x01) {
@@ -2841,7 +2843,7 @@ void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
 			pCtx->spAttribs[STUC_ATTRIB_SP_TSIGNS],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pTSignAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pTSignAttrib, "in-mesh has no t-sign attrib ");
 		pMesh->pTSigns = pMesh->pTSignAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_WSCALE & 0x01) {
@@ -2862,16 +2864,18 @@ void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags) {
 			pMesh->pMatIdx = pMesh->pMatIdxAttrib->core.pData;
 		}
 	}
+	return err;
 }
 
-void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
+Result stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
+	Result err = STUC_SUCCESS;
 	StucMesh *pCore = &pMesh->mesh.core;
 	if (flags >> STUC_ATTRIB_SP_BUF_W & 0x01) {
 		pMesh->pWAttrib = stucGetAttribIntern(
 			spBufAttribs[STUC_ATTRIB_SP_BUF_W],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pWAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pWAttrib, "buf-mesh has no w attrib");
 		pMesh->pW = pMesh->pWAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_IN_NORMAL & 0x01) {
@@ -2879,7 +2883,7 @@ void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
 			spBufAttribs[STUC_ATTRIB_SP_BUF_IN_NORMAL],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pInNormalAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pInNormalAttrib, "buf-mesh has no in-normal attrib");
 		pMesh->pInNormal = pMesh->pInNormalAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_IN_TANGENT & 0x01) {
@@ -2887,7 +2891,7 @@ void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
 			spBufAttribs[STUC_ATTRIB_SP_BUF_IN_TANGENT],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pInTangentAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pInTangentAttrib, "buf-mesh has no in-tangent attrib");
 		pMesh->pInTangent = pMesh->pInTangentAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_IN_T_SIGN & 0x01) {
@@ -2895,7 +2899,7 @@ void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
 			spBufAttribs[STUC_ATTRIB_SP_BUF_IN_T_SIGN],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pInTSignAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pInTSignAttrib, "buf-mesh has no t-sign attrib");
 		pMesh->pInTSign = pMesh->pInTSignAttrib->core.pData;
 	}
 	if (flags >> STUC_ATTRIB_SP_BUF_ALPHA & 0x01) {
@@ -2903,9 +2907,10 @@ void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags) {
 			spBufAttribs[STUC_ATTRIB_SP_BUF_ALPHA],
 			&pCore->cornerAttribs
 		);
-		STUC_ASSERT("", pMesh->pAlphaAttrib);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pAlphaAttrib, "buf-mesh has no alpha attrib");
 		pMesh->pAlpha = pMesh->pAlphaAttrib->core.pData;
 	}
+	return err;
 }
 
 void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh) {
@@ -2970,6 +2975,9 @@ void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh)
 
 static
 void setAttribArrToDontCopy(StucContext pCtx, AttribArray *pArr, UBitField16 flags) {
+	if (!flags) {
+		return;
+	}
 	for (I32 i = 0; i < pArr->count; ++i) {
 		Attrib *pAttrib = pArr->pArr + i;
 		I32 specIdx = checkIfSpecialAttrib(pCtx, pAttrib);

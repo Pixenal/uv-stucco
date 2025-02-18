@@ -163,7 +163,6 @@ void stucAllocMergeBufs(
 );
 void stucMergeSingleBorderFace(
 	MergeSendOffArgs *pArgs,
-	U64 *pTimeSpent,
 	I32 entryIdx,
 	PieceArr *pPieceArr,
 	FaceRange *pStucFace,

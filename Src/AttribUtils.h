@@ -129,8 +129,8 @@ void stucReallocAndMoveAttribs(
 	I32 lenToCopy,
 	I32 newLen
 );
-void stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags);
-void stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags);
+StucResult stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags);
+StucResult stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags);
 void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh);
 void stucSetAttribToDontCopy(StucContext pCtx, Mesh *pMesh, UBitField16 flags);
 void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin);
