@@ -127,6 +127,5 @@ typedef struct {
 	I32 bufSize;
 	I32 rawBufSize;
 	I32 finalBufSize;
-	I32 inFaceOffset;
 	I32 id;
-} SendOffArgs;
+} MappingJobArgs;

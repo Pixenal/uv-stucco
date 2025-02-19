@@ -12,23 +12,23 @@
 static
 void combineJobInFaceLists(
 	MapToMeshBasic *pBasic,
-	SendOffArgs *pJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	I32 mapJobsSent
 ) {
 	I32 face = 0;
 	for (I32 i = 0; i < mapJobsSent; ++i) {
-		I32 faceCount = pJobArgs[i].bufMesh.mesh.core.faceCount;
+		I32 faceCount = pMappingJobArgs[i].bufMesh.mesh.core.faceCount;
 		for (I32 j = 0; j < faceCount; ++j) {
-			(*pBasic->ppInFaceTable)[face] = pJobArgs[i].pInFaces[j];
+			(*pBasic->ppInFaceTable)[face] = pMappingJobArgs[i].pInFaces[j];
 			face++;
 		}
-		pBasic->pCtx->alloc.pFree(pJobArgs[i].pInFaces);
+		pBasic->pCtx->alloc.pFree(pMappingJobArgs[i].pInFaces);
 	}
 }
 
 Result stucCombineJobMeshes(
 	MapToMeshBasic *pBasic,
-	SendOffArgs *pJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	I32 mapJobsSent
 ) {
 	Result err = STUC_SUCCESS;
@@ -47,7 +47,7 @@ Result stucCombineJobMeshes(
 		stucAddToMeshCounts(
 			&totalCount,
 			&totalBoundsCount,
-			(Mesh *)&pJobArgs[i].bufMesh
+			(Mesh *)&pMappingJobArgs[i].bufMesh
 		);
 	}
 	//3 for last face index
@@ -62,52 +62,52 @@ Result stucCombineJobMeshes(
 	Mesh *src = NULL;
 	//get first bufmesh that isn't empty
 	for (I32 i = 0; i < mapJobsSent; ++i) {
-		if (pJobArgs[i].bufSize) {
-			src = &pJobArgs[i].bufMesh.mesh;
+		if (pMappingJobArgs[i].bufSize) {
+			src = &pMappingJobArgs[i].bufMesh.mesh;
 			break;
 		}
 	}
 	stucAllocAttribsFromMeshArr(pAlloc, pMeshOut, 1, &src, false);
 	err = stucSetSpecialAttribs(pBasic->pCtx, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
-	JobBases *pJobBases = NULL;
+	JobBases *pMappingJobBases = NULL;
 	STUC_THROW_IFNOT(err, "", 0);
-	pJobBases = pAlloc->pMalloc(sizeof(JobBases) * mapJobsSent);
+	pMappingJobBases = pAlloc->pMalloc(sizeof(JobBases) * mapJobsSent);
 	U64 reallocTime = 0;
 	for (I32 i = 0; i < mapJobsSent; ++i) {
-		reallocTime += pJobArgs[i].reallocTime;
+		reallocTime += pMappingJobArgs[i].reallocTime;
 #ifdef WIN32
-		//printf("realloc time %llu\n", pJobArgs[i].reallocTime);
+		//printf("realloc time %llu\n", pMappingJobArgs[i].reallocTime);
 #else
-		//printf("realloc time %lu\n", pJobArgs[i].reallocTime);
+		//printf("realloc time %lu\n", pMappingJobArgs[i].reallocTime);
 #endif
-		//printf("rawbufSize: %d | ", pJobArgs[i].rawBufSize);
-		//printf("bufSize: %d | ", pJobArgs[i].bufSize);
-		//printf("finalbufSize: %d | \n\n", pJobArgs[i].finalBufSize);
-		if (pJobArgs[i].bufSize) { //don't copy if mesh is empty
-			pJobBases[i].vertBase = pMeshOut->core.vertCount;
-			pJobBases[i].edgeBase = pMeshOut->core.edgeCount;
-			err = stucCopyMesh(&pMeshOut->core, &pJobArgs[i].bufMesh.mesh.core);
+		//printf("rawbufSize: %d | ", pMappingJobArgs[i].rawBufSize);
+		//printf("bufSize: %d | ", pMappingJobArgs[i].bufSize);
+		//printf("finalbufSize: %d | \n\n", pMappingJobArgs[i].finalBufSize);
+		if (pMappingJobArgs[i].bufSize) { //don't copy if mesh is empty
+			pMappingJobBases[i].vertBase = pMeshOut->core.vertCount;
+			pMappingJobBases[i].edgeBase = pMeshOut->core.edgeCount;
+			err = stucCopyMesh(&pMeshOut->core, &pMappingJobArgs[i].bufMesh.mesh.core);
 			STUC_THROW_IFNOT(err, "", 0);
 		}
 	}
 	if (pBasic->ppInFaceTable) {
 		*pBasic->ppInFaceTable = pAlloc->pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
-		combineJobInFaceLists(pBasic, pJobArgs, mapJobsSent);
+		combineJobInFaceLists(pBasic, pMappingJobArgs, mapJobsSent);
 	}
 #ifdef WIN32
 	//printf("realloc time total %llu\n", reallocTime);
 #else
 	//printf("realloc time total %lu\n", reallocTime);
 #endif
-	err = stucMergeBorderFaces(pBasic, pJobArgs, pJobBases, mapJobsSent);
+	err = stucMergeBorderFaces(pBasic, pMappingJobArgs, pMappingJobBases, mapJobsSent);
 	STUC_THROW_IFNOT(err, "", 0);
 
 	stucMeshSetLastFace(&pBasic->pCtx->alloc, pMeshOut);
 	STUC_CATCH(0, err,
 		stucMeshDestroy(pBasic->pCtx, &pBasic->outMesh.core);
 	;);
-	if (pJobBases) {
-		pBasic->pCtx->alloc.pFree(pJobBases);
+	if (pMappingJobBases) {
+		pBasic->pCtx->alloc.pFree(pMappingJobBases);
 	}
 	return err;
 }

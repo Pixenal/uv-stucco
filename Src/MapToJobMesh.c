@@ -11,34 +11,34 @@
 #include <Alloc.h>
 
 static
-Result allocBufMesh(MappingJobVars *pVars, I32 cornerBufSize) {
+Result allocBufMesh(MappingJobState *pState, I32 cornerBufSize) {
 	Result err = STUC_SUCCESS;
-	StucMap pMap = pVars->pBasic->pMap;
-	const StucMesh *pMeshIn = &pVars->pBasic->pInMesh->core;
-	Mesh *pMesh = &pVars->bufMesh.mesh;
-	const StucAlloc *pAlloc = &pVars->pBasic->pCtx->alloc;
+	StucMap pMap = pState->pBasic->pMap;
+	const StucMesh *pMeshIn = &pState->pBasic->pInMesh->core;
+	Mesh *pMesh = &pState->bufMesh.mesh;
+	const StucAlloc *pAlloc = &pState->pBasic->pCtx->alloc;
 	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
-	pMesh->faceBufSize = pVars->bufSize;
-	pMesh->cornerBufSize = pVars->cornerBufSize;
-	pMesh->edgeBufSize = pVars->cornerBufSize;
-	pMesh->vertBufSize = pVars->bufSize;
+	pMesh->faceBufSize = pState->bufSize;
+	pMesh->cornerBufSize = pState->cornerBufSize;
+	pMesh->edgeBufSize = pState->cornerBufSize;
+	pMesh->vertBufSize = pState->bufSize;
 	pMesh->core.pFaces = pAlloc->pMalloc(sizeof(I32) * pMesh->faceBufSize);
 	pMesh->core.pCorners = pAlloc->pMalloc(sizeof(I32) * pMesh->cornerBufSize);
 	pMesh->core.pEdges = pAlloc->pMalloc(sizeof(I32) * pMesh->edgeBufSize);
 	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
-	stucAllocAttribsFromMeshArr(&pVars->pBasic->pCtx->alloc, pMesh, 2, srcs, true);
-	stucAppendBufOnlySpecialAttribs(&pVars->pBasic->pCtx->alloc, &pVars->bufMesh);
+	stucAllocAttribsFromMeshArr(&pState->pBasic->pCtx->alloc, pMesh, 2, srcs, true);
+	stucAppendBufOnlySpecialAttribs(&pState->pBasic->pCtx->alloc, &pState->bufMesh);
 	err = stucSetSpecialBufAttribs((BufMesh *)pMesh, 0x3e); //set all
 	STUC_THROW_IFNOT(err, "", 0);
-	err = stucSetSpecialAttribs(pVars->pBasic->pCtx, pMesh, 0x40e); //set vert, normal, uv, and w scale
+	err = stucSetSpecialAttribs(pState->pBasic->pCtx, pMesh, 0x40e); //set vert, normal, uv, and w scale
 	STUC_THROW_IFNOT(err, "", 0);
-	stucSetAttribToDontCopy(pVars->pBasic->pCtx, pMesh, 0x400); //set w scale to DONT_COPY
+	stucSetAttribToDontCopy(pState->pBasic->pCtx, pMesh, 0x400); //set w scale to DONT_COPY
 
 	pMesh->cornerBufSize = cornerBufSize;
 	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
 
 	STUC_CATCH(0, err,
-		stucMeshDestroy(pVars->pBasic->pCtx, &pMesh->core);
+		stucMeshDestroy(pState->pBasic->pCtx, &pMesh->core);
 	;);
 	return err;
 }
@@ -60,47 +60,47 @@ void destroyMappingTables(const StucAlloc *pAlloc, LocalTables *pLocalTables) {
 }
 
 static
-Result allocBufMeshAndTables(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable) {
+Result allocBufMeshAndTables(MappingJobState *pState, FaceCellsTable *pFaceCellsTable) {
 	Result err = STUC_SUCCESS;
-	const StucAlloc *pAlloc = &pVars->pBasic->pCtx->alloc;
-	pVars->rawBufSize = pVars->bufSize;
-	pVars->bufSize = pVars->bufSize / 20 + 2; //Add 2 incase it truncs to 0
-	pVars->bufSize += pVars->bufSize % 2; //ensure it's even, so realloc is easier
-	I32 cornerBufSize = pVars->bufSize * 2;
-	pVars->cornerBufSize = cornerBufSize;
-	pVars->borderTable.pTable =
-		pAlloc->pCalloc(pVars->borderTable.size, sizeof(BorderBucket));
+	const StucAlloc *pAlloc = &pState->pBasic->pCtx->alloc;
+	pState->rawBufSize = pState->bufSize;
+	pState->bufSize = pState->bufSize / 20 + 2; //Add 2 incase it truncs to 0
+	pState->bufSize += pState->bufSize % 2; //ensure it's even, so realloc is easier
+	I32 cornerBufSize = pState->bufSize * 2;
+	pState->cornerBufSize = cornerBufSize;
+	pState->borderTable.pTable =
+		pAlloc->pCalloc(pState->borderTable.size, sizeof(BorderBucket));
 	{
-		I32 initSize = pVars->borderTable.size / 16 + 1;
+		I32 initSize = pState->borderTable.size / 16 + 1;
 		err = stucLinAllocInit(
 			pAlloc,
-			&pVars->borderTableAlloc.pSmall,
+			&pState->borderTableAlloc.pSmall,
 			sizeof(BorderFaceSmall),
 			initSize
 		);
 		STUC_THROW_IFNOT(err, "", 0);
 		err = stucLinAllocInit(
 			pAlloc,
-			&pVars->borderTableAlloc.pMid,
+			&pState->borderTableAlloc.pMid,
 			sizeof(BorderFaceMid),
 			initSize
 		);
 		STUC_THROW_IFNOT(err, "", 0);
 		err = stucLinAllocInit(
 			pAlloc,
-			&pVars->borderTableAlloc.pLarge,
+			&pState->borderTableAlloc.pLarge,
 			sizeof(BorderFaceLarge),
 			initSize
 		);
 		STUC_THROW_IFNOT(err, "", 0);
 	}
-	err = allocBufMesh(pVars, cornerBufSize);
+	err = allocBufMesh(pState, cornerBufSize);
 	STUC_THROW_IFNOT(err, "", 0);
 
 	//TODO: maybe reduce further if unifaces if low,
 	//as a larger buf seems more necessary at higher face counts.
 	//Doesn't provie much speed up at lower resolutions.
-	LocalTables *pLocalTables = &pVars->localTables;
+	LocalTables *pLocalTables = &pState->localTables;
 	pLocalTables->vertTableSize = pFaceCellsTable->uniqueFaces / 4 + 1;
 	pLocalTables->edgeTableSize = pFaceCellsTable->uniqueFaces / 3 + 1;
 	pLocalTables->pVertTable =
@@ -122,17 +122,17 @@ Result allocBufMeshAndTables(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTa
 	STUC_THROW_IFNOT(err, "", 0);
 #endif
 
-	err = stucLinAllocInit(pAlloc, &pVars->pCornerBufWrapAlloc, sizeof(CornerBufWrap), 1);
+	err = stucLinAllocInit(pAlloc, &pState->pCornerBufWrapAlloc, sizeof(CornerBufWrap), 1);
 	STUC_THROW_IFNOT(err, "", 0);
 
 	STUC_CATCH(0, err, 
-		if (pVars->pCornerBufWrapAlloc) {
-			stucLinAllocDestroy(pVars->pCornerBufWrapAlloc);
+		if (pState->pCornerBufWrapAlloc) {
+			stucLinAllocDestroy(pState->pCornerBufWrapAlloc);
 		}
-		destroyMappingTables(pAlloc, &pVars->localTables);
-		stucBorderTableDestroyAlloc(&pVars->borderTableAlloc);
-		if (pVars->borderTable.pTable) {
-			pAlloc->pFree(pVars->borderTable.pTable);
+		destroyMappingTables(pAlloc, &pState->localTables);
+		stucBorderTableDestroyAlloc(&pState->borderTableAlloc);
+		if (pState->borderTable.pTable) {
+			pAlloc->pFree(pState->borderTable.pTable);
 		}
 	;);
 	return err;
@@ -140,21 +140,21 @@ Result allocBufMeshAndTables(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTa
 
 static
 Result mapPerTile(
-	MappingJobVars *pVars,
+	MappingJobState *pState,
 	FaceRange *pInFace,
 	FaceCellsTable *pFaceCellsTable,
 	I32 faceIdx
 ) {
 	Result err = STUC_SUCCESS;
 	FaceBounds *pFaceBounds = 
-		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pVars->inFaceRange.start)->faceBounds;
+		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pState->inFaceRange.start)->faceBounds;
 	for (I32 j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
 		for (I32 k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
 			STUC_ASSERT("", k < 2048 && k > -2048 && j < 2048 && j > -2048);
 			V2_F32 fTileMin = {(F32)k, (F32)j};
 			V2_I32 tile = {k, j};
 			err = stucMapToSingleFace(
-				pVars,
+				pState,
 				pFaceCellsTable,
 				fTileMin,
 				tile,
@@ -167,32 +167,32 @@ Result mapPerTile(
 }
 
 static
-Result mapToFaces(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable) {
+Result mapToFaces(MappingJobState *pState, FaceCellsTable *pFaceCellsTable) {
 	Result err = STUC_SUCCESS;
-	for (I32 i = pVars->inFaceRange.start; i < pVars->inFaceRange.end; ++i) {
-		if (pVars->pBasic->maskIdx != -1 && pVars->pBasic->pInMesh->pMatIdx &&
-		    pVars->pBasic->pInMesh->pMatIdx[i] != pVars->pBasic->maskIdx) {
+	for (I32 i = pState->inFaceRange.start; i < pState->inFaceRange.end; ++i) {
+		if (pState->pBasic->maskIdx != -1 && pState->pBasic->pInMesh->pMatIdx &&
+		    pState->pBasic->pInMesh->pMatIdx[i] != pState->pBasic->maskIdx) {
 
 			continue;
 		}
 		FaceRange inFace = {0};
-		inFace.start = pVars->pBasic->pInMesh->core.pFaces[i];
-		inFace.end = pVars->pBasic->pInMesh->core.pFaces[i + 1];
+		inFace.start = pState->pBasic->pInMesh->core.pFaces[i];
+		inFace.end = pState->pBasic->pInMesh->core.pFaces[i + 1];
 		inFace.size = inFace.end - inFace.start;
 		inFace.idx = i;
-		pVars->tbn = stucBuildFaceTbn(inFace, pVars->pBasic->pInMesh, NULL);
-		//pVars->tbnInv = mat3x3Invert(&pVars->tbn);
+		pState->tbn = stucBuildFaceTbn(inFace, pState->pBasic->pInMesh, NULL);
+		//pState->tbnInv = mat3x3Invert(&pState->tbn);
 		FaceTriangulated faceTris = {0};
 		bool skipped = false;
 		if (inFace.size > 4) {
 			//TODO reimplement at some point
 			// disabled cause current triangulation method is bad
-			//faceTris = triangulateFace(pVars->alloc, inFace, pVars->mesh.pUvs,
+			//faceTris = triangulateFace(pState->alloc, inFace, pState->mesh.pUvs,
 			                           //NULL, 1);
 		}
 		if (inFace.size <= 4) {
 			//face is a quad, or a tri
-			err = mapPerTile(pVars, &inFace, pFaceCellsTable, i);
+			err = mapPerTile(pState, &inFace, pFaceCellsTable, i);
 		}
 		else {
 			skipped = true;
@@ -207,8 +207,8 @@ Result mapToFaces(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable) {
 				inFace.start = faceTris.pCorners[triFaceStart];
 				inFace.end = faceTris.pCorners[triFaceStart + 2];
 				inFace.size = inFace.end - inFace.start;
-				result = mapPerTile(pVars, &inFace, &faceCellsTable,
-				                    &dpVars, i);
+				result = mapPerTile(pState, &inFace, &faceCellsTable,
+				                    &dpState, i);
 				if (result != STUC_SUCCESS) {
 					break;
 				}
@@ -216,73 +216,71 @@ Result mapToFaces(MappingJobVars *pVars, FaceCellsTable *pFaceCellsTable) {
 			*/
 		}
 		if (faceTris.pCorners) {
-			pVars->pBasic->pCtx->alloc.pFree(faceTris.pCorners);
+			pState->pBasic->pCtx->alloc.pFree(faceTris.pCorners);
 			faceTris.pCorners = NULL;
 		}
 		if (!skipped) {
 			FaceCells *pFaceCellsEntry =
-				stucIdxFaceCells(pFaceCellsTable, i, pVars->inFaceRange.start);
-			stucDestroyFaceCellsEntry(&pVars->pBasic->pCtx->alloc, pFaceCellsEntry);
+				stucIdxFaceCells(pFaceCellsTable, i, pState->inFaceRange.start);
+			stucDestroyFaceCellsEntry(&pState->pBasic->pCtx->alloc, pFaceCellsEntry);
 		}
 		STUC_RETURN_ERR_IFNOT(err, "");
 	}
 	return err;
 }
 
-StucResult stucMapToJobMesh(void *pVarsPtr) {
+StucResult stucMapToJobMesh(void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
-	SendOffArgs *pSend = pVarsPtr;
-	STUC_ASSERT("", pSend);
-	StucContext pCtx = pSend->pBasic->pCtx;
+	MappingJobArgs *pArgs = pArgsVoid;
+	STUC_ASSERT("", pArgs);
+	StucContext pCtx = pArgs->pBasic->pCtx;
 
-	MappingJobVars vars = {0};
-	vars.pBasic = pSend->pBasic;
-	vars.id = pSend->id;
-	vars.borderTable.size = pSend->borderTable.size;
-	vars.pInFaces = pSend->pInFaces;
-	vars.inFaceOffset = pSend->inFaceOffset;
-	vars.inFaceRange = pSend->inFaceRange;
-	I32 inFaceRangeSize = vars.inFaceRange.end - vars.inFaceRange.start;
+	MappingJobState state = {0};
+	state.pBasic = pArgs->pBasic;
+	state.id = pArgs->id;
+	state.borderTable.size = pArgs->borderTable.size;
+	state.inFaceRange = pArgs->inFaceRange;
+	I32 inFaceRangeSize = state.inFaceRange.end - state.inFaceRange.start;
 
 	FaceCellsTable faceCellsTable = {0};
 	I32 averageMapFacesPerFace = 0;
 	stucGetEncasingCells(
 		&pCtx->alloc,
-		vars.pBasic->pMap,
-		vars.pBasic->pInMesh,
-		vars.pBasic->maskIdx,
-		vars.inFaceRange,
+		state.pBasic->pMap,
+		state.pBasic->pInMesh,
+		state.pBasic->maskIdx,
+		state.inFaceRange,
 		&faceCellsTable,
 		&averageMapFacesPerFace
 	);
 	STUC_THROW_IFNOT(err, "", 0);
-	vars.bufSize = inFaceRangeSize + faceCellsTable.cellFacesTotal;
-	err = allocBufMeshAndTables(&vars, &faceCellsTable);
+	state.bufSize = inFaceRangeSize + faceCellsTable.cellFacesTotal;
+	err = allocBufMeshAndTables(&state, &faceCellsTable);
 	STUC_THROW_IFNOT(err, "", 0);
-	if (vars.pBasic->ppInFaceTable) {
-		vars.inFaceSize = 8;
-		vars.pInFaces = pCtx->alloc.pCalloc(vars.inFaceSize, sizeof(InFaceArr));
+	if (state.pBasic->ppInFaceTable) {
+		state.inFaceSize = 8;
+		state.pInFaces = pCtx->alloc.pCalloc(state.inFaceSize, sizeof(InFaceArr));
 	}
-	err = mapToFaces(&vars, &faceCellsTable);
+	err = mapToFaces(&state, &faceCellsTable);
 	STUC_THROW_IFNOT(err, "", 0);
 
-	bool empty = !(vars.bufMesh.mesh.core.faceCount || vars.bufMesh.borderFaceCount);
-	STUC_ASSERT("", vars.bufSize > 0 || empty);
+	bool empty = !(state.bufMesh.mesh.core.faceCount || state.bufMesh.borderFaceCount);
+	STUC_ASSERT("", state.bufSize > 0 || empty);
 	if (!empty) {
-		stucBufMeshSetLastFaces(&pCtx->alloc, &vars.bufMesh);
-		pSend->bufSize = vars.bufSize;
-		pSend->rawBufSize = vars.rawBufSize;
-		pSend->finalBufSize = vars.bufMesh.mesh.faceBufSize;
-		STUC_ASSERT("", vars.borderTable.pTable);
-		pSend->borderTable.pTable = vars.borderTable.pTable;
-		pSend->bufMesh = vars.bufMesh;
-		pSend->pInFaces = vars.pInFaces;
-		pSend->borderTableAlloc = vars.borderTableAlloc;
+		stucBufMeshSetLastFaces(&pCtx->alloc, &state.bufMesh);
+		pArgs->bufSize = state.bufSize;
+		pArgs->rawBufSize = state.rawBufSize;
+		pArgs->finalBufSize = state.bufMesh.mesh.faceBufSize;
+		STUC_ASSERT("", state.borderTable.pTable);
+		pArgs->borderTable.pTable = state.borderTable.pTable;
+		pArgs->bufMesh = state.bufMesh;
+		pArgs->pInFaces = state.pInFaces;
+		pArgs->borderTableAlloc = state.borderTableAlloc;
 	}
 	STUC_CATCH(0, err, ;);
-	stucLinAllocDestroy(vars.pCornerBufWrapAlloc);
-	destroyMappingTables(&pCtx->alloc, &vars.localTables);
-	stucDestroyFaceCellsTable(&pCtx->alloc, &faceCellsTable, vars.inFaceRange);
+	stucLinAllocDestroy(state.pCornerBufWrapAlloc);
+	destroyMappingTables(&pCtx->alloc, &state.localTables);
+	stucDestroyFaceCellsTable(&pCtx->alloc, &faceCellsTable, state.inFaceRange);
 	//printf("Average map faces per face: %d\n", averageMapFacesPerFace);
 	return err;
 }

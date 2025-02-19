@@ -129,12 +129,12 @@ typedef struct {
 	I32 count;
 } CompiledBorderTable;
 
-typedef struct MergeSendOffArgs {
+typedef struct {
 	MapToMeshBasic *pBasic;
-	SendOffArgs *pJobArgs;
+	MappingJobArgs *pMappingJobArgs;
 	UBitField8 *pInVertKeep;
 	CompiledBorderTable *pBorderTable;
-	JobBases *pJobBases;
+	JobBases *pMappingJobBases;
 	CombineTables *pCTables;
 	PieceArr *pPieceArrTable;
 	PieceRootsArr *pPieceRootTable;
@@ -148,12 +148,12 @@ typedef struct MergeSendOffArgs {
 	I32 entriesStart;
 	I32 entriesEnd;
 	I32 job;
-} MergeSendOffArgs;
+} MakePiecesJobArgs;
 
 Result stucMergeBorderFaces(
 	MapToMeshBasic *pBasic,
-	SendOffArgs *pJobArgs,
-	JobBases *pJobBases,
+	MappingJobArgs *pMappingJobArgs,
+	JobBases *pMappingJobBases,
 	I32 mapJobsSent
 );
 void stucAllocMergeBufs(
@@ -162,7 +162,7 @@ void stucAllocMergeBufs(
 	I32 totalVerts
 );
 void stucMergeSingleBorderFace(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	I32 entryIdx,
 	PieceArr *pPieceArr,
 	FaceRange *pStucFace,
@@ -173,7 +173,7 @@ void stucMergeSingleBorderFace(
 void stucDestroyMergeBufs(StucContext pCtx, MergeBufHandles *pHandle);
 Result stucCombineJobMeshes(
 	MapToMeshBasic *pBasic,
-	SendOffArgs *pJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	I32 mapJobsSent
 );
 BorderInInfo stucGetBorderEntryInInfo(

@@ -73,7 +73,7 @@ void initSharedEdgeEntry(
 
 static
 Result checkIfSeamOrPreserve(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pEntries,
 	I32 entryIdx,
 	BorderInInfo *pInInfo,
@@ -132,7 +132,7 @@ Result checkIfSeamOrPreserve(
 
 static
 Result addToTable(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
 	SharedEdgeWrap *pSharedEdges,
 	I32 tableSize,
@@ -224,7 +224,7 @@ Result addToTable(
 
 static
 Result addEntryToSharedEdgeTable(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	BorderFace *pEntry,
 	SharedEdgeWrap *pSharedEdges,
 	Piece *pEntries,
@@ -236,7 +236,7 @@ Result addEntryToSharedEdgeTable(
 	Result err = STUC_SUCCESS;
 	STUC_ASSERT("", (tableSize > 0 && entryIdx >= 0) || !entryIdx);
 	Piece *pPiece = pEntries + entryIdx;
-	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
+	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
 	FaceRange face = stucGetFaceRange(&pBufMesh->mesh.core, pEntry->bufFace, true);
 	pPiece->bufFace = face;
 	pPiece->pEntry = pEntry;
@@ -354,7 +354,7 @@ Piece *getEntryInPiece(Piece *pPieceRoot, I32 otherPiece) {
 
 static
 Piece *getNeighbourEntry(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	SharedEdgeWrap *pEdgeTable,
 	I32 edgeTableSize,
 	Piece *pPiece,
@@ -400,7 +400,7 @@ Piece *getNeighbourEntry(
 
 static
 bool isCornerOnExterior(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
 	Piece *pPieceRoot,
 	SharedEdgeWrap *pEdgeTable,
@@ -426,7 +426,7 @@ bool isCornerOnExterior(
 static
 I32 getStartingCorner(
 	Piece **ppPiece,
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pPieceRoot,
 	SharedEdgeWrap *pEdgeTable,
 	I32 edgeTableSize
@@ -574,14 +574,14 @@ bool handleExterior(
 	bool *pValid,
 	I32 treeCount,
 	I32 *pReceive,
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	FaceRange *pMapFace,
 	SharedEdge *pEdge,
 	bool side
 ) {
 	EdgeStack *pItem = pStack + *pStackPtr;
 	Mesh *pMapMesh = &pArgs->pBasic->pMap->mesh;
-	Mesh *pBufMesh = (Mesh *)&pArgs->pJobArgs[pItem->pPiece->pEntry->job].bufMesh;
+	Mesh *pBufMesh = (Mesh *)&pArgs->pMappingJobArgs[pItem->pPiece->pEntry->job].bufMesh;
 	I32 mapCorner = -1;
 	bool isReceive = checkIfIntersectsReceive(
 		pNeighbour,
@@ -611,7 +611,7 @@ bool handleExterior(
 
 static
 SharedEdge *getIfQuadJunc(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	SharedEdgeWrap *pEdgeTable,
 	I32 edgeTableSize,
 	Piece *pPieceRoot,
@@ -660,7 +660,7 @@ SharedEdge *getIfQuadJunc(
 
 static
 void handleIfFullyUnwound(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	I32 *pStackPtr,
 	EdgeStack *pItem,
 	bool *pUnwind
@@ -684,7 +684,7 @@ void handleIfFullyUnwound(
 
 static
 void decideNextEdge(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	EdgeStack *pStack,
 	I32 *pStackPtr,
 	bool *pValid,
@@ -738,7 +738,7 @@ void decideNextEdge(
 }
 
 static
-void setKeepIfOnInVert(MergeSendOffArgs *pArgs, Piece *pPiece, I32 corner) {
+void setKeepIfOnInVert(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 corner) {
 	bool onInVert = stucGetIfOnInVert(pPiece->pEntry, corner);
 	if (onInVert) {
 		BorderInInfo inInfo =
@@ -754,7 +754,7 @@ Result walkEdgesForPreserve(
 	bool *pValid,
 	I32 treeCount,
 	I32 *pReceive,
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	SharedEdgeWrap *pEdgeTable,
 	I32 edgeTableSize,
 	Piece *pPieceRoot,
@@ -888,7 +888,7 @@ Result walkEdgesForPreserve(
 //     set preserve in the later validate corner
 static
 Result validatePreserveEdges(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	PieceArr *pPieceArr,
 	I32 piece,
 	SharedEdgeWrap *pEdgeTable,
@@ -1140,7 +1140,7 @@ void combineConnectedIntoPiece(
 
 static
 Result joinAdjIntoPieceArr(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	bool hasPreserve,
 	PieceRootsArr *pPieceRoots,
 	PieceArr *pPieceArr,
@@ -1208,7 +1208,7 @@ void breakPieceLinks(PieceArr *pPieceArr) {
 
 static
 Result linkConnectedPieces(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	bool hasPreserve,
 	PieceRootsArr *pPieceRoots,
 	PieceArr *pPieceArr,
@@ -1259,7 +1259,7 @@ Result linkConnectedPieces(
 
 static
 Result splitIntoPieces(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	PieceRootsArr *pPieceRoots,
 	BorderFace *pEntry,
 	SharedEdgeWrap **ppSharedEdges,
@@ -1339,7 +1339,7 @@ void compileEntryInfo(BorderFace *pEntry, I32 *pCount) {
 }
 
 static
-void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece* pPiece, I32 k) {
+void markPreserveIfKeepInVert(MakePiecesJobArgs *pArgs, Piece* pPiece, I32 k) {
 	bool keepInVert = false;
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pPiece->pEntry, k);
 	bool onInVert = stucGetIfOnInVert(pPiece->pEntry, k);
@@ -1352,7 +1352,7 @@ void markPreserveIfKeepInVert(MergeSendOffArgs *pArgs, Piece* pPiece, I32 k) {
 }
 
 static
-void markKeepInVertsPreserve(MergeSendOffArgs *pArgs, Piece* pPiece) {
+void markKeepInVertsPreserve(MakePiecesJobArgs *pArgs, Piece* pPiece) {
 	do {
 		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 			if (stucGetIfStuc(pPiece->pEntry, i)) {
@@ -1376,7 +1376,7 @@ I32 getPieceCount(Piece* pPiece) {
 
 static
 void sortCorners(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
 	SharedEdgeWrap *pEdgeTable,
 	I32 edgeTableSize,
@@ -1496,12 +1496,12 @@ void getPieceInFaces(
 	I32 **ppInFaces,
 	Piece *pPiece,
 	I32 pieceCount,
-	SendOffArgs *pJobArgs
+	MappingJobArgs *pMappingJobArgs
 ) {
 	*ppInFaces = pAlloc->pCalloc(pieceCount, sizeof(I32));
 	I32 i = 0;
 	do {
-		I32 offset = pJobArgs[pPiece->pEntry->job].inFaceOffset;
+		I32 offset = pMappingJobArgs[pPiece->pEntry->job].inFaceRange.start;
 		(*ppInFaces)[i] = pPiece->pEntry->inFace + offset;
 		pPiece = pPiece->pNext;
 		i++;
@@ -1510,7 +1510,7 @@ void getPieceInFaces(
 
 static
 void initVertTableEntry(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	BorderVert *pVertEntry,
 	BorderFace *pEntry,
 	BufMesh *pBufMesh,
@@ -1522,7 +1522,8 @@ void initVertTableEntry(
 	V2_I16 tile
 ) {
 	bool realloced = false;
-	I32 outVert = stucMeshAddVert(&pArgs->pBasic->pCtx->alloc, &pArgs->pBasic->outMesh, &realloced);
+	I32 outVert =
+		stucMeshAddVert(&pArgs->pBasic->pCtx->alloc, &pArgs->pBasic->outMesh, &realloced);
 	stucCopyAllAttribs(
 		&pArgs->pBasic->outMesh.core.vertAttribs,
 		outVert,
@@ -1544,7 +1545,7 @@ void initVertTableEntry(
 
 static
 void initEdgeTableEntry(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	BorderEdge *pSeamEntry,
 	BufMesh *pBufMesh,
 	I32 *pEdge,
@@ -1614,7 +1615,7 @@ void divideCornerAttribsByScalar(
 
 static
 Result addBorderCornerAndVert(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
 	Piece *pPieceRoot,
 	I32 k,
@@ -1627,7 +1628,7 @@ Result addBorderCornerAndVert(
 		"This should not be called on a map corner",
 		!stucGetIfStuc(pEntry, k)
 	);
-	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
+	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
 	I32 corner = pPiece->bufFace.start - k;
 	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, k);
 	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
@@ -1695,7 +1696,7 @@ Result addBorderCornerAndVert(
 				        pMeshInUvA->d[1] == pMeshInUvB->d[1];
 			}
 			else {
-				BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
+				BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
 				bool connected = 
 					_(pBufMesh->mesh.pUvs[corner] V2APROXEQL
 					pOtherBufMesh->mesh.pUvs[pVertEntry->corner]
@@ -1718,7 +1719,7 @@ Result addBorderCornerAndVert(
 				vert = pVertEntry->vert;
 				pVertEntry->corners++;
 				if (isOnInVert) {
-					BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
+					BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
 					err = blendMergedCornerAttribs(
 						blendConfigAdd,
 						&pOtherBufMesh->mesh.core.cornerAttribs,
@@ -1822,7 +1823,7 @@ Result addBorderCornerAndVert(
 }
 
 static
-Result mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, I32 k) {
+Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 k) {
 	Result err = STUC_SUCCESS;
 	StucMap pMap = pArgs->pBasic->pMap;
 	BorderFace *pEntry = pPiece->pEntry;
@@ -1838,7 +1839,7 @@ Result mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, I32 k
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
 	STUC_ASSERT("No entry was initialized for this corner", pVertEntry->corners);
 
-	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
+	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
 	I32 corner = pPiece->bufFace.start - k;
 
 	BlendConfig blendConfigReplace = {.blend = STUC_BLEND_REPLACE};
@@ -1854,7 +1855,7 @@ Result mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, I32 k
 		        pMeshInUvA->d[1] == pMeshInUvB->d[1];
 		if (match) {
 			STUC_RETURN_ERR_IFNOT_COND(err, pVertEntry->inVert != -1, "Entry is not onInVert");
-			BufMesh *pOtherBufMesh = &pArgs->pJobArgs[pVertEntry->job].bufMesh;
+			BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
 			if (!pVertEntry->divided) {
 
 				divideCornerAttribsByScalar(
@@ -1883,7 +1884,7 @@ Result mergeAttribsForSingleCorner(MergeSendOffArgs *pArgs, Piece *pPiece, I32 k
 }
 
 static
-void addToOutMesh(MergeSendOffArgs *pArgs) {
+void addToOutMesh(MakePiecesJobArgs *pArgs) {
 	StucContext pCtx = pArgs->pBasic->pCtx;
 	const StucAlloc *pAlloc = &pCtx->alloc;
 	StucMap pMap = pArgs->pBasic->pMap;
@@ -1907,7 +1908,7 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 					&pInFaces,
 					pPieceRoot,
 					pieceCount,
-					pArgs->pJobArgs
+					pArgs->pMappingJobArgs
 				);
 			}
 			I32 job = pPieceArr->pArr[pPieceRoots->pArr[j]].pEntry->job;
@@ -1933,7 +1934,7 @@ void addToOutMesh(MergeSendOffArgs *pArgs) {
 
 static
 Result addPieceBorderCornersAndVerts(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	PieceArr *pPieceArr,
 	PieceRootsArr *pPieceRoots,
 	bool preserve,
@@ -1969,7 +1970,7 @@ Result addPieceBorderCornersAndVerts(
 }
 
 static
-Result mergeIntersectionCorners(MergeSendOffArgs *pArgs, bool preserve) {
+Result mergeIntersectionCorners(MakePiecesJobArgs *pArgs, bool preserve) {
 	Result err = STUC_SUCCESS;
 	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	for (I32 i = 0; i < count; ++i) {
@@ -1993,7 +1994,7 @@ Result mergeIntersectionCorners(MergeSendOffArgs *pArgs, bool preserve) {
 
 static
 Result mergePieceCornerAttribs(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	PieceArr *pPieceArr,
 	PieceRootsArr *pPieceRoots,
 	I32 pieceIdx
@@ -2016,7 +2017,7 @@ Result mergePieceCornerAttribs(
 }
 
 static
-Result mergeCornerAttribs(MergeSendOffArgs *pArgs) {
+Result mergeCornerAttribs(MakePiecesJobArgs *pArgs) {
 	Result err = STUC_SUCCESS;
 	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	for (I32 i = 0; i < count; ++i) {
@@ -2034,7 +2035,7 @@ Result mergeCornerAttribs(MergeSendOffArgs *pArgs) {
 
 static
 UsgInFace *findUsgForMapCorners(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	FaceRange *pMapFace,
 	BorderFace *pEntry,
 	V3_F32 uvw,
@@ -2053,7 +2054,7 @@ UsgInFace *findUsgForMapCorners(
 		usgIdx = abs(usgIdx) - 1;
 		*ppUsg = pMap->usgArr.pArr + usgIdx;
 		if (stucIsPointInsideMesh(&pArgs->pBasic->pCtx->alloc, uvw, (*ppUsg)->pMesh)) {
-			I32 inFaceOffset = pArgs->pJobArgs[pEntry->job].inFaceOffset;
+			I32 inFaceOffset = pArgs->pMappingJobArgs[pEntry->job].inFaceRange.start;
 			//passing NULL for above cutoff,
 			// we don't need to know cause using flatcutoff eitherway here
 			UsgInFace *pUsgEntry = stucGetUsgForCorner(
@@ -2073,7 +2074,7 @@ UsgInFace *findUsgForMapCorners(
 
 static
 void transformDeferredVert(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
 	BufMesh *pBufMesh,
 	FaceRange *pMapFace,
@@ -2134,12 +2135,12 @@ void transformDeferredVert(
 
 static
 void transformDefferedCorners(
-	MergeSendOffArgs *pArgs,
+	MakePiecesJobArgs *pArgs,
 	FaceRange *pMapFace,
 	Piece *pPiece
 ) {
 	do {
-		BufMesh *pBufMesh = &pArgs->pJobArgs[pPiece->pEntry->job].bufMesh;
+		BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pPiece->pEntry->job].bufMesh;
 		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 			if (stucGetIfStuc(pPiece->pEntry, i) || !(pPiece->add >> i & 0x1)) {
 				continue;
@@ -2172,7 +2173,7 @@ void invertWind(Piece *pPiece, I32 count) {
 }
 
 static
-void allocArrsForPieceStage(MergeSendOffArgs *pArgs, I32 count) {
+void allocArrsForPieceStage(MakePiecesJobArgs *pArgs, I32 count) {
 	StucAlloc *pAlloc = &pArgs->pBasic->pCtx->alloc;
 	pArgs->pPieceArrTable = pAlloc->pCalloc(count, sizeof(PieceArr));
 	pArgs->pPieceRootTable = pAlloc->pCalloc(count, sizeof(PieceRootsArr));
@@ -2207,7 +2208,7 @@ void allocArrsForPieceStage(MergeSendOffArgs *pArgs, I32 count) {
 static
 Result createAndJoinPieces(void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
-	MergeSendOffArgs *pArgs = pArgsVoid;
+	MakePiecesJobArgs *pArgs = pArgsVoid;
 	StucContext pCtx = pArgs->pBasic->pCtx;
 	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	allocArrsForPieceStage(pArgs, count);
@@ -2283,7 +2284,7 @@ Result createAndJoinPieces(void *pArgsVoid) {
 static
 Result mergeAndAddToOutMesh(
 	int32_t jobCount,
-	MergeSendOffArgs *pArgArr
+	MakePiecesJobArgs *pArgArr
 ) {
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < jobCount; ++i) {
@@ -2314,7 +2315,7 @@ void linkOtherEntry(BorderBucket *pBucketOther, BorderBucket *pBucket, I32 mapFa
 
 static
 void linkEntriesFromOtherJobs(
-	SendOffArgs *pJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	BorderBucket *pBucket,
 	I32 mapFace,
 	I32 hash,
@@ -2322,10 +2323,10 @@ void linkEntriesFromOtherJobs(
 	I32 mapJobsSent
 ) {
 	for (I32 j = job + 1; j < mapJobsSent; ++j) {
-		if (!pJobArgs[j].bufSize) {
+		if (!pMappingJobArgs[j].bufSize) {
 			continue;
 		}
-		BorderBucket *pBucketOther = pJobArgs[j].borderTable.pTable + hash;
+		BorderBucket *pBucketOther = pMappingJobArgs[j].borderTable.pTable + hash;
 		do {
 			if (pBucketOther->pEntry) {
 				linkOtherEntry(pBucketOther, pBucket, mapFace);
@@ -2338,23 +2339,23 @@ void linkEntriesFromOtherJobs(
 static
 void walkBucketsAndLink(
 	StucContext pCtx,
-	SendOffArgs *pJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	CompiledBorderTable *pBorderTable,
 	I32 totalBorderFaces,
 	I32 mapJobsSent,
 	I32 jobIdx,
 	I32 hash
 ) {
-	STUC_ASSERT("", pJobArgs[jobIdx].borderTable.size > 0);
-	STUC_ASSERT("", pJobArgs[jobIdx].borderTable.pTable);
-	BorderBucket *pBucket = pJobArgs[jobIdx].borderTable.pTable + hash;
+	STUC_ASSERT("", pMappingJobArgs[jobIdx].borderTable.size > 0);
+	STUC_ASSERT("", pMappingJobArgs[jobIdx].borderTable.pTable);
+	BorderBucket *pBucket = pMappingJobArgs[jobIdx].borderTable.pTable + hash;
 	I32 depth = 0;
 	do {
 		if (pBucket->pEntry) {
 			I32 mapFace = pBucket->pEntry->mapFace;
 			STUC_ASSERT("", mapFace >= 0);
 			linkEntriesFromOtherJobs(
-				pJobArgs,
+				pMappingJobArgs,
 				pBucket,
 				mapFace,
 				hash,
@@ -2378,28 +2379,28 @@ void walkBucketsAndLink(
 static
 void compileBorderTables(
 	StucContext pCtx,
-	SendOffArgs *pJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	CompiledBorderTable *pBorderTable,
 	I32 totalBorderFaces,
 	I32 mapJobsSent
 ) {
 	pBorderTable->ppTable = pCtx->alloc.pMalloc(sizeof(void *) * totalBorderFaces);
 	for (I32 i = 0; i < mapJobsSent; ++i) {
-		if (!pJobArgs[i].bufSize) {
+		if (!pMappingJobArgs[i].bufSize) {
 			//TODO why is bufsize zero? how? find out
 			continue; //skip if buf mesh is empty
 		}
-		for (I32 hash = 0; hash < pJobArgs[i].borderTable.size; ++hash) {
+		for (I32 hash = 0; hash < pMappingJobArgs[i].borderTable.size; ++hash) {
 			walkBucketsAndLink(
 				pCtx,
-				pJobArgs,
+				pMappingJobArgs,
 				pBorderTable,
 				totalBorderFaces,
 				mapJobsSent,
 				i,
 				hash
 			);
-			STUC_ASSERT("", hash >= 0 && hash < pJobArgs[i].borderTable.size);
+			STUC_ASSERT("", hash >= 0 && hash < pMappingJobArgs[i].borderTable.size);
 		}
 		STUC_ASSERT("", i >= 0 && i < mapJobsSent);
 	}
@@ -2458,15 +2459,15 @@ void destroyCombineTables(const StucAlloc *pAlloc, CombineTables *pCTables) {
 }
 
 static
-Result sendOffMergeJobs(
+Result sendOffMakePiecesJobs(
 	MapToMeshBasic *pBasic,
 	CompiledBorderTable *pBorderTable,
 	I32 *pJobCount,
 	void ***pppJobHandles,
-	MergeSendOffArgs **ppMergeJobArgs,
-	SendOffArgs *pMapJobArgs,
+	MakePiecesJobArgs **ppJobArgs,
+	MappingJobArgs *pMappingJobArgs,
 	CombineTables *pCTables,
-	JobBases *pJobBases
+	JobBases *pMappingJobBases
 ) {
 	Result err = STUC_SUCCESS;
 	*pJobCount = MAX_SUB_MAPPING_JOBS;
@@ -2475,7 +2476,7 @@ Result sendOffMergeJobs(
 	bool singleThread = !entriesPerJob;
 	void *jobArgPtrs[MAX_THREADS] = {0};
 	*pJobCount = singleThread ? 1 : *pJobCount;
-	*ppMergeJobArgs = pBasic->pCtx->alloc.pCalloc(*pJobCount, sizeof(MergeSendOffArgs));
+	*ppJobArgs = pBasic->pCtx->alloc.pCalloc(*pJobCount, sizeof(MakePiecesJobArgs));
 	for (I32 i = 0; i < *pJobCount; ++i) {
 		I32 entriesStart = entriesPerJob * i;
 		I32 entriesEnd = i == *pJobCount - 1 ?
@@ -2483,17 +2484,17 @@ Result sendOffMergeJobs(
 		//TODO make a struct for these common variables, like pCtx,
 		//pMap, pEdgeVerts, etc, so you don't need to move them
 		//around manually like this.
-		(*ppMergeJobArgs)[i].pBasic = pBasic;
-		(*ppMergeJobArgs)[i].pBorderTable = pBorderTable;
-		(*ppMergeJobArgs)[i].entriesStart = entriesStart;
-		(*ppMergeJobArgs)[i].entriesEnd = entriesEnd;
-		(*ppMergeJobArgs)[i].pJobArgs = pMapJobArgs;
-		(*ppMergeJobArgs)[i].pJobBases = pJobBases;
-		(*ppMergeJobArgs)[i].pCTables = pCTables;
-		(*ppMergeJobArgs)[i].job = i;
-		(*ppMergeJobArgs)[i].totalVerts = 4;
-		(*ppMergeJobArgs)[i].jobCount = *pJobCount;
-		jobArgPtrs[i] = *ppMergeJobArgs + i;
+		(*ppJobArgs)[i].pBasic = pBasic;
+		(*ppJobArgs)[i].pBorderTable = pBorderTable;
+		(*ppJobArgs)[i].entriesStart = entriesStart;
+		(*ppJobArgs)[i].entriesEnd = entriesEnd;
+		(*ppJobArgs)[i].pMappingJobArgs = pMappingJobArgs;
+		(*ppJobArgs)[i].pMappingJobBases = pMappingJobBases;
+		(*ppJobArgs)[i].pCTables = pCTables;
+		(*ppJobArgs)[i].job = i;
+		(*ppJobArgs)[i].totalVerts = 4;
+		(*ppJobArgs)[i].jobCount = *pJobCount;
+		jobArgPtrs[i] = *ppJobArgs + i;
 	}
 	*pppJobHandles = pBasic->pCtx->alloc.pCalloc(*pJobCount, sizeof(void *));
 	err =  pBasic->pCtx->threadPool.pJobStackPushJobs(
@@ -2508,12 +2509,12 @@ Result sendOffMergeJobs(
 }
 
 static
-void destroyMergeJobArgs(StucContext pCtx, I32 jobCount, MergeSendOffArgs *pArgArr) {
+void destroyMakePiecesJobArgs(StucContext pCtx, I32 jobCount, MakePiecesJobArgs *pArgArr) {
 	if (!pArgArr) {
 		return;
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
-		MergeSendOffArgs *pArgs = pArgArr + i;
+		MakePiecesJobArgs *pArgs = pArgArr + i;
 		I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 		for (I32 j = 0; j < count; ++j) {
 			if (pArgs->pPieceRootTable) {
@@ -2551,8 +2552,8 @@ void destroyMergeJobArgs(StucContext pCtx, I32 jobCount, MergeSendOffArgs *pArgA
 
 Result stucMergeBorderFaces(
 	MapToMeshBasic *pBasic,
-	SendOffArgs *pJobArgs,
-	JobBases *pJobBases,
+	MappingJobArgs *pMappingJobArgs,
+	JobBases *pMappingJobBases,
 	I32 mapJobsSent
 ) {
 	StucResult err = STUC_SUCCESS;
@@ -2560,15 +2561,15 @@ Result stucMergeBorderFaces(
 	I32 totalBorderFaces = 0;
 	I32 totalBorderEdges = 0;
 	for (I32 i = 0; i < mapJobsSent; ++i) {
-		totalBorderFaces += pJobArgs[i].bufMesh.borderFaceCount;
-		totalBorderEdges += pJobArgs[i].bufMesh.borderEdgeCount;
+		totalBorderFaces += pMappingJobArgs[i].bufMesh.borderFaceCount;
+		totalBorderEdges += pMappingJobArgs[i].bufMesh.borderEdgeCount;
 		STUC_ASSERT("", i < mapJobsSent);
 	}
 	CompiledBorderTable borderTable = { 0 };
 	//compile border table entries from all jobs, into a single table
 	compileBorderTables(
 		pBasic->pCtx,
-		pJobArgs,
+		pMappingJobArgs,
 		&borderTable,
 		totalBorderFaces,
 		mapJobsSent
@@ -2581,18 +2582,18 @@ Result stucMergeBorderFaces(
 		totalBorderFaces,
 		totalBorderEdges
 	);
-	MergeSendOffArgs *pMergeJobArgs = NULL;
+	MakePiecesJobArgs *pJobArgs = NULL;
 	I32 jobCount = 0;
 	void **ppJobHandles = NULL;
-	err = sendOffMergeJobs(
+	err = sendOffMakePiecesJobs(
 		pBasic,
 		&borderTable,
 		&jobCount,
 		&ppJobHandles,
-		&pMergeJobArgs,
-		pJobArgs,
+		&pJobArgs,
+		pMappingJobArgs,
 		&cTables,
-		pJobBases
+		pMappingJobBases
 	);
 	STUC_THROW_IFNOT(err, "", 0);
 	err = pCtx->threadPool.pWaitForJobs(
@@ -2605,11 +2606,11 @@ Result stucMergeBorderFaces(
 	STUC_THROW_IFNOT(err, "", 0);
 	err = stucJobGetErrs(pCtx, jobCount, &ppJobHandles);
 	STUC_THROW_IFNOT(err, "", 0);
-	err = mergeAndAddToOutMesh(jobCount, pMergeJobArgs);
+	err = mergeAndAddToOutMesh(jobCount, pJobArgs);
 	STUC_THROW_IFNOT(err, "", 0);
 
 	STUC_CATCH(0, err, ;);
-	destroyMergeJobArgs(pCtx, jobCount, pMergeJobArgs);
+	destroyMakePiecesJobArgs(pCtx, jobCount, pJobArgs);
 	if (ppJobHandles) {
 		stucJobDestroyHandles(pCtx, jobCount, ppJobHandles);
 		pCtx->alloc.pFree(ppJobHandles);
