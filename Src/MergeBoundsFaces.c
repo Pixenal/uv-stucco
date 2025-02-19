@@ -64,10 +64,10 @@ void initSharedEdgeEntry(
 	pEntry->receive = isReceive;
 	pEntry->preserve = isPreserve;
 	pEntry->seam = seam;
-	pEntry->corner[0] = i;
+	pEntry->corner[0] = (I16)i;
 	pEntry->validIdx = -1;
-	pEntry->segment = segment;
-	pEntry->inOrient = pPiece->pEntry->inOrient;
+	pEntry->segment = (I8)segment;
+	pEntry->inOrient = (bool)pPiece->pEntry->inOrient;
 	pEntry->tile = pPiece->tile;
 }
 
@@ -183,10 +183,10 @@ Result addToTable(
 			if (pEdgeEntry->entries[pEdgeEntry->idx] != pPiece->entryIdx) {
 				//other side of the edge
 				pEdgeEntry->entries[1] = pPiece->entryIdx;
-				pEdgeEntry->corner[1] = corner;
+				pEdgeEntry->corner[1] = (I16)corner;
 				pEdgeEntry->idx = 1;
 				pEdgeEntry->refIdx[1] = refIdx;
-				if (pEdgeEntry->inOrient != pPiece->pEntry->inOrient) {
+				if (pEdgeEntry->inOrient != (bool)pPiece->pEntry->inOrient) {
 					pEdgeEntry->removed = true;
 				}
 			}
@@ -234,7 +234,6 @@ Result addEntryToSharedEdgeTable(
 	bool *pHasPreserve
 ) {
 	Result err = STUC_SUCCESS;
-	const StucAlloc *pAlloc = &pArgs->pBasic->pCtx->alloc;
 	STUC_ASSERT("", (tableSize > 0 && entryIdx >= 0) || !entryIdx);
 	Piece *pPiece = pEntries + entryIdx;
 	BufMesh *pBufMesh = &pArgs->pJobArgs[pEntry->job].bufMesh;
@@ -1088,8 +1087,8 @@ void getAndAddAdjPiece(
 		}
 		else if (pEdgeEntry->edge - 1 == pPiece->pEdges[edgeIdx].edge &&
 		         pEdgeEntry->segment == pPiece->pEdges[edgeIdx].segment &&
-		         pEdgeEntry->tile.d[0] == pPiece->pEntry->tileX &&
-		         pEdgeEntry->tile.d[1] == pPiece->pEntry->tileY) {
+		         pEdgeEntry->tile.d[0] == (I16)pPiece->pEntry->tileX &&
+		         pEdgeEntry->tile.d[1] == (I16)pPiece->pEntry->tileY) {
 
 			addAdjPiece(pEdgeEntry, pPiece, pPieceArr, pPieceRoot, ppTail, ppPieceTail);
 			break;
@@ -1194,7 +1193,7 @@ void flipSharedEdgeEntry(SharedEdge *pEntry) {
 	pEntry->entries[0] = pEntry->entries[1];
 	pEntry->entries[1] = entryBuf;
 	pEntry->corner[0] = pEntry->corner[1];
-	pEntry->corner[1] = cornerBuf;
+	pEntry->corner[1] = (I16)cornerBuf;
 	pEntry->refIdx[0] = pEntry->refIdx[1];
 	pEntry->refIdx[1] = refIdxBuf;
 }
@@ -1432,7 +1431,7 @@ void sortCorners(
 		if (stucGetIfStuc(pPiece->pEntry, corner) &&
 		    !stucGetIfOnLine(pPiece->pEntry, corner)) {
 			pPiece->add |= (I64)true << corner;
-			pPiece->pOrder[corner] = sort;
+			pPiece->pOrder[corner] = (U8)sort;
 			sort++;
 			corner++;
 			adj = false;
@@ -1455,7 +1454,7 @@ void sortCorners(
 			if (!adj ||
 				stucGetIfOnLine(pPiece->pEntry, corner)) {
 				pPiece->add |= (I64)true << corner;
-				pPiece->pOrder[corner] = sort;
+				pPiece->pOrder[corner] = (U8)sort;
 				//set keep preserve to false if true
 				UBitField16 mask = -0x1 ^ (0x1 << corner);
 				pPiece->keepPreserve &= mask;
@@ -1474,7 +1473,7 @@ void sortCorners(
 			    (pPiece->keepVertPreserve >> corner & 0x01)) {
 
 				pPiece->add |= (I64)true << corner;
-				pPiece->pOrder[corner] = sort;
+				pPiece->pOrder[corner] = (U8)sort;
 				sort++;
 			}
 			else {
@@ -2042,7 +2041,6 @@ UsgInFace *findUsgForMapCorners(
 	Usg **ppUsg
 ) {
 	StucMap pMap = pArgs->pBasic->pMap;
-	V3_F32 usgBc = {0};
 	for (I32 i = 0; i < pMapFace->size; ++i) {
 		I32 mapVert = pMap->mesh.core.pCorners[pMapFace->start + i];
 		if (!pMap->mesh.pUsg) {
@@ -2167,7 +2165,7 @@ void invertWind(Piece *pPiece, I32 count) {
 			if (!(pPiece->add >> i & 0x1)) {
 				continue;
 			}
-			pPiece->pOrder[i] = count - pPiece->pOrder[i];
+			pPiece->pOrder[i] = (U8)count - pPiece->pOrder[i];
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
@@ -2211,7 +2209,6 @@ Result createAndJoinPieces(void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
 	MergeSendOffArgs *pArgs = pArgsVoid;
 	StucContext pCtx = pArgs->pBasic->pCtx;
-	const StucAlloc *pAlloc = &pCtx->alloc;
 	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	allocArrsForPieceStage(pArgs, count);
 	for (I32 i = 0; i < count; ++i) {
@@ -2285,7 +2282,6 @@ Result createAndJoinPieces(void *pArgsVoid) {
 
 static
 Result mergeAndAddToOutMesh(
-	StucContext pCtx,
 	int32_t jobCount,
 	MergeSendOffArgs *pArgArr
 ) {
@@ -2609,7 +2605,7 @@ Result stucMergeBorderFaces(
 	STUC_THROW_IFNOT(err, "", 0);
 	err = stucJobGetErrs(pCtx, jobCount, &ppJobHandles);
 	STUC_THROW_IFNOT(err, "", 0);
-	err = mergeAndAddToOutMesh(pCtx, jobCount, pMergeJobArgs);
+	err = mergeAndAddToOutMesh(jobCount, pMergeJobArgs);
 	STUC_THROW_IFNOT(err, "", 0);
 
 	STUC_CATCH(0, err, ;);

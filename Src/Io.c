@@ -27,13 +27,13 @@ void reallocByteStringIfNeeded(
 	ByteString *pByteString,
 	I64 bitOffset
 ) {
-	I64 bitCount = ((pByteString->byteIdx) * 8l) + pByteString->nextBitIdx;
-	STUC_ASSERT("", bitCount <= pByteString->size * 8l);
+	I64 bitCount = ((pByteString->byteIdx) * 8) + pByteString->nextBitIdx;
+	STUC_ASSERT("", bitCount <= pByteString->size * 8);
 	bitCount += bitOffset;
-	I64 byteCount = bitCount / 8l + (bitCount % 8l != 0l);
+	I64 byteCount = bitCount / 8 + (bitCount % 8 != 0);
 	if (byteCount >= pByteString->size) {
 		I64 oldSize = pByteString->size;
-		pByteString->size *= 2l;
+		pByteString->size *= 2;
 		pByteString->pString = pAlloc->pRealloc(pByteString->pString, pByteString->size);
 		memset(pByteString->pString + oldSize, 0, pByteString->size - oldSize);
 	}
@@ -68,10 +68,10 @@ void stucEncodeValue(
 }
 
 void stucEncodeString(const StucAlloc *pAlloc, ByteString *pByteString, U8 *pString) {
-	I32 lengthInBits = (strlen((char *)pString) + 1) * 8;
+	I32 lengthInBits = ((I32)strlen((char *)pString) + 1) * 8;
 	I32 lengthInBytes = lengthInBits / 8;
 	//+8 for potential padding
-	reallocByteStringIfNeeded(pAlloc, pByteString, lengthInBits + 8l);
+	reallocByteStringIfNeeded(pAlloc, pByteString, lengthInBits + 8);
 	if (pByteString->nextBitIdx != 0) {
 		//pad to beginning of next byte
 		pByteString->nextBitIdx = 0;
@@ -324,24 +324,25 @@ void getUniqueFlatCutoffs(
 
 static
 I64 estimateObjSize(StucObject *pObj) {
-	I64 total = 0l;
+	I64 total = 0;
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
-	total += 4l * 16l; //transform
-	total += 1l; //type
-	total += 2l * 3l; //data names/ checks
+	total += 4 * 16; //transform
+	total += 1; //type
+	total += 2 * 3; //data names/ checks
 	if (!stucCheckIfMesh(*pObj->pData)) {
 		return total;
 	}
-	total += 2l * 9l; //data names/ checks
+	
+	total += 2 * 9; //data names/ checks
 
 	total += (I64)pMesh->faceAttribs.count * (I64)pMesh->faceCount;
 	total += (I64)pMesh->cornerAttribs.count * (I64)pMesh->cornerCount;
 	total += (I64)pMesh->edgeAttribs.count * (I64)pMesh->edgeCount;
 	total += (I64)pMesh->vertAttribs.count * (I64)pMesh->vertCount;
 
-	total += 4l * (I64)pMesh->faceCount;
-	total += 4l * (I64)pMesh->cornerCount;
-	total += 4l * (I64)pMesh->cornerCount; //edge list
+	total += 4 * (I64)pMesh->faceCount;
+	total += 4 * (I64)pMesh->cornerCount;
+	total += 4 * (I64)pMesh->cornerCount; //edge list
 
 	return total;
 }
@@ -358,7 +359,7 @@ I64 estimateUsgArrSize(I32 count, StucUsg *pUsgArr) {
 
 static
 I64 estimateObjArrSize(I32 count, StucObject *pObjArr) {
-	I64 total = 0l;
+	I64 total = 0;
 	for (I32 i = 0; i < count; ++i) {
 		total += estimateObjSize(pObjArr + i);
 	}
@@ -427,10 +428,16 @@ StucResult stucWriteStucFile(
 	//compress data
 	//TODO convert to use proper zlib inflate and deflate calls
 	//compress and decompress are not context independent iirc
-	I64 dataSize = data.byteIdx + (data.nextBitIdx > 0l);
-	uLongf uCompressedDataSize = (U64)(dataSize * 1.01l + 12l); //zlib needs some padding
+	I64 dataSize = data.byteIdx + (data.nextBitIdx > 0);
+	//zlib needs some padding
+	uLongf uCompressedDataSize = (uLong)((I32)((F32)dataSize * 1.01f) + 12);
 	U8 *compressedData = pCtx->alloc.pMalloc(uCompressedDataSize);
-	I32 zResult = compress(compressedData, &uCompressedDataSize, data.pString, dataSize);
+	I32 zResult = compress(
+		compressedData,
+		&uCompressedDataSize,
+		data.pString,
+		(uLong)dataSize
+	);
 	switch(zResult) {
 		case Z_OK:
 			printf("Successfully compressed STUC data\n");
@@ -451,18 +458,18 @@ StucResult stucWriteStucFile(
 
 	//encode header
 	const char *format = "UV Stucco Map File";
-	I32 formatLen = strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
+	I32 formatLen = (I32)strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
 	STUC_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN)
 	header.size =
-		8l * ((I64)formatLen + 1l) +
-		16l + //version
-		64l + //compressed data size
-		64l + //uncompressed data size
-		32l + //indexed attrib count
-		32l + //obj count
-		32l + //usg count
-		32l;  //flatten cutoff count
-	header.size = header.size / 8l + (header.size % 8l != 0l);
+		8 * ((I64)formatLen + 1) +
+		16 + //version
+		64 + //compressed data size
+		64 + //uncompressed data size
+		32 + //indexed attrib count
+		32 + //obj count
+		32 + //usg count
+		32;  //flatten cutoff count
+	header.size = header.size / 8 + (header.size % 8 != 0);
 	header.pString = pCtx->alloc.pCalloc(header.size, 1);
 	stucEncodeString(pAlloc, &header, (U8 *)format);
 	I32 version = STUC_MAP_VERSION;
@@ -480,7 +487,7 @@ StucResult stucWriteStucFile(
 	pCtx->io.pOpen(&pFile, pName, 0, &pCtx->alloc);
 	I64 finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
 	pCtx->io.pWrite(pFile, (U8 *)&finalHeaderLen, 2);
-	pCtx->io.pWrite(pFile, header.pString, finalHeaderLen);
+	pCtx->io.pWrite(pFile, header.pString, (I32)finalHeaderLen);
 	pCtx->io.pWrite(pFile, compressedData, (I32)compressedDataSize);
 	pCtx->io.pClose(pFile);
 
@@ -864,9 +871,9 @@ StucResult stucLoadStucFile(
 		return STUC_ERROR;
 	}
 	U8 *dataByteStringRaw = pCtx->alloc.pMalloc(header.dataSize);
-	unsigned long dataSizeUncompressed = header.dataSize;
+	uLong dataSizeUncompressed = (uLong)header.dataSize;
 	printf("Reading data\n");
-	pCtx->io.pRead(pFile, dataByteStringRaw, header.dataSizeCompressed);
+	pCtx->io.pRead(pFile, dataByteStringRaw, (I32)header.dataSizeCompressed);
 	pCtx->io.pClose(pFile);
 	dataByteString.pString = pCtx->alloc.pMalloc(header.dataSize);
 	printf("Decompressing data\n");
@@ -874,7 +881,7 @@ StucResult stucLoadStucFile(
 		dataByteString.pString,
 		&dataSizeUncompressed,
 		dataByteStringRaw,
-		header.dataSizeCompressed
+		(uLong)header.dataSizeCompressed
 	);
 	pCtx->alloc.pFree(dataByteStringRaw);
 	switch(zResult) {

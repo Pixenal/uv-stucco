@@ -344,7 +344,7 @@ I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx) {
 }
 
 char *stucAttribAsStr(AttribCore *pAttrib, I32 idx) {
-	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData) + idx;
+	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
 }
 
 void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx) {
@@ -398,7 +398,7 @@ void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx) {
 		case STUC_ATTRIB_V4_F64:
 			return ((F64 (*)[4])pAttrib->pData) + idx;
 		case STUC_ATTRIB_STRING:
-			return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData) + idx;
+			return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
 		default:
 			STUC_ASSERT("", false);
 			return NULL;

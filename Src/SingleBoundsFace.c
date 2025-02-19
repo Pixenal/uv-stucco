@@ -75,51 +75,6 @@ void stucAllocMergeBufs(
 }
 
 static
-void buildApproximateTbnInverse(Vars *pVars) {
-	V3_F32 normal = {0};
-	I32 entryCount = 0;
-	Piece *pPiece = pVars->pPieceRoot;
-	do {
-		BorderFace *pEntry = pPiece->pEntry;
-		BufMesh* pBufMesh = &pVars->pArgs->pJobArgs[pEntry->job].bufMesh;
-		Mesh *pMesh = &pBufMesh->mesh;
-		STUC_ASSERT("", face.size >= 3);
-		V3_F32 vertA = pMesh->pVerts[stucBufMeshGetVertIdx(pPiece, pBufMesh, 0)];
-		V3_F32 vertB = pMesh->pVerts[stucBufMeshGetVertIdx(pPiece, pBufMesh, 1)];
-		V3_F32 vertC = pMesh->pVerts[stucBufMeshGetVertIdx(pPiece, pBufMesh, 2)];
-		STUC_ASSERT("", v3IsFinite(vertA) && v3IsFinite(vertB) && v3IsFinite(vertC));
-		V3_F32 ab = _(vertB V3SUB vertA);
-		V3_F32 ac = _(vertC V3SUB vertA);
-		_(&normal V3ADDEQL v3Cross(ab, ac));
-		STUC_ASSERT("", v3IsFinite(normal));
-		STUC_ASSERT("", entryCount >= 0 && entryCount < 100000);
-		entryCount++;
-		pPiece = pPiece->pNext;
-	} while (pPiece);
-	STUC_ASSERT("", entryCount > 0 && entryCount < 100000);
-	_(&normal V3DIVEQLS (F32)entryCount);
-	F32 normalLen = sqrt(
-		normal.d[0] * normal.d[0] +
-		normal.d[1] * normal.d[1] +
-		normal.d[2] * normal.d[2]
-	);
-	_(&normal V3DIVEQLS normalLen);
-	STUC_ASSERT("", v3IsFinite(normal));
-	V3_F32 axis = {0};
-	if (normal.d[2] > .99f || normal.d[2] < -.99f) {
-		axis.d[0] = 1.0f;
-	}
-	else {
-		axis.d[2] = 1.0f;
-	}
-	V3_F32 tangent = v3Cross(normal, axis);
-	V3_F32 bitangent = v3Cross(normal, tangent);
-	Mat3x3 tbn = mat3x3FromV3_F32(tangent, bitangent, normal);
-	pVars->tbnInv = mat3x3Invert(&tbn);
-	STUC_ASSERT("", mat3x3IsFinite(&pVars->tbnInv));
-}
-
-static
 bool checkIfDup(Vars *pVars, I32 stucCorner) {
 	for (I32 i = 0; i < pVars->mapCornerBuf.count; ++i) {
 		if (stucCorner == pVars->mapCornerBuf.pBuf[i]) {
@@ -290,7 +245,7 @@ void addCornersToBufAndVertsToMesh(Vars *pVars) {
 			STUC_ASSERT("", pPiece->pOrder[k] > 0);
 			STUC_ASSERT("", pPiece->pOrder[k] <= pVars->bufSize);
 			pVars->pIdxTable[pPiece->pOrder[k] - 1] = pCornerBuf->count;
-			pCornerBuf->pBuf[pCornerBuf->count].job = pEntry->job;
+			pCornerBuf->pBuf[pCornerBuf->count].job = (I8)pEntry->job;
 			pCornerBuf->pBuf[pCornerBuf->count].bufCorner = face.start - k;
 			pCornerBuf->pBuf[pCornerBuf->count].bufFace = pEntry->bufFace;
 			pCornerBuf->pBuf[pCornerBuf->count].corner = vert;
@@ -365,7 +320,7 @@ void addFaceToOutMesh(Vars *pVars, I32 *pIndices, I32 count) {
 }
 
 static
-void destroyEntries(StucContext pCtx, Piece *pPiece) {
+void nullEntries(Piece *pPiece) {
 	do {
 		if (pPiece->pEntry) {
 			pPiece->pEntry = NULL;
@@ -445,5 +400,5 @@ void stucMergeSingleBorderFace(
 		addFaceToOutMesh(&vars, pIndices, vars.cornerBuf.count);
 		pCtx->alloc.pFree(pIndices);
 	}
-	destroyEntries(pCtx, vars.pPieceRoot);
+	nullEntries(vars.pPieceRoot);
 }

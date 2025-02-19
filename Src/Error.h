@@ -12,7 +12,10 @@ typedef StucResult Result;
 	printf("STUC ASSERT in %s, MESSAGE: %s\n", __func__, message); \
 	assert(condition);
 #else
-#define STUC_ASSERT(message, condition)
+#define STUC_ASSERT(message, condition) \
+	if (!(condition)) \
+	printf("STUC ASSERT in %s, MESSAGE: %s\n", __func__, message); \
+	assert(condition);
 #endif
 
 static
@@ -88,6 +91,7 @@ void printError(
 
 #define STUC_CATCH(idx, err, cleanup) \
 	if (err != STUC_SUCCESS) { \
-	handle_error_##idx: \
-		##cleanup \
-	}
+	handle_error_##idx: {\
+		cleanup \
+	}\
+}

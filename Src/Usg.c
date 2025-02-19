@@ -392,7 +392,7 @@ StucResult stucAssignUsgsToVerts(
 
 static
 void checkIfFaceIsClose(V3_F32 *pBc, F32 *pDist, bool *pClose, F32 *pClosestDist) {
-	V3_F32 bcAbs = {fabs(pBc->d[0]), fabs(pBc->d[1]), fabs(pBc->d[2])};
+	V3_F32 bcAbs = {fabsf(pBc->d[0]), fabsf(pBc->d[1]), fabsf(pBc->d[2])};
 	for (I32 edge = 0; edge < 3; ++edge) {
 		I32 last = edge == 0 ? 2 : edge - 1;
 		I32 next = (edge + 1) % 3;
@@ -410,7 +410,7 @@ void checkIfFaceIsClose(V3_F32 *pBc, F32 *pDist, bool *pClose, F32 *pClosestDist
 			}
 			I32 last = vert == 0 ? 2 : vert - 1;
 			I32 next = (vert + 1) % 3;
-			F32 thisDist = fabs(1.0f - pBc->d[vert]);
+			F32 thisDist = fabsf(1.0f - pBc->d[vert]);
 			if (thisDist < *pClosestDist && pBc->d[last] < .0f && pBc->d[next] < .0f) {
 				*pDist = thisDist;
 				*pClose = true;
@@ -647,7 +647,7 @@ UsgInFace *stucGetUsgForCorner(
 	if (usg) {
 		usg = abs(usg) - 1;
 		U32 sum = usg + inFace;
-		I32 hash = stucFnvHash((I8 *)&sum, 4, pMap->usgArr.tableSize);
+		I32 hash = stucFnvHash((U8 *)&sum, 4, pMap->usgArr.tableSize);
 		UsgInFace *pEntry = pMap->usgArr.pInFaceTable + hash;
 		do {
 			if (pEntry->face == inFace && pEntry->pEntry && pEntry->pEntry->usg == usg) {

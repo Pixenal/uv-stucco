@@ -23,10 +23,10 @@ void calcCellBounds(Cell *cell) {
 	F32 xSide = (F32)(cell->localIdx % 2);
 	F32 ySide = (F32)(((cell->localIdx + 2) / 2) % 2);
 	STUC_ASSERT("", isfinite(xSide) && isfinite(ySide));
-	cell->boundsMin.d[0] = xSide * .5;
-	cell->boundsMin.d[1] = ySide * .5;
-	cell->boundsMax.d[0] = 1.0 - (1.0 - xSide) * .5;
-	cell->boundsMax.d[1] = 1.0 - (1.0 - ySide) * .5;
+	cell->boundsMin.d[0] = xSide * .5f;
+	cell->boundsMin.d[1] = ySide * .5f;
+	cell->boundsMax.d[0] = 1.0f - (1.0f - xSide) * .5f;
+	cell->boundsMax.d[1] = 1.0f - (1.0f - ySide) * .5f;
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
 	STUC_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
@@ -63,7 +63,7 @@ Result addCellToEncasingCells(
 		return err;
 	}
 	pEncasingCells->pCells[pEncasingCells->cellSize] = cell->cellIdx;
-	pEncasingCells->pCellType[pEncasingCells->cellSize] = edge;
+	pEncasingCells->pCellType[pEncasingCells->cellSize] = (I8)edge;
 	pEncasingCells->cellSize++;;
 	pEncasingCells->faceTotalNoDup += faceSize;
 	return err;
@@ -105,10 +105,7 @@ Result findFaceQuadrantUv(
 		*pResult = 1;
 		return err;
 	}
-	else {
-		*pResult = 2;
-		return err;
-	}
+	*pResult = 2;
 	return err;
 }
 
@@ -290,7 +287,7 @@ Result stucGetAllEncasingCells(
 	}
 	do {
 		STUC_ASSERT(
-			err,
+			"",
 			cellStackPtr >= 0 && cellStackPtr < STUC_CELL_STACK_SIZE
 		);
 		Cell *pCell = cellStack[cellStackPtr];
@@ -531,7 +528,7 @@ void recordCellsInTable(
 			continue;
 		}
 		I32 cellType = pCellsBuf->pCellType[i];
-		pState->pCellFlags[pCell->cellIdx] = cellType + 1;
+		pState->pCellFlags[pCell->cellIdx] = (I8)(cellType + 1);
 		Cell *pStack[32] = {0};
 		I8 childrenLeft[32] = {0};
 		pStack[0] = pCell;
@@ -839,7 +836,7 @@ void addEnclosedVertsToCell(
 		if (result == 1) {
 			I32 childIdx = signs.d[0] + signs.d[1] * 2;
 			Cell *pChild = pParentCell->pChildren + childIdx;
-			pFaceFlag[i] = childIdx + 1;
+			pFaceFlag[i] = (I8)(childIdx + 1);
 			STUC_ASSERT("", pChild->faceSize >= 0);
 			STUC_ASSERT("", pChild->faceSize <= pParentCell->faceSize);
 			pChild->faceSize++;
@@ -854,7 +851,7 @@ void addEnclosedVertsToCell(
 	}
 	for (I32 i = 0; i < 4; ++i) {
 		Cell *cell = pParentCell->pChildren + i;
-		STUC_ASSERT("", cell->initialized == 0 && cell->localIdx == i);
+		STUC_ASSERT("", cell->initialized == 0u && (I32)cell->localIdx == i);
 		STUC_ASSERT("", cell->faceSize >= 0);
 		STUC_ASSERT("", cell->faceSize <= pParentCell->faceSize);
 		if (cell->faceSize) {

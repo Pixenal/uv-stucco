@@ -97,7 +97,7 @@ V3_F32 v3Lerp(V3_F32 a, V3_F32 b, F32 alpha) {
 
 V3_F32 v3UnitFromPoints(V3_F32 a, V3_F32 b) {
 	V3_F32 dir = _(b V3SUB a); //direction
-	F32 magnitude = sqrt(dir.d[0] * dir.d[0] + dir.d[1] * dir.d[1]);
+	F32 magnitude = sqrtf(dir.d[0] * dir.d[0] + dir.d[1] * dir.d[1]);
 	return _(dir V3DIVS magnitude);
 }
 
@@ -123,7 +123,7 @@ void v3MultiplyEqualMat3x3(V3_F32 *pA, const Mat3x3 *pB) {
 }
 
 V3_F32 v3Normalize(V3_F32 a) {
-	F32 magnitude = sqrt(a.d[0] * a.d[0] + a.d[1] * a.d[1] + a.d[2] * a.d[2]);
+	F32 magnitude = sqrtf(a.d[0] * a.d[0] + a.d[1] * a.d[1] + a.d[2] * a.d[2]);
 	return _(a V3DIVS magnitude);
 }
 
@@ -136,7 +136,7 @@ F32 v3SquareLen(V3_F32 a) {
 }
 
 F32 v3Len(V3_F32 a) {
-	return sqrt(v3SquareLen(a));
+	return sqrtf(v3SquareLen(a));
 }
 
 F32 v3TriArea(V3_F32 a, V3_F32 b, V3_F32 c) {
@@ -254,7 +254,7 @@ V2_F32 v2Cross(V2_F32 a) {
 }
 
 V2_F32 v2ModScalar(V2_F32 a, F32 b) {
-	V2_F32 c = {fmod(a.d[0], b), fmod(a.d[1], b)};
+	V2_F32 c = {fmodf(a.d[0], b), fmodf(a.d[1], b)};
 	return c;
 }
 
@@ -263,7 +263,7 @@ F32 v2SquareLen(V2_F32 a) {
 }
 
 F32 v2Len(V2_F32 a) {
-	return sqrt(v2SquareLen(a));
+	return sqrtf(v2SquareLen(a));
 }
 
 F32 v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c) {
@@ -272,7 +272,7 @@ F32 v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c) {
 	V3_F32 ba3 = {ba.d[0], ba.d[1], .0f};
 	V3_F32 bc3 = {bc.d[0], bc.d[1], .0f};
 	V3_F32 cross = _(ba3 V3CROSS bc3);
-	return fabs(cross.d[2]) / 2.0f;
+	return fabsf(cross.d[2]) / 2.0f;
 }
 
 F32 v2Determinate(V2_F32 a, V2_F32 b) {
@@ -280,8 +280,8 @@ F32 v2Determinate(V2_F32 a, V2_F32 b) {
 }
 
 void v2ModEqualScalar(V2_F32 *a, F32 b) {
-	a->d[0] = fmod(a->d[0], b);
-	a->d[1] = fmod(a->d[1], b);
+	a->d[0] = fmodf(a->d[0], b);
+	a->d[1] = fmodf(a->d[1], b);
 }
 
 I32 v2GreaterThanEqualTo(V2_F32 a, V2_F32 b) {
@@ -517,11 +517,11 @@ V3_F32 cartesianToBarycentric(const V2_F32 *pTri32, const V2_F32 *pPoint32) {
 	         (pTri[2].d[0] * pTri[0].d[1]) - (pTri[2].d[0] * pPoint.d[1]);
 
 	//u = dert(Au) / dert(A)
-	pointBc.d[0] = dertau / derta;
+	pointBc.d[0] = (F32)(dertau / derta);
 	//u = dert(Av) / dert(A)
-	pointBc.d[1] = dertav / derta;
+	pointBc.d[1] = (F32)(dertav / derta);
 	//w can be derived from u and v
-	pointBc.d[2] = 1.0 - pointBc.d[0] - pointBc.d[1];
+	pointBc.d[2] = 1.0f - pointBc.d[0] - pointBc.d[1];
 
 	return pointBc;
 }

@@ -74,7 +74,6 @@ typedef struct {
 typedef struct {
 	MapToMeshBasic *pBasic;
 	BufMesh bufMesh;
-	DebugAndPerfVars *pDpVars;
 	InFaceArr *pInFaces;
 	I32 inFaceSize;
 	LocalTables localTables;
@@ -96,7 +95,6 @@ Result stucMapToJobMesh(void *pArgsPtr);
 Result stucMapToSingleFace(
 	MappingJobVars *pVars,
 	FaceCellsTable *pFaceCellsTable,
-	DebugAndPerfVars *pDpVars,
 	V2_F32 fTileMin,
 	V2_I32 tile,
 	FaceRange *pInFace

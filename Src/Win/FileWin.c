@@ -63,7 +63,7 @@ I32 stucPlatformFileWrite(
 		printf("Failed to write to UVGP file. Error: %lu\n", lastError);
 		return 1;
 	}
-	if (bytesWritten != dataSize) {
+	if ((I32)bytesWritten != dataSize) {
 		printf("Failed. Number of bytes written to UVGP does not \
 			match data length\n");
 	}
@@ -83,7 +83,7 @@ I32 stucPlatformFileRead(
 		printf("Failed to read from UVGP file. Error: %lu\n", lastError);
 		return 1;
 	}
-	if (bytesRead != bytesToRead) {
+	if ((I32)bytesRead != bytesToRead) {
 		printf("Failed. Number of bytes read from UVGP file does \
 			not match specififed amount\n");
 	}
