@@ -13,11 +13,11 @@ typedef struct {
 } Usg;
 
 typedef struct InFaceArr {
+	struct InFaceArr *pNext;
+	I32 *pArr;
 	Mat3x3 tbn;
 	V3_F32 normal;
 	I32 tri[3];
-	struct InFaceArr *pNext;
-	I32 *pArr;
 	I32 count;
 	I32 usg;
 	F32 offset;
@@ -30,9 +30,9 @@ typedef struct UsgInFace {
 } UsgInFace;
 
 typedef struct {
+	Mesh squares;
 	Usg *pArr;
 	StucUsg *pMemArr;
-	Mesh squares;
 	UsgInFace *pInFaceTable;
 	I32 tableSize;
 	I32 count;

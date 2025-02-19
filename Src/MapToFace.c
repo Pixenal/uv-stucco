@@ -30,16 +30,16 @@ typedef struct {
 } TriUv;
 
 typedef struct {
+	V2_F32 vert;
+	V2_F32 vertNext;
+	V2_F32 dir;
+	V2_F32 dirBack;
 	I32 idx;
 	I32 edgeIdx;
 	I32 idxNext;
 	I8 localIdx;
 	I8 localIdxPrev;
 	I8 localIdxNext;
-	V2_F32 vert;
-	V2_F32 vertNext;
-	V2_F32 dir;
-	V2_F32 dirBack;
 	bool flipEdgeDir;
 } CornerInfo;
 
@@ -1830,7 +1830,6 @@ void initCornerBuf(
 	for (I32 k = 0; k < pMapFace->size; ++k) {
 		I32 vertIdx = pMap->mesh.core.pCorners[pMapFace->start + k];
 		CornerBuf *pCorner = pCornerBuf->buf + k;
-		pCorner->preserve = 0;
 		pCorner->isStuc = 1;
 		pCorner->baseCorner = (I8)((vertIdx + 1) * -1);
 		pCorner->corner = pMap->mesh.pVerts[vertIdx];

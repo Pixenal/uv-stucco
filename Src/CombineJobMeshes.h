@@ -50,18 +50,18 @@ typedef struct {
 // // indicates only used in createAndJoinPieces
 typedef struct Piece {
 	struct Piece *pNext;
-	BorderFace *pEntry;
 	FaceRange bufFace;
-	I32 edgeCount;//
+	BorderFace *pEntry;
 	EdgeSegmentPair *pEdges;
+	U8 *pOrder;
 	UBitField64 keepSeam;//
 	UBitField64 keepPreserve;
 	UBitField64 keepVertPreserve;//
 	UBitField64 add;
-	U8 *pOrder;
-	I32 entryIdx;//
-	V2_I16 tile;
 	V3_F32 realNormal;
+	V2_I16 tile;
+	I32 edgeCount;//
+	I32 entryIdx;//
 	bool listed;
 	bool triangulate;
 	bool hasSeam;
@@ -95,11 +95,11 @@ typedef struct OnLine {
 
 typedef struct BorderVert {
 	struct BorderVert *pNext;
+	V2_I16 tile;
 	I32 entryIdx;
 	I32 mapFace;
 	I32 mapEdge;
 	I32 vert;
-	V2_I16 tile;
 	I32 corners;
 	I32 inEdge;
 	I32 inVert;

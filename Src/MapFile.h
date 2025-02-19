@@ -15,18 +15,18 @@ typedef struct {
 
 typedef struct {
 	char format[MAP_FORMAT_NAME_MAX_LEN];
-	I32 version;
 	I64 dataSize;
 	I64 dataSizeCompressed;
+	I32 version;
 	I32 objCount;
 	I32 usgCount;
 	I32 flatCutoffCount;
 } StucHeader;
 
 typedef struct StucMapInternal {
+	UsgArr usgArr;
 	Mesh mesh;
 	QuadTree quadTree;
-	UsgArr usgArr;
-	V2_F32 zBounds;
 	StucAttribIndexedArr indexedAttribs;
+	V2_F32 zBounds;
 } MapFile;

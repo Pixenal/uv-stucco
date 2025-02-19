@@ -13,12 +13,10 @@ typedef struct CornerBuf {
 	V3_F32 normal;
 	V3_F32 inTangent;
 	V3_F32 bc; //barycentric coords
-	V2_F32 uv;
 	V3_F32 projNormal;
-	V3_F32 projNormalMasked;
+	V2_F32 uv;
 	I32 ancestor;
 	I32 ancestorNext;
-	F32 scale;
 	F32 alpha;
 	F32 mapAlpha;
 	F32 inTSign;
@@ -28,7 +26,6 @@ typedef struct CornerBuf {
 	I8 segment;
 	U8 onLine : 1;
 	U8 isBaseCorner : 1;
-	U8 preserve : 1;
 	U8 isStuc : 1;
 } CornerBuf;
 
@@ -47,11 +44,11 @@ typedef struct CornerBufWrap {
 
 typedef struct LocalVert {
 	struct LocalVert *pNext;
+	V2_I32 tile;
 	I32 vert;
 	I32 cornerSize;
 	I32 inFace;
 	I32 mapVert;
-	V2_I32 tile;
 } LocalVert;
 
 typedef struct LocalEdge  {
@@ -72,22 +69,22 @@ typedef struct {
 } LocalTables;
 
 typedef struct {
-	MapToMeshBasic *pBasic;
 	BufMesh bufMesh;
-	InFaceArr *pInFaces;
-	I32 inFaceSize;
 	LocalTables localTables;
 	Mat3x3 tbn;
 	Mat3x3 tbnInv;
-	BorderTable borderTable;
-	BorderTableAlloc borderTableAlloc;
+	MapToMeshBasic *pBasic;
+	InFaceArr *pInFaces;
 	void *pCornerBufWrapAlloc;
+	BorderTable borderTable;
 	Range inFaceRange;
+	BorderTableAlloc borderTableAlloc;
 	I32 id;
 	I32 bufSize;
 	I32 rawBufSize;
 	I32 finalBufSize;
 	I32 cornerBufSize;
+	I32 inFaceSize;
 } MappingJobState;
 
 Result stucMapToJobMesh(void *pArgsVoid);

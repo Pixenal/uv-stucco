@@ -34,11 +34,11 @@ typedef struct {
 typedef struct {
 	MakePiecesJobArgs *pArgs;
 	FaceRange mapFace;
-	I32 bufSize;
 	BoundsCornerBuf cornerBuf;
 	MapCornerBuf mapCornerBuf;
 	I32 *pIdxTable;
 	Piece *pPieceRoot;
+	I32 bufSize;
 	I32 bufFace;
 } AddFaceState;
 

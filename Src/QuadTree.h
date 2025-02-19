@@ -7,19 +7,19 @@
 #define CELL_MAX_VERTS 32
 
 typedef struct Cell {
-	U32 localIdx;
-	U32 initialized;
 	struct Cell *pChildren;
-	I32 faceSize;
 	I32 *pFaces;
-	I32 edgeFaceSize;
 	I32 *pEdgeFaces;
-	I32 cellIdx;
-	V2_F32 boundsMin;
-	V2_F32 boundsMax;
-	I32 linkEdgeSize;
 	I32 *pLinkEdges;
 	Range* pLinkEdgeRanges;
+	V2_F32 boundsMin;
+	V2_F32 boundsMax;
+	U32 localIdx;
+	U32 initialized;
+	I32 faceSize;
+	I32 edgeFaceSize;
+	I32 cellIdx;
+	I32 linkEdgeSize;
 } Cell;
 
 typedef struct {
@@ -28,12 +28,12 @@ typedef struct {
 } CellTable;
 
 typedef struct {
-	Cell *pRootCell;
 	CellTable cellTable;
-	I32 edgeSize;
+	Cell *pRootCell;
 	I32 *pEdges;
-	I32 edgeFaceSize;
 	I32 *pEdgeFaces;
+	I32 edgeSize;
+	I32 edgeFaceSize;
 	I32 cellCount;
 	I32 leafCount;
 } QuadTree;
@@ -41,10 +41,10 @@ typedef struct {
 typedef struct {
 	Range *pRangeBuf;
 	I32 *pCells;
+	I8 *pCellType;
 	I32 cellSize;
 	I32 faceTotal;
 	I32 faceTotalNoDup;
-	I8 *pCellType;
 } EncasingCells;
 
 typedef struct {
@@ -57,9 +57,9 @@ typedef struct {
 } FaceCells;
 
 typedef struct {
+	FaceCells *pFaceCells;
 	I32 cellFacesTotal;
 	I32 cellFacesMax;
-	FaceCells *pFaceCells;
 	I32 uniqueFaces;
 } FaceCellsTable;
 

@@ -7,10 +7,10 @@
 #include <Types.h>
 
 typedef struct {
-    unsigned char *pString;
-    I64 size;
-    I64 nextBitIdx;
-    I64 byteIdx;
+	unsigned char *pString;
+	I64 size;
+	I64 nextBitIdx;
+	I64 byteIdx;
 } ByteString;
 
 //void stucWriteDebugImage(Cell *pRootCell);

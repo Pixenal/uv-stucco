@@ -94,9 +94,9 @@ typedef struct {
 } BorderTable;
 
 typedef struct {
+	Mesh outMesh;
 	const StucContext pCtx;
 	const Mesh *pInMesh;
-	Mesh outMesh;
 	const StucMap pMap;
 	InFaceArr **ppInFaceTable;
 	const StucCommonAttribList *pCommonAttribList;
@@ -116,16 +116,16 @@ typedef struct {
 } BorderTableAlloc;
 
 typedef struct {
+	BufMesh bufMesh;
 	MapToMeshBasic *pBasic;
 	InFaceArr *pInFaces;
-	BufMesh bufMesh;
+	I32 *pActiveJobs;
 	U64 reallocTime;
 	BorderTable borderTable;
 	BorderTableAlloc borderTableAlloc;
-	I32 *pActiveJobs;
 	Range inFaceRange;
+	I32 id;
 	I32 bufSize;
 	I32 rawBufSize;
 	I32 finalBufSize;
-	I32 id;
 } MappingJobArgs;

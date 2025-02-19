@@ -277,16 +277,16 @@ typedef struct {
 } StucTypeDefaultConfig;
 
 typedef struct {
-	int32_t meshCount;
 	StucCommonAttrib *pMesh;
-	int32_t faceCount;
 	StucCommonAttrib *pFace;
-	int32_t cornerCount;
 	StucCommonAttrib *pCorner;
-	int32_t edgeCount;
 	StucCommonAttrib *pEdge;
-	int32_t vertCount;
 	StucCommonAttrib *pVert;
+	int32_t meshCount;
+	int32_t faceCount;
+	int32_t cornerCount;
+	int32_t edgeCount;
+	int32_t vertCount;
 } StucCommonAttribList;
 
 typedef enum {
@@ -309,18 +309,18 @@ typedef struct {
 
 typedef struct {
 	StucObjectData type;
-	StucAttribArray meshAttribs;
-	int32_t faceCount;
 	int32_t *pFaces;
-	StucAttribArray faceAttribs;
-	int32_t cornerCount;
 	int32_t *pCorners;
-	StucAttribArray cornerAttribs;
-	int32_t edgeCount;
 	int32_t *pEdges;
+	StucAttribArray meshAttribs;
+	StucAttribArray faceAttribs;
+	StucAttribArray cornerAttribs;
 	StucAttribArray edgeAttribs;
-	int32_t vertCount;
 	StucAttribArray vertAttribs;
+	int32_t faceCount;
+	int32_t cornerCount;
+	int32_t edgeCount;
+	int32_t vertCount;
 } StucMesh;
 
 typedef struct {
@@ -380,11 +380,11 @@ typedef struct {
 #define STUC_STAGE_NAME_LEN 64
 typedef struct StucStageReport {
 	char stage[STUC_STAGE_NAME_LEN];
-	int32_t progress;
-	int32_t outOf;
 	void (*pBegin)(void *, struct StucStageReport *, const char *);
 	void (*pProgress)(void *, struct StucStageReport* , int32_t);
 	void (*pEnd)(void *, struct StucStageReport *);
+	int32_t progress;
+	int32_t outOf;
 } StucStageReport;
 
 STUC_EXPORT
