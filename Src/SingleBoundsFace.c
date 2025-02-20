@@ -115,7 +115,7 @@ void addOnLineVert(
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pEntry, k);
 	bool isOnInVert = stucGetIfOnInVert(pEntry, k);
 	I32 base = isOnInVert ? inInfo.vert : inInfo.edge;
-	I32 stucVert = pArgs->pBasic->pMap->mesh.core.pCorners[pState->mapFace.start + stucCorner];
+	I32 stucVert = pArgs->pBasic->pMap->pMesh->core.pCorners[pState->mapFace.start + stucCorner];
 	I32 hash = stucFnvHash((U8 *)&base, 4, pArgs->pCTables->onLineTableSize);
 	OnLine *pOnLineEntry = pArgs->pCTables->pOnLineTable + hash;
 	if (!pOnLineEntry->type) {

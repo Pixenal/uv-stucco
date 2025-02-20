@@ -67,7 +67,7 @@ Result stucCombineJobMeshes(
 			break;
 		}
 	}
-	stucAllocAttribsFromMeshArr(pAlloc, pMeshOut, 1, &src, false);
+	stucAllocAttribsFromMeshArr(pAlloc, pMeshOut, 1, &src, false, true, false);
 	err = stucSetSpecialAttribs(pBasic->pCtx, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
 	JobBases *pMappingJobBases = NULL;
 	STUC_THROW_IFNOT(err, "", 0);

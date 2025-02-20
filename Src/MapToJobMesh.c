@@ -25,8 +25,8 @@ Result allocBufMesh(MappingJobState *pState, I32 cornerBufSize) {
 	pMesh->core.pFaces = pAlloc->pMalloc(sizeof(I32) * pMesh->faceBufSize);
 	pMesh->core.pCorners = pAlloc->pMalloc(sizeof(I32) * pMesh->cornerBufSize);
 	pMesh->core.pEdges = pAlloc->pMalloc(sizeof(I32) * pMesh->edgeBufSize);
-	Mesh *srcs[2] = {(Mesh *)pMeshIn, &pMap->mesh};
-	stucAllocAttribsFromMeshArr(&pState->pBasic->pCtx->alloc, pMesh, 2, srcs, true);
+	const Mesh *srcs[2] = {(Mesh *)pMeshIn, pMap->pMesh};
+	stucAllocAttribsFromMeshArr(&pState->pBasic->pCtx->alloc, pMesh, 2, srcs, true, true, false);
 	stucAppendBufOnlySpecialAttribs(&pState->pBasic->pCtx->alloc, &pState->bufMesh);
 	err = stucSetSpecialBufAttribs((BufMesh *)pMesh, 0x3e); //set all
 	STUC_THROW_IFNOT(err, "", 0);

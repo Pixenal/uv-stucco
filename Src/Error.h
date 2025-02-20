@@ -38,6 +38,8 @@ void printError(
 	);
 }
 
+#define STUC_REPORT(message) printf("STUC REPORT IN %s, MESSAGE: %s\n", __func__, message)
+
 //TODO add ifdef for putting assert inside STUC_THROW macros for debug builds,
 // or if specified with a define
 #define STUC_THROW_IFNOT_COND(err, condition, message, idx) \

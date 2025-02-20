@@ -25,7 +25,7 @@ typedef struct {
 
 typedef struct StucMapInternal {
 	UsgArr usgArr;
-	Mesh mesh;
+	const Mesh *pMesh;
 	QuadTree quadTree;
 	StucAttribIndexedArr indexedAttribs;
 	V2_F32 zBounds;

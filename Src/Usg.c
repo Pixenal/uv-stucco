@@ -181,7 +181,7 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 }
 
 static
-void getUsgBoundsSquare(Mesh *pMesh, Mesh *pSrcMesh) {
+void getUsgBoundsSquare(Mesh *pMesh, const Mesh *pSrcMesh) {
 	V2_F32 min = {FLT_MAX, FLT_MAX};
 	V2_F32 max = {-FLT_MAX, -FLT_MAX};
 	for (I32 j = 0; j < pSrcMesh->core.vertCount; ++j) {
@@ -224,11 +224,10 @@ void getUsgBoundsSquare(Mesh *pMesh, Mesh *pSrcMesh) {
 
 StucResult stucAllocUsgSquaresMesh(
 	StucContext pCtx,
-	const StucAlloc *pAlloc,
-	StucMap pMap
+	const StucMap pMap,
+	Mesh *pMesh
 ) {
 	Result err = STUC_SUCCESS;
-	Mesh *pMesh = &pMap->usgArr.squares;
 	StucMesh *pCore = &pMesh->core;
 	pCore->type.type = STUC_OBJECT_DATA_MESH_INTERN;
 	I32 usgCount = pMap->usgArr.count;
@@ -236,40 +235,37 @@ StucResult stucAllocUsgSquaresMesh(
 	pMesh->cornerBufSize = usgCount * 4;
 	pMesh->edgeBufSize = pMesh->cornerBufSize;
 	pMesh->vertBufSize = pMesh->cornerBufSize;
-	pCore->pFaces = pAlloc->pCalloc(pMesh->faceBufSize, sizeof(I32));
-	pCore->pCorners = pAlloc->pCalloc(pMesh->cornerBufSize * 4, sizeof(I32));
-	pCore->pEdges = pAlloc->pCalloc(pMesh->edgeBufSize * 4, sizeof(I32));
-	pCore->vertAttribs.pArr = pAlloc->pCalloc(1, sizeof(StucAttrib));
-	char posName[STUC_ATTRIB_NAME_MAX_LEN] = "position";
+	pCore->pFaces = pCtx->alloc.pCalloc(pMesh->faceBufSize, sizeof(I32));
+	pCore->pCorners = pCtx->alloc.pCalloc(pMesh->cornerBufSize * 4, sizeof(I32));
+	pCore->pEdges = pCtx->alloc.pCalloc(pMesh->edgeBufSize * 4, sizeof(I32));
+	pCore->vertAttribs.pArr = pCtx->alloc.pCalloc(1, sizeof(StucAttrib));
 	Attrib *pPosAttrib = pCore->vertAttribs.pArr;
 	stucInitAttrib(
-		pAlloc,
+		&pCtx->alloc,
 		pPosAttrib,
-		posName,
+		pCtx->spAttribNames[STUC_ATTRIB_SP_VERTS],
 		pMesh->vertBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
 		STUC_ATTRIB_V3_F32
 	);
 	pCore->vertAttribs.count = 1;
-	pCore->cornerAttribs.pArr = pAlloc->pCalloc(2, sizeof(StucAttrib));
-	char uvName[STUC_ATTRIB_NAME_MAX_LEN] = "UVMap";
+	pCore->cornerAttribs.pArr = pCtx->alloc.pCalloc(2, sizeof(StucAttrib));
 	Attrib *pUvAttrib = pCore->cornerAttribs.pArr;
 	stucInitAttrib(
-		pAlloc,
+		&pCtx->alloc,
 		pUvAttrib,
-		uvName,
+		pCtx->spAttribNames[STUC_ATTRIB_SP_UVS],
 		pMesh->cornerBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
 		STUC_ATTRIB_V2_F32
 	);
-	char normalName[STUC_ATTRIB_NAME_MAX_LEN] = "normal";
 	Attrib *pNormalAttrib = pCore->cornerAttribs.pArr + 1;
 	stucInitAttrib(
-		pAlloc,
+		&pCtx->alloc,
 		pNormalAttrib,
-		normalName,
+		pCtx->spAttribNames[STUC_ATTRIB_SP_NORMALS],
 		pMesh->cornerBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
@@ -282,10 +278,14 @@ StucResult stucAllocUsgSquaresMesh(
 	return err;
 }
 
-StucResult stucFillUsgSquaresMesh(StucMap pMap, StucUsg *pUsgArr) {
+StucResult stucFillUsgSquaresMesh(
+	const StucMap pMap,
+	const StucUsg *pUsgArr,
+	Mesh *pMesh
+) {
 	for (I32 i = 0; i < pMap->usgArr.count; ++i) {
-		Mesh *pUsgMesh = (Mesh *)pUsgArr[i].obj.pData;
-		getUsgBoundsSquare(&pMap->usgArr.squares, pUsgMesh);
+		const Mesh *pUsgMesh = (Mesh *)pUsgArr[i].obj.pData;
+		getUsgBoundsSquare(pMesh, pUsgMesh);
 	}
 	return STUC_SUCCESS;
 }
@@ -295,30 +295,30 @@ void assignUsgToVertsInFace(
 	const StucAlloc *pAlloc,
 	StucMap pMap,
 	Mesh *pMesh,
-	Mesh *pSquares,
+	const Mesh *pSquares,
 	Mesh *pFlatCutoff,
 	I32 usgIdx,
 	I32 faceIdx,
 	I32 *pCellFaces,
 	FaceRange *pSquaresFace
 ) {
-	FaceRange mapFace = stucGetFaceRange(&pMap->mesh.core, pCellFaces[faceIdx], false);
+	FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[faceIdx], false);
 	//the uv of corners 0 and 2 can be treated and min and max for the bounding square
 	V2_F32 min = pSquares->pUvs[pSquaresFace->start];
 	V2_F32 max = pSquares->pUvs[pSquaresFace->start + 2];
-	if (!stucCheckFaceIsInBounds(min, max, mapFace, &pMap->mesh)) {
+	if (!stucCheckFaceIsInBounds(min, max, mapFace, pMap->pMesh)) {
 		return;
 	}
 	for (I32 l = 0; l < mapFace.size; ++l) {
-		I32 vertIdx = pMap->mesh.core.pCorners[mapFace.start + l];
-		V3_F32 vert = pMap->mesh.pVerts[vertIdx];
+		I32 vertIdx = pMap->pMesh->core.pCorners[mapFace.start + l];
+		V3_F32 vert = pMap->pMesh->pVerts[vertIdx];
 		if (stucIsPointInsideMesh(pAlloc, vert, pMesh)) {
-			pMap->mesh.pUsg[vertIdx] = usgIdx + 1;
+			pMap->pMesh->pUsg[vertIdx] = usgIdx + 1;
 			if (pFlatCutoff &&
 				stucIsPointInsideMesh(pAlloc, vert, pFlatCutoff)) {
 
 				//negative indicates the vert is above the cutoff
-				pMap->mesh.pUsg[vertIdx] *= -1;
+				pMap->pMesh->pUsg[vertIdx] *= -1;
 			}
 		}
 	}
@@ -329,7 +329,7 @@ StucResult stucAssignUsgsToVerts(
 	StucMap pMap,
 	StucUsg *pUsgArr
 ) {
-	Mesh *pSquares = &pMap->usgArr.squares;
+	const Mesh *pSquares = pMap->usgArr.pSquares;
 	FaceCellsTable faceCellsTable = {0};
 	I32 averageMapFacesPerFace = 0;
 	Range faceRange = {.start = 0, .end = pSquares->core.faceCount};
@@ -422,8 +422,8 @@ void checkIfFaceIsClose(V3_F32 *pBc, F32 *pDist, bool *pClose, F32 *pClosestDist
 
 static
 Result isFaceClosestToOrigin(
-	Usg *pUsg,
-	Mesh *pInMesh,
+	const Usg *pUsg,
+	const Mesh *pInMesh,
 	V2_I32 tileMin,
 	FaceRange *pInFace,
 	FaceBounds *pFaceBounds,
@@ -480,8 +480,8 @@ Result isFaceClosestToOrigin(
 
 static
 StucResult getClosestTriToOrigin(
-	Usg *pUsg,
-	Mesh *pInMesh,
+	const Usg *pUsg,
+	const Mesh *pInMesh,
 	InFaceArr *pInFaceTable,
 	I32 i,
 	V3_F32 *pClosestBc,
@@ -526,15 +526,15 @@ StucResult getClosestTriToOrigin(
 
 StucResult stucSampleInAttribsAtUsgOrigins(
 	StucContext pCtx,
-	StucMap pMap,
-	Mesh *pInMesh,
+	const StucMap pMap,
+	const Mesh *pInMesh,
 	StucMesh *pSquares,
 	InFaceArr *pInFaceTable
 ) {
 	Result err = STUC_SUCCESS;
 	STUC_ASSERT("", pSquares);
 	for (I32 i = 0; i < pSquares->faceCount; ++i) {
-		Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
+		const Usg *pUsg = pMap->usgArr.pArr + pInFaceTable[i].usg;
 		V3_F32 closestBc = {FLT_MAX, FLT_MAX, FLT_MAX};
 		FaceRange closestFace = {.idx = -1};
 		I8 closestFaceCorners[3] = {0};
@@ -638,7 +638,7 @@ UsgInFace *stucGetUsgForCorner(
 	I32 inFace,
 	bool *pAboveCutoff
 ) {
-	Mesh *pMapMesh = &pMap->mesh;
+	const Mesh *pMapMesh = pMap->pMesh;
 	I32 mapCorner = pMapMesh->core.pCorners[pMapFace->start + stucCorner];
 	I32 usg = pMapMesh->pUsg[mapCorner];
 	if (pAboveCutoff) {

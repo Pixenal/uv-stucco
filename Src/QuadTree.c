@@ -113,7 +113,7 @@ static
 I32 findFaceQuadrant(
 	const StucAlloc *pAlloc,
 	FaceRange *pFace,
-	Mesh *pMesh,
+	const Mesh *pMesh,
 	V2_F32 midPoint,
 	V2_I32 *commonSides,
 	V2_I32 *signs
@@ -749,7 +749,7 @@ void setCellBounds(Cell *cell, Cell *parentCell, I32 cellStackPtr) {
 }
 
 static
-I32 checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, Mesh *pMesh, Range *pRange) {
+I32 checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, const Mesh *pMesh, Range *pRange) {
 	I32 linked = 0;
 	for (I32 i = 0; i < pAncestor->edgeFaceSize; ++i) {
 		I32 faceIdx = pAncestor->pEdgeFaces[i];
@@ -774,7 +774,7 @@ static
 void addLinkEdgesToCells(
 	StucContext pCtx,
 	I32 parentCell,
-	Mesh *pMesh,
+	const Mesh *pMesh,
 	CellTable *pTable,
 	I32 *pCellStack,
 	I32 cellStackPtr
@@ -816,7 +816,7 @@ static
 void addEnclosedVertsToCell(
 	StucContext pCtx,
 	I32 parentCellIdx,
-	Mesh *pMesh,
+	const Mesh *pMesh,
 	CellTable *pTable,
 	I8 *pFaceFlag
 ) {
@@ -926,8 +926,12 @@ void reallocCellTable(const StucContext pCtx, QuadTree *pTree, const I32 sizeDif
 }
 
 static
-void allocateChildren(StucContext pCtx, I32 parentCell, I32 cellStackPtr, StucMap pMap) {
-	QuadTree *pTree = &pMap->quadTree;
+void allocateChildren(
+	StucContext pCtx,
+	I32 parentCell,
+	I32 cellStackPtr,
+	QuadTree *pTree
+) {
 	STUC_ASSERT("", pTree->cellCount > 0);
 	STUC_ASSERT("", pTree->cellCount <= pTree->cellTable.size);
 	if (pTree->cellCount + 4 > pTree->cellTable.size) {
@@ -944,13 +948,13 @@ void allocateChildren(StucContext pCtx, I32 parentCell, I32 cellStackPtr, StucMa
 		//cell->children[i].cellIdx = rand();
 		Cell *cell = pTree->cellTable.pArr[parentCell].pChildren + i;
 		STUC_ASSERT("", !cell->initialized);
-		cell->cellIdx = pMap->quadTree.cellCount;
+		cell->cellIdx = pTree->cellCount;
 		pTree->cellCount++;
 		cell->localIdx = (U32)i;
 		setCellBounds(cell, pTree->cellTable.pArr + parentCell, cellStackPtr);
 		STUC_ASSERT("", i >= 0 && i < 4);
 	}
-	pMap->quadTree.leafCount += 4;
+	pTree->leafCount += 4;
 }
 
 static
@@ -958,13 +962,12 @@ Result processCell(
 	StucContext pCtx,
 	I32 *pCellStack,
 	I32 *pCellStackPtr,
-	Mesh *pMesh,
+	const Mesh *pMesh,
+	QuadTree *pTree,
 	I8 *pFaceFlag,
-	StucMap pMap,
 	I32 *pProgress
 ) {
 	Result err = STUC_SUCCESS;
-	QuadTree *pTree = &pMap->quadTree;
 	CellTable *pCellTable = &pTree->cellTable;
 	STUC_ASSERT("", pTree && pCellTable);
 	I32 cell = pCellStack[*pCellStackPtr];
@@ -990,8 +993,8 @@ Result processCell(
 		// Get number of children
 		I32 childSize = 0;
 		if (!pCellTable->pArr[cell].pChildren) {
-			pMap->quadTree.leafCount--;
-			allocateChildren(pCtx, cell, *pCellStackPtr, pMap);
+			pTree->leafCount--;
+			allocateChildren(pCtx, cell, *pCellStackPtr, pTree);
 			addEnclosedVertsToCell(pCtx, cell, pMesh, &pTree->cellTable, pFaceFlag);
 			addLinkEdgesToCells(
 				pCtx,
@@ -1031,8 +1034,7 @@ Result initRootAndChildren(
 	StucContext pCtx,
 	I32 *pCellStack,
 	QuadTree *pTree,
-	StucMap pMap,
-	Mesh *pMesh,
+	const Mesh *pMesh,
 	I8 *pFaceFlag
 ) {
 	CellTable* pTable = &pTree->cellTable;
@@ -1063,29 +1065,27 @@ Result initRootAndChildren(
 	if (pRoot->faceSize == 0) {
 		return STUC_ERROR; //all faces are outside of 0-1 tile
 	}
-	allocateChildren(pCtx, 0, 0, pMap);
+	allocateChildren(pCtx, 0, 0, pTree);
 	addEnclosedVertsToCell(pCtx, 0, pMesh, pTable, pFaceFlag);
 	addLinkEdgesToCells(pCtx, 0, pMesh, pTable, pCellStack, 0);
 	pCellStack[1] = 1;
 	return STUC_SUCCESS;
 }
 
-Result stucCreateQuadTree(StucContext pCtx, StucMap pMap) {
+Result stucCreateQuadTree(StucContext pCtx, QuadTree *pTree, const Mesh *pMesh) {
 	Result err = STUC_NOT_SET;
-	QuadTree *pTree = &pMap->quadTree;
-	STUC_ASSERT("", pMap->mesh.core.faceCount > 0);
+	STUC_ASSERT("", pMesh->core.faceCount > 0);
 	stucStageBeginWrap(pCtx, "Creating quad tree", pCtx->stageReport.outOf);
-	pTree->cellTable.size = pMap->mesh.core.faceCount / CELL_MAX_VERTS + 1;
+	pTree->cellTable.size = pMesh->core.faceCount / CELL_MAX_VERTS + 1;
 	pTree->cellTable.pArr =
 		pCtx->alloc.pCalloc(pTree->cellTable.size, sizeof(Cell));
-	Mesh *pMesh = &pMap->mesh;
 	pTree->cellCount = 0;
 	pTree->leafCount = 0;
 	I8 *pFaceFlag = pCtx->alloc.pCalloc(pMesh->core.faceCount, sizeof(I8));
 
 	pTree->pRootCell = pTree->cellTable.pArr;
 	I32 cellStack[STUC_CELL_STACK_SIZE];
-	err =  initRootAndChildren(pCtx, cellStack, pTree, pMap, pMesh, pFaceFlag);
+	err =  initRootAndChildren(pCtx, cellStack, pTree, pMesh, pFaceFlag);
 	STUC_THROW_IFNOT(err, "All faces were outside 0-1 tile", 0);
 	I32 cellStackPtr = 1;
 	I32 progress = 0;
@@ -1096,8 +1096,8 @@ Result stucCreateQuadTree(StucContext pCtx, StucMap pMap) {
 			cellStack,
 			&cellStackPtr,
 			pMesh,
+			pTree,
 			pFaceFlag,
-			pMap,
 			&progress
 		);
 	} while(cellStackPtr >= 0);

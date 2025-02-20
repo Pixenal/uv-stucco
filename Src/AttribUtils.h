@@ -31,7 +31,12 @@ typedef enum {
 	STUC_ATTRIB_SP_TANGENTS,
 	STUC_ATTRIB_SP_TSIGNS,
 	STUC_ATTRIB_SP_WSCALE,
-	STUC_ATTRIB_SP_MAT_IDX
+	STUC_ATTRIB_SP_MAT_IDX,
+	STUC_ATTRIB_SP_EDGE_LEN,
+	STUC_ATTRIB_SP_SEAM_EDGE,
+	STUC_ATTRIB_SP_SEAM_VERT,
+	STUC_ATTRIB_SP_NUM_ADJ_PRESERVE,
+	STUC_ATTRIB_SP_EDGE_CORNERS
 } SpecialAttrib;
 
 typedef enum {
@@ -43,7 +48,9 @@ typedef enum {
 	STUC_ATTRIB_SP_BUF_ALPHA
 } SpecialBufAttrib;
 
-void stucSetDefaultSpecialAttribNames(StucContext pCtx);
+void stucSetDefaultSpAttribNames(StucContext pCtx);
+void stucSetDefaultSpAttribDomains(StucContext pCtx);
+void stucSetDefaultSpAttribTypes(StucContext pCtx);
 I32 stucGetAttribSizeIntern(AttribType type);
 StucAttrib *stucGetAttribIntern(const char *pName, AttribArray *pAttribs);
 const Attrib *stucGetAttribInternConst(const char *pName, const AttribArray *pAttribs);
@@ -51,6 +58,7 @@ V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx);
 V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx);
 I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx);
 I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx);
+const char *stucAttribAsStrConst(const AttribCore *pAttrib, I32 idx);
 char *stucAttribAsStr(AttribCore *pAttrib, I32 idx);
 void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx);
 const void *stucAttribAsVoidConst(const AttribCore *pAttrib, I32 idx);
@@ -66,12 +74,15 @@ StucTypeDefault *stucGetTypeDefaultConfig(
 	StucTypeDefaultConfig *pConfig,
 	AttribType type
 );
-StucCommonAttrib *stucGetCommonAttrib(
-	StucCommonAttrib *pAttribs,
+const StucCommonAttrib *stucGetCommonAttrib(
+	const StucCommonAttrib *pAttribs,
 	I32 attribCount,
 	char *pName
 );
-AttribIndexed *stucGetAttribIndexedIntern(AttribIndexedArr *pAttribArr, char *pName);
+AttribIndexed *stucGetAttribIndexedIntern(
+	const AttribIndexedArr *pAttribArr,
+	char *pName
+);
 void stucLerpAttrib(
 	Attrib *pDest,
 	I32 iDest,
@@ -106,7 +117,9 @@ void stucAllocAttribs(
 	const Mesh *const *ppSrcArr,
 	I32 dataLen,
 	StucDomain domain,
-	bool setCommon
+	bool setCommon,
+	bool allocData,
+	bool aliasData
 );
 void stucReallocAttrib(
 	const StucAlloc *pAlloc,
@@ -129,17 +142,19 @@ void stucReallocAndMoveAttribs(
 	I32 lenToCopy,
 	I32 newLen
 );
-StucResult stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField16 flags);
-StucResult stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField16 flags);
+StucResult stucSetSpecialAttribs(StucContext pCtx, Mesh *pMesh, UBitField32 flags);
+StucResult stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags);
 void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh);
-void stucSetAttribToDontCopy(StucContext pCtx, Mesh *pMesh, UBitField16 flags);
+void stucSetAttribToDontCopy(StucContext pCtx, Mesh *pMesh, UBitField32 flags);
 void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin);
 void stucAllocAttribsFromMeshArr(
 	const StucAlloc *pAlloc,
 	Mesh *pMeshDest,
 	I32 srcCount,
 	const Mesh *const *ppMeshSrcs,
-	bool setCommon
+	bool setCommon,
+	bool allocData,
+	bool aliasData
 );
 void stucInitAttrib(
 	const StucAlloc *pAlloc,
@@ -167,4 +182,22 @@ void stucAppendAttrib(
 	AttribOrigin origin,
 	AttribType type
 );
-I32 stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, char *pMatName);
+I32 stucGetStrIdxInIndexedAttrib(AttribIndexed *pMats, const char *pMatName);
+void stucAppendSpAttribsToMesh(
+	StucContext pCtx,
+	Mesh *pMesh,
+	UBitField32 pFlags,
+	StucAttribOrigin origin
+);
+Attrib *stucGetSpAttrib(StucContext pCtx, StucMesh *pMesh, SpecialAttrib special);
+const Attrib *stucGetSpAttribConst(
+	StucContext pCtx,
+	const StucMesh *pMesh,
+	SpecialAttrib special
+);
+void stucQuerySpAttribs(
+	StucContext pCtx,
+	const StucMesh *pMesh,
+	UBitField32 toCheck,
+	UBitField32 *pHas
+);

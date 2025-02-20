@@ -90,7 +90,7 @@ Result stucGetCellsForSingleFace(
 );
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
-Result stucCreateQuadTree(StucContext pCtx, StucMap pMap);
+Result stucCreateQuadTree(StucContext pCtx, QuadTree *pTree, const Mesh *pMesh);
 void stucDestroyQuadTree(StucContext pCtx, QuadTree *pTree);
 Result stucGetEncasingCells(
 	const StucAlloc *pAlloc,

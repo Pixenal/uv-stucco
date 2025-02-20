@@ -30,7 +30,7 @@ typedef struct UsgInFace {
 } UsgInFace;
 
 typedef struct {
-	Mesh squares;
+	const Mesh *pSquares;
 	Usg *pArr;
 	StucUsg *pMemArr;
 	UsgInFace *pInFaceTable;
@@ -40,10 +40,14 @@ typedef struct {
 
 StucResult stucAllocUsgSquaresMesh(
 	StucContext pCtx,
-	const StucAlloc *pAlloc,
-	StucMap pMap
+	const StucMap pMap,
+	Mesh *pMesh
 );
-StucResult stucFillUsgSquaresMesh(StucMap pMap, StucUsg *pUsgArr);
+StucResult stucFillUsgSquaresMesh(
+	const StucMap pMap,
+	const StucUsg *pUsgArr,
+	Mesh *pMesh
+);
 StucResult stucAssignUsgsToVerts(
 	const StucAlloc *pAlloc,
 	StucMap pMap,
@@ -51,8 +55,8 @@ StucResult stucAssignUsgsToVerts(
 );
 StucResult stucSampleInAttribsAtUsgOrigins(
 	StucContext pCtx,
-	StucMap pMap,
-	Mesh *pInMesh,
+	const StucMap pMap,
+	const Mesh *pInMesh,
 	StucMesh *pSquares,
 	InFaceArr *pInFaceTable
 );

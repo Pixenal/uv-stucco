@@ -449,18 +449,20 @@ StucResult stucQueueMapToMesh(
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	StucCommonAttribList *pCommonAttribList,
-	float wScale
+	float wScale,
+	float receiveLen
 );
 STUC_EXPORT
 StucResult stucMapToMesh(
 	StucContext pCtx,
-	StucMapArr *pMapArr,
-	StucMesh *pMeshIn,
-	StucAttribIndexedArr *pInIndexedAttribs,
+	const StucMapArr *pMapArr,
+	const StucMesh *pMeshIn,
+	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucCommonAttribList *pCommonAttribList,
-	float wScale
+	const StucCommonAttribList *pCommonAttribList,
+	float wScale,
+	float receiveLen
 );
 STUC_EXPORT
 StucResult stucObjArrDestroy(

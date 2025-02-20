@@ -610,10 +610,9 @@ Result clipMapFaceAgainstInFace(
 			edgeCorner = pInFace->start + uvNextIdxLocal;
 		}
 		baseCorner.edgeIdx = pState->pBasic->pInMesh->core.pEdges[edgeCorner];
-		//TODO rename verts in pEdgeVerts to corners. They're not verts anymore.
-		I32 *pEdgeCorners = pState->pBasic->pEdgeVerts[baseCorner.edgeIdx].verts;
-		STUC_ASSERT("", pEdgeCorners[0] == edgeCorner || pEdgeCorners[1] == edgeCorner);
-		baseCorner.flipEdgeDir = edgeCorner != pEdgeCorners[0];
+		V2_I32 edgeCorners = pState->pBasic->pInMesh->pEdgeCorners[baseCorner.edgeIdx];
+		STUC_ASSERT("", edgeCorners.d[0] == edgeCorner || edgeCorners.d[1] == edgeCorner);
+		baseCorner.flipEdgeDir = edgeCorner != edgeCorners.d[0];
 		I32 uvNextIdx = uvNextIdxLocal + pInFace->start;
 		baseCorner.vertNext = pState->pBasic->pInMesh->pUvs[uvNextIdx];
 		baseCorner.idxNext = uvNextIdxLocal;
@@ -712,7 +711,7 @@ void transformClippedFaceFromUvToXyz(
 	V2_F32 tileMin,
 	F32 wScale
 ) {
-	Mesh *pMapMesh = &pState->pBasic->pMap->mesh;
+	const Mesh *pMapMesh = pState->pBasic->pMap->pMesh;
 	//replace j, k, l, etc, in code that was moved to a func, but not updated,
 	//eg, the below corner should use i, not j
 	for (I32 j = 0; j < pCornerBuf->size; ++j) {
@@ -886,7 +885,7 @@ void blendCommonAttrib(
 		memcpy(meshBuf.core.pData, stucAttribAsVoidConst(&pMeshAttrib->core, meshDataIdx),
 		       stucGetAttribSizeIntern(pMeshAttrib->core.type));
 	}
-	StucCommonAttrib *pCommon = stucGetCommonAttrib(
+	const StucCommonAttrib *pCommon = stucGetCommonAttrib(
 		pCommonAttribs,
 		commonAttribCount,
 		pDestAttribs->pArr[attribIdx].core.name
@@ -1062,7 +1061,7 @@ void blendMapAndInFaceAttribs(
 		pState->pBasic->pCtx,
 		&pState->bufMesh,
 		&pState->bufMesh.mesh.core.faceAttribs,
-		&pState->pBasic->pMap->mesh.core.faceAttribs,
+		&pState->pBasic->pMap->pMesh->core.faceAttribs,
 		&pState->pBasic->pInMesh->core.faceAttribs,
 		pCornerBuf,
 		0,
@@ -1092,7 +1091,7 @@ void blendMapAndInCornerAttribs(
 		pState->pBasic->pCtx,
 		&pState->bufMesh,
 		&pState->bufMesh.mesh.core.cornerAttribs,
-		&pState->pBasic->pMap->mesh.core.cornerAttribs,
+		&pState->pBasic->pMap->pMesh->core.cornerAttribs,
 		&pState->pBasic->pInMesh->core.cornerAttribs,
 		pCornerBuf,
 		cornerBufIdx,
@@ -1121,7 +1120,7 @@ void blendMapAndInVertAttribs(
 		pState->pBasic->pCtx,
 		&pState->bufMesh,
 		&pState->bufMesh.mesh.core.vertAttribs,
-		&pState->pBasic->pMap->mesh.core.vertAttribs,
+		&pState->pBasic->pMap->pMesh->core.vertAttribs,
 		&pState->pBasic->pInMesh->core.vertAttribs,
 		pCornerBuf,
 		cornerBufIdx,
@@ -1208,7 +1207,7 @@ void initEdgeTableEntry(
 	pEntry->edge = edge.idx;
 	simpleCopyAttribs(
 		&pBufMesh->mesh.core.edgeAttribs,
-		&pState->pBasic->pMap->mesh.core.edgeAttribs,
+		&pState->pBasic->pMap->pMesh->core.edgeAttribs,
 		&pState->pBasic->pInMesh->core.edgeAttribs,
 		edge.realIdx,
 		refEdge,
@@ -1228,7 +1227,7 @@ I32 getRefEdge(
 ) {
 	if (pCornerBuf[cornerBufIdx].isStuc) {
 		I32 stucCorner = pCornerBuf[cornerBufIdx].stucCorner;
-		return pState->pBasic->pMap->mesh.core.pEdges[pMapFace->start + stucCorner];
+		return pState->pBasic->pMap->pMesh->core.pEdges[pMapFace->start + stucCorner];
 	}
 	else {
 		I32 baseCorner = pCornerBuf[cornerBufIdx].baseCorner;
@@ -1369,7 +1368,7 @@ void addStucCornerAndOrVert(
 	V2_I32 tile
 ) {
 	I32 stucCorner = pMapFace->start + pCornerBufEntry[cornerBufIdx].stucCorner;
-	U32 uStucVert = pState->pBasic->pMap->mesh.core.pCorners[stucCorner];
+	U32 uStucVert = pState->pBasic->pMap->pMesh->core.pCorners[stucCorner];
 	I32 hash =
 		stucFnvHash((U8 *)&uStucVert, 4, pState->localTables.vertTableSize);
 	LocalVert *pEntry = pState->localTables.pVertTable + hash;
@@ -1828,15 +1827,15 @@ void initCornerBuf(
 ) {
 	pCornerBuf->size = pMapFace->size;
 	for (I32 k = 0; k < pMapFace->size; ++k) {
-		I32 vertIdx = pMap->mesh.core.pCorners[pMapFace->start + k];
+		I32 vertIdx = pMap->pMesh->core.pCorners[pMapFace->start + k];
 		CornerBuf *pCorner = pCornerBuf->buf + k;
 		pCorner->isStuc = 1;
 		pCorner->baseCorner = (I8)((vertIdx + 1) * -1);
-		pCorner->corner = pMap->mesh.pVerts[vertIdx];
+		pCorner->corner = pMap->pMesh->pVerts[vertIdx];
 		pCorner->corner.d[0] += fTileMin.d[0];
 		pCorner->corner.d[1] += fTileMin.d[1];
 		pCorner->stucCorner = (I8)k;
-		pCorner->normal = pMap->mesh.pNormals[pMapFace->start + k];
+		pCorner->normal = pMap->pMesh->pNormals[pMapFace->start + k];
 	}
 	pCornerBuf->lastInCorner = mapFaceWindDir ? 0 : pInFace->size - 1;
 }
@@ -1995,17 +1994,17 @@ Result stucMapToSingleFace(
 		getCellMapFaces(pState, pFaceCellsEntry, i, &pCellFaces, &range);
 		for (I32 j = range.start; j < range.end; ++j) {
 			FaceRange mapFace =
-				stucGetFaceRange(&pMap->mesh.core, pCellFaces[j], false);
+				stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j], false);
 			if (!stucCheckFaceIsInBounds(
 				_(bounds.fMin V2SUB fTileMin),
 				_(bounds.fMax V2SUB fTileMin),
 				mapFace,
-				&pMap->mesh)
+				pMap->pMesh)
 				) {
 				continue;
 			}
 			resetSegments(pSegments, pInFace);
-			I32 mapFaceWind = stucCalcFaceOrientation(&pMap->mesh, &mapFace, false);
+			I32 mapFaceWind = stucCalcFaceOrientation(pMap->pMesh, &mapFace, false);
 			CornerBufWrap cornerBuf = {0};
 			initCornerBuf(pMap, fTileMin, &cornerBuf, pInFace, &mapFace, mapFaceWind);
 			ancestors.count = 0;

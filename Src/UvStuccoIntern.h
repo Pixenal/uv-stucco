@@ -100,12 +100,9 @@ typedef struct {
 	const StucMap pMap;
 	InFaceArr **ppInFaceTable;
 	const StucCommonAttribList *pCommonAttribList;
-	EdgeVerts *pEdgeVerts;
-	I8 *pInVertTable;
-	I8 *pVertSeamTable;
-	bool *pEdgeSeamTable;
 	I32 inFaceSize;
 	const F32 wScale;
+	const F32 receiveLen;
 	const I8 maskIdx;
 } MapToMeshBasic;
 

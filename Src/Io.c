@@ -695,7 +695,11 @@ StucResult loadObj(
 	if (usesUsg) {
 		Attrib *usgAttrib = pMesh->vertAttribs.pArr + pMesh->vertAttribs.count;
 		usgAttrib->core.pData = pCtx->alloc.pCalloc(pMesh->vertCount, sizeof(I32));
-		strncpy(usgAttrib->core.name, "StucUsg", STUC_ATTRIB_NAME_MAX_LEN);
+		strncpy(
+			usgAttrib->core.name,
+			pCtx->spAttribNames[STUC_ATTRIB_SP_USG],
+			STUC_ATTRIB_NAME_MAX_LEN
+		);
 		usgAttrib->origin = STUC_ATTRIB_ORIGIN_MAP;
 		usgAttrib->interpolate = true;
 		usgAttrib->core.type = STUC_ATTRIB_I32;
