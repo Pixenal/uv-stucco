@@ -89,7 +89,7 @@ void initOnLineTableEntry(
 ) {
 	StucContext pCtx = pArgs->pBasic->pCtx;
 	bool realloced = false;
-	I32 outVert = stucMeshAddVert(&pCtx->alloc, &pArgs->pBasic->outMesh, &realloced);
+	I32 outVert = stucMeshAddVert(pCtx, &pArgs->pBasic->outMesh, &realloced);
 	stucCopyAllAttribs(
 		&pArgs->pBasic->outMesh.core.vertAttribs,
 		outVert,
@@ -268,7 +268,7 @@ void addFaceToOutMesh(
 		STUC_ASSERT("", pState->cornerBuf.pBuf[bufIdx].corner >= 0);
 		STUC_ASSERT("", pState->cornerBuf.pBuf[bufIdx].corner < pMeshOut->core.vertCount);
 		I32 outCorner =
-			stucMeshAddCorner(&pArgs->pBasic->pCtx->alloc, pMeshOut, &realloced);
+			stucMeshAddCorner(pArgs->pBasic->pCtx, pMeshOut, &realloced);
 		STUC_ASSERT("", outCorner == cornerBase + i);
 		pMeshOut->core.pCorners[outCorner] = pState->cornerBuf.pBuf[bufIdx].corner;
 #ifndef STUC_DISABLE_EDGES_IN_BUF
@@ -288,7 +288,7 @@ void addFaceToOutMesh(
 		STUC_ASSERT("", i >= 0 && i < count);
 	}
 	realloced = false;
-	I32 outFace = stucMeshAddFace(&pArgs->pBasic->pCtx->alloc, pMeshOut, &realloced);
+	I32 outFace = stucMeshAddFace(pArgs->pBasic->pCtx, pMeshOut, &realloced);
 	if (pArgs->pBasic->ppInFaceTable) {
 		if (realloced) {
 			//realloc to match meshOut face buf

@@ -368,17 +368,18 @@ I64 estimateObjArrSize(I32 count, StucObject *pObjArr) {
 
 StucResult stucWriteStucFile(
 	StucContext pCtx,
-	char *pName,
+	const char *pName,
 	I32 objCount,
 	StucObject *pObjArr,
 	I32 usgCount,
 	StucUsg *pUsgArr,
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
+	StucResult err = STUC_SUCCESS;
 	const StucAlloc *pAlloc = &pCtx->alloc;
-	StucResult err = 0;
 	ByteString header = {0};
 	ByteString data = {0};
+	void *pFile = NULL;
 
 	I32 *pCutoffIndices = NULL;
 	StucObject **ppCutoffs = NULL;
@@ -403,21 +404,15 @@ StucResult stucWriteStucFile(
 	}
 	for (I32 i = 0; i < objCount; ++i) {
 		err = encodeObj(pAlloc, &data, pObjArr + i);
-		if (err != STUC_SUCCESS) {
-			return err;
-		}
+		STUC_THROW_IFNOT(err, "", 0);
 	}
 	for (I32 i = 0; i < cutoffCount; ++i) {
 		err = encodeObj(pAlloc, &data, ppCutoffs[i]);
-		if (err != STUC_SUCCESS) {
-			return err;
-		}
+		STUC_THROW_IFNOT(err, "", 0);
 	}
 	for (I32 i = 0; i < usgCount; ++i) {
 		err = encodeObj(pAlloc, &data, &pUsgArr[i].obj);
-		if (err != STUC_SUCCESS) {
-			return err;
-		}
+		STUC_THROW_IFNOT(err, "", 0);
 		bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
 		encodeDataName(pAlloc, &data, "FC"); //flatten cut-off
 		stucEncodeValue(pAlloc, &data, (U8 *)&hasFlatCutoff, 8);
@@ -443,11 +438,9 @@ StucResult stucWriteStucFile(
 			printf("Successfully compressed STUC data\n");
 			break;
 		case Z_MEM_ERROR:
-			printf("Failed to compress STUC data, memory error\n");
-			break;
+			STUC_THROW(err, "Failed to compress STUC data, memory error\n", 0);
 		case Z_BUF_ERROR:
-			printf("Failed to compress STUC data, output buffer too small\n");
-			break;
+			STUC_THROW(err, "Failed to compress STUC data, output buffer too small\n", 0);
 	}
 	I64 compressedDataSize = (I64)uCompressedDataSize;
 #ifdef WIN32
@@ -483,19 +476,28 @@ StucResult stucWriteStucFile(
 
 	//TODO CRC for uncompressed data
 	
-	void *pFile;
-	pCtx->io.pOpen(&pFile, pName, 0, &pCtx->alloc);
+	err = pCtx->io.pOpen(&pFile, pName, 0, &pCtx->alloc);
+	STUC_THROW_IFNOT(err, "", 0);
 	I64 finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
-	pCtx->io.pWrite(pFile, (U8 *)&finalHeaderLen, 2);
-	pCtx->io.pWrite(pFile, header.pString, (I32)finalHeaderLen);
-	pCtx->io.pWrite(pFile, compressedData, (I32)compressedDataSize);
-	pCtx->io.pClose(pFile);
+	err = pCtx->io.pWrite(pFile, (U8 *)&finalHeaderLen, 2);
+	STUC_THROW_IFNOT(err, "", 0);
+	err = pCtx->io.pWrite(pFile, header.pString, (I32)finalHeaderLen);
+	STUC_THROW_IFNOT(err, "", 0);
+	err = pCtx->io.pWrite(pFile, compressedData, (I32)compressedDataSize);
+	STUC_THROW_IFNOT(err, "", 0);
 
-	pCtx->alloc.pFree(header.pString);
-	pCtx->alloc.pFree(data.pString);
-
+	STUC_CATCH(0, err, ;);
+	if (pFile) {
+		err = pCtx->io.pClose(pFile);
+	}
+	if (header.pString) {
+		pCtx->alloc.pFree(header.pString);
+	}
+	if (data.pString) {
+		pCtx->alloc.pFree(data.pString);
+	}
 	printf("Finished STUC export\n");
-	return STUC_SUCCESS;
+	return err;
 }
 
 static
@@ -697,7 +699,7 @@ StucResult loadObj(
 		usgAttrib->core.pData = pCtx->alloc.pCalloc(pMesh->vertCount, sizeof(I32));
 		strncpy(
 			usgAttrib->core.name,
-			pCtx->spAttribNames[STUC_ATTRIB_SP_USG],
+			pCtx->spAttribNames[STUC_ATTRIB_USE_USG],
 			STUC_ATTRIB_NAME_MAX_LEN
 		);
 		usgAttrib->origin = STUC_ATTRIB_ORIGIN_MAP;
@@ -781,7 +783,7 @@ StucResult decodeStucData(
 	bool forEdit,
 	AttribIndexedArr *pIndexedAttribs
 ) {
-	StucResult status = STUC_NOT_SET;
+	StucResult err = STUC_NOT_SET;
 	if (pIndexedAttribs && pIndexedAttribs->count) {
 		STUC_ASSERT("", pIndexedAttribs->count > 0);
 		pIndexedAttribs->pArr =
@@ -798,9 +800,9 @@ StucResult decodeStucData(
 			//usgUsg is passed here to indicate that an extra vert
 			//attrib should be created. This would be used later to mark a verts
 			//respective usg.
-			status = loadObj(pCtx, *ppObjArr + i, dataByteString, usesUsg);
-			if (status != STUC_SUCCESS) {
-				return status;
+			err = loadObj(pCtx, *ppObjArr + i, dataByteString, usesUsg);
+			if (err != STUC_SUCCESS) {
+				return err;
 			}
 		}
 	}
@@ -812,20 +814,20 @@ StucResult decodeStucData(
 		*ppUsgArr = pCtx->alloc.pCalloc(pHeader->usgCount, sizeof(StucUsg));
 		*ppFlatCutoffArr = pCtx->alloc.pCalloc(pHeader->flatCutoffCount, sizeof(StucObject));
 		for (I32 i = 0; i < pHeader->flatCutoffCount; ++i) {
-			status = loadObj(pCtx, *ppFlatCutoffArr + i, dataByteString, false);
-			if (status != STUC_SUCCESS) {
-				return status;
+			err = loadObj(pCtx, *ppFlatCutoffArr + i, dataByteString, false);
+			if (err != STUC_SUCCESS) {
+				return err;
 			}
 		}
 		for (I32 i = 0; i < pHeader->usgCount; ++i) {
 			//usgs themselves don't need a usg attrib, so false is passed
-			status = loadObj(pCtx, &(*ppUsgArr)[i].obj, dataByteString, false);
-			if (status != STUC_SUCCESS) {
-				return status;
+			err = loadObj(pCtx, &(*ppUsgArr)[i].obj, dataByteString, false);
+			if (err != STUC_SUCCESS) {
+				return err;
 			}
-			status = isDataNameInvalid(dataByteString, "FC");
-			if (status != STUC_SUCCESS) {
-				return status;
+			err = isDataNameInvalid(dataByteString, "FC");
+			if (err != STUC_SUCCESS) {
+				return err;
 			}
 			bool hasFlatCutoff = false;
 			stucDecodeValue(dataByteString, (U8 *)&hasFlatCutoff, 8);
@@ -845,7 +847,7 @@ StucResult decodeStucData(
 
 StucResult stucLoadStucFile(
 	StucContext pCtx,
-	char *filePath,
+	const char *filePath,
 	I32 *pObjCount,
 	StucObject **ppObjArr,
 	I32 *pUsgCount,
@@ -855,30 +857,42 @@ StucResult stucLoadStucFile(
 	bool forEdit,
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
-	StucResult status = STUC_NOT_SET;
+	StucResult err = STUC_SUCCESS;
 	ByteString headerByteString = {0};
 	ByteString dataByteString = {0};
-	void *pFile;
+	void *pFile = NULL;
+	U8 *dataByteStringRaw = NULL;
 	printf("Loading STUC file: %s\n", filePath);
-	pCtx->io.pOpen(&pFile, filePath, 1, &pCtx->alloc);
+	err = pCtx->io.pOpen(&pFile, filePath, 1, &pCtx->alloc);
+	STUC_THROW_IFNOT(err, "", 0);
 	I16 headerSize = 0;
-	pCtx->io.pRead(pFile, (U8 *)&headerSize, 2);
+	err = pCtx->io.pRead(pFile, (U8 *)&headerSize, 2);
+	STUC_THROW_IFNOT(err, "", 0);
 	printf("Stuc File Header Size: %d\n", headerSize);
 	printf("Header is %d bytes\n", headerSize);
 	headerByteString.pString = pCtx->alloc.pMalloc(headerSize);
 	printf("Reading header\n");
-	pCtx->io.pRead(pFile, headerByteString.pString, headerSize);
+	err = pCtx->io.pRead(pFile, headerByteString.pString, headerSize);
+	STUC_THROW_IFNOT(err, "", 0);
 	printf("Decoding header\n");
 	StucHeader header = decodeStucHeader(&headerByteString, pIndexedAttribs);
-	if (strncmp(header.format,  "UV Stucco Map File", MAP_FORMAT_NAME_MAX_LEN) ||
-		header.version != STUC_MAP_VERSION) {
-		return STUC_ERROR;
-	}
-	U8 *dataByteStringRaw = pCtx->alloc.pMalloc(header.dataSize);
+	STUC_THROW_IFNOT_COND(
+		err,
+		!strncmp(header.format, "UV Stucco Map File", MAP_FORMAT_NAME_MAX_LEN),
+		"map file is corrupt",
+		0
+	);
+	STUC_THROW_IFNOT_COND(
+		err, 
+		header.version == STUC_MAP_VERSION,
+		"map file version not supported",
+		0
+	);
+	dataByteStringRaw = pCtx->alloc.pMalloc(header.dataSize);
 	uLong dataSizeUncompressed = (uLong)header.dataSize;
 	printf("Reading data\n");
-	pCtx->io.pRead(pFile, dataByteStringRaw, (I32)header.dataSizeCompressed);
-	pCtx->io.pClose(pFile);
+	err = pCtx->io.pRead(pFile, dataByteStringRaw, (I32)header.dataSizeCompressed);
+	STUC_THROW_IFNOT(err, "", 0);
 	dataByteString.pString = pCtx->alloc.pMalloc(header.dataSize);
 	printf("Decompressing data\n");
 	I32 zResult = uncompress(
@@ -887,7 +901,6 @@ StucResult stucLoadStucFile(
 		dataByteStringRaw,
 		(uLong)header.dataSizeCompressed
 	);
-	pCtx->alloc.pFree(dataByteStringRaw);
 	switch(zResult) {
 		case Z_OK:
 			printf("Successfully decompressed STUC file data\n");
@@ -904,7 +917,7 @@ StucResult stucLoadStucFile(
 		return STUC_ERROR;
 	}
 	printf("Decoding data\n");
-	status = decodeStucData(
+	err = decodeStucData(
 		pCtx,
 		&header,
 		&dataByteString,
@@ -914,15 +927,25 @@ StucResult stucLoadStucFile(
 		forEdit,
 		pIndexedAttribs
 	);
-	if (status != STUC_SUCCESS) {
-		return status;
-	}
-	pCtx->alloc.pFree(headerByteString.pString);
-	pCtx->alloc.pFree(dataByteString.pString);
+	STUC_THROW_IFNOT(err, "", 0);
 	*pObjCount = header.objCount;
 	*pUsgCount = header.usgCount;
 	*pFlatCutoffCount = header.flatCutoffCount;
-	return STUC_SUCCESS;
+
+	STUC_CATCH(0, err, ;);
+	if (pFile) {
+		err = pCtx->io.pClose(pFile);
+	}
+	if (dataByteStringRaw) {
+		pCtx->alloc.pFree(dataByteStringRaw);
+	}
+	if (headerByteString.pString) {
+		pCtx->alloc.pFree(headerByteString.pString);
+	}
+	if (dataByteString.pString) {
+		pCtx->alloc.pFree(dataByteString.pString);
+	}
+	return err;
 }
 
 void stucIoSetCustom(StucContext pCtx, StucIo *pIo) {

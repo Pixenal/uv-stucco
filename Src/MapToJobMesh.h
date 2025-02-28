@@ -85,13 +85,14 @@ typedef struct {
 	I32 finalBufSize;
 	I32 cornerBufSize;
 	I32 inFaceSize;
+	I32 facesChecked;
+	I32 facesUsed;
 } MappingJobState;
 
 Result stucMapToJobMesh(void *pArgsVoid);
 Result stucMapToSingleFace(
 	MappingJobState *pState,
 	FaceCellsTable *pFaceCellsTable,
-	V2_F32 fTileMin,
 	V2_I32 tile,
 	FaceRange *pInFace
 );

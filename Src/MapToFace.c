@@ -186,7 +186,7 @@ void addIntersectionToBuf(
 	//this attrib is lerped here instead of later like other attribs,
 	//as it's needed to transform from uvw to xyz
 	//TODO is this still necessary? or is it obsolete?
-	pNewEntry->normal = v3Lerp(pCorner->normal, pCornerNext->normal, pNewEntry->mapAlpha);
+	pNewEntry->normal = v3F32Lerp(pCorner->normal, pCornerNext->normal, pNewEntry->mapAlpha);
 	//pNewEntry->normal = pCornerBuf->buf[i].normal;
 	//V3_F32 up = {.0f, .0f, 1.0f};
 	//pNewEntry->normal = up;
@@ -626,7 +626,7 @@ Result clipMapFaceAgainstInFace(
 			.onLine = pCornerBuf->onLine
 		};
 		I32 insideBuf[65] = {0};
-		V2_F32 baseCornerCross = v2Cross(baseCorner.dir);
+		V2_F32 baseCornerCross = v2F32Cross(baseCorner.dir);
 		err = clipMapFaceAgainstCorner(
 			pState,
 			pCornerBuf,
@@ -667,7 +667,7 @@ V3_F32 getCornerRealNormal(Mesh *pMesh, FaceRange *pFace, I32 corner) {
 	I32 cIdx = pMesh->core.pCorners[pFace->start + c];
 	V3_F32 ba = _(pMesh->pVerts[aIdx] V3SUB pMesh->pVerts[bIdx]);
 	V3_F32 bc = _(pMesh->pVerts[cIdx] V3SUB pMesh->pVerts[bIdx]);
-	return v3Normalize(_(ba V3CROSS bc));
+	return v3F32Normalize(_(ba V3CROSS bc));
 }
 
 static
@@ -746,7 +746,11 @@ void transformClippedFaceFromUvToXyz(
 			stucTriInterpolateAttrib(
 				&wScaleWrap,
 				0,
-				pState->pBasic->pInMesh->pWScaleAttrib,
+				stucGetActiveAttribConst(
+					pState->pBasic->pCtx,
+					&pState->pBasic->pInMesh->core,
+					STUC_ATTRIB_USE_WSCALE
+				),
 				inVerts[0],
 				inVerts[1],
 				inVerts[2],
@@ -822,39 +826,24 @@ void lerpIntersect(
 
 static
 void blendCommonAttrib(
-	StucContext pCtx,
-	BufMesh *pBufMesh,
-	AttribArray *pDestAttribs,
-	StucAttrib *pDestAttrib,
-	const AttribArray *pMapAttribs,
-	const AttribArray *pMeshAttribs,
+	MappingJobState *pState,
+	StucDomain domain,
+	Attrib *pBufAttrib,
+	const Attrib *pInAttrib,
+	const Attrib *pMapAttrib,
 	CornerBuf *pCornerBuf,
 	I32 cornerBufIdx,
 	I32 dataIdx,
 	I32 mapDataIdx,
-	I32 meshDataIdx,
-	StucCommonAttrib *pCommonAttribs,
-	I32 commonAttribCount,
-	FaceRange *pInFace,
-	I32 attribIdx
+	I32 inDataIdx,
+	FaceRange *pInFace
 ) {
-	if (pDestAttrib == pBufMesh->mesh.pVertAttrib ||
-	    pDestAttrib == pBufMesh->mesh.pUvAttrib ||
-	    pDestAttrib == pBufMesh->mesh.pNormalAttrib) {
-
-		return;
-	}
-	//TODO if this attrib is not found, nullptr can be accessed,
-	//check
-	const StucAttrib *pMapAttrib =
-		stucGetAttribInternConst(pDestAttribs->pArr[attribIdx].core.name, pMapAttribs);
-	const StucAttrib *pMeshAttrib =
-		stucGetAttribInternConst(pDestAttribs->pArr[attribIdx].core.name, pMeshAttribs);
-	StucAttribType type = pDestAttribs->pArr[attribIdx].core.type;
+	STUC_ASSERT("", pInAttrib && pMapAttrib);
+	StucAttribType type = pBufAttrib->core.type;
 	U8 mapDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
 	StucAttrib mapBuf = {.core.pData = mapDataBuf, .core.type = type};
-	U8 meshDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
-	StucAttrib meshBuf = {.core.pData = meshDataBuf, .core.type = type};
+	U8 inDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
+	StucAttrib inBuf = {.core.pData = inDataBuf, .core.type = type};
 	//TODO remove 'false' once interpolation is implemented for map attribs
 	if (false && pMapAttrib->interpolate) {
 		//TODO add correct map interpolation. to do this, you'll need
@@ -869,12 +858,12 @@ void blendCommonAttrib(
 		memcpy(mapBuf.core.pData, stucAttribAsVoidConst(&pMapAttrib->core, mapDataIdx),
 		       stucGetAttribSizeIntern(pMapAttrib->core.type));
 	}
-	if (pMeshAttrib->interpolate) {
+	if (pInAttrib->interpolate) {
 		//TODO skip interlopation if in corner? is it worth it? profile.
 		stucTriInterpolateAttrib(
-			&meshBuf,
+			&inBuf,
 			0,
-			pMeshAttrib,
+			pInAttrib,
 			pInFace->start + pCornerBuf[cornerBufIdx].triCorners[0],
 			pInFace->start + pCornerBuf[cornerBufIdx].triCorners[1],
 			pInFace->start + pCornerBuf[cornerBufIdx].triCorners[2],
@@ -882,29 +871,31 @@ void blendCommonAttrib(
 		);
 	}
 	else {
-		memcpy(meshBuf.core.pData, stucAttribAsVoidConst(&pMeshAttrib->core, meshDataIdx),
-		       stucGetAttribSizeIntern(pMeshAttrib->core.type));
+		memcpy(inBuf.core.pData, stucAttribAsVoidConst(&pInAttrib->core, inDataIdx),
+		       stucGetAttribSizeIntern(pInAttrib->core.type));
 	}
-	const StucCommonAttrib *pCommon = stucGetCommonAttrib(
-		pCommonAttribs,
-		commonAttribCount,
-		pDestAttribs->pArr[attribIdx].core.name
+	const StucCommonAttrib *pCommon = stucGetCommonAttribFromDomain(
+		pState->pBasic->pCommonAttribList,
+		pBufAttrib->core.name,
+		domain
 	);
 	StucBlendConfig blendConfig = {0};
 	if (pCommon) {
 			blendConfig = pCommon->blendConfig;
 	}
 	else {
-		StucTypeDefault *pDefault =
-			stucGetTypeDefaultConfig(&pCtx->typeDefaults, pMeshAttrib->core.type);
+		StucTypeDefault *pDefault = stucGetTypeDefaultConfig(
+			&pState->pBasic->pCtx->typeDefaults,
+			pInAttrib->core.type
+		);
 		blendConfig = pDefault->blendConfig;
 	}
 	StucAttrib *orderTable[2] = {0};
 	I8 order = blendConfig.order;
-	orderTable[0] = order ? &mapBuf : &meshBuf;
-	orderTable[1] = !order ? &mapBuf : &meshBuf;
+	orderTable[0] = order ? &mapBuf : &inBuf;
+	orderTable[1] = !order ? &mapBuf : &inBuf;
 	stucBlendAttribs(
-		pDestAttrib,
+		pBufAttrib,
 		dataIdx,
 		orderTable[0],
 		0,
@@ -916,23 +907,21 @@ void blendCommonAttrib(
 
 static
 void interpolateMapAttrib(
-	AttribArray *pDestAttribs,
-	I32 attribIdx,
-	const AttribArray *pMapAttribs,
 	StucDomain domain,
+	Attrib *pBufAttrib,
+	const Attrib *pMapAttrib,
 	CornerBuf *pCorner,
-	StucAttrib *pDestAttrib,
 	I32 dataIdx,
-	FaceRange *pMapFace,
+	const FaceRange *pMapFace,
 	CornerAncestors *pAncestors,
 	I32 mapDataIdx
 ) {
-	const StucAttrib *pMapAttrib = stucGetAttribInternConst(pDestAttribs->pArr[attribIdx].core.name, pMapAttribs);
+	STUC_ASSERT("", pMapAttrib);
 	if (pMapAttrib->interpolate && domain == STUC_DOMAIN_CORNER) {
-		lerpIntersect(pCorner, pDestAttrib, dataIdx, pMapAttrib, pMapFace, pAncestors);
+		lerpIntersect(pCorner, pBufAttrib, dataIdx, pMapAttrib, pMapFace, pAncestors);
 	}
 	else {
-		memcpy(stucAttribAsVoid(&pDestAttrib->core, dataIdx),
+		memcpy(stucAttribAsVoid(&pBufAttrib->core, dataIdx),
 		       stucAttribAsVoidConst(&pMapAttrib->core, mapDataIdx),
 		       stucGetAttribSizeIntern(pMapAttrib->core.type));
 	}
@@ -940,24 +929,21 @@ void interpolateMapAttrib(
 
 static
 void interpolateInMeshAttrib(
-	AttribArray *pDestAttribs,
-	I32 attribIdx,
-	const AttribArray *pMeshAttribs,
-	StucAttrib *pDestAttrib,
+	Attrib *pBufAttrib,
+	const Attrib *pInAttrib,
 	I32 dataIdx,
-	FaceRange *pInFace,
+	const FaceRange *pInFace,
 	CornerBuf *pCornerBuf,
 	I32 cornerBufIdx,
-	I32 meshDataIdx
+	I32 inDataIdx
 ) {
-	const StucAttrib *pMeshAttrib =
-		stucGetAttribInternConst(pDestAttribs->pArr[attribIdx].core.name, pMeshAttribs);
-	if (pMeshAttrib->interpolate) {
+	STUC_ASSERT("", pInAttrib);
+	if (pInAttrib->interpolate) {
 		//TODO skip interlopation is in corner? is it worth it? profile.
 		stucTriInterpolateAttrib(
-			pDestAttrib,
+			pBufAttrib,
 			dataIdx,
-			pMeshAttrib,
+			pInAttrib,
 			pInFace->start + pCornerBuf[cornerBufIdx].triCorners[0],
 			pInFace->start + pCornerBuf[cornerBufIdx].triCorners[1],
 			pInFace->start + pCornerBuf[cornerBufIdx].triCorners[2],
@@ -965,9 +951,9 @@ void interpolateInMeshAttrib(
 		);
 	}
 	else {
-		memcpy(stucAttribAsVoid(&pDestAttrib->core, dataIdx),
-		       stucAttribAsVoidConst(&pMeshAttrib->core, meshDataIdx),
-		       stucGetAttribSizeIntern(pMeshAttrib->core.type));
+		memcpy(stucAttribAsVoid(&pBufAttrib->core, dataIdx),
+		       stucAttribAsVoidConst(&pInAttrib->core, inDataIdx),
+		       stucGetAttribSizeIntern(pInAttrib->core.type));
 	}
 }
 
@@ -977,74 +963,99 @@ void interpolateInMeshAttrib(
 //so the map data idx is used temporarily until that's done.
 static
 void blendMapAndInAttribs(
-	StucContext pCtx,
-	BufMesh *pBufMesh,
-	AttribArray *pDestAttribs,
-	const AttribArray *pMapAttribs,
-	const AttribArray *pMeshAttribs,
+	MappingJobState *pState,
+	StucDomain domain,
 	CornerBuf *pCornerBuf,
 	I32 cornerBufIdx,
 	I32 dataIdx,
 	I32 mapDataIdx,
-	I32 meshDataIdx,
-	StucCommonAttrib *pCommonAttribs,
-	I32 commonAttribCount,
+	I32 inDataIdx,
 	FaceRange *pInFace,
 	FaceRange *pMapFace,
-	StucDomain domain,
 	CornerAncestors *pAncestors
 ) {
+	StucContext pCtx = pState->pBasic->pCtx;
+	BufMesh *pBufMesh = &pState->bufMesh;
 	CornerBuf *pCorner = pCornerBuf + cornerBufIdx;
-	//TODO make naming for MeshIn consistent
-	//TODO rename meshBuf in this func to inBuf,
-	//it's ambiguous whether it's refering to in-mesh or bufmesh
-	for (I32 i = 0; i < pDestAttribs->count; ++i) {
-		StucAttrib *pDestAttrib = pDestAttribs->pArr + i;
-		if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_COMMON) {
-			blendCommonAttrib(
-				pCtx,
-				pBufMesh,
-				pDestAttribs,
-				pDestAttrib,
-				pMapAttribs,
-				pMeshAttribs,
-				pCornerBuf,
-				cornerBufIdx,
-				dataIdx,
-				mapDataIdx,
-				meshDataIdx,
-				pCommonAttribs,
-				commonAttribCount,
-				pInFace,
-				i
-			);
+	AttribArray *pBufAttribArr =
+		stucGetAttribArrFromDomain(&pBufMesh->mesh.core, domain);
+	const AttribArray *pMapAttribArr =
+		stucGetAttribArrFromDomainConst(&pState->pBasic->pMap->pMesh->core, domain);
+	const AttribArray *pInAttribArr =
+		stucGetAttribArrFromDomainConst(&pState->pBasic->pInMesh->core, domain);
+	for (I32 i = 0; i < pBufAttribArr->count; ++i) {
+		Attrib *pBufAttrib = pBufAttribArr->pArr + i;
+		if (pBufAttrib == stucGetActiveAttrib(pCtx, &pBufMesh->mesh.core, STUC_ATTRIB_USE_POS) ||
+			pBufAttrib == stucGetActiveAttrib(pCtx, &pBufMesh->mesh.core, STUC_ATTRIB_USE_UV) ||
+			pBufAttrib == stucGetActiveAttrib(pCtx, &pBufMesh->mesh.core, STUC_ATTRIB_USE_NORMAL)) {
+
+			//these active attribs shouldn't be blended or interpolated,
+			//they're processed/interpolated manually
+			//TODO maybe uv and normal should be blended, to allow one to choose between transformed
+			//map normals, or uvs (rather than having a separate Map_UVMap attrib).
+			//the blend system needs to be overhualed regardless to take account of use,
+			//so non-active normal attributes are transformed correctly for instance.
+			//once that's done, you should be able to just send the active normal through here
+			continue;
 		}
-		else if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_MAP) {
-			interpolateMapAttrib(
-				pDestAttribs,
-				i,
-				pMapAttribs,
-				domain,
-				pCorner,
-				pDestAttrib,
-				dataIdx,
-				pMapFace,
-				pAncestors,
-				mapDataIdx
-			);
-		}
-		else if (pDestAttribs->pArr[i].origin == STUC_ATTRIB_ORIGIN_MESH_IN) {
-			interpolateInMeshAttrib(
-				pDestAttribs,
-				i,
-				pMeshAttribs,
-				pDestAttrib,
-				dataIdx,
-				pInFace,
-				pCornerBuf,
-				cornerBufIdx,
-				meshDataIdx
-			);
+		Result err = STUC_SUCCESS;
+		const StucAttrib *pInAttrib = NULL;
+		err = stucGetMatchingAttribConst(
+			pState->pBasic->pCtx,
+			&pState->pBasic->pInMesh->core, pInAttribArr,
+			&pBufMesh->mesh.core, pBufAttrib,
+			true,
+			&pInAttrib
+		);
+		STUC_ASSERT("", err == STUC_SUCCESS);
+		const StucAttrib *pMapAttrib = NULL;
+		stucGetMatchingAttribConst(
+			pState->pBasic->pCtx,
+			&pState->pBasic->pMap->pMesh->core, pMapAttribArr,
+			&pBufMesh->mesh.core, pBufAttrib,
+			true,
+			&pMapAttrib
+		);
+		STUC_ASSERT("", err == STUC_SUCCESS);
+		switch (pBufAttrib->origin) {
+			case STUC_ATTRIB_ORIGIN_COMMON:
+				blendCommonAttrib(
+					pState,
+					domain,
+					pBufAttrib,
+					pInAttrib,
+					pMapAttrib,
+					pCornerBuf,
+					cornerBufIdx,
+					dataIdx,
+					mapDataIdx,
+					inDataIdx,
+					pInFace
+				);
+				break;
+			case STUC_ATTRIB_ORIGIN_MAP:
+				interpolateMapAttrib(
+					domain,
+					pBufAttrib,
+					pMapAttrib,
+					pCorner,
+					dataIdx,
+					pMapFace,
+					pAncestors,
+					mapDataIdx
+				);
+				break;
+			case STUC_ATTRIB_ORIGIN_MESH_IN:
+				interpolateInMeshAttrib(
+					pBufAttrib,
+					pInAttrib,
+					dataIdx,
+					pInFace,
+					pCornerBuf,
+					cornerBufIdx,
+					inDataIdx
+				);
+				break;
 		}
 	}
 }
@@ -1058,21 +1069,15 @@ void blendMapAndInFaceAttribs(
 	FaceRange *pMapFace
 ) {
 	blendMapAndInAttribs(
-		pState->pBasic->pCtx,
-		&pState->bufMesh,
-		&pState->bufMesh.mesh.core.faceAttribs,
-		&pState->pBasic->pMap->pMesh->core.faceAttribs,
-		&pState->pBasic->pInMesh->core.faceAttribs,
+		pState,
+		STUC_DOMAIN_FACE,
 		pCornerBuf,
 		0,
 		dataIdx,
 		pMapFace->idx,
 		pInFace->idx,
-		pState->pBasic->pCommonAttribList->pFace,
-		pState->pBasic->pCommonAttribList->faceCount,
 		pInFace,
 		pMapFace,
-		STUC_DOMAIN_FACE,
 		NULL
 	);
 }
@@ -1088,21 +1093,15 @@ void blendMapAndInCornerAttribs(
 	CornerAncestors *pAncestors
 ) {
 	blendMapAndInAttribs(
-		pState->pBasic->pCtx,
-		&pState->bufMesh,
-		&pState->bufMesh.mesh.core.cornerAttribs,
-		&pState->pBasic->pMap->pMesh->core.cornerAttribs,
-		&pState->pBasic->pInMesh->core.cornerAttribs,
+		pState,
+		STUC_DOMAIN_CORNER,
 		pCornerBuf,
 		cornerBufIdx,
 		dataIdx,
 		pMapFace->start + pCornerBuf[cornerBufIdx].stucCorner,
 		pInFace->start,
-		pState->pBasic->pCommonAttribList->pCorner,
-		pState->pBasic->pCommonAttribList->cornerCount,
 		pInFace,
 		pMapFace,
-		STUC_DOMAIN_CORNER,
 		pAncestors
 	);
 }
@@ -1117,21 +1116,15 @@ void blendMapAndInVertAttribs(
 	FaceRange *pMapFace
 ) {
 	blendMapAndInAttribs(
-		pState->pBasic->pCtx,
-		&pState->bufMesh,
-		&pState->bufMesh.mesh.core.vertAttribs,
-		&pState->pBasic->pMap->pMesh->core.vertAttribs,
-		&pState->pBasic->pInMesh->core.vertAttribs,
+		pState,
+		STUC_DOMAIN_VERT,
 		pCornerBuf,
 		cornerBufIdx,
 		dataIdx,
 		pCornerBuf[cornerBufIdx].stucCorner,
 		0,
-		pState->pBasic->pCommonAttribList->pVert,
-		pState->pBasic->pCommonAttribList->vertCount,
 		pInFace,
 		pMapFace,
-		STUC_DOMAIN_VERT,
 		NULL
 	);
 }
@@ -1147,35 +1140,51 @@ void simpleCopyAttribs(
 ) {
 	for (I32 i = 0; i < pDestAttribs->count; ++i) {
 		switch (pDestAttribs->pArr[i].origin) {
-			case (STUC_ATTRIB_ORIGIN_COMMON): {
+			case STUC_ATTRIB_ORIGIN_COMMON: {
 				const StucAttrib *pSrcAttrib;
 				if (idxOrigin) {
-					pSrcAttrib = stucGetAttribInternConst(pDestAttribs->pArr[i].core.name, pMapAttribs);
+					pSrcAttrib = stucGetAttribInternConst(
+						pDestAttribs->pArr[i].core.name,
+						pMapAttribs,
+						false, NULL, NULL
+					);
 				}
 				else {
-					pSrcAttrib = stucGetAttribInternConst(pDestAttribs->pArr[i].core.name, pMeshAttribs);
+					pSrcAttrib = stucGetAttribInternConst(
+						pDestAttribs->pArr[i].core.name,
+						pMeshAttribs,
+						false, NULL, NULL
+					);
 				}
 				break;
 			}
-			case (STUC_ATTRIB_ORIGIN_MAP): {
+			case STUC_ATTRIB_ORIGIN_MAP: {
 				if (!idxOrigin) {
 					//idx is a meshIn idx
 					continue;
 				}
 				const StucAttrib *pMapAttrib =
-					stucGetAttribInternConst(pDestAttribs->pArr[i].core.name, pMapAttribs);
+					stucGetAttribInternConst(
+						pDestAttribs->pArr[i].core.name,
+						pMapAttribs,
+						false, NULL, NULL
+					);
 				memcpy(stucAttribAsVoid(&pDestAttribs->pArr[i].core, destDataIdx),
 				       stucAttribAsVoidConst(&pMapAttrib->core, srcDataIdx),
 				       stucGetAttribSizeIntern(pMapAttrib->core.type));
 				break;
 			}
-			case (STUC_ATTRIB_ORIGIN_MESH_IN): {
+			case STUC_ATTRIB_ORIGIN_MESH_IN: {
 				if (idxOrigin) {
 					//idx is a map idx
 					continue;
 				}
 				const StucAttrib *pMeshAttrib =
-					stucGetAttribInternConst(pDestAttribs->pArr[i].core.name, pMeshAttribs);
+					stucGetAttribInternConst(
+						pDestAttribs->pArr[i].core.name,
+						pMeshAttribs,
+						false, NULL, NULL
+					);
 				memcpy(stucAttribAsVoid(&pDestAttribs->pArr[i].core, destDataIdx),
 				       stucAttribAsVoidConst(&pMeshAttrib->core, srcDataIdx),
 				       stucGetAttribSizeIntern(pMeshAttrib->core.type));
@@ -1196,13 +1205,12 @@ void initEdgeTableEntry(
 	I32 isMapEdge
 ) {
 	bool realloced = false;
-	BufMeshIdx edge =
-		stucBufMeshAddEdge(
-			&pState->pBasic->pCtx->alloc,
-			pBufMesh,
-			!isMapEdge,
-			&realloced
-		);
+	BufMeshIdx edge = stucBufMeshAddEdge(
+		pState->pBasic->pCtx,
+		pBufMesh,
+		!isMapEdge,
+		&realloced
+	);
 	*pBufEdge = edge.idx;
 	pEntry->edge = edge.idx;
 	simpleCopyAttribs(
@@ -1304,7 +1312,7 @@ void addNewCornerAndOrVert(
 ) {
 		bool realloced = false;
 		BufMeshIdx vert = stucBufMeshAddVert(
-			&pState->pBasic->pCtx->alloc,
+			pState->pBasic->pCtx,
 			pBufMesh,
 			true,
 			&realloced
@@ -1336,7 +1344,7 @@ void initMapVertTableEntry(
 ) {
 	bool realloced = false;
 	BufMeshIdx vert = stucBufMeshAddVert(
-		&pState->pBasic->pCtx->alloc,
+		pState->pBasic->pCtx,
 		&pState->bufMesh,
 		false,
 		&realloced
@@ -1633,7 +1641,6 @@ void addClippedFaceToBufMesh(
 	Segments *pSegments,
 	CornerAncestors *pAncestors
 ) {
-	const StucAlloc *pAlloc = &pState->pBasic->pCtx->alloc;
 	bool realloced = false;
 	I32 bufCornerStart = 0;
 	I32 bufFace = 0;
@@ -1675,7 +1682,7 @@ void addClippedFaceToBufMesh(
 			refFace = pInFace->idx;
 		}
 		BufMeshIdx corner = stucBufMeshAddCorner(
-			pAlloc,
+			pState->pBasic->pCtx,
 			pBufMesh,
 			isBorderFace,
 			&realloced
@@ -1716,7 +1723,7 @@ void addClippedFaceToBufMesh(
 #endif
 	}
 	BufMeshIdx face = stucBufMeshAddFace(
-		pAlloc,
+		pState->pBasic->pCtx,
 		pBufMesh,
 		isBorderFace,
 		&realloced
@@ -1760,13 +1767,13 @@ bool isOnLine(CornerBufWrap *pCornerBuf) {
 
 static
 bool isTriDegenerate(const BaseTriVerts *pTri, const FaceRange *pFace) {
-	if (v2DegenerateTri(pTri->uv[0], pTri->uv[1], pTri->uv[2], .0f) ||
-		v3DegenerateTri(pTri->xyz[0], pTri->xyz[1], pTri->xyz[2], .0f)) {
+	if (v2F32DegenerateTri(pTri->uv[0], pTri->uv[1], pTri->uv[2], .0f) ||
+		v3F32DegenerateTri(pTri->xyz[0], pTri->xyz[1], pTri->xyz[2], .0f)) {
 		return true;
 	}
 	if (pFace->size == 4) {
-		if (v2DegenerateTri(pTri->uv[2], pTri->uv[3], pTri->uv[0], .0f) ||
-			v3DegenerateTri(pTri->xyz[2], pTri->xyz[3], pTri->xyz[0], .0f)) {
+		if (v2F32DegenerateTri(pTri->uv[2], pTri->uv[3], pTri->uv[0], .0f) ||
+			v3F32DegenerateTri(pTri->xyz[2], pTri->xyz[3], pTri->xyz[0], .0f)) {
 			return true;
 		}
 	}
@@ -1949,11 +1956,11 @@ void initInTri(
 Result stucMapToSingleFace(
 	MappingJobState *pState,
 	FaceCellsTable *pFaceCellsTable,
-	V2_F32 fTileMin,
 	V2_I32 tile,
 	FaceRange *pInFace
 ) {
 	Result err = STUC_SUCCESS;
+	V2_F32 fTileMin = {(F32)tile.d[0], (F32)tile.d[1]};
 	STUC_ASSERT("", pInFace->size == 3 || pInFace->size == 4);
 	const StucAlloc *pAlloc = &pState->pBasic->pCtx->alloc;
 	const Mesh *pInMesh = pState->pBasic->pInMesh;
@@ -1993,6 +2000,7 @@ Result stucMapToSingleFace(
 		Range range = {0};
 		getCellMapFaces(pState, pFaceCellsEntry, i, &pCellFaces, &range);
 		for (I32 j = range.start; j < range.end; ++j) {
+			pState->facesChecked++;
 			FaceRange mapFace =
 				stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j], false);
 			if (!stucCheckFaceIsInBounds(
@@ -2003,6 +2011,7 @@ Result stucMapToSingleFace(
 				) {
 				continue;
 			}
+			pState->facesUsed++;
 			resetSegments(pSegments, pInFace);
 			I32 mapFaceWind = stucCalcFaceOrientation(pMap->pMesh, &mapFace, false);
 			CornerBufWrap cornerBuf = {0};

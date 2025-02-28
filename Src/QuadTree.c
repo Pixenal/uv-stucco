@@ -83,7 +83,7 @@ Result findFaceQuadrantUv(
 	STUC_RETURN_ERR_IFNOT_COND(err, vertCount <= 4, "");
 	V2_I32 sides[4] = {0};
 	for (I32 i = 0; i < vertCount; ++i) {
-		STUC_ASSERT("", v2IsFinite(midPoint) && v2IsFinite(pVerts[i]));
+		STUC_ASSERT("", v2F32IsFinite(midPoint) && v2F32IsFinite(pVerts[i]));
 		sides[i].d[0] = pVerts[i].d[0] >= midPoint.d[0];
 		sides[i].d[1] = pVerts[i].d[1] < midPoint.d[1];
 		for (I32 j = 0; j < i; ++j) {
@@ -122,7 +122,7 @@ I32 findFaceQuadrant(
 	V2_I32* pSides = pAlloc->pMalloc(sizeof(V2_I32) * pFace->size);
 	for (I32 i = 0; i < pFace->size; ++i) {
 		I32 vertIdx = pMesh->core.pCorners[pFace->start + i];
-		STUC_ASSERT("", v2IsFinite(midPoint) && v3IsFinite(pMesh->pVerts[vertIdx]));
+		STUC_ASSERT("", v2F32IsFinite(midPoint) && v3F32IsFinite(pMesh->pVerts[vertIdx]));
 		pSides[i].d[0] = pMesh->pVerts[vertIdx].d[0] >= midPoint.d[0];
 		pSides[i].d[1] = pMesh->pVerts[vertIdx].d[1] < midPoint.d[1];
 		for (I32 j = 0; j < i; ++j) {
@@ -210,7 +210,7 @@ Result findEncasingChildCells(
 	STUC_THROW_IFNOT_COND(err, _(pCell->boundsMax V2LESSEQL one), "", 0);
 	V2_F32 midPoint = _(_(pCell->boundsMax V2SUB pCell->boundsMin) V2MULS .5);
 	_(&midPoint V2ADDEQL pCell->boundsMin);
-	STUC_ASSERT("", v2IsFinite(midPoint));
+	STUC_ASSERT("", v2F32IsFinite(midPoint));
 	V2_I32 signs;
 	V2_I32 commonSides;
 	midPoint.d[0] += (F32)pTileMin->d[0];
@@ -359,7 +359,7 @@ I32 stucCheckIfFaceIsInsideTile(
 		//check if current edge intersects tile
 		I32 nexti = (i + 1) % vertCount;
 		V2_F32 cornerDir = _(pVerts[nexti] V2SUB pVerts[i]);
-		V2_F32 cornerCross = v2Cross(cornerDir);
+		V2_F32 cornerCross = v2F32Cross(cornerDir);
 		for (I32 j = 0; j < 4; ++j) {
 			V2_F32 cellPoint = {(F32)(tileMin.d[0] + j % 2), (F32)(tileMin.d[1] + j / 2)};
 			V2_F32 cellDir = _(cellPoint V2SUB pVerts[i]);
@@ -824,7 +824,7 @@ void addEnclosedVertsToCell(
 	// First, determine which verts are enclosed, and mark them by negating
 	Cell* pParentCell = pTable->pArr + parentCellIdx;
 	V2_F32 midPoint = pParentCell->pChildren[1].boundsMin;
-	STUC_ASSERT("", v2IsFinite(midPoint));
+	STUC_ASSERT("", v2F32IsFinite(midPoint));
 	STUC_ASSERT("", midPoint.d[0] < 1.0f && midPoint.d[1] < 1.0f);
 	STUC_ASSERT("", midPoint.d[0] > .0f && midPoint.d[1] > .0f);
 	for (I32 i = 0; i < pParentCell->faceSize; ++i) {
@@ -1141,8 +1141,8 @@ void stucGetFaceBoundsForTileTest(
 	stucGetFaceBounds(pFaceBounds, pMesh->pUvs, *pFace);
 	pFaceBounds->fMinSmall = pFaceBounds->fMin;
 	pFaceBounds->fMaxSmall = pFaceBounds->fMax;
-	pFaceBounds->min = v2FloorAssign(&pFaceBounds->fMin);
-	pFaceBounds->max = v2FloorAssign(&pFaceBounds->fMax);
+	pFaceBounds->min = v2F32FloorAssign(&pFaceBounds->fMin);
+	pFaceBounds->max = v2F32FloorAssign(&pFaceBounds->fMax);
 	_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
 }
 

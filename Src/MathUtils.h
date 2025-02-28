@@ -48,73 +48,89 @@ typedef struct {
 
 typedef Stuc_M4x4_F32 Mat4x4;
 
-V2_I32 v2FloorAssign(V2_F32 *pA);
+V2_I32 v2F32FloorAssign(V2_F32 *pA);
 
-V4_F32 v4MultiplyMat4x4(V4_F32 a, const Mat4x4 *pB);
-void v4MultiplyEqualMat4x4(V4_F32 *pA, const Mat4x4 *pB);
+V4_F32 v4F32MultiplyMat4x4(V4_F32 a, const Mat4x4 *pB);
+void v4F32MultiplyEqualMat4x4(V4_F32 *pA, const Mat4x4 *pB);
 V3_F32 divideByW(const V4_F32 *pA);
 
-V3_F32 v3MultiplyScalar(V3_F32 a, F32 b);
-void v3DivideEqualScalar(V3_F32 *pA, F32 b);
-V3_F32 v3DivideScalar(V3_F32 a, F32 b);
-V3_F32 v3SubtractScalar(V3_F32 a, F32 b);
-V3_F32 v3AddScalar(V3_F32 a, F32 b);
-V3_F32 v3Add(V3_F32 a, V3_F32 b);
-V3_F32 v3Subtract(V3_F32 a, V3_F32 b);
-void v3AddEqual(V3_F32 *pA, V3_F32 b);
-I32 v3GreaterThan(V3_F32 a, V3_F32 b);
-I32 v3LessThan(V3_F32 a, V3_F32 b);
-I32 v3AproxEqual(V3_F32 a, V3_F32 b);
-V3_F32 v3Lerp(V3_F32 a, V3_F32 b, F32 alpha);
-V3_F32 v3Cross(V3_F32 a, V3_F32 b);
-V3_F32 v3UnitFromPoints(V3_F32 a, V3_F32 b);
-V3_F32 v3MultiplyMat3x3(V3_F32 a, const Mat3x3 *pB);
-void v3MultiplyEqualMat3x3(V3_F32 *pA, const Mat3x3 *pB);
-V3_F32 v3Normalize(V3_F32 a);
-F32 v3Dot(V3_F32 a, V3_F32 b);
-I32 v3IsFinite(V3_F32);
-bool v3DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, F32 threshold);
-F32 v3TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
-F32 v3SquareLen(V3_F32);
-F32 v3Len(V3_F32 a);
-F32 v3TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
+V3_F32 v3F32MultiplyScalar(V3_F32 a, F32 b);
+void v3F32DivideEqualScalar(V3_F32 *pA, F32 b);
+V3_F32 v3F32DivideScalar(V3_F32 a, F32 b);
+V3_F32 v3F32SubtractScalar(V3_F32 a, F32 b);
+V3_F32 v3F32AddScalar(V3_F32 a, F32 b);
+V3_F32 v3F32Add(V3_F32 a, V3_F32 b);
+V3_F32 v3F32Subtract(V3_F32 a, V3_F32 b);
+void v3F32AddEqual(V3_F32 *pA, V3_F32 b);
+bool v3F32Equal(V3_F32 a, V3_F32 b);
+bool v3F64Equal(V3_F64 a, V3_F64 b);
+I32 v3F32GreaterThan(V3_F32 a, V3_F32 b);
+I32 v3F32LessThan(V3_F32 a, V3_F32 b);
+I32 v3F32AproxEqual(V3_F32 a, V3_F32 b);
+V3_F32 v3F32Lerp(V3_F32 a, V3_F32 b, F32 alpha);
+V3_F32 v3F32Cross(V3_F32 a, V3_F32 b);
+V3_F32 v3F32UnitFromPoints(V3_F32 a, V3_F32 b);
+V3_F32 v3F32MultiplyMat3x3(V3_F32 a, const Mat3x3 *pB);
+void v3F32MultiplyEqualMat3x3(V3_F32 *pA, const Mat3x3 *pB);
+V3_F32 v3F32Normalize(V3_F32 a);
+F32 v3F32Dot(V3_F32 a, V3_F32 b);
+I32 v3F32IsFinite(V3_F32);
+bool v3F32DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, F32 threshold);
+F32 v3F32TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
+F32 v3F32SquareLen(V3_F32);
+F32 v3F32Len(V3_F32 a);
+F32 v3F32TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
 V3_F32 cartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
 V3_F32 barycentricToCartesian(const V3_F32 *pTri, const V3_F32 *pPoint);
 
-V2_F32 v2Abs(V2_F32 a);
-V2_F32 v2Multiply(V2_F32 a, V2_F32 b);
-void v2MultiplyEqual(V2_F32 *pA, V2_F32 b);
-V2_F32 v2DivideScalar(V2_F32 a, F32 b);
-void v2DivideEqualScalar(V2_F32 *pA, F32 b);
-V2_F32 v2Subtract(V2_F32 a, V2_F32 b);
-void v2SubtractEqual(V2_F32 *pA, V2_F32 b);
-V2_F32 v2SubtractScalar(V2_F32 a, F32 b);
-V2_F32 v2Add(V2_F32 a, V2_F32 b);
-V2_F32 v2AddScalar(V2_F32 a, F32 b);
-void v2AddEqual(V2_F32 *pA, V2_F32 b);
-void v2AddEqualScalar(V2_F32 *pA, F32 b);
-void v2MultiplyEqualScalar(V2_F32 *pA, F32 b);
-V2_F32 v2MultiplyScalar(V2_F32 a, F32 b);
-F32 v2Dot(V2_F32 a, V2_F32 b);
-V2_F32 v2Cross(V2_F32 a);
-V2_F32 v2ModScalar(V2_F32 a, F32 b);
-void v2ModEqualScalar(V2_F32 *pA, F32 b);
-F32 v2SquareLen(V2_F32 a);
-F32 v2Len(V2_F32 a);
-F32 v2TriArea(V2_F32 a, V2_F32 b, V2_F32 c);
-F32 v2Determinate(V2_F32 a, V2_F32 b);
-I32 v2GreaterThan(V2_F32 a, V2_F32 b);
-I32 v2GreaterThanScalar(V2_F32 a, F32 b);
-I32 v2GreaterThanEqualTo(V2_F32 a, V2_F32 b);
-I32 v2LessThan(V2_F32 a, V2_F32 b);
-I32 v2LessThanScalar(V2_F32 a, F32 b);
-I32 v2LessThanEqualTo(V2_F32 a, V2_F32 b);
-I32 v2NotEqual(V2_F32 a, V2_F32 b);
-I32 v2Equal(V2_F32 a, V2_F32 b);
-I32 v2AproxEqual(V2_F32 a, V2_F32 b);
-I32 v2DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, F32 threshold);
-F32 v2TriHeight(V2_F32 a, V2_F32 b, V2_F32 c);
-I32 v2IsFinite(V2_F32);
+V2_F32 v2F32Abs(V2_F32 a);
+V2_F32 v2F32Multiply(V2_F32 a, V2_F32 b);
+void v2F32MultiplyEqual(V2_F32 *pA, V2_F32 b);
+V2_F32 v2F32DivideScalar(V2_F32 a, F32 b);
+void v2F32DivideEqualScalar(V2_F32 *pA, F32 b);
+V2_F32 v2F32Subtract(V2_F32 a, V2_F32 b);
+void v2F32SubtractEqual(V2_F32 *pA, V2_F32 b);
+V2_F32 v2F32SubtractScalar(V2_F32 a, F32 b);
+V2_F32 v2F32Add(V2_F32 a, V2_F32 b);
+V2_F32 v2F32AddScalar(V2_F32 a, F32 b);
+void v2F32AddEqual(V2_F32 *pA, V2_F32 b);
+void v2F32AddEqualScalar(V2_F32 *pA, F32 b);
+void v2F32MultiplyEqualScalar(V2_F32 *pA, F32 b);
+V2_F32 v2F32MultiplyScalar(V2_F32 a, F32 b);
+F32 v2F32Dot(V2_F32 a, V2_F32 b);
+V2_F32 v2F32Cross(V2_F32 a);
+V2_F32 v2F32ModScalar(V2_F32 a, F32 b);
+void v2F32ModEqualScalar(V2_F32 *pA, F32 b);
+F32 v2F32SquareLen(V2_F32 a);
+F32 v2F32Len(V2_F32 a);
+F32 v2F32TriArea(V2_F32 a, V2_F32 b, V2_F32 c);
+F32 v2F32Determinate(V2_F32 a, V2_F32 b);
+I32 v2F32GreaterThan(V2_F32 a, V2_F32 b);
+I32 v2F32GreaterThanScalar(V2_F32 a, F32 b);
+I32 v2F32GreaterThanEqualTo(V2_F32 a, V2_F32 b);
+I32 v2F32LessThan(V2_F32 a, V2_F32 b);
+I32 v2F32LessThanScalar(V2_F32 a, F32 b);
+I32 v2F32LessThanEqualTo(V2_F32 a, V2_F32 b);
+I32 v2F32NotEqual(V2_F32 a, V2_F32 b);
+I32 v2F32Equal(V2_F32 a, V2_F32 b);
+I32 v2F64Equal(V2_F64 a, V2_F64 b);
+I32 v2F32AproxEqual(V2_F32 a, V2_F32 b);
+I32 v2F32DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, F32 threshold);
+F32 v2F32TriHeight(V2_F32 a, V2_F32 b, V2_F32 c);
+I32 v2F32IsFinite(V2_F32);
+
+bool v2I8Equal(V2_I8 a, V2_I8 b);
+bool v2I16Equal(V2_I16 a, V2_I16 b);
+bool v2I32Equal(V2_I32 a, V2_I32 b);
+bool v2I64Equal(V2_I64 a, V2_I64 b);
+bool v3I8Equal(V3_I8 a, V3_I8 b);
+bool v3I16Equal(V3_I16 a, V3_I16 b);
+bool v3I32Equal(V3_I32 a, V3_I32 b);
+bool v3I64Equal(V3_I64 a, V3_I64 b);
+bool v4I8Equal(V4_I8 a, V4_I8 b);
+bool v4I16Equal(V4_I16 a, V4_I16 b);
+bool v4I32Equal(V4_I32 a, V4_I32 b);
+bool v4I64Equal(V4_I64 a, V4_I64 b);
 
 Mat2x2 mat2x2Adjugate(Mat2x2 a);
 F32 mat2x2Determinate(Mat2x2 a);
@@ -127,53 +143,75 @@ Mat3x3 Mat3x3FromMat4x4(const Mat4x4 *pA);
 Mat3x3 mat3x3Invert(const Mat3x3 *pA);
 I32 mat3x3IsFinite(const Mat3x3 *pA);
 
+bool v4F32Equal(V4_F32 a, V4_F32 b);
+bool v4F64Equal(V4_F64 a, V4_F64 b);
+
 F32 customFloor(F32 a);
 
-#define V4MULM4X4 ,4MultiplyMat4x4,
-#define V4MULEQLM4X4 ,4MultiplyEqualMat4x4,
+#define V4MULM4X4 ,4F32MultiplyMat4x4,
+#define V4MULEQLM4X4 ,4F32MultiplyEqualMat4x4,
 
-#define V3MULS ,3MultiplyScalar,
-#define V3DIVEQLS ,3DivideEqualScalar,
-#define V3DIVS ,3DivideScalar,
-#define V3SUB ,3Subtract,
-#define V3SUBS ,3SubtractScalar,
-#define V3ADDS ,3AddScalar,
-#define V3ADD ,3Add,
-#define V3ADDEQL ,3AddEqual,
-#define V3GREAT ,3GreaterThan,
-#define V3LESS ,3LessThan,
-#define V3CROSS ,3Cross,
-#define V3APROXEQL ,3AproxEqual,
-#define V3DOT ,3Dot,
-#define V3MULM3X3 ,3MultiplyMat3x3,
-#define V3MULEQLM3X3 ,3MultiplyEqualMat3x3,
+#define V3MULS ,3F32MultiplyScalar,
+#define V3DIVEQLS ,3F32DivideEqualScalar,
+#define V3DIVS ,3F32DivideScalar,
+#define V3SUB ,3F32Subtract,
+#define V3SUBS ,3F32SubtractScalar,
+#define V3ADDS ,3F32AddScalar,
+#define V3ADD ,3F32Add,
+#define V3ADDEQL ,3F32AddEqual,
+#define V3EQL ,3F32Equal,
+#define V364EQL ,3F64Equal,
+#define V3GREAT ,3F32GreaterThan,
+#define V3LESS ,3F32LessThan,
+#define V3CROSS ,3F32Cross,
+#define V3APROXEQL ,3F32AproxEqual,
+#define V3DOT ,3F32Dot,
+#define V3MULM3X3 ,3F32MultiplyMat3x3,
+#define V3MULEQLM3X3 ,3F32MultiplyEqualMat3x3,
 
-#define V2MUL ,2Multiply,
-#define V2MULEQL ,2MultiplyEqual,
-#define V2DIVS ,2DivideScalar,
-#define V2DIVSEQL ,2DivideEqualScalar,
-#define V2SUB ,2Subtract,
-#define V2SUBEQL ,2SubtractEqual,
-#define V2SUBS ,2SubtractScalar,
-#define V2ADD ,2Add,
-#define V2ADDS ,2AddScalar,
-#define V2ADDEQL ,2AddEqual,
-#define V2ADDEQLS ,2AddEqualScalar,
-#define V2MULSEQL ,2MultiplyEqualScalar,
-#define V2MULS ,2MultiplyScalar,
-#define V2DOT ,2Dot,
-#define V2DET ,2Determinate,
-#define V2MODS ,2ModScalar,
-#define V2MODEQLS ,2ModEqualScalar,
-#define V2GREAT ,2GreaterThan,
-#define V2GREATS ,2GreaterThanScalar,
-#define V2GREATEQL ,2GreaterThanEqualTo,
-#define V2LESS ,2LessThan,
-#define V2LESSS ,2LessThanScalar,
-#define V2LESSEQL ,2LessThanEqualTo,
-#define V2NOTEQL ,2NotEqual,
-#define V2EQL ,2Equal,
-#define V2APROXEQL ,2AproxEqual,
+#define V2MUL ,2F32Multiply,
+#define V2MULEQL ,2F32MultiplyEqual,
+#define V2DIVS ,2F32DivideScalar,
+#define V2DIVSEQL ,2F32DivideEqualScalar,
+#define V2SUB ,2F32Subtract,
+#define V2SUBEQL ,2F32SubtractEqual,
+#define V2SUBS ,2F32SubtractScalar,
+#define V2ADD ,2F32Add,
+#define V2ADDS ,2F32AddScalar,
+#define V2ADDEQL ,2F32AddEqual,
+#define V2ADDEQLS ,2F32AddEqualScalar,
+#define V2MULSEQL ,2F32MultiplyEqualScalar,
+#define V2MULS ,2F32MultiplyScalar,
+#define V2DOT ,2F32Dot,
+#define V2DET ,2F32Determinate,
+#define V2MODS ,2F32ModScalar,
+#define V2MODEQLS ,2F32ModEqualScalar,
+#define V2GREAT ,2F32GreaterThan,
+#define V2GREATS ,2F32GreaterThanScalar,
+#define V2GREATEQL ,2F32GreaterThanEqualTo,
+#define V2LESS ,2F32LessThan,
+#define V2LESSS ,2F32LessThanScalar,
+#define V2LESSEQL ,2F32LessThanEqualTo,
+#define V2NOTEQL ,2F32NotEqual,
+#define V2EQL ,2F32Equal,
+#define V264EQL ,2F64Equal,
+#define V2APROXEQL ,2F32AproxEqual,
+
+#define V4EQL ,4F32Equal,
+#define V464EQL ,4F64Equal,
+
+#define V2I8EQL ,2I8Equal,
+#define V2I16EQL ,2I16Equal,
+#define V2IEQL ,2IEqual,
+#define V2I64EQL ,2I64Equal,
+#define V3I8EQL ,3I8Equal,
+#define V3I16EQL ,3I16Equal,
+#define V3IEQL ,3IEqual,
+#define V3I64EQL ,3I64Equal,
+#define V4I8EQL ,4I8Equal,
+#define V4I16EQL ,4I16Equal,
+#define V4IEQL ,4IEqual,
+#define V4I64EQL ,4I64Equal,
 
 #define INFIX(a,o,b) v##o((a),(b))
 #define _(a) INFIX(a)

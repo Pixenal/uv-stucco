@@ -42,7 +42,7 @@ if (WIN32)
 endif()
 message("BUILD_SHARED_LIBS is " ${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_library(UvStucco Src/Alloc.c Src/MergeBoundsFaces.c Src/Io.c Src/MapToFace.c
+add_library(UvStucco STATIC Src/Alloc.c Src/MergeBoundsFaces.c Src/Io.c Src/MapToFace.c
             Src/QuadTree.c Src/UvStucco.c Src/MathUtils.c Src/Utils.c Src/AttribUtils.c
             Src/SingleBoundsFace.c Src/CombineJobMeshes.c Src/MapToJobMesh.c
             Src/ImageUtils.c Src/Mesh.c Src/Usg.c Extern/MikkTSpace/mikktspace.c

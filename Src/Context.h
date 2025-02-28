@@ -2,8 +2,6 @@
 #include <UvStucco.h>
 #include <Types.h>
 
-#define STUC_ATTRIB_SP_COUNT 17
-
 typedef struct StucContextInternal {
 	void *pCustom;
 	StucThreadPool threadPool;
@@ -14,7 +12,7 @@ typedef struct StucContextInternal {
 	StucTypeDefaultConfig typeDefaults;
 	StucStageReport stageReport;
 	I32 stageInterval;
-	char spAttribNames[STUC_ATTRIB_SP_COUNT][STUC_ATTRIB_NAME_MAX_LEN];
-	StucAttribType spAttribTypes[STUC_ATTRIB_SP_COUNT];
-	StucDomain spAttribDomains[STUC_ATTRIB_SP_COUNT];
+	char spAttribNames[STUC_ATTRIB_USE_SP_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN];
+	StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT];
+	StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT];
 } StucContextInternal;

@@ -32,6 +32,7 @@ Result stucCombineJobMeshes(
 	I32 mapJobsSent
 ) {
 	Result err = STUC_SUCCESS;
+	JobBases *pMappingJobBases = NULL;
 	//TODO fix this naming inconsistancy. fix with in-mesh as well
 	Mesh *pMeshOut = &pBasic->outMesh;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
@@ -67,9 +68,9 @@ Result stucCombineJobMeshes(
 			break;
 		}
 	}
-	stucAllocAttribsFromMeshArr(pAlloc, pMeshOut, 1, &src, false, true, false);
-	err = stucSetSpecialAttribs(pBasic->pCtx, pMeshOut, 0xe); //1110 - set only verts, stuc, & normals
-	JobBases *pMappingJobBases = NULL;
+	err = stucAllocAttribsFromMeshArr(pBasic->pCtx, pMeshOut, 1, &src, 0, false, true, false);
+	STUC_THROW_IFNOT(err, "", 0);
+	err = stucAssignActiveAliases(pBasic->pCtx, pMeshOut, 0xe, STUC_DOMAIN_NONE); //1110 - set only verts, stuc, & normals
 	STUC_THROW_IFNOT(err, "", 0);
 	pMappingJobBases = pAlloc->pMalloc(sizeof(JobBases) * mapJobsSent);
 	U64 reallocTime = 0;
@@ -102,7 +103,7 @@ Result stucCombineJobMeshes(
 	err = stucMergeBorderFaces(pBasic, pMappingJobArgs, pMappingJobBases, mapJobsSent);
 	STUC_THROW_IFNOT(err, "", 0);
 
-	stucMeshSetLastFace(&pBasic->pCtx->alloc, pMeshOut);
+	stucMeshSetLastFace(pBasic->pCtx, pMeshOut);
 	STUC_CATCH(0, err,
 		stucMeshDestroy(pBasic->pCtx, &pBasic->outMesh.core);
 	;);
@@ -224,9 +225,9 @@ I32 stucGetBaseCorner(const BorderFace *pEntry, I32 cornerIdx) {
 V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry) {
 	//tileX and Y are signed, but are stored unsigned in pEntry
 	V2_I16 tileMin = {0};
-	bool sign = pEntry->tileX >> STUC_TILE_MIN_BIT_LEN & 0x1;
+	bool sign = pEntry->tileX >> STUC_TILE_BIT_LEN & 0x1;
 	tileMin.d[0] |= sign ? pEntry->tileX | ~0xfff : pEntry->tileX;
-	sign = pEntry->tileY >> STUC_TILE_MIN_BIT_LEN & 0x1;
+	sign = pEntry->tileY >> STUC_TILE_BIT_LEN & 0x1;
 	tileMin.d[1] |= sign ? pEntry->tileY | ~0xfff : pEntry->tileY;
 	return tileMin;
 }

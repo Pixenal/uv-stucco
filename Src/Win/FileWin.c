@@ -4,18 +4,22 @@
 
 #include <PlatformIo.h>
 #include <Types.h>
+#include <Error.h>
+
+#define ERR_MESSAGE_MAX_LEN 128
 
 typedef struct {
 	HANDLE *pHFile;
 	StucAlloc alloc;
 } PlatformContext;
 
-I32 stucPlatformFileOpen(
+StucResult stucPlatformFileOpen(
 	void **file,
 	const char *filePath,
 	I32 action,
 	const StucAlloc *pAlloc
 ) {
+	StucResult err = STUC_SUCCESS;
 	DWORD access;
 	DWORD disposition;
 	switch (action) {
@@ -28,8 +32,7 @@ I32 stucPlatformFileOpen(
 			disposition = OPEN_EXISTING;
 			break;
 		default:
-			printf("Failed to open file. Invalid action passed to function\n");
-			return 1;
+			STUC_RETURN_ERR(err, "Invalid action passed to function\n");
 	}
 	PlatformContext *pState = pAlloc->pMalloc(sizeof(PlatformContext));
 	pState->alloc = *pAlloc;
@@ -42,57 +45,77 @@ I32 stucPlatformFileOpen(
 		FILE_ATTRIBUTE_NORMAL, NULL
 	);
 	if (pState->pHFile == INVALID_HANDLE_VALUE) {
-		DWORD lastError =  GetLastError();
-		printf("Failed to open UVGP file for write. Error: %lu\n", lastError);
-		return 1;
+		char message[ERR_MESSAGE_MAX_LEN] = {0};
+		snprintf(message, ERR_MESSAGE_MAX_LEN, "Win Error: %d\n", GetLastError());
+		STUC_RETURN_ERR(err, message);
 	}
 	*file = pState;
-	return 0;
+	return err;
 }
 
-I32 stucPlatformFileWrite(
+StucResult stucPlatformFileWrite(
 	void *file,
 	const unsigned char *data,
 	I32 dataSize
 ) {
+	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
 	DWORD bytesWritten;
-	I32 returnCode = WriteFile(pState->pHFile, data, dataSize, &bytesWritten, NULL);
-	if (!returnCode) {
-		DWORD lastError =  GetLastError();
-		printf("Failed to write to UVGP file. Error: %lu\n", lastError);
-		return 1;
+	bool success = WriteFile(pState->pHFile, data, dataSize, &bytesWritten, NULL);
+	if (!success) {
+		char message[ERR_MESSAGE_MAX_LEN] = {0};
+		snprintf(
+			message,
+			ERR_MESSAGE_MAX_LEN,
+			"Win error: %d\n",
+			GetLastError()
+		);
+		STUC_RETURN_ERR(err, message);
 	}
-	if ((I32)bytesWritten != dataSize) {
-		printf("Failed. Number of bytes written to UVGP does not \
-			match data length\n");
-	}
-	return 0;
+	STUC_RETURN_ERR_IFNOT_COND(
+		err,
+		(I32)bytesWritten == dataSize,
+		"Number of bytes written does not match data len"
+	);
+	return err;
 }
 
-I32 stucPlatformFileRead(
+StucResult stucPlatformFileRead(
 	void *file,
 	unsigned char *data,
 	I32 bytesToRead
 ) {
+	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
 	DWORD bytesRead;
-	I32 returnCode = ReadFile(pState->pHFile, data, bytesToRead, &bytesRead, NULL);
-	if (!returnCode) {
-		DWORD lastError =  GetLastError();
-		printf("Failed to read from UVGP file. Error: %lu\n", lastError);
-		return 1;
+	bool success = ReadFile(pState->pHFile, data, bytesToRead, &bytesRead, NULL);
+	if (!success) {
+		char message[ERR_MESSAGE_MAX_LEN] = {0};
+		snprintf(
+			message,
+			ERR_MESSAGE_MAX_LEN,
+			"Win error: %d\n",
+			GetLastError()
+		);
+		STUC_RETURN_ERR(err, message);
 	}
-	if ((I32)bytesRead != bytesToRead) {
-		printf("Failed. Number of bytes read from UVGP file does \
-			not match specififed amount\n");
-	}
-	return 0;
+	STUC_RETURN_ERR_IFNOT_COND(
+		err,
+		(I32)bytesRead == bytesToRead,
+		"Number of bytes read does not match specififed amount\n"
+	);
+	return err;
 }
 
-I32 stucPlatformFileClose(void *file) {
+StucResult stucPlatformFileClose(void *file) {
+	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
-	CloseHandle(pState->pHFile);
+	bool success = CloseHandle(pState->pHFile);
 	pState->alloc.pFree(pState);
-	return 0;
+	if (!success) {
+		char message[ERR_MESSAGE_MAX_LEN] = {0};
+		snprintf(message, ERR_MESSAGE_MAX_LEN, "Win error: %d\n", GetLastError());
+		STUC_RETURN_ERR(err, message);
+	}
+	return err;
 }

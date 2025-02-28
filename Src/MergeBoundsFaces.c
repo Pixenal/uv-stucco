@@ -1531,7 +1531,7 @@ void initVertTableEntry(
 ) {
 	bool realloced = false;
 	I32 outVert =
-		stucMeshAddVert(&pArgs->pBasic->pCtx->alloc, &pArgs->pBasic->outMesh, &realloced);
+		stucMeshAddVert(pArgs->pBasic->pCtx, &pArgs->pBasic->outMesh, &realloced);
 	stucCopyAllAttribs(
 		&pArgs->pBasic->outMesh.core.vertAttribs,
 		outVert,
@@ -1562,7 +1562,7 @@ void initEdgeTableEntry(
 ) {
 	StucContext pCtx = pArgs->pBasic->pCtx;
 	bool realloced = false;
-	I32 edgeOut = stucMeshAddEdge(&pCtx->alloc, &pArgs->pBasic->outMesh, &realloced);
+	I32 edgeOut = stucMeshAddEdge(pCtx, &pArgs->pBasic->outMesh, &realloced);
 	stucCopyAllAttribs(
 		&pArgs->pBasic->outMesh.core.edgeAttribs,
 		edgeOut,
@@ -1734,7 +1734,11 @@ Result addBorderCornerAndVert(
 						pVertEntry->corner,
 						&pBufMesh->mesh.core.cornerAttribs,
 						corner,
-						pOtherBufMesh->mesh.pNormalAttrib
+						stucGetActiveAttrib(
+							pArgs->pBasic->pCtx,
+							&pOtherBufMesh->mesh.core,
+							STUC_ATTRIB_USE_NORMAL
+						)
 					);
 					STUC_RETURN_ERR_IFNOT(err, "");
 				}
@@ -1870,7 +1874,11 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 					&pOtherBufMesh->mesh.core.cornerAttribs,
 					pVertEntry->corner,
 					pVertEntry->corners,
-					pOtherBufMesh->mesh.pNormalAttrib
+					stucGetActiveAttrib(
+						pArgs->pBasic->pCtx,
+						&pOtherBufMesh->mesh.core,
+						STUC_ATTRIB_USE_NORMAL
+					)
 				);
 				pVertEntry->divided = true;
 			}
@@ -1880,7 +1888,11 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 				corner,
 				&pOtherBufMesh->mesh.core.cornerAttribs,
 				pVertEntry->corner,
-				pBufMesh->mesh.pNormalAttrib
+				stucGetActiveAttrib(
+					pArgs->pBasic->pCtx,
+					&pBufMesh->mesh.core,
+					STUC_ATTRIB_USE_NORMAL
+				)
 			);
 			STUC_RETURN_ERR_IFNOT(err, "");
 			return err;

@@ -35,6 +35,7 @@ typedef struct StucMapInternal *StucMap;
 
 //TODO unify naming. different structs and enums called "type", "attrib", "blend".
 //Make it consistent. They're attribute types;
+//or maybe just have STUC_I8? can they be generic like that?
 typedef enum {
 	STUC_ATTRIB_I8,
 	STUC_ATTRIB_I16,
@@ -60,8 +61,35 @@ typedef enum {
 	STUC_ATTRIB_V4_I64,
 	STUC_ATTRIB_V4_F32,
 	STUC_ATTRIB_V4_F64,
-	STUC_ATTRIB_STRING
+	STUC_ATTRIB_STRING,
+	STUC_ATTRIB_NONE //TODO move this to idx 0
 } StucAttribType;
+
+typedef enum {
+	STUC_ATTRIB_USE_NONE,
+	STUC_ATTRIB_USE_POS,
+	STUC_ATTRIB_USE_UV,
+	STUC_ATTRIB_USE_NORMAL,
+	STUC_ATTRIB_USE_PRESERVE_EDGE,
+	STUC_ATTRIB_USE_RECEIVE,
+	STUC_ATTRIB_USE_PRESERVE_VERT,
+	STUC_ATTRIB_USE_USG,
+	STUC_ATTRIB_USE_TANGENT,
+	STUC_ATTRIB_USE_TSIGN,
+	STUC_ATTRIB_USE_WSCALE,
+	STUC_ATTRIB_USE_IDX,
+	STUC_ATTRIB_USE_EDGE_LEN,
+	STUC_ATTRIB_USE_SEAM_EDGE,
+	STUC_ATTRIB_USE_SEAM_VERT,
+	STUC_ATTRIB_USE_NUM_ADJ_PRESERVE,
+	STUC_ATTRIB_USE_EDGE_CORNERS,
+	STUC_ATTRIB_USE_SP_ENUM_COUNT,//denotes number of sp uses
+	STUC_ATTRIB_USE_COLOR,
+	STUC_ATTRIB_USE_GROUP,
+	STUC_ATTRIB_USE_MASK,
+	STUC_ATTRIB_USE_SCALAR,
+	STUC_ATTRIB_USE_ENUM_COUNT
+} StucAttribUse;
 
 typedef enum {
 	STUC_BLEND_REPLACE, //only replace & append can be used with strings
@@ -80,16 +108,16 @@ typedef enum {
 
 typedef enum {
 	STUC_ATTRIB_ORIGIN_MAP,
-	STUC_ATTRIB_ORIGIN_MESH_IN,
+	STUC_ATTRIB_ORIGIN_MESH_IN,//TODO put this at idx 0, so its set when user makes a struct
 	STUC_ATTRIB_ORIGIN_MESH_OUT,
 	STUC_ATTRIB_ORIGIN_COMMON,
-	STUC_ATTRIB_DONT_COPY
+	STUC_ATTRIB_ORIGIN_MESH_BUF
 } StucAttribOrigin;
 
 typedef enum {
-	STUC_ATTRIB_USE_NONE,
-	STUC_ATTRIB_USE_COLOR
-} StucAttribUse;
+	STUC_ATTRIB_COPY,
+	STUC_ATTRIB_DONT_COPY
+} StucAttribCopyOpt;
 
 typedef enum {
 	STUC_IMAGE_UI8,
@@ -97,6 +125,14 @@ typedef enum {
 	STUC_IMAGE_UI32,
 	STUC_IMAGE_F32,
 } StucImageType;
+
+typedef enum {
+	STUC_DOMAIN_NONE,
+	STUC_DOMAIN_FACE,
+	STUC_DOMAIN_CORNER,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_VERT
+} StucDomain;
 
 typedef enum {
 	STUC_NOT_SET,
@@ -205,6 +241,7 @@ typedef struct {
 typedef struct {
 	StucAttribCore core;
 	StucAttribOrigin origin;
+	StucAttribCopyOpt copyOpt;
 	bool interpolate;
 } StucAttrib;
 
@@ -226,13 +263,6 @@ typedef struct {
 	int32_t count;
 } StucAttribArray;
 
-typedef enum {
-	STUC_DOMAIN_FACE,
-	STUC_DOMAIN_CORNER,
-	STUC_DOMAIN_EDGE,
-	STUC_DOMAIN_VERT
-} StucDomain;
-
 typedef struct {
 	StucBlendMode blend;
 	float opacity;
@@ -243,6 +273,20 @@ typedef struct {
 	char name[STUC_ATTRIB_NAME_MAX_LEN];
 	StucBlendConfig blendConfig;
 } StucCommonAttrib;
+
+typedef struct {
+	StucCommonAttrib *pArr;
+	int32_t size;
+	int32_t count;
+} StucCommonAttribArr;
+
+typedef struct {
+	StucCommonAttribArr mesh;
+	StucCommonAttribArr face;
+	StucCommonAttribArr corner;
+	StucCommonAttribArr edge;
+	StucCommonAttribArr vert;
+} StucCommonAttribList;
 
 typedef struct {
 	StucBlendConfig blendConfig;
@@ -276,19 +320,6 @@ typedef struct {
 	StucTypeDefault string;
 } StucTypeDefaultConfig;
 
-typedef struct {
-	StucCommonAttrib *pMesh;
-	StucCommonAttrib *pFace;
-	StucCommonAttrib *pCorner;
-	StucCommonAttrib *pEdge;
-	StucCommonAttrib *pVert;
-	int32_t meshCount;
-	int32_t faceCount;
-	int32_t cornerCount;
-	int32_t edgeCount;
-	int32_t vertCount;
-} StucCommonAttribList;
-
 typedef enum {
 	STUC_OBJECT_DATA_NULL,
 	STUC_OBJECT_DATA_MESH,
@@ -303,12 +334,20 @@ typedef struct {
 typedef struct {
 	StucMap *ppArr;
 	int8_t *pMatArr;
+	//TODO maybe rename CommonAttrib to Blend or such? It's shorter
+	StucCommonAttribList *pCommonAttribArr;
 	int32_t size;
 	int32_t count;
 } StucMapArr;
 
 typedef struct {
+	int16_t idx;
+	bool active;
+} StucAttribActive;
+
+typedef struct {
 	StucObjectData type;
+	StucAttribActive activeAttribs[STUC_ATTRIB_USE_ENUM_COUNT];
 	int32_t *pFaces;
 	int32_t *pCorners;
 	int32_t *pEdges;
@@ -360,10 +399,10 @@ typedef struct {
 } StucThreadPool;
 
 typedef struct {
-	int32_t (*pOpen)(void **, char *, int32_t, StucAlloc *);
-	int32_t (*pWrite)(void *, unsigned char *, int32_t);
-	int32_t (*pRead)(void *, unsigned char *, int32_t);
-	int32_t (*pClose)(void *);
+	StucResult (*pOpen)(void **, const char *, int32_t, StucAlloc *);
+	StucResult (*pWrite)(void *, unsigned char *, int32_t);
+	StucResult (*pRead)(void *, unsigned char *, int32_t);
+	StucResult (*pClose)(void *);
 } StucIo;
 
 typedef struct {
@@ -387,6 +426,9 @@ typedef struct StucStageReport {
 	int32_t outOf;
 } StucStageReport;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 STUC_EXPORT
 StucResult stucThreadPoolSetCustom(
 	StucContext context,
@@ -404,7 +446,7 @@ StucResult stucContextInit(
 STUC_EXPORT
 StucResult stucMapFileExport(
 	StucContext context,
-	char *pName,
+	const char *pName,
 	int32_t objCount,
 	StucObject *pObjArr,
 	int32_t usgCount,
@@ -414,7 +456,7 @@ StucResult stucMapFileExport(
 STUC_EXPORT
 StucResult stucMapFileLoadForEdit(
 	StucContext pCtx,
-	char *filePath,
+	const char *filePath,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
 	int32_t *pUsgCount,
@@ -424,15 +466,27 @@ StucResult stucMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucResult stucMapFileLoad(StucContext context, StucMap *pMapHandle, char *filePath);
+StucResult stucMapFileLoad(StucContext pCtx, StucMap *pMapHandle, const char *filePath);
 STUC_EXPORT
-StucResult stucMapFileUnload(StucContext context, StucMap pMap);
+StucResult stucMapFileUnload(StucContext pCtx, StucMap pMap);
+//Use this to access the mesh contaned within a StucMap handle.
+//Objects are collapsed in map handles, so if you want the original geometry
+//call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
+STUC_EXPORT
+StucResult stucMapFileMeshGet(StucContext pCtx, StucMap pMap, const StucMesh **ppMesh);
 STUC_EXPORT
 StucResult stucQueryCommonAttribs(
 	StucContext pCtx,
 	StucMap pMap,
 	StucMesh *pMesh,
 	StucCommonAttribList *pCommonAttribs
+);
+STUC_EXPORT
+StucResult stucCommonAttribArrGetFromDomain(
+	StucContext pCtx,
+	StucCommonAttribList *pList,
+	StucDomain domain,
+	StucCommonAttribArr **ppArr
 );
 STUC_EXPORT
 StucResult stucDestroyCommonAttribs(
@@ -448,7 +502,6 @@ StucResult stucQueueMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucCommonAttribList *pCommonAttribList,
 	float wScale,
 	float receiveLen
 );
@@ -460,7 +513,6 @@ StucResult stucMapToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	const StucCommonAttribList *pCommonAttribList,
 	float wScale,
 	float receiveLen
 );
@@ -477,12 +529,14 @@ StucResult stucMeshDestroy(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT
 StucResult stucContextDestroy(StucContext pCtx);
 STUC_EXPORT
-StucResult stucGetAttribSize(StucAttrib *pAttrib, int32_t *pSize);
+StucResult stucGetAttribSize(StucAttribCore *pAttrib, int32_t *pSize);
 STUC_EXPORT
-StucResult stucGetAttrib(char *pName, StucAttribArray *pAttribs, StucAttrib **ppAttrib);
+StucResult stucGetAttrib(const char *pName, StucAttribArray *pAttribs, StucAttrib **ppAttrib);
+STUC_EXPORT
+StucResult stucAttribGetAsVoid(StucAttribCore *pAttrib, int32_t idx, void **ppOut);
 STUC_EXPORT
 StucResult stucGetAttribIndexed(
-	char *pName,
+	const char *pName,
 	StucAttribIndexedArr *pAttribs,
 	StucAttribIndexed **ppAttrib
 );
@@ -518,3 +572,16 @@ void stucJobDestroyHandles(
 	int32_t jobCount,
 	void **ppJobHandles
 );
+STUC_EXPORT
+StucResult stucAttribSpecialTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
+STUC_EXPORT
+StucResult stucAttribGetAllDomains(
+	StucContext pCtx,
+	StucMesh *pMesh,
+	const char *pName,
+	StucAttrib **ppAttrib,
+	StucDomain *pDomain
+);
+#ifdef __cplusplus
+}
+#endif

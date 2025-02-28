@@ -10,7 +10,7 @@
 #include <Types.h>
 #include <Alloc.h>
 
-#define STUC_TILE_MIN_BIT_LEN 11
+#define STUC_TILE_BIT_LEN 11
 
 typedef U64 UBitField64;
 typedef U32 UBitField32;
@@ -31,8 +31,8 @@ typedef struct BorderFace {
 	I32 mapFace;
 	I32 bufFace;
 	I32 inFace;
-	U32 tileX : STUC_TILE_MIN_BIT_LEN;
-	U32 tileY : STUC_TILE_MIN_BIT_LEN;
+	U32 tileX : STUC_TILE_BIT_LEN;
+	U32 tileY : STUC_TILE_BIT_LEN;
 	UBitField32 job : 6;
 	U32 inOrient : 1;
 	U32 mapOrient : 1;
@@ -125,4 +125,6 @@ typedef struct {
 	I32 bufSize;
 	I32 rawBufSize;
 	I32 finalBufSize;
+	I32 facesChecked;
+	I32 facesUsed;
 } MappingJobArgs;

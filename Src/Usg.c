@@ -74,7 +74,7 @@ bool hitTestTri(
 		*(V2_F32 *)&pTri[2]
 	};
 	V3_F32 bc = cartesianToBarycentric(triV2, (V2_F32 *)&point);
-	if (!v3IsFinite(bc)) {
+	if (!v3F32IsFinite(bc)) {
 		//degenerate
 		return false;
 	}
@@ -243,36 +243,45 @@ StucResult stucAllocUsgSquaresMesh(
 	stucInitAttrib(
 		&pCtx->alloc,
 		pPosAttrib,
-		pCtx->spAttribNames[STUC_ATTRIB_SP_VERTS],
+		pCtx->spAttribNames[STUC_ATTRIB_USE_POS],
 		pMesh->vertBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
-		STUC_ATTRIB_V3_F32
+		STUC_ATTRIB_COPY,
+		pCtx->spAttribTypes[STUC_ATTRIB_USE_POS],
+		STUC_ATTRIB_USE_POS
 	);
+	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_POS);
 	pCore->vertAttribs.count = 1;
 	pCore->cornerAttribs.pArr = pCtx->alloc.pCalloc(2, sizeof(StucAttrib));
 	Attrib *pUvAttrib = pCore->cornerAttribs.pArr;
 	stucInitAttrib(
 		&pCtx->alloc,
 		pUvAttrib,
-		pCtx->spAttribNames[STUC_ATTRIB_SP_UVS],
+		pCtx->spAttribNames[STUC_ATTRIB_USE_UV],
 		pMesh->cornerBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
-		STUC_ATTRIB_V2_F32
+		STUC_ATTRIB_COPY,
+		pCtx->spAttribTypes[STUC_ATTRIB_USE_UV],
+		STUC_ATTRIB_USE_UV
 	);
+	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_UV);
 	Attrib *pNormalAttrib = pCore->cornerAttribs.pArr + 1;
 	stucInitAttrib(
 		&pCtx->alloc,
 		pNormalAttrib,
-		pCtx->spAttribNames[STUC_ATTRIB_SP_NORMALS],
+		pCtx->spAttribNames[STUC_ATTRIB_USE_NORMAL],
 		pMesh->cornerBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
-		STUC_ATTRIB_V3_F32
+		STUC_ATTRIB_COPY,
+		pCtx->spAttribTypes[STUC_ATTRIB_USE_NORMAL],
+		STUC_ATTRIB_USE_NORMAL
 	);
+	stucSetAttribIdxActive(pCore, 1, STUC_ATTRIB_USE_NORMAL);
 	pCore->cornerAttribs.count = 2;
-	err = stucSetSpecialAttribs(pCtx, pMesh, 0xe); // 1110 - set pos stuc and normals
+	err = stucAssignActiveAliases(pCtx, pMesh, 0xe, STUC_DOMAIN_NONE); // 1110 - set pos uv and normal
 	STUC_THROW_IFNOT(err, "", 0);
 	STUC_CATCH(0, err, ;);
 	return err;
@@ -569,7 +578,12 @@ StucResult stucSampleInAttribsAtUsgOrigins(
 			pInMesh->pVerts[triVerts[2]]
 		};
 		Mesh squaresWrap = {.core = *pSquares};
-		err = stucSetSpecialAttribs(pCtx, &squaresWrap, 0x02); //set only position
+		err = stucAssignActiveAliases(
+			pCtx,
+			&squaresWrap,
+			0x02, //set only position
+			STUC_DOMAIN_NONE
+		);
 		STUC_THROW_IFNOT(err, "", 0);
 		// where a is the origin, ab is the normal, and c is the square vert
 		V3_F32 a = barycentricToCartesian(tri, &closestBc);

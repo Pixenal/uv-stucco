@@ -16,7 +16,7 @@ typedef struct {
 //void stucWriteDebugImage(Cell *pRootCell);
 StucResult stucWriteStucFile(
 	StucContext pCtx,
-	char *pName,
+	const char *pName,
 	I32 objCount,
 	StucObject *pObjArr,
 	I32 usgCount,
@@ -25,7 +25,7 @@ StucResult stucWriteStucFile(
 );
 StucResult stucLoadStucFile(
 	StucContext pCtx,
-	char *filePath,
+	const char *filePath,
 	I32 *pObjCount,
 	StucObject **ppObjArr,
 	I32 *pUsgCount,
