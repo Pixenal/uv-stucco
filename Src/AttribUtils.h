@@ -144,12 +144,9 @@ void stucTriInterpolateAttrib(
 	V3_F32 bc
 );
 void stucBlendAttribs(
-	Attrib *pDest,
-	I32 iDest,
-	Attrib *pA,
-	I32 iA,
-	Attrib *pB,
-	I32 iB,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA,
+	AttribCore *pB, I32 iB,
 	StucBlendConfig blendConfig
 );
 void stucDivideAttribByScalarInt(Attrib *pAttrib, I32 idx, U64 scalar);

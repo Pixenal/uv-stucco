@@ -839,11 +839,10 @@ void blendCommonAttrib(
 	FaceRange *pInFace
 ) {
 	STUC_ASSERT("", pInAttrib && pMapAttrib);
-	StucAttribType type = pBufAttrib->core.type;
 	U8 mapDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
-	StucAttrib mapBuf = {.core.pData = mapDataBuf, .core.type = type};
+	StucAttrib mapBuf = {.core.pData = mapDataBuf, .core.type = pMapAttrib->core.type};
 	U8 inDataBuf[STUC_ATTRIB_STRING_MAX_LEN] = {0};
-	StucAttrib inBuf = {.core.pData = inDataBuf, .core.type = type};
+	StucAttrib inBuf = {.core.pData = inDataBuf, .core.type = pInAttrib->core.type};
 	//TODO remove 'false' once interpolation is implemented for map attribs
 	if (false && pMapAttrib->interpolate) {
 		//TODO add correct map interpolation. to do this, you'll need
@@ -895,11 +894,11 @@ void blendCommonAttrib(
 	orderTable[0] = order ? &mapBuf : &inBuf;
 	orderTable[1] = !order ? &mapBuf : &inBuf;
 	stucBlendAttribs(
-		pBufAttrib,
+		&pBufAttrib->core,
 		dataIdx,
-		orderTable[0],
+		&orderTable[0]->core,
 		0,
-		orderTable[1],
+		&orderTable[1]->core,
 		0,
 		blendConfig
 	);

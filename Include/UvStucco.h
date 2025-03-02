@@ -62,7 +62,8 @@ typedef enum {
 	STUC_ATTRIB_V4_F32,
 	STUC_ATTRIB_V4_F64,
 	STUC_ATTRIB_STRING,
-	STUC_ATTRIB_NONE //TODO move this to idx 0
+	STUC_ATTRIB_NONE, //TODO move this to idx 0
+	STUC_ATTRIB_TYPE_ENUM_COUNT
 } StucAttribType;
 
 typedef enum {
@@ -85,7 +86,6 @@ typedef enum {
 	STUC_ATTRIB_USE_EDGE_CORNERS,
 	STUC_ATTRIB_USE_SP_ENUM_COUNT,//denotes number of sp uses
 	STUC_ATTRIB_USE_COLOR,
-	STUC_ATTRIB_USE_GROUP,
 	STUC_ATTRIB_USE_MASK,
 	STUC_ATTRIB_USE_SCALAR,
 	STUC_ATTRIB_USE_ENUM_COUNT
@@ -264,8 +264,13 @@ typedef struct {
 } StucAttribArray;
 
 typedef struct {
+	double fMin;
+	double fMax;
+	int64_t iMin;
+	int64_t iMax;
 	StucBlendMode blend;
 	float opacity;
+	bool clamp;
 	bool order;
 } StucBlendConfig;
 

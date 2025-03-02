@@ -81,143 +81,112 @@ void stucSetDefaultSpAttribTypes(StucContext pCtx) {
 	pCtx->spAttribTypes[16] = STUC_ATTRIB_V2_I32;
 }
 
-#define LERP_SIMPLE(a, b, o) (b * o + (1.0 - o) * a)
-
-//t is type, pD is attrib, i is idx, v is vector len (scalar is 1, v2 is 2, etc),
-//and c is component (ie, x is 0, y is 1, z is 2, etc)
-#define INDEX_ATTRIB(t, pD, i, v, c) ((t (*)[v])pD->core.pData)[i][c]
-//TODO you'll need to make an unsigned wide macro as well when you implement
-//proper unsigned attribs
-#define INDEX_ATTRIB_WIDE(t, pD, i, v, c) (F64)(((t (*)[v])pD->core.pData)[i][c])
-//TODO add a way to pass the max value here rather than just using 255.0f,
-//one may want to use 16 or 32 bit color depth
-#define INDEX_ATTRIB_NORM(t, tMax, pD, i, v, c) \
-	((F64)((t (*)[v])pD->core.pData)[i][c] / (F64)tMax)
-
-#define CLAMP_AND_LERP(t, tMax, o, pA, iA, v, c, d) (\
-	(d = LERP_SIMPLE(INDEX_ATTRIB_WIDE(t,pA,iA,v,c), d, o)),\
-	(d = d < 0 ? 0 : (d > (F64)tMax ? tMax : d)),\
-	(t)(d)\
-)
-
-#define CLAMP_AND_LERP_NORM(t, tMax, o, pA, iA, v, c, d) (\
-	(d = LERP_SIMPLE(INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c), d, o)),\
-	(d = d < .0 ? .0 : (d > 1.0 ? 1.0 : d)),\
-	(t)(d * (F64)tMax)\
-)
-
-#define BLEND_REPLACE(t, tMax, o, pD, iD, pA, iA, pB, iB, v, c)\
-	if (o == 1.0) {\
-		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pB,iB,v,c);\
-	}\
-	else if (o == .0) {\
-		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c);\
-	}\
-	else {\
-		F64 b = INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c);\
-		INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,b);\
-	}
-
-#define BLEND_MULTIPLY(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) * INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
+static
+F64 lerp(F64 a, F64 b, F64 alpha) {
+	return b * alpha + (1.0 - alpha) * a;
 }
 
-#define BLEND_MULTIPLY_NORM(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) *\
-		INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c);\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
+#define CLAMP(a, min, max) (a <= min ? min : (a > max ? max : a))
+
+static
+F64 clamp(F64 a, F64 min, F64 max) {
+	return CLAMP(a, min, max);
 }
 
-#define BLEND_DIVIDE(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB_WIDE(t,pB,iB,v,c) != (t)0 ?\
-		INDEX_ATTRIB_WIDE(t,pA,iA,v,c) / INDEX_ATTRIB_WIDE(t,pB,iB,v,c) : (F64)tMax;\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendReplace(F64 *pDest, F64 a, F64 b) {
+	*pDest = b;
+}
+static
+void iBlendReplace(I64 *pDest, I64 a, I64 b) {
+	*pDest = b;
 }
 
-#define BLEND_DIVIDE_NORM(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB(t,pB,iB,v,c) != (t)0 ?\
-		(INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) / INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c)) : 1.0f;\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendMultiply(F64 *pDest, F64 a, F64 b) {
+	*pDest = a * b;
+}
+static
+void iBlendMultiply(I64 *pDest, I64 a, I64 b) {
+	*pDest = a * b;
 }
 
-#define BLEND_ADD(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) + INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendDivide(F64 *pDest, F64 a, F64 b) {
+	*pDest = a / b;
+}
+static
+void iBlendDivide(I64 *pDest, I64 a, I64 b) {
+	*pDest = a / b;
 }
 
-//TODO add clamping as an option
-#define BLEND_SUBTRACT(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) - INDEX_ATTRIB_WIDE(t,pB,iB,v,c);\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendAdd(F64 *pDest, F64 a, F64 b) {
+	*pDest = a + b;
+}
+static
+void iBlendAdd(I64 *pDest, I64 a, I64 b) {
+	*pDest = a + b;
 }
 
 //TODO addsub result is slightly off from other programs
-#define BLEND_ADD_SUB(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = INDEX_ATTRIB_WIDE(t,pA,iA,v,c) +\
-		INDEX_ATTRIB_WIDE(t,pB,iB,v,c) - ((F64)tMax - INDEX_ATTRIB_WIDE(t,pB,iB,v,c));\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendSubtract(F64 *pDest, F64 a, F64 b) {
+	*pDest = a - b;
+}
+static
+void iBlendSubtract(I64 *pDest, I64 a, I64 b) {
+	*pDest = a - b;
 }
 
-#define BLEND_LIGHTEN(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	t d =\
-			INDEX_ATTRIB(t,pA,iA,v,c) > INDEX_ATTRIB(t,pB,iB,v,c) ?\
-			INDEX_ATTRIB(t,pA,iA,v,c) : INDEX_ATTRIB(t,pB,iB,v,c);\
-	if (o == 1.0) {\
-		INDEX_ATTRIB(t,pD,iD,v,c) = d;\
-	}\
-	else if (o == .0) {\
-		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c);\
-	}\
-	else {\
-		F64 dNorm = (F64)d / (F64)tMax;\
-		INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,dNorm);\
-	}\
+//TODO addsub result is slightly off from other programs
+static
+void fBlendAddSub(F64 *pDest, F64 a, F64 b) {
+	*pDest = a + b - (1 - b);
 }
 
-#define BLEND_DARKEN(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	t d =\
-		INDEX_ATTRIB(t,pA,iA,v,c) < INDEX_ATTRIB(t,pB,iB,v,c) ?\
-		INDEX_ATTRIB(t,pA,iA,v,c) : INDEX_ATTRIB(t,pB,iB,v,c);\
-	if (o == 1.0) {\
-		INDEX_ATTRIB(t,pD,iD,v,c) = d;\
-	}\
-	else if (o == .0) {\
-		INDEX_ATTRIB(t,pD,iD,v,c) = INDEX_ATTRIB(t,pA,iA,v,c);\
-	}\
-	else {\
-		F64 dNorm = (F64)d / (F64)tMax;\
-		INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,dNorm);\
-	}\
+static
+void fBlendLighten(F64 *pDest, F64 a, F64 b) {
+	*pDest = max(a, b);
+}
+static
+void iBlendLighten(I64 *pDest, I64 a, I64 b) {
+	*pDest = max(a, b);
 }
 
-#define BLEND_OVERLAY(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = (INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) < .5 ?\
-	2.0 * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) :\
-	1.0 - 2.0 * (1.0 - INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c)) *\
-	(1.0 - INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c)));\
-\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendDarken(F64 *pDest, F64 a, F64 b) {
+	*pDest = min(a, b);
+}
+static
+void iBlendDarken(I64 *pDest, I64 a, I64 b) {
+	*pDest = min(a, b);
+}
+	
+static
+void fBlendOverlay(F64 *pDest, F64 a, F64 b) {
+	*pDest = a < .5 ?
+		2.0 * a * b :
+		1.0 - 2.0 * (1.0 - a) * (1.0 - b);
+}
+	
+static
+void fBlendSoftLight(F64 *pDest, F64 a, F64 b) {
+	*pDest = b < .5 ?
+		2.0 * a * b + a * a * (1.0 - 2.0 * b) :
+		2.0 * a * (1.0 - b) + sqrt(a) * (2.0 * b - 1.0);
 }
 
-#define BLEND_SOFT_LIGHT(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = (INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) < .5 ?\
-\
-	2.0 * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) +\
-	INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) *\
-	(1.0 - 2.0 * INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c)) :\
-\
-	2.0 * INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) * (1.0 - INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c)) +\
-	sqrt(INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c)) * (2.0 * INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c) - 1.0));\
-\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
+static
+void fBlendColorDodge(F64 *pDest, F64 a, F64 b) {
+	*pDest = (1.0 - b);
+	*pDest = *pDest == .0 ? 1.0 : a / *pDest;
 }
 
-#define BLEND_COLOR_DODGE(t, tMax, o, pDest, iDest, pA, iA, pB, iB, v, c) {\
-	F64 d = (1.0 - INDEX_ATTRIB_NORM(t,tMax,pB,iB,v,c));\
-	d = d == .0 ? 1.0 : INDEX_ATTRIB_NORM(t,tMax,pA,iA,v,c) / d;\
-	INDEX_ATTRIB(t,pD,iD,v,c) = CLAMP_AND_LERP_NORM(t,tMax,o,pA,iA,v,c,d);\
-}
+#define INDEX_ATTRIB(t, pDest, idx, vec, comp)\
+	((t (*)[vec])pDest->core.pData)[idx][comp]
+
+#define LERP_SIMPLE(a, b, o) (b * o + (1.0 - o) * a)
 
 #define DIVIDE_BY_SCALAR(t, pAttrib, idx, v, c, scalar) \
 	INDEX_ATTRIB(t,pAttrib,idx,v,c) /= (t)scalar;
@@ -871,12 +840,12 @@ void stucLerpAttrib(
 	I32 iSrcB,
 	F32 alpha
 ) {
-	if (pDest->core.type != pSrcA->core.type ||
-		pDest->core.type != pSrcB->core.type) {
-		printf("Type mismatch in interpolateAttrib\n");
-		//TODO remove all uses of abort(), and add proper exception handling
-		abort();
-	}
+	//TODO remove all uses of abort()
+	STUC_ASSERT(
+		"type mismatch in interpolateAttrib",
+		pDest->core.type == pSrcA->core.type &&
+		pDest->core.type == pSrcB->core.type
+	);
 	AttribType type = pDest->core.type;
 	switch (type) {
 		case STUC_ATTRIB_I8:
@@ -1054,1505 +1023,484 @@ void stucTriInterpolateAttrib(
 }
 
 static
-void appendOnNonString() {
-	printf("Blend mode append reached on non string attrib!\n");
-	abort();
+I32 getAttribVecSize(AttribType type) {
+	STUC_ASSERT("invalid type", type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT);
+	STUC_ASSERT("this func shouldn't be called on a string", type != STUC_ATTRIB_STRING);
+	if (type == STUC_ATTRIB_NONE) {
+		return 0;
+	}
+	else if (type < STUC_ATTRIB_V2_I8) {
+		return 1;
+	}
+	else if (type < STUC_ATTRIB_V3_I8) {
+		return 2;
+	}
+	else if (type < STUC_ATTRIB_V4_I8) {
+		return 3;
+	}
+	return 4;
 }
+
+static
+F64 makeFloatWide(void *ptr, AttribType type) {
+	STUC_ASSERT("invalid type", type == STUC_ATTRIB_F32 || type == STUC_ATTRIB_F64);
+	return type == STUC_ATTRIB_F32 ? (F64)*(F32 *)ptr : *(F64 *)ptr; 
+}
+
+static
+I64 makeIntWide(void *ptr, AttribType type) {
+	switch (type) {
+		case STUC_ATTRIB_I8:
+			return (I64)*(I8 *)ptr;
+		case STUC_ATTRIB_I16:
+			return (I64)*(I16 *)ptr;
+		case STUC_ATTRIB_I32:
+			return (I64)*(I32 *)ptr;
+		case STUC_ATTRIB_I64:
+			return *(I64 *)ptr;
+	}
+	STUC_ASSERT("invalid type", false);
+	return 0;
+}
+
+static
+AttribType getAttribCompType(AttribType type) {
+	return (type -  STUC_ATTRIB_I8) % (STUC_ATTRIB_V2_I8 - STUC_ATTRIB_I8);
+}
+
+static
+I32 getAttribCompTypeSize(AttribType type) {
+	if (type >= STUC_ATTRIB_V2_I8) {
+		type = getAttribCompType(type);
+	}
+	switch (type) {
+		case STUC_ATTRIB_I8:
+			return 1;
+		case STUC_ATTRIB_I16:
+			return 2;
+		case STUC_ATTRIB_I32:
+			return 4;
+		case STUC_ATTRIB_I64:
+			return 8;
+		case STUC_ATTRIB_F32:
+			return 4;
+		case STUC_ATTRIB_F64:
+			return 8;
+	}
+	STUC_ASSERT("invalid type", false);
+	return 0;
+}
+
+static
+bool isAttribTypeFloat(AttribType type) {
+	if (type >= STUC_ATTRIB_V2_I8) {
+		type = getAttribCompType(type);
+	}
+	return
+		type == STUC_ATTRIB_F32 || type == STUC_ATTRIB_F64;
+}
+
+static
+I64 getIntTypeMax(AttribType type) {
+	if (type >= STUC_ATTRIB_V2_I8) {
+		type = getAttribCompType(type);
+	}
+	switch (type) {
+		case STUC_ATTRIB_I8:
+			return INT8_MAX;
+		case STUC_ATTRIB_I16:
+			return INT16_MAX;
+		case STUC_ATTRIB_I32:
+			return INT32_MAX;
+		case STUC_ATTRIB_I64:
+			return INT64_MAX;
+	}
+	STUC_ASSERT("invalid type", false);
+	return 0;
+}
+
+#define SET_VOID_COMP(tDest ,pDestComp, src)\
+	STUC_ASSERT("invalid type", tDest != STUC_ATTRIB_NONE && tDest < STUC_ATTRIB_V2_I8);\
+	switch (tDest) {\
+		case STUC_ATTRIB_I8:\
+			*(I8 *)pDestComp = (I8)src;\
+			break;\
+		case STUC_ATTRIB_I16:\
+			*(I16 *)pDestComp = (I16)src;\
+			break;\
+		case STUC_ATTRIB_I32:\
+			*(I32 *)pDestComp = (I32)src;\
+			break;\
+		case STUC_ATTRIB_I64:\
+			*(I64 *)pDestComp = (I64)src;\
+			break;\
+		case STUC_ATTRIB_F32:\
+			*(F32 *)pDestComp = (F32)src;\
+			break;\
+		case STUC_ATTRIB_F64:\
+			*(F64 *)pDestComp = (F64)src;\
+			break;\
+		default:\
+			STUC_ASSERT("invalid type", false);\
+	}
+
+#define CALL_BLEND_FUNC(\
+	t,\
+	pBlendFunc,\
+	blendConfig, clampMin, clampMax,\
+	pDestComp, destCompType,\
+	pAComp, aCompType, aIsFloat, normalizeA, aMax,\
+	pBComp, bCompType, bIsFloat, normalizeB, bMax\
+) {\
+	t destBuf = 0;\
+	t aComp = (t)(aIsFloat ?\
+		makeFloatWide(pAComp, aCompType) : makeIntWide(pAComp, aCompType));\
+	t bComp = (t)(bIsFloat ?\
+		makeFloatWide(pBComp, bCompType) : makeIntWide(pBComp, bCompType));\
+	if (normalizeA) {\
+		STUC_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
+		aComp /= (t)aMax;\
+	}\
+	if (normalizeB) {\
+		STUC_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
+		bComp /= (t)bMax;\
+	}\
+\
+	STUC_ASSERT("", pBlendFunc);\
+	pBlendFunc(&destBuf, aComp, bComp);\
+\
+	if (blendConfig.clamp) {\
+		destBuf = CLAMP(destBuf, clampMin, clampMax);\
+	}\
+	if (blendConfig.opacity != .0 && blendConfig.opacity != 1.0) {\
+		/* lerp is done in F64 regardless of t */\
+		destBuf = (t)lerp((F64)aComp, (F64)destBuf, (F64)blendConfig.opacity);\
+	}\
+	SET_VOID_COMP(destCompType, pDestComp, destBuf);\
+}
+
+void blendComponents(
+	void (* pFBlendFunc)(F64 *,F64,F64),
+	void (* pIBlendFunc)(I64 *,I64,I64),
+	StucBlendConfig blendConfig,
+	void *pDest, AttribType destCompType, I32 destVecSize,
+	void *pA, AttribType aCompType, I32 aVecSize, bool normalizeA, I64 aMax,
+	void *pB, AttribType bCompType, I32 bVecSize, bool normalizeB, I64 bMax
+) {
+	bool aIsFloat = isAttribTypeFloat(aCompType);
+	bool bIsFloat = isAttribTypeFloat(bCompType);
+	I32 size = min(min(aVecSize, bVecSize), destVecSize);
+	for (I32 i = 0; i < size; ++i) {
+		void *pDestComp = (int8_t *)pDest + getAttribCompTypeSize(destCompType) * i;
+		void *pAComp =
+			(int8_t *)pA + getAttribCompTypeSize(aCompType) * i * (aVecSize != 1);
+		void *pBComp =
+			(int8_t *)pB + getAttribCompTypeSize(bCompType) * i * (bVecSize != 1);
+		if (isAttribTypeFloat(destCompType)) {
+			{
+				CALL_BLEND_FUNC(
+					F64,
+					pFBlendFunc,
+					blendConfig, blendConfig.fMin, blendConfig.fMax,
+					pDestComp, destCompType,
+					pAComp, aCompType, aIsFloat, normalizeA, aMax,
+					pBComp, bCompType, bIsFloat, normalizeB, bMax
+				)
+			};
+		}
+		else {
+			{
+				CALL_BLEND_FUNC(
+					I64,
+					pIBlendFunc,
+					blendConfig, blendConfig.iMin, blendConfig.iMax,
+					pDestComp, destCompType,
+					pAComp, aCompType, aIsFloat, normalizeA, aMax,
+					pBComp, bCompType, bIsFloat, normalizeB, bMax
+				)
+			};
+		}
+	}\
+}
+
+void blendSwitch(
+	StucBlendConfig blendConfig,
+	UBitField32 blendFlags,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA, bool normalizeA, I64 aMax,
+	AttribCore *pB, I32 iB, bool normalizeB, I64 bMax
+) {
+	void *pDestVal = stucAttribAsVoid(pDest, iDest);
+	void *pAVal = stucAttribAsVoid(pA, iA);
+	void *pBVal = stucAttribAsVoid(pB, iB);
+	AttribType destCompType = getAttribCompType(pDest->type);
+	AttribType aCompType = getAttribCompType(pA->type);
+	AttribType bCompType = getAttribCompType(pB->type);
+	I32 destVecSize = getAttribVecSize(pDest->type);
+	I32 aVecSize = getAttribVecSize(pA->type);
+	I32 bVecSize = getAttribVecSize(pB->type);
+	switch (blendConfig.blend) {
+		case STUC_BLEND_REPLACE:
+			if (blendFlags >> STUC_BLEND_REPLACE & 0x1) {
+				blendComponents(
+					fBlendReplace,
+					iBlendReplace,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_MULTIPLY:
+			if (blendFlags >> STUC_BLEND_MULTIPLY & 0x1) {
+				blendComponents(
+					fBlendMultiply,
+					iBlendMultiply,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_DIVIDE:
+			if (blendFlags >> STUC_BLEND_DIVIDE & 0x1) {
+				blendComponents(
+					fBlendDivide,
+					iBlendDivide,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_ADD:
+			if (blendFlags >> STUC_BLEND_ADD & 0x1) {
+				blendComponents(
+					fBlendAdd,
+					iBlendAdd,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_SUBTRACT:
+			if (blendFlags >> STUC_BLEND_SUBTRACT & 0x1) {
+				blendComponents(
+					fBlendSubtract,
+					iBlendSubtract,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_ADD_SUB:
+			if (blendFlags >> STUC_BLEND_ADD_SUB & 0x1) {
+				blendComponents(
+					fBlendAddSub,
+					NULL,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_LIGHTEN:
+			if (blendFlags >> STUC_BLEND_LIGHTEN & 0x1) {
+				blendComponents(
+					fBlendLighten,
+					iBlendLighten,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_DARKEN:
+			if (blendFlags >> STUC_BLEND_DARKEN & 0x1) {
+				blendComponents(
+					fBlendDarken,
+					iBlendDarken,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_OVERLAY:
+			if (blendFlags >> STUC_BLEND_OVERLAY & 0x1) {
+				blendComponents(
+					fBlendOverlay,
+					NULL,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_SOFT_LIGHT:
+			if (blendFlags >> STUC_BLEND_SOFT_LIGHT & 0x1) {
+				blendComponents(
+					fBlendSoftLight,
+					NULL,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_COLOR_DODGE:
+			if (blendFlags >> STUC_BLEND_COLOR_DODGE & 0x1) {
+				blendComponents(
+					fBlendColorDodge,
+					NULL,
+					blendConfig,
+					pDestVal, destCompType, destVecSize,
+					pAVal, aCompType, aVecSize, normalizeA, aMax,
+					pBVal, bCompType, bVecSize, normalizeB, bMax
+				);
+			}
+			break;
+		case STUC_BLEND_APPEND:
+			if (blendFlags >> STUC_BLEND_APPEND & 0x1) {
+				//TODO
+			}
+			break;
+	}
+}
+
+static
+void blendUseVec(
+	StucBlendConfig blendConfig,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA,
+	AttribCore *pB, I32 iB
+) {
+	UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
+	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0);
+}
+
+static
+void blendUseIdx(
+	StucBlendConfig blendConfig,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA,
+	AttribCore *pB, I32 iB
+) {
+	STUC_ASSERT(
+		"this should have been picked up in mesh validation",
+		pDest->type == STUC_ATTRIB_I8
+	);
+	blendConfig.opacity = 1.0f;
+	blendConfig.blend = STUC_BLEND_REPLACE;
+	//TODO replace literal bitflags with bitshifts enum expressions,
+	// these will break code when enum elements are moved around
+	UBitField32 blendFlags =  0xc1;  //only replace, lighten, and darken
+	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0);
+}
+
+static
+void blendUseColor(
+	StucBlendConfig blendConfig,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA,
+	AttribCore *pB, I32 iB
+) {
+	AttribCore *pFDest = pDest;
+	I32 iFDest = iDest;
+	bool destIsFloat = isAttribTypeFloat(pDest->type);
+	I32 destVecSize = 0;
+	F64 destBuf[4] = {0};
+	AttribCore destBufAttrib = {0};
+	if (!destIsFloat) {
+		AttribType bufType = destVecSize * (STUC_ATTRIB_V2_I8 - STUC_ATTRIB_I8) - 1;
+		destBufAttrib.pData = destBuf;
+		destBufAttrib.type = bufType;
+		destBufAttrib.use = pDest->use;
+		iDest = 0;
+	}
+	UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
+	//if attrib is float, we assume it's already normalized
+	bool normalizeA = !isAttribTypeFloat(pA->type);
+	bool normalizeB = !isAttribTypeFloat(pB->type);
+	blendSwitch(
+		blendConfig,
+		blendFlags,
+		pFDest, iFDest,
+		pA, iA, normalizeA, normalizeA ? getIntTypeMax(pA->type) : 0,
+		pB, iB, normalizeB, normalizeB ? getIntTypeMax(pB->type) : 0
+	);
+	if (!destIsFloat) {
+		F64 destMax = (F64)getIntTypeMax(pDest->type);
+		for (I32 i = 0; i < destVecSize; ++i) {
+			destBuf[i] /= destMax;
+		}
+		memcpy(
+			stucAttribAsVoid(pDest, iDest),
+			destBuf,
+			stucGetAttribSizeIntern(pDest->type)
+		);
+	}
+}
+
+static
+void blendUseScalar(
+	StucBlendConfig blendConfig,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA,
+	AttribCore *pB, I32 iB
+) {
+	//replace, multiply, divide, add, subtract, lighten, and darken
+	UBitField32 blendFlags = 0xdf;
+	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0);
+}
+
 
 //TODO this name should not be plural
 void stucBlendAttribs(
-	Attrib *pD,
-	I32 iD,
-	Attrib *pA,
-	I32 iA,
-	Attrib *pB,
-	I32 iB,
+	AttribCore *pDest, I32 iDest,
+	AttribCore *pA, I32 iA,
+	AttribCore *pB, I32 iB,
 	StucBlendConfig blendConfig
 ) {
-	if (pD->core.use == STUC_ATTRIB_USE_IDX && blendConfig.blend != STUC_BLEND_REPLACE || blendConfig.opacity != 1.0f) {
+	if (pDest->use == STUC_ATTRIB_USE_IDX && blendConfig.blend != STUC_BLEND_REPLACE || blendConfig.opacity != 1.0f) {
 		blendConfig.opacity = 1.0f;
 		blendConfig.blend = STUC_BLEND_REPLACE;
 		//add a warning queue to pBasic to return at function end.
 		//printf("Warning, only 'replace' blending is supported for index attribs. Using replace");
 	}
-	AttribType type = pD->core.type;
-	F64 opacity = (F64)blendConfig.opacity; //casting as blending is done with F64s
-	switch (type) {
-		case STUC_ATTRIB_I8:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
+	switch (pDest->use) {
+		case STUC_ATTRIB_USE_POS:
+			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
-		case STUC_ATTRIB_I16:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
+		case STUC_ATTRIB_USE_UV:
+			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
-		case STUC_ATTRIB_I32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
+		case STUC_ATTRIB_USE_NORMAL:
+			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
-		case STUC_ATTRIB_I64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
+		case STUC_ATTRIB_USE_IDX:
+			blendUseIdx(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
-		case STUC_ATTRIB_F32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
+		case STUC_ATTRIB_USE_COLOR:
+			blendUseColor(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
-		case STUC_ATTRIB_F64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 1, 0);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
+		case STUC_ATTRIB_USE_MASK:
+			blendUseIdx(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
-		case STUC_ATTRIB_V2_I8:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V2_I16:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V2_I32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V2_I64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V2_F32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V2_F64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 0);
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 2, 1);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V3_I8:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V3_I16:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V3_I32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V3_I64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V3_F32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V3_F64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 0);
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 1);
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 3, 2);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V4_I8:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					switch (pD->core.use) {
-					//TODO add a GENERIC item, in addition to NONE (none indicates not set),
-					//and use that here. NONE should probably cause an error, or just default to
-					//generic blending?
-					case STUC_ATTRIB_USE_NONE:
-						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-						BLEND_REPLACE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-						break;
-					case STUC_ATTRIB_USE_COLOR:
-						BLEND_REPLACE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-						BLEND_REPLACE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-						BLEND_REPLACE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-						BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-						break;
-					}
-					break;
-				case STUC_BLEND_MULTIPLY:
-					switch (pD->core.use) {
-						//TODO have an option in blendConfig for whether to normalize or not.
-						//This will only be relevent for non-color attribs. As if use is color,
-						//attribs will always be normalized
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_MULTIPLY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_MULTIPLY_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_MULTIPLY_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_MULTIPLY_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_DIVIDE:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_DIVIDE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_DIVIDE_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DIVIDE_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DIVIDE_NORM(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_ADD:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_ADD(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_ADD(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_SUBTRACT:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_SUBTRACT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_SUBTRACT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SUBTRACT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SUBTRACT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_ADD_SUB:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_ADD_SUB(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_ADD_SUB(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_ADD_SUB(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_ADD_SUB(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							//TODO add options for replacing or blending alpha channel
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_LIGHTEN:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_LIGHTEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_LIGHTEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_LIGHTEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_LIGHTEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_DARKEN:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_DARKEN(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_DARKEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_DARKEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_DARKEN(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_OVERLAY:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_OVERLAY(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_OVERLAY(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_OVERLAY(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_OVERLAY(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_SOFT_LIGHT(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_SOFT_LIGHT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_SOFT_LIGHT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_SOFT_LIGHT(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					switch (pD->core.use) {
-						case STUC_ATTRIB_USE_NONE:
-							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_COLOR_DODGE(I8, INT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-						case STUC_ATTRIB_USE_COLOR:
-							BLEND_COLOR_DODGE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-							BLEND_COLOR_DODGE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-							BLEND_COLOR_DODGE(U8, UINT8_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-							BLEND_REPLACE(U8, UINT8_MAX, .0, pD, iD, pA, iA, pB, iB, 4, 3);
-							break;
-					}
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V4_I16:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(I16, INT16_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V4_I32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(I32, INT32_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V4_I64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(I64, INT64_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V4_F32:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(F32, FLT_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_V4_F64:
-			switch (blendConfig.blend) {
-				case STUC_BLEND_REPLACE:
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_REPLACE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_MULTIPLY:
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_MULTIPLY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DIVIDE:
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DIVIDE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD:
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SUBTRACT:
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SUBTRACT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_ADD_SUB:
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_ADD_SUB(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_LIGHTEN:
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_LIGHTEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_DARKEN:
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_DARKEN(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_OVERLAY:
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_OVERLAY(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_SOFT_LIGHT:
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_SOFT_LIGHT(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_COLOR_DODGE:
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 0);
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 1);
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 2);
-					BLEND_COLOR_DODGE(F64, DBL_MAX, opacity, pD, iD, pA, iA, pB, iB, 4, 3);
-					break;
-				case STUC_BLEND_APPEND:
-					appendOnNonString();
-					break;
-			}
-			break;
-		case STUC_ATTRIB_STRING:
-			//TODO add string append
+		case STUC_ATTRIB_USE_SCALAR:
+			blendUseScalar(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 	}
 }
@@ -3376,7 +2324,10 @@ bool stucCheckAttribsAreCompatible(const Attrib *pA, const Attrib *pB) {
 		//not that important if interpolate doesn't match,
 		// throwing an err because of it would be annoying
 		//pA->interpolate == pB->interpolate && 
-		pA->core.type == pB->core.type &&
+		
+		//TODO readd type checking, but be more specific,
+		//make a table of compatible types per attrib use
+		//pA->core.type == pB->core.type &&
 		pA->core.use == pB->core.use;
 }
 

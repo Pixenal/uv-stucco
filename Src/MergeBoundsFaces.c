@@ -1597,7 +1597,12 @@ Result blendMergedCornerAttribs(
 			!pDest->interpolate)) {
 			continue;
 		}
-		stucBlendAttribs(pDest, iDest, pDest, iDest, pSrc, iSrc, config);
+		stucBlendAttribs(
+			&pDest->core, iDest,
+			&pDest->core, iDest,
+			&pSrc->core, iSrc,
+			config
+		);
 	}
 	return err;
 }
@@ -1869,7 +1874,7 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 			STUC_RETURN_ERR_IFNOT_COND(err, pVertEntry->inVert != -1, "Entry is not onInVert");
 			BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
 			if (!pVertEntry->divided) {
-
+				//TODO replace this call with the regular blend attrib func
 				divideCornerAttribsByScalar(
 					&pOtherBufMesh->mesh.core.cornerAttribs,
 					pVertEntry->corner,
