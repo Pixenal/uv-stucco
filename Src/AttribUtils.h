@@ -68,7 +68,12 @@ const Attrib *stucGetAttribInternConst(
 	const StucContext pCtx,
 	const StucMesh *pMesh
 );
-void stucSetAttribIdxActive(StucMesh *pMesh, I32 idx, StucAttribUse use);
+void stucSetAttribIdxActive(
+	StucMesh *pMesh,
+	I32 idx,
+	StucAttribUse use,
+	StucDomain domain
+);
 V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx);
 V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx);
 I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx);

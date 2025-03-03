@@ -346,6 +346,7 @@ typedef struct {
 } StucMapArr;
 
 typedef struct {
+	StucDomain domain;
 	int16_t idx;
 	bool active;
 } StucAttribActive;
@@ -578,7 +579,15 @@ void stucJobDestroyHandles(
 	void **ppJobHandles
 );
 STUC_EXPORT
-StucResult stucAttribSpecialTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
+StucResult stucAttribSpTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
+STUC_EXPORT
+StucResult stucAttribSpDomainsGet(StucContext pCtx, const StucDomain **ppDomains);
+STUC_EXPORT
+StucResult stucAttribSpIsValid(
+	StucContext pCtx,
+	const StucAttribCore *pCore,
+	StucDomain domain
+);
 STUC_EXPORT
 StucResult stucAttribGetAllDomains(
 	StucContext pCtx,

@@ -396,14 +396,17 @@ Result stucAssignActiveAliases(
 
 Attrib *stucGetActiveAttrib(StucContext pCtx, StucMesh *pMesh, StucAttribUse use) {
 	STUC_ASSERT("", use >= 0);
-	if (use == STUC_ATTRIB_USE_NONE || use >= STUC_ATTRIB_USE_SP_ENUM_COUNT) {
+	if (use == STUC_ATTRIB_USE_NONE ||
+		use == STUC_ATTRIB_USE_SP_ENUM_COUNT ||
+		use >= STUC_ATTRIB_USE_ENUM_COUNT
+	) {
 		return NULL;
 	}
 	AttribActive idx = pMesh->activeAttribs[use];
 	if (!idx.active) {
 		return NULL;
 	}
-	AttribArray *pArr = stucGetAttribArrFromDomain(pMesh, pCtx->spAttribDomains[use]);
+	AttribArray *pArr = stucGetAttribArrFromDomain(pMesh, idx.domain);
 	STUC_ASSERT("", idx.idx < pArr->count);
 	return pArr->pArr + idx.idx;
 }
@@ -473,11 +476,20 @@ const Attrib *stucGetAttribInternConst(
 	return stucGetAttribIntern(pName, (AttribArray *)pAttribs, excludeActive, pCtx, pMesh);
 }
 
-void stucSetAttribIdxActive(StucMesh *pMesh, I32 idx, StucAttribUse use) {
+void stucSetAttribIdxActive(
+	StucMesh *pMesh,
+	I32 idx,
+	StucAttribUse use,
+	StucDomain domain
+) {
 	STUC_ASSERT("", use >= 0);
-	if (use != STUC_ATTRIB_USE_NONE && use < STUC_ATTRIB_USE_SP_ENUM_COUNT) {
+	if (use != STUC_ATTRIB_USE_NONE &&
+		use != STUC_ATTRIB_USE_SP_ENUM_COUNT &&
+		use < STUC_ATTRIB_USE_ENUM_COUNT
+	) {
 		pMesh->activeAttribs[use].active = true;
 		pMesh->activeAttribs[use].idx = (I16)idx;
+		pMesh->activeAttribs[use].domain = domain;
 	}
 }
 
@@ -1424,11 +1436,13 @@ void blendUseColor(
 	F64 destBuf[4] = {0};
 	AttribCore destBufAttrib = {0};
 	if (!destIsFloat) {
+		destVecSize = getAttribVecSize(pDest->type);
 		AttribType bufType = destVecSize * (STUC_ATTRIB_V2_I8 - STUC_ATTRIB_I8) - 1;
 		destBufAttrib.pData = destBuf;
 		destBufAttrib.type = bufType;
 		destBufAttrib.use = pDest->use;
-		iDest = 0;
+		pFDest = &destBufAttrib;
+		iFDest = 0;
 	}
 	UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
 	//if attrib is float, we assume it's already normalized
@@ -1474,12 +1488,6 @@ void stucBlendAttribs(
 	AttribCore *pB, I32 iB,
 	StucBlendConfig blendConfig
 ) {
-	if (pDest->use == STUC_ATTRIB_USE_IDX && blendConfig.blend != STUC_BLEND_REPLACE || blendConfig.opacity != 1.0f) {
-		blendConfig.opacity = 1.0f;
-		blendConfig.blend = STUC_BLEND_REPLACE;
-		//add a warning queue to pBasic to return at function end.
-		//printf("Warning, only 'replace' blending is supported for index attribs. Using replace");
-	}
 	switch (pDest->use) {
 		case STUC_ATTRIB_USE_POS:
 			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
@@ -1632,7 +1640,7 @@ AttribArray *stucGetAttribArrFromDomain(StucMesh *pMesh, StucDomain domain) {
 		case STUC_DOMAIN_VERT:
 			return &pMesh->vertAttribs;
 		default:
-			STUC_ASSERT("", false);
+			STUC_ASSERT("invalid domain", false);
 			return NULL;
 	}
 }
@@ -1699,6 +1707,7 @@ Result allocAttribsFromArr(
 	const StucMesh *pSrc,
 	const AttribArray *pSrcAttribs,
 	I32 dataLen,
+	StucDomain domain,
 	bool setCommon,
 	bool allocData,
 	bool aliasData,
@@ -1723,7 +1732,7 @@ Result allocAttribsFromArr(
 			//if attribute already exists in destination,
 			//set origin to common and set if active, then skip
 			if (keepActive) {
-				stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use);
+				stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use, domain);
 			}
 			if (setCommon) {
 				pDestAttrib->origin = STUC_ATTRIB_ORIGIN_COMMON;
@@ -1749,7 +1758,7 @@ Result allocAttribsFromArr(
 		pDestAttrib->origin = pSrcAttrib->origin;
 		pDestAttrib->core.use = pSrcAttrib->core.use;
 		if (keepActive && stucIsAttribActive(pCtx, pSrc, pSrcAttrib)) {
-			stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use);
+			stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use, domain);
 		}
 		pDestAttrib->interpolate = pSrcAttrib->interpolate;
 		I32 attribSize = stucGetAttribSizeIntern(pSrcAttrib->core.type);
@@ -1790,6 +1799,7 @@ Result stucAllocAttribs(
 				&ppSrcArr[i]->core,
 				pSrcAttribArr,
 				stucGetDomainSize(pDest, domain),
+				domain,
 				setCommon,
 				allocData,
 				aliasData,
@@ -2073,7 +2083,7 @@ void stucSetAttribCopyOpt(
 	if (!flags) {
 		return;
 	}
-	for (I32 i = 1; i < STUC_ATTRIB_USE_SP_ENUM_COUNT; ++i) {
+	for (I32 i = 1; i < STUC_ATTRIB_USE_ENUM_COUNT; ++i) {
 		if (flags >> i & 0x1) {
 			Attrib *pAttrib = stucGetActiveAttrib(pCtx, pMesh, i);
 			if (pAttrib) {
@@ -2282,8 +2292,9 @@ void stucAppendSpAttribsToMesh(
 		if (!(pFlags >> i & 0x1)) {
 			continue;
 		}
-		AttribArray *pArr = stucGetAttribArrFromDomain(&pMesh->core, pCtx->spAttribDomains[i]);
-		I32 dataLen = stucGetDomainCount(&pMesh->core ,pCtx->spAttribDomains[i]);
+		StucDomain domain = pCtx->spAttribDomains[i];
+		AttribArray *pArr = stucGetAttribArrFromDomain(&pMesh->core, domain);
+		I32 dataLen = stucGetDomainCount(&pMesh->core, domain);
 		STUC_ASSERT("", pArr);
 		Attrib *pAttrib = NULL;
 		stucAppendAttrib(
@@ -2298,7 +2309,7 @@ void stucAppendSpAttribsToMesh(
 			pCtx->spAttribTypes[i],
 			i
 		);
-		stucSetAttribIdxActive(&pMesh->core,  pArr->count - 1, i);
+		stucSetAttribIdxActive(&pMesh->core,  pArr->count - 1, i, domain);
 	}
 }
 

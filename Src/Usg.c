@@ -251,7 +251,7 @@ StucResult stucAllocUsgSquaresMesh(
 		pCtx->spAttribTypes[STUC_ATTRIB_USE_POS],
 		STUC_ATTRIB_USE_POS
 	);
-	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_POS);
+	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_POS, STUC_DOMAIN_VERT);
 	pCore->vertAttribs.count = 1;
 	pCore->cornerAttribs.pArr = pCtx->alloc.pCalloc(2, sizeof(StucAttrib));
 	Attrib *pUvAttrib = pCore->cornerAttribs.pArr;
@@ -266,7 +266,7 @@ StucResult stucAllocUsgSquaresMesh(
 		pCtx->spAttribTypes[STUC_ATTRIB_USE_UV],
 		STUC_ATTRIB_USE_UV
 	);
-	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_UV);
+	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_UV, STUC_DOMAIN_CORNER);
 	Attrib *pNormalAttrib = pCore->cornerAttribs.pArr + 1;
 	stucInitAttrib(
 		&pCtx->alloc,
@@ -279,7 +279,7 @@ StucResult stucAllocUsgSquaresMesh(
 		pCtx->spAttribTypes[STUC_ATTRIB_USE_NORMAL],
 		STUC_ATTRIB_USE_NORMAL
 	);
-	stucSetAttribIdxActive(pCore, 1, STUC_ATTRIB_USE_NORMAL);
+	stucSetAttribIdxActive(pCore, 1, STUC_ATTRIB_USE_NORMAL, STUC_DOMAIN_CORNER);
 	pCore->cornerAttribs.count = 2;
 	err = stucAssignActiveAliases(pCtx, pMesh, 0xe, STUC_DOMAIN_NONE); // 1110 - set pos uv and normal
 	STUC_THROW_IFNOT(err, "", 0);

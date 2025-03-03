@@ -1859,7 +1859,7 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
 	I32 corner = pPiece->bufFace.start - k;
 
-	BlendConfig blendConfigReplace = {.blend = STUC_BLEND_REPLACE};
+	BlendConfig blendConfigReplace = {.blend = STUC_BLEND_REPLACE, .opacity = 1.0f };
 	do {
 		STUC_ASSERT("", pVertEntry->mapFace >= 0);
 		STUC_ASSERT("", pVertEntry->mapFace < pMap->pMesh->core.faceCount);
