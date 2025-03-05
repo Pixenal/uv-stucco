@@ -596,6 +596,51 @@ StucResult stucAttribGetAllDomains(
 	StucAttrib **ppAttrib,
 	StucDomain *pDomain
 );
+STUC_EXPORT
+StucResult stucAttribGetAllDomainsConst(
+	StucContext pCtx,
+	const StucMesh *pMesh,
+	const char *pName,
+	const StucAttrib **ppAttrib,
+	StucDomain *pDomain
+);
+STUC_EXPORT
+StucResult stucAttribArrGet(
+	StucContext pCtx,
+	StucMesh *pMesh,
+	StucDomain domain,
+	StucAttribArray **ppArr
+);
+STUC_EXPORT
+StucResult stucAttribArrGetConst(
+	StucContext pCtx,
+	const StucMesh *pMesh,
+	StucDomain domain,
+	const StucAttribArray **ppArr
+);
+STUC_EXPORT
+StucResult stucAttribGetCompType(
+	StucContext pCtx,
+	StucAttribType type,
+	StucAttribType *pCompType
+);
+STUC_EXPORT
+StucResult stucAttribTypeGetVecSize(
+	StucContext pCtx,
+	StucAttribType type,
+	int32_t *pSize
+);
+STUC_EXPORT
+StucResult stucDomainCountGet(
+	StucContext pCtx,
+	const StucMesh *pMesh,
+	StucDomain domain,
+	int32_t *pCount
+);
+STUC_EXPORT
+StucResult stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr);
+STUC_EXPORT
+StucResult stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr);
 #ifdef __cplusplus
 }
 #endif

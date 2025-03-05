@@ -1034,8 +1034,7 @@ void stucTriInterpolateAttrib(
 	}
 }
 
-static
-I32 getAttribVecSize(AttribType type) {
+I32 stucAttribTypeGetVecSizeIntern(AttribType type) {
 	STUC_ASSERT("invalid type", type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT);
 	STUC_ASSERT("this func shouldn't be called on a string", type != STUC_ATTRIB_STRING);
 	if (type == STUC_ATTRIB_NONE) {
@@ -1075,15 +1074,14 @@ I64 makeIntWide(void *ptr, AttribType type) {
 	return 0;
 }
 
-static
-AttribType getAttribCompType(AttribType type) {
+AttribType stucAttribGetCompTypeIntern(AttribType type) {
 	return (type -  STUC_ATTRIB_I8) % (STUC_ATTRIB_V2_I8 - STUC_ATTRIB_I8);
 }
 
 static
 I32 getAttribCompTypeSize(AttribType type) {
 	if (type >= STUC_ATTRIB_V2_I8) {
-		type = getAttribCompType(type);
+		type = stucAttribGetCompTypeIntern(type);
 	}
 	switch (type) {
 		case STUC_ATTRIB_I8:
@@ -1106,7 +1104,7 @@ I32 getAttribCompTypeSize(AttribType type) {
 static
 bool isAttribTypeFloat(AttribType type) {
 	if (type >= STUC_ATTRIB_V2_I8) {
-		type = getAttribCompType(type);
+		type = stucAttribGetCompTypeIntern(type);
 	}
 	return
 		type == STUC_ATTRIB_F32 || type == STUC_ATTRIB_F64;
@@ -1115,7 +1113,7 @@ bool isAttribTypeFloat(AttribType type) {
 static
 I64 getIntTypeMax(AttribType type) {
 	if (type >= STUC_ATTRIB_V2_I8) {
-		type = getAttribCompType(type);
+		type = stucAttribGetCompTypeIntern(type);
 	}
 	switch (type) {
 		case STUC_ATTRIB_I8:
@@ -1245,12 +1243,12 @@ void blendSwitch(
 	void *pDestVal = stucAttribAsVoid(pDest, iDest);
 	void *pAVal = stucAttribAsVoid(pA, iA);
 	void *pBVal = stucAttribAsVoid(pB, iB);
-	AttribType destCompType = getAttribCompType(pDest->type);
-	AttribType aCompType = getAttribCompType(pA->type);
-	AttribType bCompType = getAttribCompType(pB->type);
-	I32 destVecSize = getAttribVecSize(pDest->type);
-	I32 aVecSize = getAttribVecSize(pA->type);
-	I32 bVecSize = getAttribVecSize(pB->type);
+	AttribType destCompType = stucAttribGetCompTypeIntern(pDest->type);
+	AttribType aCompType = stucAttribGetCompTypeIntern(pA->type);
+	AttribType bCompType = stucAttribGetCompTypeIntern(pB->type);
+	I32 destVecSize = stucAttribTypeGetVecSizeIntern(pDest->type);
+	I32 aVecSize = stucAttribTypeGetVecSizeIntern(pA->type);
+	I32 bVecSize = stucAttribTypeGetVecSizeIntern(pB->type);
 	switch (blendConfig.blend) {
 		case STUC_BLEND_REPLACE:
 			if (blendFlags >> STUC_BLEND_REPLACE & 0x1) {
@@ -1436,7 +1434,7 @@ void blendUseColor(
 	F64 destBuf[4] = {0};
 	AttribCore destBufAttrib = {0};
 	if (!destIsFloat) {
-		destVecSize = getAttribVecSize(pDest->type);
+		destVecSize = stucAttribTypeGetVecSizeIntern(pDest->type);
 		AttribType bufType = destVecSize * (STUC_ATTRIB_V2_I8 - STUC_ATTRIB_I8) - 1;
 		destBufAttrib.pData = destBuf;
 		destBufAttrib.type = bufType;
@@ -2294,7 +2292,7 @@ void stucAppendSpAttribsToMesh(
 		}
 		StucDomain domain = pCtx->spAttribDomains[i];
 		AttribArray *pArr = stucGetAttribArrFromDomain(&pMesh->core, domain);
-		I32 dataLen = stucGetDomainCount(&pMesh->core, domain);
+		I32 dataLen = stucDomainCountGetIntern(&pMesh->core, domain);
 		STUC_ASSERT("", pArr);
 		Attrib *pAttrib = NULL;
 		stucAppendAttrib(

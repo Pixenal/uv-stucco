@@ -277,3 +277,5 @@ void stucAppendToIndexedAttrib(
 	const AttribCore *pSrc,
 	I32 srcIdx
 );
+AttribType stucAttribGetCompTypeIntern(AttribType type);
+I32 stucAttribTypeGetVecSizeIntern(AttribType type);
