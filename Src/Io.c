@@ -368,7 +368,7 @@ I64 estimateObjArrSize(I32 count, StucObject *pObjArr) {
 
 StucResult stucWriteStucFile(
 	StucContext pCtx,
-	const char *pName,
+	const char *pPath,
 	I32 objCount,
 	StucObject *pObjArr,
 	I32 usgCount,
@@ -376,6 +376,7 @@ StucResult stucWriteStucFile(
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
 	StucResult err = STUC_SUCCESS;
+	STUC_RETURN_ERR_IFNOT_COND(err, pPath[0], "path is empty");
 	const StucAlloc *pAlloc = &pCtx->alloc;
 	ByteString header = {0};
 	ByteString data = {0};
@@ -476,7 +477,7 @@ StucResult stucWriteStucFile(
 
 	//TODO CRC for uncompressed data
 	
-	err = pCtx->io.pOpen(&pFile, pName, 0, &pCtx->alloc);
+	err = pCtx->io.pOpen(&pFile, pPath, 0, &pCtx->alloc);
 	STUC_THROW_IFNOT(err, "", 0);
 	I64 finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
 	err = pCtx->io.pWrite(pFile, (U8 *)&finalHeaderLen, 2);

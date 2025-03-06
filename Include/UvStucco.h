@@ -452,7 +452,7 @@ StucResult stucContextInit(
 STUC_EXPORT
 StucResult stucMapFileExport(
 	StucContext context,
-	const char *pName,
+	const char *pPath,
 	int32_t objCount,
 	StucObject *pObjArr,
 	int32_t usgCount,
@@ -641,6 +641,13 @@ STUC_EXPORT
 StucResult stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr);
 STUC_EXPORT
 StucResult stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr);
+STUC_EXPORT
+StucResult stucObjectInit(
+	StucContext pCtx,
+	StucObject *pObj,
+	StucMesh *pMesh,
+	const Stuc_M4x4_F32 *pTransform
+);
 #ifdef __cplusplus
 }
 #endif
