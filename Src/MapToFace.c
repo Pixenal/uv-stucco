@@ -1004,6 +1004,7 @@ void blendMapAndInAttribs(
 			&pState->pBasic->pInMesh->core, pInAttribArr,
 			&pBufMesh->mesh.core, pBufAttrib,
 			true,
+			false,
 			&pInAttrib
 		);
 		STUC_ASSERT("", err == STUC_SUCCESS);
@@ -1013,6 +1014,7 @@ void blendMapAndInAttribs(
 			&pState->pBasic->pMap->pMesh->core, pMapAttribArr,
 			&pBufMesh->mesh.core, pBufAttrib,
 			true,
+			false,
 			&pMapAttrib
 		);
 		STUC_ASSERT("", err == STUC_SUCCESS);

@@ -102,20 +102,18 @@ const StucCommonAttrib *stucGetCommonAttrib(
 );
 Result stucGetMatchingAttrib(
 	StucContext pCtx,
-	StucMesh *pDest,
-	AttribArray *pDestAttribArr,
-	const StucMesh *pSrc,
-	const Attrib *pSrcAttrib,
+	StucMesh *pDest, AttribArray *pDestAttribArr,
+	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
+	bool excludeActive,
 	Attrib **ppOut
 );
 Result stucGetMatchingAttribConst(
 	StucContext pCtx,
-	const StucMesh *pDest,
-	const AttribArray *pDestAttribArr,
-	const StucMesh *pSrc,
-	const Attrib *pSrcAttrib,
+	const StucMesh *pDest, const AttribArray *pDestAttribArr,
+	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
+	bool excludeActive,
 	const Attrib **ppOut
 );
 const StucCommonAttrib *stucGetCommonAttribFromDomain(

@@ -1649,11 +1649,10 @@ const AttribArray *stucGetAttribArrFromDomainConst(const StucMesh *pMesh, StucDo
 
 Result stucGetMatchingAttrib(
 	StucContext pCtx,
-	StucMesh *pDest,
-	AttribArray *pDestAttribArr,
-	const StucMesh *pSrc,
-	const Attrib *pSrcAttrib,
+	StucMesh *pDest, AttribArray *pDestAttribArr,
+	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
+	bool excludeActive,
 	Attrib **ppOut
 ) {
 	Result err = STUC_SUCCESS;
@@ -1661,8 +1660,13 @@ Result stucGetMatchingAttrib(
 	*ppOut = NULL;
 	if (!srcIsActive) {
 		//exlude-active is set true here to ensure we arn't merging non-active with active
-		*ppOut =
-			stucGetAttribIntern(pSrcAttrib->core.name, pDestAttribArr, true, pCtx, pDest);
+		*ppOut = stucGetAttribIntern(
+			pSrcAttrib->core.name,
+			pDestAttribArr,
+			excludeActive,
+			pCtx,
+			pDest
+		);
 	}
 	else if (searchActive) {
 		//if merge_active is set, then we merge active in-mesh and map attribs,
@@ -1681,11 +1685,10 @@ Result stucGetMatchingAttrib(
 
 Result stucGetMatchingAttribConst(
 	StucContext pCtx,
-	const StucMesh *pDest,
-	const AttribArray *pDestAttribArr,
-	const StucMesh *pSrc,
-	const Attrib *pSrcAttrib,
+	const StucMesh *pDest, const AttribArray *pDestAttribArr,
+	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
+	bool excludeActive,
 	const Attrib **ppOut
 ) {
 	return stucGetMatchingAttrib(
@@ -1693,6 +1696,7 @@ Result stucGetMatchingAttribConst(
 		(StucMesh *)pDest, (AttribArray *)pDestAttribArr,
 		pSrc, pSrcAttrib,
 		searchActive,
+		excludeActive,
 		(Attrib **)ppOut
 	);
 }
@@ -1722,6 +1726,7 @@ Result allocAttribsFromArr(
 			pCtx,
 			pDest, pDestAttribs,
 			pSrc, pSrcAttrib,
+			true,
 			true,
 			&pDestAttrib
 		);
