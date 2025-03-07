@@ -7,12 +7,12 @@
 #include <math.h>
 #include <assert.h>
 
-#include <QuadTree.h>
-#include <Context.h>
-#include <MapFile.h>
-#include <MathUtils.h>
-#include <Utils.h>
-#include <Error.h>
+#include <quadtree.h>
+#include <context.h>
+#include <map.h>
+#include <math_utils.h>
+#include <utils.h>
+#include <error.h>
 
 typedef struct {
 	I32 d[4];

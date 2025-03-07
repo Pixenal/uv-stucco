@@ -2,7 +2,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <UvStucco.h>
+
+#include <uv_stucco.h>
 
 typedef StucResult Result;
 

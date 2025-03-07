@@ -12,14 +12,14 @@
 
 #include <zlib.h>
 
-#include <Io.h>
-#include <QuadTree.h>
-#include <MapFile.h>
-#include <Context.h>
-#include <PlatformIo.h>
-#include <MathUtils.h>
-#include <AttribUtils.h>
-#include <Error.h>
+#include <io.h>
+#include <quadtree.h>
+#include <map.h>
+#include <context.h>
+#include <platform_io.h>
+#include <math_utils.h>
+#include <attrib_utils.h>
+#include <error.h>
 
 static
 void reallocByteStringIfNeeded(

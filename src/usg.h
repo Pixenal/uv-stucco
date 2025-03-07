@@ -1,6 +1,6 @@
 #pragma once
-#include <MathUtils.h>
-#include <Types.h>
+#include <math_utils.h>
+#include <types.h>
 
 typedef struct {
 	//allow user to save name of usg meshes if desired?

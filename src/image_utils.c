@@ -1,7 +1,7 @@
 #include <stdint.h>
 
-#include <ImageUtils.h>
-#include <Types.h>
+#include <image_utils.h>
+#include <types.h>
 
 void setPixelColor(const StucImage *pImage, I32 idx, const Color *pColor) {
 	switch (pImage->type) {

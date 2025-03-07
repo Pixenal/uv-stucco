@@ -6,11 +6,11 @@
 #include <limits.h>
 #include <float.h>
 
-#include <AttribUtils.h>
-#include <MathUtils.h>
-#include <Context.h>
-#include <Mesh.h>
-#include <Error.h>
+#include <attrib_utils.h>
+#include <math_utils.h>
+#include <context.h>
+#include <mesh.h>
+#include <error.h>
 
 //special buf attribs should not be set by user,
 //so unlike special attribs, they're hardcoded here

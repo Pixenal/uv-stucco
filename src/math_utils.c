@@ -1,6 +1,6 @@
 #include <math.h>
 
-#include <MathUtils.h>
+#include <math_utils.h>
 
 V4_F32 v4F32MultiplyMat4x4(V4_F32 a, const Mat4x4 *pB) {
 	V4_F32 c = {0};

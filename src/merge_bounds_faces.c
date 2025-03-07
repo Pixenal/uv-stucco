@@ -4,17 +4,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <UvStucco.h>
-#include <CombineJobMeshes.h>
-#include <MapFile.h>
-#include <Mesh.h>
-#include <Context.h>
-#include <MathUtils.h>
-#include <Utils.h>
-#include <AttribUtils.h>
-#include <ThreadPool.h>
-#include <Error.h>
-#include <Alloc.h>
+#include <uv_stucco.h>
+#include <combine_job_meshes.h>
+#include <map.h>
+#include <mesh.h>
+#include <context.h>
+#include <math_utils.h>
+#include <utils.h>
+#include <attrib_utils.h>
+#include <thread_pool.h>
+#include <error.h>
+#include <alloc.h>
 
 typedef struct SharedEdge {
 	struct SharedEdge *pNext;

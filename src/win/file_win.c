@@ -2,9 +2,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <PlatformIo.h>
-#include <Types.h>
-#include <Error.h>
+#include <platform_io.h>
+#include <types.h>
+#include <error.h>
 
 #define ERR_MESSAGE_MAX_LEN 128
 

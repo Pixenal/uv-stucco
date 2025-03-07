@@ -2,12 +2,12 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <UvStucco.h>
-#include <Context.h>
-#include <CombineJobMeshes.h>
-#include <AttribUtils.h>
-#include <MapFile.h>
-#include <Error.h>
+#include <uv_stucco.h>
+#include <context.h>
+#include <combine_job_meshes.h>
+#include <attrib_utils.h>
+#include <map.h>
+#include <error.h>
 
 static
 void combineJobInFaceLists(

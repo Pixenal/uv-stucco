@@ -6,14 +6,14 @@
 #include <stdbool.h>
 #include <float.h>
 
-#include <Context.h>
-#include <MapToJobMesh.h>
-#include <MapFile.h>
-#include <MathUtils.h>
-#include <AttribUtils.h>
-#include <Utils.h>
-#include <Error.h>
-#include <Alloc.h>
+#include <context.h>
+#include <map_to_job_mesh.h>
+#include <map.h>
+#include <math_utils.h>
+#include <attrib_utils.h>
+#include <utils.h>
+#include <error.h>
+#include <alloc.h>
 
 #define FLOAT_BC_MARGIN .0001f
 

@@ -2,9 +2,9 @@
 
 #define MAP_FORMAT_NAME_MAX_LEN 19
 
-#include <QuadTree.h>
-#include <UvStucco.h>
-#include <Types.h>
+#include <quadtree.h>
+#include <uv_stucco.h>
+#include <types.h>
 
 typedef struct {
 	unsigned char *pString;

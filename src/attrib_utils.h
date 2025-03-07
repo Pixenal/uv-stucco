@@ -1,10 +1,10 @@
 #pragma once
 
-#include <UvStucco.h>
-#include <UvStuccoIntern.h>
-#include <MathUtils.h>
-#include <Mesh.h>
-#include <Types.h>
+#include <uv_stucco.h>
+#include <uv_stucco_intern.h>
+#include <math_utils.h>
+#include <mesh.h>
+#include <types.h>
 
 typedef StucAttribCore AttribCore;
 typedef StucAttrib Attrib;

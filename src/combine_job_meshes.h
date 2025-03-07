@@ -1,10 +1,10 @@
 #pragma once
-#include <UvStucco.h>
-#include <UvStuccoIntern.h>
-#include <Utils.h>
-#include <Mesh.h>
-#include <QuadTree.h>
-#include <Types.h>
+#include <uv_stucco.h>
+#include <uv_stucco_intern.h>
+#include <utils.h>
+#include <mesh.h>
+#include <quadtree.h>
+#include <types.h>
 
 typedef struct {
 	V3_F32 normal;

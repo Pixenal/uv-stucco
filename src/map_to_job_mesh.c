@@ -1,14 +1,14 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <UvStucco.h>
-#include <MapToJobMesh.h>
-#include <MapFile.h>
-#include <Context.h>
-#include <AttribUtils.h>
-#include <Utils.h>
-#include <Error.h>
-#include <Alloc.h>
+#include <uv_stucco.h>
+#include <map_to_job_mesh.h>
+#include <map.h>
+#include <context.h>
+#include <attrib_utils.h>
+#include <utils.h>
+#include <error.h>
+#include <alloc.h>
 
 static
 Result allocBufMesh(MappingJobState *pState, I32 cornerBufSize) {

@@ -2,12 +2,12 @@
 #include <string.h>
 #include <math.h>
 
-#include <QuadTree.h>
-#include <Context.h>
-#include <MapFile.h>
-#include <AttribUtils.h>
-#include <Usg.h>
-#include <Error.h>
+#include <quadtree.h>
+#include <context.h>
+#include <map.h>
+#include <attrib_utils.h>
+#include <usg.h>
+#include <error.h>
 
 
 typedef struct HitEdge {

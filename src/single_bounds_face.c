@@ -5,17 +5,17 @@
 #include <assert.h>
 #include <string.h>
 
-#include <UvStucco.h>
-#include <CombineJobMeshes.h>
-#include <MapFile.h>
-#include <Mesh.h>
-#include <Context.h>
-#include <MathUtils.h>
-#include <Utils.h>
-#include <AttribUtils.h>
-#include <MapToJobMesh.h>
-#include <Usg.h>
-#include <Error.h>
+#include <uv_stucco.h>
+#include <combine_job_meshes.h>
+#include <map.h>
+#include <mesh.h>
+#include <context.h>
+#include <math_utils.h>
+#include <utils.h>
+#include <attrib_utils.h>
+#include <map_to_job_mesh.h>
+#include <usg.h>
+#include <error.h>
 
 typedef struct {
 	I32 *pBuf;

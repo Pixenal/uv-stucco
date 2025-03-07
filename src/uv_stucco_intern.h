@@ -3,12 +3,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <Mesh.h>
-#include <DebugAndPerf.h>
-#include <Usg.h>
-#include <Error.h>
-#include <Types.h>
-#include <Alloc.h>
+#include <mesh.h>
+#include <debug_and_perf.h>
+#include <usg.h>
+#include <error.h>
+#include <types.h>
+#include <alloc.h>
 
 #define STUC_TILE_BIT_LEN 11
 

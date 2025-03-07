@@ -1,9 +1,9 @@
 #pragma once
-#include <UvStuccoIntern.h>
-#include <UvStucco.h>
-#include <QuadTree.h>
-#include <Utils.h>
-#include <Types.h>
+#include <uv_stucco_intern.h>
+#include <uv_stucco.h>
+#include <quadTree.h>
+#include <utils.h>
+#include <types.h>
 
 typedef struct CornerBuf {
 	Mat3x3 tbn;

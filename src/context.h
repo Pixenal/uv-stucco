@@ -1,6 +1,6 @@
 #pragma once
-#include <UvStucco.h>
-#include <Types.h>
+#include <uv_stucco.h>
+#include <types.h>
 
 typedef struct StucContextInternal {
 	void *pCustom;

@@ -1,11 +1,11 @@
 #pragma once
 #include <stdint.h>
 
-#include <Io.h>
-#include <QuadTree.h>
-#include <UvStucco.h>
-#include <Usg.h>
-#include <Types.h>
+#include <io.h>
+#include <quadtree.h>
+#include <uv_stucco.h>
+#include <usg.h>
+#include <types.h>
 
 typedef struct {
 	char name[64];

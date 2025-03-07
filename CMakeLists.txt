@@ -30,7 +30,7 @@ if (UNIX)
 		message("Release build")
 		set(CMAKE_C_FLAGS  "-ftree-vectorize -mavx2 -finline-functions -flto -O2 -pthread -fPIC -D PLATFORM_LINUX")
 	endif()
-	set(PLATFORM_SRC_FILES Src/Unix/FileUnix.c Src/Unix/ThreadPoolUnix.c)
+	set(PLATFORM_src_FILES src/unix/file_unix.c src/unix/thread_pool_unix.c)
 endif()
 if (WIN32)
 	message("Building for Windows")
@@ -38,17 +38,17 @@ if (WIN32)
 	set(CMAKE_C_FLAGS "/D PLATFORM_WINDOWS /D WIN32 /D WINDOWS /TC")
 	set(CMAKE_C_FLAGS_RELEASE "/O2")
 	set(CMAKE_C_STANDARD 11)
-	set(PLATFORM_SRC_FILES Src/Win/FileWin.c Src/Win/ThreadPoolWin.c)
+	set(PLATFORM_src_FILES src/win/file_win.c src/win/thread_pool_win.c)
 endif()
 message("BUILD_SHARED_LIBS is " ${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_library(UvStucco STATIC Src/Alloc.c Src/MergeBoundsFaces.c Src/Io.c Src/MapToFace.c
-            Src/QuadTree.c Src/UvStucco.c Src/MathUtils.c Src/Utils.c Src/AttribUtils.c
-            Src/SingleBoundsFace.c Src/CombineJobMeshes.c Src/MapToJobMesh.c
-            Src/ImageUtils.c Src/Mesh.c Src/Usg.c Extern/MikkTSpace/mikktspace.c
-			${PLATFORM_SRC_FILES})
+add_library(UvStucco STATIC src/alloc.c src/merge_bounds_faces.c src/io.c src/map_to_face.c
+            src/quadtree.c src/uv_stucco.c src/math_utils.c src/utils.c src/attrib_utils.c
+            src/single_bounds_face.c src/combine_job_meshes.c src/map_to_job_mesh.c
+            src/image_utils.c src/mesh.c src/usg.c Extern/MikkTSpace/mikktspace.c
+			${PLATFORM_src_FILES})
 target_include_directories(UvStucco PUBLIC Include)
-target_include_directories(UvStucco PRIVATE Src Extern/MikkTSpace)
+target_include_directories(UvStucco PRIVATE src Extern/MikkTSpace)
 message("FIND_ZLIB is " + ${FIND_ZLIB})
 if (FIND_ZLIB)
 	message("Attempting to find zlib")
