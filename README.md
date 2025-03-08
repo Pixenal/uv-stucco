@@ -1,57 +1,52 @@
-# UV Stucco
-A library for mapping geometry to meshes
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://s3.us-west-1.wasabisys.com/mediahost/UvStucco_Media/uv_stucco_dark_optimised.svg">
+    <img alt="Shows a logo with a checkered square, and the text UV Stucco" src="https://s3.us-west-1.wasabisys.com/mediahost/UvStucco_Media/uv_stucco_light_optimised.svg" align="center">
+  </picture>
+</div>
+<p align="center">
+  A library for mapping geometry to meshes
+</p>
 
 # Build Instructions
 ```
-git clone https://github.com/Pixenal/reverse-uv-mapper.git RUVM && cd RUVM
+git clone https://github.com/Pixenal/uv-stucco.git uv-stucco && cd uv-stucco
 ```
 ```
-mkdir -p build/linux && cd build/linux <-- Of course, change to your preferred path
+mkdir -p build && cd build
 ```
-RUVM's only dependency, other than the c standard library, is zlib.  
-Depending on your system, the below command may fail,
-CMake will try to find zlib on its own, but might not be able to.  
+UV Stucco uses zlib and [MikkTSpace](https://github.com/mmikk/MikkTSpace), with the latter included as a submodule.  
+CMake will try to find zlib on it's own, though this may fail depending on the environment.  
+To build with search on just run:
 ```
+cmake ../..
 ```
-If this does fail, you can disable auto search by toggling FIND_ZLIB,
-and specify directories manually. For example on macos:
+If it does fail, you can disable auto search with `-DFIND_ZLIB=OFF`, and specify the paths manually.  
+For example on macos:
 ```
 brew install zlib
 ```
 ```
 cmake ../.. -DFIND_ZLIB=OFF -DZLIB_LIB="/opt/homebrew/opt/zlib/lib/libz.a" -DZLIB_INCLUDE="/opt/homebrew/opt/zlib/include"
 ```
-Alternatively, zlib can also be found using Conan.  
-If you've not used conan before, you may need to first run:
-```
-conan profile detect --force
-```
-Make sure to cd back out to the repository root directory,  
-then install the package using conan install:
+If auto search does work, check the header CMake found matches the lib. If you have multiple zlib installs, they can sometimes be mismatched.  
+\
+Alternatively, zlib can also be found using Conan. To do so, cd back into the root dir if your still in build/, and run:
 ```
 conan install . --output-folder=build --build=missing
 ```
-Note that this will only get the release package,
-and so attempting to build with s debug configuration,
-such as in visual studio, may fail.  
-If you wish to build RUVM in debug, append
---settings--build_type=Debug to the above command,
-eg:
+This will install the release package for zlib,
+if you wan't to run UV Stucco in debug, you'll need the debug package as well:
 ```
 conan install . --output-folder=Build --build=missing --settings=build_type=Debug
 ```
+Now you can build with:
 ```
-cmake ../.. -DFIND_ZLIB_CONAN=ON -DCMAKE_TOOLCHAIN_FILE="../conan_toolchain.cmake"
+cmake ../.. -DCMAKE_TOOLCHAIN_FILE="../conan_toolchain.cmake"
 ```
-
-Once build files are generated, compile as usual:
-```
-cmake --build . --config release
-```
-
-As is standard, shared/ dyanmic and static libary builds can be toggled with `-DBUILD_SHARED_LIBS`.  
-And on windows, MSVC runtime type is toggled with `-DCMAKE_MSVC_RUNTIME_LIBRARY`.  
-Eg:
+\
+Toggle shared/ dynamic lib with `-DBUILD_SHARED_LIBS`.  
+and MSVC runtime with `-DCMAKE_MSVC_RUNTIME_LIBRARY` if on windows:
 ```
 cmake ../.. -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DBUILD_SHARED_LIBS=ON -DCMAKE_TOOLCHAIN_FILE="../conan_toolchain.cmake"
 ```
