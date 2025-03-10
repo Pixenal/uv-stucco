@@ -1059,16 +1059,16 @@ F64 makeFloatWide(void *ptr, AttribType type) {
 }
 
 static
-I64 makeIntWide(void *ptr, AttribType type) {
+I64 makeIntWide(void *ptr, AttribType type, bool isSigned) {
 	switch (type) {
 		case STUC_ATTRIB_I8:
-			return (I64)*(I8 *)ptr;
+			return (I64)(isSigned ? *(I8 *)ptr : *(U8 *)ptr);
 		case STUC_ATTRIB_I16:
-			return (I64)*(I16 *)ptr;
+			return (I64)(isSigned ? *(I16 *)ptr : *(U16 *)ptr);
 		case STUC_ATTRIB_I32:
-			return (I64)*(I32 *)ptr;
+			return (I64)(isSigned ? *(I32 *)ptr : *(U32 *)ptr);
 		case STUC_ATTRIB_I64:
-			return *(I64 *)ptr;
+			return (I64)(isSigned ? *(I64 *)ptr : *(U64 *)ptr);
 	}
 	STUC_ASSERT("invalid type", false);
 	return 0;
@@ -1111,19 +1111,19 @@ bool isAttribTypeFloat(AttribType type) {
 }
 
 static
-I64 getIntTypeMax(AttribType type) {
+I64 getIntTypeMax(AttribType type, bool getSigned) {
 	if (type >= STUC_ATTRIB_V2_I8) {
 		type = stucAttribGetCompTypeIntern(type);
 	}
 	switch (type) {
 		case STUC_ATTRIB_I8:
-			return INT8_MAX;
+			return getSigned ? INT8_MAX : UINT8_MAX;
 		case STUC_ATTRIB_I16:
-			return INT16_MAX;
+			return getSigned ? INT16_MAX : UINT16_MAX;
 		case STUC_ATTRIB_I32:
-			return INT32_MAX;
+			return getSigned ? INT32_MAX : UINT32_MAX;
 		case STUC_ATTRIB_I64:
-			return INT64_MAX;
+			return getSigned ? INT64_MAX : UINT64_MAX;
 	}
 	STUC_ASSERT("invalid type", false);
 	return 0;
@@ -1160,13 +1160,14 @@ I64 getIntTypeMax(AttribType type) {
 	blendConfig, clampMin, clampMax,\
 	pDestComp, destCompType,\
 	pAComp, aCompType, aIsFloat, normalizeA, aMax,\
-	pBComp, bCompType, bIsFloat, normalizeB, bMax\
+	pBComp, bCompType, bIsFloat, normalizeB, bMax,\
+	isSigned\
 ) {\
 	t destBuf = 0;\
 	t aComp = (t)(aIsFloat ?\
-		makeFloatWide(pAComp, aCompType) : makeIntWide(pAComp, aCompType));\
+		makeFloatWide(pAComp, aCompType) : makeIntWide(pAComp, aCompType, isSigned));\
 	t bComp = (t)(bIsFloat ?\
-		makeFloatWide(pBComp, bCompType) : makeIntWide(pBComp, bCompType));\
+		makeFloatWide(pBComp, bCompType) : makeIntWide(pBComp, bCompType, isSigned));\
 	if (normalizeA) {\
 		STUC_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
 		aComp /= (t)aMax;\
@@ -1189,13 +1190,15 @@ I64 getIntTypeMax(AttribType type) {
 	SET_VOID_COMP(destCompType, pDestComp, destBuf);\
 }
 
+static
 void blendComponents(
 	void (* pFBlendFunc)(F64 *,F64,F64),
 	void (* pIBlendFunc)(I64 *,I64,I64),
 	StucBlendConfig blendConfig,
 	void *pDest, AttribType destCompType, I32 destVecSize,
 	void *pA, AttribType aCompType, I32 aVecSize, bool normalizeA, I64 aMax,
-	void *pB, AttribType bCompType, I32 bVecSize, bool normalizeB, I64 bMax
+	void *pB, AttribType bCompType, I32 bVecSize, bool normalizeB, I64 bMax,
+	bool isSigned
 ) {
 	bool aIsFloat = isAttribTypeFloat(aCompType);
 	bool bIsFloat = isAttribTypeFloat(bCompType);
@@ -1207,38 +1210,38 @@ void blendComponents(
 		void *pBComp =
 			(int8_t *)pB + getAttribCompTypeSize(bCompType) * i * (bVecSize != 1);
 		if (isAttribTypeFloat(destCompType)) {
-			{
-				CALL_BLEND_FUNC(
-					F64,
-					pFBlendFunc,
-					blendConfig, blendConfig.fMin, blendConfig.fMax,
-					pDestComp, destCompType,
-					pAComp, aCompType, aIsFloat, normalizeA, aMax,
-					pBComp, bCompType, bIsFloat, normalizeB, bMax
-				)
-			};
+			CALL_BLEND_FUNC(
+				F64,
+				pFBlendFunc,
+				blendConfig, blendConfig.fMin, blendConfig.fMax,
+				pDestComp, destCompType,
+				pAComp, aCompType, aIsFloat, normalizeA, aMax,
+				pBComp, bCompType, bIsFloat, normalizeB, bMax,
+				isSigned
+			)
 		}
 		else {
-			{
-				CALL_BLEND_FUNC(
-					I64,
-					pIBlendFunc,
-					blendConfig, blendConfig.iMin, blendConfig.iMax,
-					pDestComp, destCompType,
-					pAComp, aCompType, aIsFloat, normalizeA, aMax,
-					pBComp, bCompType, bIsFloat, normalizeB, bMax
-				)
-			};
+			CALL_BLEND_FUNC(
+				I64,
+				pIBlendFunc,
+				blendConfig, blendConfig.iMin, blendConfig.iMax,
+				pDestComp, destCompType,
+				pAComp, aCompType, aIsFloat, normalizeA, aMax,
+				pBComp, bCompType, bIsFloat, normalizeB, bMax,
+				isSigned
+			)
 		}
 	}\
 }
 
+static
 void blendSwitch(
 	StucBlendConfig blendConfig,
 	UBitField32 blendFlags,
 	AttribCore *pDest, I32 iDest,
 	AttribCore *pA, I32 iA, bool normalizeA, I64 aMax,
-	AttribCore *pB, I32 iB, bool normalizeB, I64 bMax
+	AttribCore *pB, I32 iB, bool normalizeB, I64 bMax,
+	bool isSigned
 ) {
 	void *pDestVal = stucAttribAsVoid(pDest, iDest);
 	void *pAVal = stucAttribAsVoid(pA, iA);
@@ -1258,7 +1261,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1270,7 +1274,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1282,7 +1287,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1294,7 +1300,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1306,7 +1313,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1318,7 +1326,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1330,7 +1339,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1342,7 +1352,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1354,7 +1365,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1366,7 +1378,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1378,7 +1391,8 @@ void blendSwitch(
 					blendConfig,
 					pDestVal, destCompType, destVecSize,
 					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax
+					pBVal, bCompType, bVecSize, normalizeB, bMax,
+					isSigned
 				);
 			}
 			break;
@@ -1398,7 +1412,7 @@ void blendUseVec(
 	AttribCore *pB, I32 iB
 ) {
 	UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
-	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0);
+	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
 }
 
 static
@@ -1417,7 +1431,7 @@ void blendUseIdx(
 	//TODO replace literal bitflags with bitshifts enum expressions,
 	// these will break code when enum elements are moved around
 	UBitField32 blendFlags =  0xc1;  //only replace, lighten, and darken
-	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0);
+	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
 }
 
 static
@@ -1450,19 +1464,24 @@ void blendUseColor(
 		blendConfig,
 		blendFlags,
 		pFDest, iFDest,
-		pA, iA, normalizeA, normalizeA ? getIntTypeMax(pA->type) : 0,
-		pB, iB, normalizeB, normalizeB ? getIntTypeMax(pB->type) : 0
+		pA, iA, normalizeA, normalizeA ? getIntTypeMax(pA->type, false) : 0,
+		pB, iB, normalizeB, normalizeB ? getIntTypeMax(pB->type, false) : 0,
+		false
 	);
 	if (!destIsFloat) {
-		F64 destMax = (F64)getIntTypeMax(pDest->type);
+		F64 destMax = (F64)getIntTypeMax(pDest->type, false);
+		I64 iDestBuf[4] = {0};
+		StucAttribType compType = stucAttribGetCompTypeIntern(pDest->type);
+		U8 *pDestVoid = stucAttribAsVoid(pDest, iDest);
+		I32 compSize = stucGetAttribSizeIntern(compType);
 		for (I32 i = 0; i < destVecSize; ++i) {
-			destBuf[i] /= destMax;
+			iDestBuf[i] = destBuf[i] * destMax;
+			memcpy(
+				pDestVoid + compSize * i,
+				iDestBuf + i,
+				compSize
+			);
 		}
-		memcpy(
-			stucAttribAsVoid(pDest, iDest),
-			destBuf,
-			stucGetAttribSizeIntern(pDest->type)
-		);
 	}
 }
 
@@ -1475,7 +1494,7 @@ void blendUseScalar(
 ) {
 	//replace, multiply, divide, add, subtract, lighten, and darken
 	UBitField32 blendFlags = 0xdf;
-	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0);
+	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
 }
 
 
