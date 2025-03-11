@@ -27,7 +27,9 @@ typedef enum {
 	STUC_ATTRIB_SP_BUF_IN_NORMAL,
 	STUC_ATTRIB_SP_BUF_IN_TANGENT,
 	STUC_ATTRIB_SP_BUF_IN_T_SIGN,
-	STUC_ATTRIB_SP_BUF_ALPHA
+	STUC_ATTRIB_SP_BUF_ALPHA,
+	STUC_ATTRIB_SP_BUF_IN_MAP_FACE_PAIR,
+	STUC_ATTRIB_SP_BUF_ENUM_COUNT
 } SpecialBufAttrib;
 
 void stucSetDefaultSpAttribNames(StucContext pCtx);
@@ -186,8 +188,12 @@ void stucReallocAndMoveAttribs(
 	I32 lenToCopy,
 	I32 newLen
 );
-StucResult stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags);
-void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh);
+StucResult stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags, bool getInFaces);
+void stucAppendBufOnlySpecialAttribs(
+	const StucAlloc *pAlloc,
+	BufMesh *pBufMesh,
+	bool getInFaces
+);
 void stucSetAttribCopyOpt(
 	StucContext pCtx,
 	StucMesh *pMesh,

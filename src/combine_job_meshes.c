@@ -19,10 +19,14 @@ void combineJobInFaceLists(
 	for (I32 i = 0; i < mapJobsSent; ++i) {
 		I32 faceCount = pMappingJobArgs[i].bufMesh.mesh.core.faceCount;
 		for (I32 j = 0; j < faceCount; ++j) {
-			(*pBasic->ppInFaceTable)[face] = pMappingJobArgs[i].pInFaces[j];
+			STUC_ASSERT("", pMappingJobArgs[i].bufMesh.pInMapFacePair);
+			InFaceArr *pEntry = pBasic->pInFaceTable->pArr + face;
+			pEntry->count = 1;
+			stucLinAlloc(pBasic->pInFaceTable->pAlloc, &pEntry->pArr, pEntry->count);
+			*pEntry->pArr = pMappingJobArgs[i].bufMesh.pInMapFacePair[j].d[0];
+			pEntry->usg = pMappingJobArgs[i].bufMesh.pInMapFacePair[j].d[1];
 			face++;
 		}
-		pBasic->pCtx->alloc.pFree(pMappingJobArgs[i].pInFaces);
 	}
 }
 
@@ -91,8 +95,8 @@ Result stucCombineJobMeshes(
 			STUC_THROW_IFNOT(err, "", 0);
 		}
 	}
-	if (pBasic->ppInFaceTable) {
-		*pBasic->ppInFaceTable = pAlloc->pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
+	if (pBasic->pInFaceTable) {
+		pBasic->pInFaceTable->pArr = pAlloc->pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
 		combineJobInFaceLists(pBasic, pMappingJobArgs, mapJobsSent);
 	}
 #ifdef WIN32

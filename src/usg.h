@@ -23,6 +23,11 @@ typedef struct InFaceArr {
 	F32 offset;
 } InFaceArr;
 
+typedef struct {
+	InFaceArr *pArr;
+	void *pAlloc;
+} InFaceTable;
+
 typedef struct UsgInFace {
 	struct UsgInFace *pNext;
 	InFaceArr *pEntry;

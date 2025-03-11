@@ -98,7 +98,7 @@ typedef struct {
 	const StucContext pCtx;
 	const Mesh *pInMesh;
 	const StucMap pMap;
-	InFaceArr **ppInFaceTable;
+	InFaceTable *pInFaceTable;
 	const StucCommonAttribList *pCommonAttribList;
 	I32 inFaceSize;
 	const F32 wScale;
@@ -115,7 +115,6 @@ typedef struct {
 typedef struct {
 	BufMesh bufMesh;
 	MapToMeshBasic *pBasic;
-	InFaceArr *pInFaces;
 	I32 *pActiveJobs;
 	U64 reallocTime;
 	BorderTable borderTable;

@@ -74,7 +74,6 @@ typedef struct {
 	Mat3x3 tbn;
 	Mat3x3 tbnInv;
 	MapToMeshBasic *pBasic;
-	InFaceArr *pInFaces;
 	void *pCornerBufWrapAlloc;
 	BorderTable borderTable;
 	Range inFaceRange;
@@ -84,7 +83,6 @@ typedef struct {
 	I32 rawBufSize;
 	I32 finalBufSize;
 	I32 cornerBufSize;
-	I32 inFaceSize;
 	I32 facesChecked;
 	I32 facesUsed;
 } MappingJobState;

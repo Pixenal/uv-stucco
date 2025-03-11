@@ -37,8 +37,9 @@ Result allocBufMesh(MappingJobState *pState, I32 cornerBufSize) {
 		true, true, false
 	);
 	STUC_THROW_IFNOT(err, "", 0);
-	stucAppendBufOnlySpecialAttribs(&pState->pBasic->pCtx->alloc, &pState->bufMesh);
-	err = stucSetSpecialBufAttribs((BufMesh *)pMesh, 0x3e); //set all
+	bool getInFaces = pState->pBasic->pInFaceTable != NULL;
+	stucAppendBufOnlySpecialAttribs(pAlloc, &pState->bufMesh, getInFaces);
+	err = stucSetSpecialBufAttribs((BufMesh *)pMesh, 0xffffffff, getInFaces); //set all
 	STUC_THROW_IFNOT(err, "", 0);
 	err = stucAssignActiveAliases(
 		pState->pBasic->pCtx,
@@ -282,10 +283,6 @@ StucResult stucMapToJobMesh(void *pArgsVoid) {
 		printf("--------pNormals is %p\n", state.bufMesh.mesh.pNormals);
 	}
 	STUC_THROW_IFNOT(err, "", 0);
-	if (state.pBasic->ppInFaceTable) {
-		state.inFaceSize = 8;
-		state.pInFaces = pCtx->alloc.pCalloc(state.inFaceSize, sizeof(InFaceArr));
-	}
 	printf("C");
 	err = mapToFaces(&state, &faceCellsTable);
 	STUC_THROW_IFNOT(err, "", 0);
@@ -300,7 +297,6 @@ StucResult stucMapToJobMesh(void *pArgsVoid) {
 		STUC_ASSERT("", state.borderTable.pTable);
 		pArgs->borderTable.pTable = state.borderTable.pTable;
 		pArgs->bufMesh = state.bufMesh;
-		pArgs->pInFaces = state.pInFaces;
 		pArgs->borderTableAlloc = state.borderTableAlloc;
 		pArgs->facesChecked = state.facesChecked;
 		pArgs->facesUsed = state.facesUsed;

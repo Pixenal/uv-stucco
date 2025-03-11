@@ -670,5 +670,8 @@ UsgInFace *stucGetUsgForCorner(
 			pEntry = pEntry->pNext;
 		} while(pEntry);
 	}
+	if (pAboveCutoff) {
+		*pAboveCutoff = false;
+	}
 	return NULL;
 }

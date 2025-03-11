@@ -683,7 +683,7 @@ void handleVertIfInUsg(
 		pCorner->stucCorner,
 		pState->pBasic->pMap,
 		pMapFace,
-		pInFace->idx + pState->inFaceRange.start,
+		pInFace->idx,
 		pAboveCutoff
 	);
 	if (pUsgEntry) {
@@ -1615,22 +1615,6 @@ void addFaceToBorderTable(
 }
 
 static
-void addInFace(MappingJobState *pState, I32 face, FaceRange *pInFace, FaceRange *pMapFace) {
-	InFaceArr *pInFaceEntry = pState->pInFaces + face;
-	pInFaceEntry->pArr = pState->pBasic->pCtx->alloc.pMalloc(sizeof(I32));
-	*pInFaceEntry->pArr = pInFace->idx + pState->inFaceRange.start;
-	pInFaceEntry->count = 1;
-	pInFaceEntry->usg = pMapFace->idx;
-	I32 faceCount = pState->bufMesh.mesh.core.faceCount;
-	STUC_ASSERT("", faceCount <= pState->inFaceSize);
-	if (pState->inFaceSize == faceCount) {
-		pState->inFaceSize *= 2;
-		pState->pInFaces =
-			pState->pBasic->pCtx->alloc.pRealloc(pState->pInFaces, sizeof(InFaceArr) * pState->inFaceSize);
-	}
-}
-
-static
 void addClippedFaceToBufMesh(
 	MappingJobState *pState,
 	CornerBufWrap *pCornerBuf,
@@ -1729,8 +1713,10 @@ void addClippedFaceToBufMesh(
 		isBorderFace,
 		&realloced
 	);
-	if (pState->pBasic->ppInFaceTable && !isBorderFace) {
-		addInFace(pState, face.idx, pInFace, pMapFace);
+	if (pState->pBasic->pInFaceTable) {
+		//this is only true when mapping usg squares
+		pBufMesh->pInMapFacePair[face.realIdx].d[0] = pInFace->idx;
+		pBufMesh->pInMapFacePair[face.realIdx].d[1] = pMapFace->idx;
 	}
 	bufFace = face.idx;
 	pBufMesh->mesh.core.pFaces[face.realIdx] = bufCornerStart;

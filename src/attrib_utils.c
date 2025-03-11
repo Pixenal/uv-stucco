@@ -15,13 +15,15 @@
 //special buf attribs should not be set by user,
 //so unlike special attribs, they're hardcoded here
 static
-char spBufAttribs[6][STUC_ATTRIB_NAME_MAX_LEN] = {
+char spBufAttribs[STUC_ATTRIB_SP_BUF_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN] = {
 	"",
 	"StucW",
 	"StucInNormal",
 	"StucInTangent",
 	"StucInTSign",
-	"StucAlpha"
+	"StucAlpha",
+	"StucInMapFacePair"
+
 };
 
 void stucSetDefaultSpAttribNames(StucContext pCtx) {
@@ -1873,6 +1875,9 @@ SpecialBufAttrib quickCheckIfSpecialBufAttrib(
 	else if (pAttrib->pData == pMesh->pAlpha) {
 		return STUC_ATTRIB_SP_BUF_ALPHA;
 	}
+	else if (pAttrib->pData == pMesh->pInMapFacePair) {
+		return STUC_ATTRIB_SP_BUF_IN_MAP_FACE_PAIR;
+	}
 	return STUC_ATTRIB_SP_BUF_NONE;
 }
 
@@ -1896,6 +1901,8 @@ void reassignIfSpecialBuf(BufMesh *pMesh, AttribCore *pAttrib, SpecialBufAttrib 
 		case (STUC_ATTRIB_SP_BUF_ALPHA):
 			pMesh->pAlpha = pAttrib->pData;
 			break;
+		case (STUC_ATTRIB_SP_BUF_IN_MAP_FACE_PAIR):
+			pMesh->pInMapFacePair = pAttrib->pData;
 	}
 }
 
@@ -1973,7 +1980,7 @@ void stucReallocAndMoveAttribs(
 	}
 }
 
-Result stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags) {
+Result stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags, bool getInFaces) {
 	Result err = STUC_SUCCESS;
 	StucMesh *pCore = &pMesh->mesh.core;
 	if (flags >> STUC_ATTRIB_SP_BUF_W & 0x01) {
@@ -2021,10 +2028,23 @@ Result stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags) {
 		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pAlphaAttrib, "buf-mesh has no alpha attrib");
 		pMesh->pAlpha = pMesh->pAlphaAttrib->core.pData;
 	}
+	if (getInFaces && flags >> STUC_ATTRIB_SP_BUF_IN_MAP_FACE_PAIR) {
+		pMesh->pInMapFacePairAttrib = stucGetAttribIntern(
+			spBufAttribs[STUC_ATTRIB_SP_BUF_IN_MAP_FACE_PAIR],
+			&pCore->faceAttribs,
+			false, NULL, NULL
+		);
+		STUC_RETURN_ERR_IFNOT_COND(err, pMesh->pInMapFacePairAttrib, "buf-mesh has no in/map face pair attrib");
+		pMesh->pInMapFacePair = pMesh->pInMapFacePairAttrib->core.pData;
+	}
 	return err;
 }
 
-void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh) {
+void stucAppendBufOnlySpecialAttribs(
+	const StucAlloc *pAlloc,
+	BufMesh *pBufMesh,
+	bool getInFaces
+) {
 	Mesh *pMesh = &pBufMesh->mesh;
 	AttribArray *pAttribArr = &pMesh->core.cornerAttribs;
 	Attrib *pAttrib = NULL;
@@ -2092,6 +2112,21 @@ void stucAppendBufOnlySpecialAttribs(const StucAlloc *pAlloc, BufMesh *pBufMesh)
 		STUC_ATTRIB_F32,
 		STUC_ATTRIB_USE_SCALAR
 	);
+	pAttrib = NULL;
+	if (getInFaces) {
+		stucAppendAttrib(
+			pAlloc,
+			&pMesh->core.faceAttribs,
+			&pAttrib,
+			spBufAttribs[STUC_ATTRIB_SP_BUF_IN_MAP_FACE_PAIR],
+			pMesh->faceBufSize,
+			false,
+			STUC_ATTRIB_ORIGIN_MESH_BUF,
+			STUC_ATTRIB_DONT_COPY,
+			STUC_ATTRIB_V2_I32,
+			STUC_ATTRIB_USE_MISC
+		);
+	}
 }
 
 void stucSetAttribCopyOpt(

@@ -1509,8 +1509,7 @@ void getPieceInFaces(
 	*ppInFaces = pAlloc->pCalloc(pieceCount, sizeof(I32));
 	I32 i = 0;
 	do {
-		I32 offset = pMappingJobArgs[pPiece->pEntry->job].inFaceRange.start;
-		(*ppInFaces)[i] = pPiece->pEntry->inFace + offset;
+		(*ppInFaces)[i] = pPiece->pEntry->inFace;
 		pPiece = pPiece->pNext;
 		i++;
 	} while(pPiece);
@@ -1925,8 +1924,8 @@ void addToOutMesh(MakePiecesJobArgs *pArgs) {
 		for (I32 j = 0; j < pPieceRoots->count; ++j) {
 			Piece *pPieceRoot = pPieceArr->pArr + pPieceRoots->pArr[j];
 			I32 *pInFaces = NULL;
-			I32 pieceCount = 0; //this is only need if getting in faces
-			if (pArgs->pBasic->ppInFaceTable) {
+			I32 pieceCount = 0; //this is only needed if getting in faces
+			if (pArgs->pBasic->pInFaceTable) {
 				pieceCount = getPieceCount(pPieceRoot); 
 				getPieceInFaces(
 					pAlloc,
@@ -2123,7 +2122,7 @@ void transformDeferredVert(
 	V3_F32 normal = {0};
 	V2_F32 fTileMin = {(F32)tile.d[0], (F32)tile.d[1]};
 	bool normalTransformed = false;
-	if (!stucGetIfOnInVert(pEntry, cornerLocal) && !pBasic->ppInFaceTable) {
+	if (!stucGetIfOnInVert(pEntry, cornerLocal) && !pBasic->pInFaceTable) {
 		V3_F32 uvw = {0};
 		*(V2_F32 *)&uvw = _(pBufMesh->mesh.pUvs[corner] V2SUB fTileMin);
 		uvw.d[2] = pBufMesh->pW[corner];

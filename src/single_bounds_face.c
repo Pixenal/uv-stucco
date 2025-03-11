@@ -289,21 +289,26 @@ void addFaceToOutMesh(
 	}
 	realloced = false;
 	I32 outFace = stucMeshAddFace(pArgs->pBasic->pCtx, pMeshOut, &realloced);
-	if (pArgs->pBasic->ppInFaceTable) {
+	if (pArgs->pBasic->pInFaceTable) {
 		if (realloced) {
 			//realloc to match meshOut face buf
 			I32 byteCount = sizeof(InFaceArr) * pMeshOut->faceBufSize;
-			*pArgs->pBasic->ppInFaceTable =
-				pArgs->pBasic->pCtx->alloc.pRealloc(*pArgs->pBasic->ppInFaceTable, byteCount);
+			pArgs->pBasic->pInFaceTable->pArr = pArgs->pBasic->pCtx->alloc.pRealloc(
+				pArgs->pBasic->pInFaceTable->pArr,
+				byteCount
+			);
 		}
 		STUC_ASSERT("", outFace < pMeshOut->faceBufSize);
 		//add face to inFace table
-		InFaceArr *pInFaceEntry = *pArgs->pBasic->ppInFaceTable + outFace;
+		InFaceArr *pInFaceEntry = pArgs->pBasic->pInFaceTable->pArr + outFace;
 		STUC_ASSERT("", entryCount > 0);
-		pInFaceEntry->pArr =
-			pArgs->pBasic->pCtx->alloc.pCalloc(entryCount, sizeof(I32));
-		memcpy(pInFaceEntry->pArr, pInFaces, sizeof(I32) * entryCount);
 		pInFaceEntry->count = entryCount;
+		stucLinAlloc(
+			pArgs->pBasic->pInFaceTable->pAlloc,
+			&pInFaceEntry->pArr,
+			pInFaceEntry->count
+		);
+		memcpy(pInFaceEntry->pArr, pInFaces, sizeof(I32) * pInFaceEntry->count);
 		pInFaceEntry->usg = pState->mapFace.idx;
 	}
 	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pState->pPieceRoot->pEntry->job].bufMesh;
