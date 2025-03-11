@@ -1476,10 +1476,10 @@ void sortCorners(
 			continue;
 		}
 		else if (!adj) {
-			if (pPiece->keepPreserve >> corner & 0x01 ||
+			if ((pPiece->keepPreserve >> corner & 0x01) ||
 			    (pPiece->keepSeam >> corner & 0x01) ||
-			    (pPiece->keepVertPreserve >> corner & 0x01)) {
-
+			    (pPiece->keepVertPreserve >> corner & 0x01)
+			) {
 				pPiece->add |= (I64)true << corner;
 				pPiece->pOrder[corner] = (U8)sort;
 				sort++;
@@ -2314,8 +2314,12 @@ Result mergeAndAddToOutMesh(
 	for (I32 i = 0; i < jobCount; ++i) {
 		err = mergeIntersectionCorners(pArgArr + i, false);
 		STUC_RETURN_ERR_IFNOT(err, "");
+	}
+	for (I32 i = 0; i < jobCount; ++i) {
 		err = mergeIntersectionCorners(pArgArr + i, true);
 		STUC_RETURN_ERR_IFNOT(err, "");
+	}
+	for (I32 i = 0; i < jobCount; ++i) {
 		err = mergeCornerAttribs(pArgArr + i);
 		STUC_RETURN_ERR_IFNOT(err, "");
 	}

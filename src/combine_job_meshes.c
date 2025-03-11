@@ -72,7 +72,7 @@ Result stucCombineJobMeshes(
 			break;
 		}
 	}
-	err = stucAllocAttribsFromMeshArr(pBasic->pCtx, pMeshOut, 1, &src, 0, false, true, false);
+	err = stucAllocAttribsFromMeshArr(pBasic->pCtx, pMeshOut, 1, &src, -1, false, true, false);
 	STUC_THROW_IFNOT(err, "", 0);
 	err = stucAssignActiveAliases(pBasic->pCtx, pMeshOut, 0xe, STUC_DOMAIN_NONE); //1110 - set only verts, stuc, & normals
 	STUC_THROW_IFNOT(err, "", 0);

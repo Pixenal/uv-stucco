@@ -1755,7 +1755,9 @@ Result allocAttribsFromArr(
 		if (pDestAttrib) {
 			//if attribute already exists in destination,
 			//set origin to common and set if active, then skip
-			if (keepActive) {
+			if (keepActive &&
+				stucIsAttribActive(pCtx, pSrc, pSrcAttrib) &&
+				!pDest->activeAttribs[pSrcAttrib->core.use].active) {
 				stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use, domain);
 			}
 			if (setCommon) {
@@ -1825,7 +1827,7 @@ Result stucAllocAttribs(
 				setCommon,
 				allocData,
 				aliasData,
-				i == activeSrc
+				activeSrc < 0 ? true : i == activeSrc
 			);
 			STUC_THROW_IFNOT(err, "", 0);
 		}
