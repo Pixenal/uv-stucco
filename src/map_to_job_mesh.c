@@ -278,6 +278,9 @@ StucResult stucMapToJobMesh(void *pArgsVoid) {
 	STUC_THROW_IFNOT(err, "", 0);
 	state.bufSize = inFaceRangeSize + faceCellsTable.cellFacesTotal;
 	err = allocBufMeshAndTables(&state, &faceCellsTable);
+	if (state.id == 7) {
+		printf("--------pNormals is %p\n", state.bufMesh.mesh.pNormals);
+	}
 	STUC_THROW_IFNOT(err, "", 0);
 	if (state.pBasic->ppInFaceTable) {
 		state.inFaceSize = 8;

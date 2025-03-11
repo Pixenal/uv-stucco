@@ -277,3 +277,4 @@ void stucAppendToIndexedAttrib(
 );
 AttribType stucAttribGetCompTypeIntern(AttribType type);
 I32 stucAttribTypeGetVecSizeIntern(AttribType type);
+bool stucIsAttribUseRequired(StucAttribUse use);

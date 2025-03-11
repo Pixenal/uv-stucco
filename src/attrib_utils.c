@@ -1770,24 +1770,22 @@ Result allocAttribsFromArr(
 			);
 		}
 		pDestAttrib = pDestAttribs->pArr + pDestAttribs->count;
-		pDestAttrib->core.type = pSrcAttrib->core.type;
-		memcpy(
-			pDestAttrib->core.name,
-			pSrcAttrib->core.name,
-			STUC_ATTRIB_NAME_MAX_LEN
-		);
-		//TODO check for mismatches between srcs, like if srcs have different types or sp
-		pDestAttrib->origin = pSrcAttrib->origin;
-		pDestAttrib->core.use = pSrcAttrib->core.use;
 		if (keepActive && stucIsAttribActive(pCtx, pSrc, pSrcAttrib)) {
 			stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use, domain);
 		}
-		pDestAttrib->interpolate = pSrcAttrib->interpolate;
-		I32 attribSize = stucGetAttribSizeIntern(pSrcAttrib->core.type);
-		if (allocData) {
-			pDestAttrib->core.pData = pCtx->alloc.pCalloc(dataLen, attribSize);
-		}
-		else if (aliasData) {
+		stucInitAttrib(
+			&pCtx->alloc,
+			pDestAttrib,
+			pSrcAttrib->core.name,
+			aliasData || !allocData ? 0 : dataLen,
+			pSrcAttrib->interpolate,
+			pSrcAttrib->origin,
+			pSrcAttrib->copyOpt,
+			pSrcAttrib->core.type,
+			pSrcAttrib->core.use
+		);
+		if (aliasData) {
+			STUC_ASSERT("", !allocData);
 			pDestAttrib->core.pData = pSrcAttrib->core.pData;
 		}
 		pDestAttribs->count++;
@@ -2436,4 +2434,12 @@ void stucAppendToIndexedAttrib(
 		stucGetAttribSizeIntern(pSrc->type)
 	);
 	pDest->count++;
+}
+
+bool stucIsAttribUseRequired(StucAttribUse use) {
+	return
+		use == STUC_ATTRIB_USE_POS ||
+		use == STUC_ATTRIB_USE_UV ||
+		use == STUC_ATTRIB_USE_NORMAL ||
+		use == STUC_ATTRIB_USE_IDX;
 }
