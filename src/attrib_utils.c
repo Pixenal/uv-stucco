@@ -1658,6 +1658,8 @@ AttribArray *stucGetAttribArrFromDomain(StucMesh *pMesh, StucDomain domain) {
 			return &pMesh->edgeAttribs;
 		case STUC_DOMAIN_VERT:
 			return &pMesh->vertAttribs;
+		case STUC_DOMAIN_MESH:
+			return &pMesh->meshAttribs;
 		default:
 			STUC_ASSERT("invalid domain", false);
 			return NULL;
@@ -1758,7 +1760,11 @@ Result allocAttribsFromArr(
 			if (keepActive &&
 				stucIsAttribActive(pCtx, pSrc, pSrcAttrib) &&
 				!pDest->activeAttribs[pSrcAttrib->core.use].active) {
-				stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use, domain);
+				stucSetAttribIdxActive(
+					pDest, pDestAttribs->count,
+					pSrcAttrib->core.use,
+					domain
+				);
 			}
 			if (setCommon) {
 				pDestAttrib->origin = STUC_ATTRIB_ORIGIN_COMMON;
@@ -1775,7 +1781,11 @@ Result allocAttribsFromArr(
 		}
 		pDestAttrib = pDestAttribs->pArr + pDestAttribs->count;
 		if (keepActive && stucIsAttribActive(pCtx, pSrc, pSrcAttrib)) {
-			stucSetAttribIdxActive(pDest, j, pSrcAttrib->core.use, domain);
+			stucSetAttribIdxActive(
+				pDest, pDestAttribs->count,
+				pSrcAttrib->core.use,
+				domain
+			);
 		}
 		stucInitAttrib(
 			&pCtx->alloc,

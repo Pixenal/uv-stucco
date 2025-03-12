@@ -132,7 +132,8 @@ typedef enum {
 	STUC_DOMAIN_FACE,
 	STUC_DOMAIN_CORNER,
 	STUC_DOMAIN_EDGE,
-	STUC_DOMAIN_VERT
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_MESH
 } StucDomain;
 
 typedef enum {
@@ -484,8 +485,8 @@ StucResult stucMapFileMeshGet(StucContext pCtx, StucMap pMap, const StucMesh **p
 STUC_EXPORT
 StucResult stucQueryCommonAttribs(
 	StucContext pCtx,
-	StucMap pMap,
-	StucMesh *pMesh,
+	const StucMap pMap,
+	const StucMesh *pMesh,
 	StucCommonAttribList *pCommonAttribs
 );
 STUC_EXPORT
