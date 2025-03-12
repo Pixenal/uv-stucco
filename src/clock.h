@@ -5,6 +5,7 @@
 #endif
 #ifdef PLATFORM_WINDOWS
 	#include <time.h>
+	#include <error.h>
 #endif
 #ifdef PLATFORM_LINUX
 	#define CLOCK_INIT struct timeval start, stop;
@@ -15,9 +16,10 @@
 #endif
 #ifdef PLATFORM_WINDOWS
 	#define CLOCK_INIT struct timespec start = {0}; struct timespec stop = {0};
-	#define CLOCK_TIME_DIFF(start, stop) (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec)
-	#define CLOCK_TIME_GET(a) if(timespec_get(&a, TIME_UTC) != TIME_UTC) printf("CLOCK_START failed\n")
+	#define CLOCK_DIFF_NANO ((stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec))
+	#define CLOCK_DIFF_SEC (stop.tv_sec - start.tv_sec)
+	#define CLOCK_TIME_GET(a) if (timespec_get(&a, TIME_UTC) != TIME_UTC) { STUC_ASSERT("timespec_get failed", false) }
 	#define CLOCK_START CLOCK_TIME_GET(start)
-	#define CLOCK_STOP(a) CLOCK_TIME_GET(stop); printf("%s - %s: %llu\n", __func__, (a), CLOCK_TIME_DIFF(start, stop))
-	#define CLOCK_STOP_NO_PRINT CLOCK_TIME_GET(stop)
+	#define CLOCK_CHECK_PRINT(a) CLOCK_TIME_GET(stop); printf("%s - %s: %llu\n", __func__, (a), CLOCK_TIME_DIFF(start, stop))
+	#define CLOCK_CHECK CLOCK_TIME_GET(stop)
 #endif
