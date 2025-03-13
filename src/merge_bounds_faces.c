@@ -420,7 +420,7 @@ bool isCornerOnExterior(
 		&corner,
 		NULL
 	)) {
-		//corner does not share an edge without any other corner,
+		//corner does not share an edge with any other corner,
 		//must be on outside
 		return true;
 	}
@@ -470,7 +470,6 @@ static
 bool checkIfIntersectsReceive(
 	MakePiecesJobArgs *pArgs,
 	EdgeStack *pItem,
-	Mesh *pBufMesh,
 	StucMap pMap,
 	FaceRange *pMapFace,
 	I32 *pMapCorner,
@@ -509,6 +508,7 @@ bool checkIfIntersectsReceive(
 	//In this case, we perform an intersect test,
 	//and use that to see if the base edge would intersect
 	//with a preserve edge, were it to extend out infinitely
+	Mesh *pBufMesh = &pArgs->pMappingJobArgs[pItem->pPiece->pEntry->job].bufMesh.mesh;
 	V2_F32 *pUvStart = pBufMesh->pUvs + pItem->pPiece->bufFace.start;
 	I32 corner = pItem->corner;
 	if (side) {
@@ -588,12 +588,10 @@ bool handleExterior(
 ) {
 	EdgeStack *pItem = pStack + *pStackPtr;
 	const Mesh *pMapMesh = pArgs->pBasic->pMap->pMesh;
-	Mesh *pBufMesh = (Mesh *)&pArgs->pMappingJobArgs[pItem->pPiece->pEntry->job].bufMesh;
 	I32 mapCorner = -1;
 	bool isReceive = checkIfIntersectsReceive(
 		pArgs,
 		pNeighbour,
-		pBufMesh,
 		pArgs->pBasic->pMap,
 		pMapFace,
 		&mapCorner,
@@ -1436,8 +1434,9 @@ void sortCorners(
 			break;
 		}
 		//Set next corner
-		if (stucGetIfStuc(pPiece->pEntry, corner) &&
-		    !stucGetIfOnLine(pPiece->pEntry, corner)) {
+		bool isStuc = stucGetIfStuc(pPiece->pEntry, corner);
+		bool onLine = stucGetIfOnLine(pPiece->pEntry, corner);
+		if (isStuc && !onLine) {
 			pPiece->add |= (I64)true << corner;
 			pPiece->pOrder[corner] = (U8)sort;
 			sort++;
@@ -1459,8 +1458,7 @@ void sortCorners(
 			);
 		}
 		if (!pOtherPiece) {
-			if (!adj ||
-				stucGetIfOnLine(pPiece->pEntry, corner)) {
+			if (!adj || (isStuc && onLine)) {
 				pPiece->add |= (I64)true << corner;
 				pPiece->pOrder[corner] = (U8)sort;
 				//set keep preserve to false if true
@@ -1526,7 +1524,8 @@ void initVertTableEntry(
 	BorderInInfo *pInInfo,
 	I32 mapFace,
 	I32 corner,
-	V2_I16 tile
+	V2_I16 tile,
+	bool onLine
 ) {
 	bool realloced = false;
 	I32 outVert =
@@ -1547,6 +1546,7 @@ void initVertTableEntry(
 	pVertEntry->cornerIdx = pInInfo->vertCorner;
 	pVertEntry->mapFace = mapFace;
 	pVertEntry->corner = corner;
+	pVertEntry->onLine = onLine;
 	pVertEntry->job = (I8)pEntry->job;
 }
 
@@ -1626,6 +1626,27 @@ void divideCornerAttribsByScalar(
 }
 
 static
+bool doesOnInVertMatchVertEntry(
+	MapToMeshBasic *pBasic,
+	BorderVert *pVertEntry,
+	BorderInInfo *pInInfo,
+	I32 mapFace,
+	I32 mapEdge,
+	bool onLine
+) {
+	V2_F32 *pMeshInUvA = pBasic->pInMesh->pUvs + pVertEntry->cornerIdx;
+	V2_F32 *pMeshInUvB = pBasic->pInMesh->pUvs + pInInfo->vertCorner;
+	return
+		pVertEntry->inVert == pInInfo->vert &&
+		pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
+		pMeshInUvA->d[1] == pMeshInUvB->d[1] &&
+		(
+			pVertEntry->mapFace == mapFace ||
+			(pVertEntry->onLine && onLine && pVertEntry->mapEdge == mapEdge)
+		);
+}
+
+static
 Result addBorderCornerAndVert(
 	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
@@ -1655,21 +1676,22 @@ Result addBorderCornerAndVert(
 		mapCorner >= 0 && mapCorner < pMap->pMesh->core.cornerCount);
 	BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pEntry, k);
 	bool isOnInVert = stucGetIfOnInVert(pEntry, k);
-	if (!isOnInVert) {
-		inInfo.vert = -1;
-	}
-	I32 hash;
+	bool onLine = isOnInVert ? stucGetIfOnLine(pEntry, k) : false;
 	I32 mapEdge;
-	if (isOnInVert) {
-		hash = stucFnvHash((U8 *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize);
-		mapEdge = -1;
-	}
-	else {
+	if (!isOnInVert || onLine) {
 		FaceRange mapFace =
 			stucGetFaceRange(&pMap->pMesh->core, pEntry->mapFace, false);
 		mapEdge = pMap->pMesh->core.pEdges[mapFace.start + mapCorner];
-		hash = stucFnvHash((U8 *)&mapEdge, 4, pArgs->pCTables->vertTableSize);
 	}
+	else {
+		mapEdge = -1;
+	}
+	if (!isOnInVert) {
+		inInfo.vert = -1;
+	}
+	I32 hash = isOnInVert ?
+		stucFnvHash((U8 *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize) :
+		stucFnvHash((U8 *)&mapEdge, 4, pArgs->pCTables->vertTableSize);
 	BlendConfig blendConfigAdd = {.blend = STUC_BLEND_ADD};
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
 	if (!pVertEntry->corners) {
@@ -1684,7 +1706,8 @@ Result addBorderCornerAndVert(
 				&inInfo,
 				pEntry->mapFace,
 				corner,
-				pPiece->tile
+				pPiece->tile,
+				onLine
 			);
 		}
 		else {
@@ -1700,12 +1723,14 @@ Result addBorderCornerAndVert(
 			STUC_ASSERT("", pVertEntry->mapFace < pMap->pMesh->core.faceCount);
 			bool match;
 			if (isOnInVert) {
-				V2_F32 *pMeshInUvA = pArgs->pBasic->pInMesh->pUvs + pVertEntry->cornerIdx;
-				V2_F32 *pMeshInUvB = pArgs->pBasic->pInMesh->pUvs + inInfo.vertCorner;
-				match = pVertEntry->inVert == inInfo.vert &&
-				        pVertEntry->mapFace == pEntry->mapFace &&
-				        pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
-				        pMeshInUvA->d[1] == pMeshInUvB->d[1];
+				match = doesOnInVertMatchVertEntry(
+					pArgs->pBasic,
+					pVertEntry,
+					&inInfo,
+					pEntry->mapFace,
+					mapEdge,
+					onLine
+				);
 			}
 			else {
 				BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
@@ -1713,11 +1738,12 @@ Result addBorderCornerAndVert(
 					_(pBufMesh->mesh.pUvs[corner] V2APROXEQL
 					pOtherBufMesh->mesh.pUvs[pVertEntry->corner]
 					);
-				match =  pVertEntry->mapEdge == mapEdge &&
-				         pVertEntry->tile.d[0] == pPiece->tile.d[0] &&
-				         pVertEntry->tile.d[1] == pPiece->tile.d[1] &&
-				         pVertEntry->inEdge == inInfo.edge &&
-				         connected;
+				match =
+					pVertEntry->mapEdge == mapEdge &&
+					pVertEntry->tile.d[0] == pPiece->tile.d[0] &&
+					pVertEntry->tile.d[1] == pPiece->tile.d[1] &&
+					pVertEntry->inEdge == inInfo.edge &&
+					connected;
 			}
 			if (match) {
 				//If corner isOnInVert,
@@ -1761,7 +1787,8 @@ Result addBorderCornerAndVert(
 					&inInfo,
 					pEntry->mapFace,
 					corner,
-					pPiece->tile
+					pPiece->tile,
+					onLine
 				);
 				break;
 			}
@@ -1858,17 +1885,22 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
 	I32 corner = pPiece->bufFace.start - k;
 
+	FaceRange mapFace =
+		stucGetFaceRange(&pMap->pMesh->core, pEntry->mapFace, false);
+	I32 mapEdge = pMap->pMesh->core.pEdges[mapFace.start + mapCorner];
+
 	BlendConfig blendConfigReplace = {.blend = STUC_BLEND_REPLACE, .opacity = 1.0f };
 	do {
 		STUC_ASSERT("", pVertEntry->mapFace >= 0);
 		STUC_ASSERT("", pVertEntry->mapFace < pMap->pMesh->core.faceCount);
-		bool match;
-		V2_F32 *pMeshInUvA = pArgs->pBasic->pInMesh->pUvs + pVertEntry->cornerIdx;
-		V2_F32 *pMeshInUvB = pArgs->pBasic->pInMesh->pUvs + inInfo.vertCorner;
-		match = pVertEntry->inVert == inInfo.vert &&
-		        pVertEntry->mapFace == pEntry->mapFace &&
-		        pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
-		        pMeshInUvA->d[1] == pMeshInUvB->d[1];
+		bool match = doesOnInVertMatchVertEntry(
+			pArgs->pBasic,
+			pVertEntry,
+			&inInfo,
+			pEntry->mapFace,
+			mapEdge,
+			stucGetIfOnLine(pEntry, k)
+		); 
 		if (match) {
 			STUC_RETURN_ERR_IFNOT_COND(err, pVertEntry->inVert != -1, "Entry is not onInVert");
 			BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
@@ -1903,7 +1935,7 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 		}
 		pVertEntry = pVertEntry->pNext;
 	} while(pVertEntry);
-	STUC_RETURN_ERR_IFNOT_COND(err, pVertEntry, "No entry was initialized for this corner");
+	STUC_ASSERT("No entry was initialized for this corner", pVertEntry);
 	return err;
 }
 

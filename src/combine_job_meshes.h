@@ -108,6 +108,7 @@ typedef struct BorderVert {
 	I8 job;
 	bool keepBaseCorner;
 	bool divided;
+	bool onLine;
 } BorderVert;
 
 typedef struct {

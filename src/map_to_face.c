@@ -67,6 +67,10 @@ bool checkIfOnVert(CornerBufWrap *pCornerBuf, I32 i, I32 iNext) {
 			(
 				(pCornerBuf->buf[i].onLine || pCornerBuf->buf[iNext].onLine) &&
 				(pCornerBuf->buf[i].isStuc ^ pCornerBuf->buf[iNext].isStuc)
+			) ||
+			(
+				pCornerBuf->buf[i].onLine && pCornerBuf->buf[iNext].onLine &&
+				pCornerBuf->buf[i].isStuc && pCornerBuf->buf[iNext].isStuc
 			)
 		);
 }
@@ -243,6 +247,9 @@ void addIntersectionToBuf(
 		appendToAncestors(pAlloc, pAncestors, pCornerBuf->buf + iNext);
 	pNewEntry->isStuc = false;
 	pNewEntry->stucCorner = pCornerBuf->buf[i].stucCorner;
+	if (pCornerBuf->buf[i].onLine && pCornerBuf->buf[iNext].onLine) {
+		pNewEntry->onLine = true;
+	}
 	ptBuf[*pCount] = pNewEntry->alpha;
 	++*pCount;
 	pNewCornerBuf->size++;
