@@ -57,9 +57,51 @@ typedef struct {
 
 static
 bool checkIfOnVert(CornerBufWrap *pCornerBuf, I32 i, I32 iNext) {
-	return (pCornerBuf->buf[i].baseCorner == pCornerBuf->buf[iNext].baseCorner ||
-	        pCornerBuf->buf[i].isBaseCorner || pCornerBuf->buf[iNext].isBaseCorner) &&
-	        !pCornerBuf->buf[i].isStuc && !pCornerBuf->buf[iNext].isStuc;
+	return
+		(
+			pCornerBuf->buf[i].baseCorner == pCornerBuf->buf[iNext].baseCorner ||
+			pCornerBuf->buf[i].isBaseCorner || pCornerBuf->buf[iNext].isBaseCorner
+		) &&
+		(
+			(!pCornerBuf->buf[i].isStuc && !pCornerBuf->buf[iNext].isStuc) ||
+			(
+				(pCornerBuf->buf[i].onLine || pCornerBuf->buf[iNext].onLine) &&
+				(pCornerBuf->buf[i].isStuc ^ pCornerBuf->buf[iNext].isStuc)
+			)
+		);
+}
+
+//this corner already resided on a previous base edge,
+//it must then reside on a base vert, rather than an edge
+static
+void handleOnInVert(
+	CornerBuf *pNewEntry,
+	CornerBufWrap *pCornerBuf,
+	I32 idx,
+	CornerInfo *pBaseCorner,
+	I32 mapFaceWindDir,
+	I32 faceWindDir
+) {
+	I32 lastBaseCorner = mapFaceWindDir ? pBaseCorner->idx - 1 : pBaseCorner->idx + 1;
+	bool whichVert = pCornerBuf->buf[idx].baseCorner == lastBaseCorner;
+	if (faceWindDir) {
+		pNewEntry->baseCorner = whichVert ?
+			pBaseCorner->localIdx : pBaseCorner->localIdxNext;
+		if (!whichVert) {
+			//if the corner maintains it's existing incorner,
+			//then ensure the segment also carries over
+			// same for else statement
+			pNewEntry->segment = pCornerBuf->buf[idx].segment;
+		}
+	}
+	else {
+		pNewEntry->baseCorner = whichVert ?
+			pBaseCorner->localIdxPrev : pBaseCorner->localIdx;
+		if (whichVert) {
+			pNewEntry->segment = pCornerBuf->buf[idx].segment;
+		}
+	}
+	pNewEntry->isBaseCorner = true;
 }
 
 static
@@ -73,7 +115,9 @@ void addInsideCornerToBuf(
 	CornerInfo *pBaseCorner,
 	IslandIdxPair *pIntersectCache,
 	F32 *ptBuf,
-	I32 *pCount
+	I32 *pCount,
+	I32 mapFaceWindDir,
+	I32 faceWindDir
 ) {
 	CornerBuf *pNewEntry = pNewCornerBuf->buf + pNewCornerBuf->size;
 	pNewCornerBuf->buf[pNewCornerBuf->size] = pCornerBuf->buf[i];
@@ -87,7 +131,7 @@ void addInsideCornerToBuf(
 		//is on line
 		if ((pInsideBuf[iPrev] == 0 && pInsideBuf[iNext] == 1) ||
 			(pInsideBuf[iPrev] == 1 && pInsideBuf[iNext] == 0)) {
-			//add to intersection but
+			//add to intersection buf
 			pIntersectCache[*pCount].pIsland = pNewCornerBuf;
 			pIntersectCache[*pCount].corner = pNewCornerBuf->size;
 			CornerBuf *pCorner = pCornerBuf->buf + i;
@@ -105,23 +149,14 @@ void addInsideCornerToBuf(
 			ptBuf[*pCount] = pNewEntry->alpha;
 			++*pCount;
 		}
-		if (pCornerBuf->buf[i].onLine) {
-			//this corner already resided on a previous base edge,
-			//it must then reside on a base vert, rather than an edge.
-			//determine which vert in the edge it sits on:
-			I32 onLineBase;
-			if (pCornerBuf->buf[i].corner.d[0] == pBaseCorner->vert.d[0] &&
-			    pCornerBuf->buf[i].corner.d[1] == pBaseCorner->vert.d[1]) {
-
-				//on base vert
-				onLineBase = pBaseCorner->localIdx;
-			}
-			else {
-				//on next base vert
-				onLineBase = pBaseCorner->localIdxNext;
-			}
-			pNewEntry->baseCorner = (I8)onLineBase;
-			pNewEntry->isBaseCorner = true;
+		if (pCornerBuf->buf[i].onLine || !pCornerBuf->buf[i].isStuc) {
+			handleOnInVert(
+				pNewEntry,
+				pCornerBuf, i,
+				pBaseCorner,
+				mapFaceWindDir, 
+				faceWindDir
+			);
 		}
 		else if (pCornerBuf->buf[i].isStuc) {
 			//resides on base edge
@@ -191,26 +226,13 @@ void addIntersectionToBuf(
 	//V3_F32 up = {.0f, .0f, 1.0f};
 	//pNewEntry->normal = up;
 	if (checkIfOnVert(pCornerBuf, i, iNext)) {
-		I32 lastBaseCorner = mapFaceWindDir ?
-			pBaseCorner->idx - 1 : pBaseCorner->idx + 1;
-		bool whichVert = pCornerBuf->buf[i].baseCorner == lastBaseCorner;
-		if (faceWindDir) {
-			pNewEntry->baseCorner = whichVert ?
-				pBaseCorner->localIdx : pBaseCorner->localIdxNext;
-			if (!whichVert) {
-				pNewEntry->segment = pCornerBuf->buf[i].segment;
-			}
-		}
-		else {
-			pNewEntry->baseCorner = whichVert ?
-				pBaseCorner->localIdxPrev : pBaseCorner->localIdx;
-			if (whichVert) {
-				pNewEntry->segment = pCornerBuf->buf[i].segment;
-			}
-		}
-		//if the corner maintains it's existing incorner,
-		//then ensure the segment also carries over
-		pNewEntry->isBaseCorner = true;
+		handleOnInVert(
+			pNewEntry,
+			pCornerBuf, i,
+			pBaseCorner,
+			mapFaceWindDir, 
+			faceWindDir
+		);
 	}
 	else {
 		pNewEntry->baseCorner = (I8)pBaseCorner->idx;
@@ -459,7 +481,9 @@ Result clipMapFaceAgainstCorner(
 				pBaseCorner,
 				intersectCache,
 				ptBuf,
-				&count
+				&count,
+				mapFaceWindDir,
+				faceWindDir
 			);
 		}
 		else if (in) {
