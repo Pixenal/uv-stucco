@@ -20,6 +20,7 @@ typedef struct {
 typedef struct {
 	BoundsCornerBufEntry* pBuf;
 	I32 count;
+	I32 top;
 } BoundsCornerBuf;
 
 typedef struct {
@@ -47,13 +48,17 @@ typedef struct {
 	I32 segment;
 } EdgeSegmentPair;
 
-// // indicates only used in createAndJoinPieces
+struct CornerIdx;
+
+// '//' indicates only used in createAndJoinPieces
+//TODO vary size of bit fields like in BorderFace struct
 typedef struct Piece {
 	struct Piece *pNext;
 	FaceRange bufFace;
 	BorderFace *pEntry;
 	EdgeSegmentPair *pEdges;
 	U8 *pOrder;
+	struct CornerIdx *pMergeIdxArr;
 	UBitField64 keepSeam;//
 	UBitField64 keepPreserve;
 	UBitField64 keepVertPreserve;//
@@ -83,7 +88,16 @@ typedef struct {
 typedef struct {
 	I32 *pArr;
 	I32 count;
+	I32 job;
+	PieceArr *pPieceArr;
 } PieceRootsArr;
+
+typedef struct {
+	Piece *pPiece;
+	PieceRootsArr *pRootArr;
+	I16 corner;
+	bool snap;
+} CornerIdx;
 
 typedef struct OnLine {
 	struct OnLine *pNext;
@@ -95,17 +109,14 @@ typedef struct OnLine {
 
 typedef struct BorderVert {
 	struct BorderVert *pNext;
-	V2_I16 tile;
+	CornerIdx mergeTo;
 	I32 entryIdx;
-	I32 mapFace;
 	I32 mapEdge;
 	I32 vert;
 	I32 corners;
 	I32 inEdge;
 	I32 inVert;
 	I32 cornerIdx;
-	I32 corner;
-	I8 job;
 	bool keepBaseCorner;
 	bool divided;
 	bool onLine;
@@ -169,6 +180,7 @@ void stucMergeSingleBorderFace(
 	FaceRange *pStucFace,
 	MergeBufHandles *pMergeBufHandles,
 	I32 *pInFaces,
+	BorderVert ***pppVertLookup,
 	I32 entryCount
 );
 void stucDestroyMergeBufs(StucContext pCtx, MergeBufHandles *pHandle);
@@ -191,3 +203,4 @@ I32 stucGetBaseCorner(const BorderFace *pEntry, I32 cornerIdx);
 V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry);
 I32 stucBufMeshGetVertIdx(const Piece *pPiece, const BufMesh *pBufMesh, I32 localCorner);
 I32 stucBufMeshGetEdgeIdx(const Piece *pPiece, const BufMesh *pBufMesh, I32 localCorner);
+void stucCorrectSortAfterRemoval(Piece *pPiece, Piece *pPieceRoot, I32 corner);

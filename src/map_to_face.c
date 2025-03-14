@@ -451,9 +451,9 @@ Result clipMapFaceAgainstCorner(
 ) {
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pCornerBuf->size; ++i) {
-		V2_F32 stucVert = *(V2_F32 *)&pCornerBuf->buf[i].corner;
-		V2_F32 uvStucDir = _(stucVert V2SUB pBaseCorner->vert);
-		F32 dot = _(baseCornerCross V2DOT uvStucDir);
+		V2_F32 mapVert = *(V2_F32 *)&pCornerBuf->buf[i].corner;
+		V2_F32 uvMapDir = _(mapVert V2SUB pBaseCorner->vert);
+		F32 dot = _(baseCornerCross V2DOT uvMapDir);
 		bool onLine = dot == .0f;
 		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ ((bool)mapFaceWindDir ^ (bool)faceWindDir);
 	}
@@ -1458,12 +1458,6 @@ void addStucCornerAndOrVert(
 }
 
 static
-void setBorderFaceMapAttrib(BorderFace *pEntry, UBitField8 *pArr, I32 corner, I32 value) {
-	I32 len = 3 + pEntry->memType;
-	stucSetBitArr(pArr, corner, value, len);
-}
-
-static
 void initBorderTableEntry(
 	MappingJobState *pState,
 	I32 bufFace,
@@ -1500,7 +1494,7 @@ void initBorderTableEntry(
 			stucSetBitArr(bitArrs.pIsStuc, i, true, 1);
 		}
 		if (pCorner->stucCorner) {
-			setBorderFaceMapAttrib(pEntry, bitArrs.pStucCorner, i, pCorner->stucCorner);
+			stucSetBorderFaceMapAttrib(pEntry, bitArrs.pStucCorner, i, pCorner->stucCorner);
 		}
 		if (pCorner->isBaseCorner) {
 			stucSetBitArr(bitArrs.pOnInVert, i, true, 1);
@@ -1521,7 +1515,7 @@ void initBorderTableEntry(
 			}
 			j--;
 			if (j) {
-				setBorderFaceMapAttrib(pEntry, bitArrs.pSegment, i, j);
+				stucSetBorderFaceMapAttrib(pEntry, bitArrs.pSegment, i, j);
 			}
 		}
 		// Only add basecorner for stuc if online, otherwise value will

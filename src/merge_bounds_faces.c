@@ -745,8 +745,9 @@ void decideNextEdge(
 
 static
 void setKeepIfOnInVert(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 corner) {
-	bool onInVert = stucGetIfOnInVert(pPiece->pEntry, corner);
-	if (onInVert) {
+	if (stucGetIfOnInVert(pPiece->pEntry, corner) &&
+		!stucGetIfOnLine(pPiece->pEntry, corner) //on-line on-in-vert corners are on exterior
+	) {
 		BorderInInfo inInfo =
 			stucGetBorderEntryInInfo(pArgs->pBasic, pPiece->pEntry, corner);
 		stucSetBitArr(pArgs->pInVertKeep, inInfo.vert, true, 1);
@@ -1284,6 +1285,8 @@ Result splitIntoPieces(
 	}
 	Piece *pEntries = pAlloc->pCalloc(entryCount, sizeof(Piece));
 	pPieceRoots->pArr = pAlloc->pMalloc(sizeof(I32) * entryCount);
+	pPieceRoots->job = pArgs->job;
+	pPieceRoots->pPieceArr = pPieceArr;
 	pPieceArr->pArr = pEntries;
 	pPieceArr->count = entryCount;
 	I32 entryIdx = 0;
@@ -1515,39 +1518,32 @@ void getPieceInFaces(
 
 static
 void initVertTableEntry(
-	MakePiecesJobArgs *pArgs,
+	MapToMeshBasic *pBasic,
 	BorderVert *pVertEntry,
-	BorderFace *pEntry,
+	Piece *pPiece,
+	PieceRootsArr *pRootArr,
 	BufMesh *pBufMesh,
 	I32 mapEdge,
-	I32 *pVert,
-	BorderInInfo *pInInfo,
+	I32 mapCorner,
+	I32 vert,
+	const BorderInInfo *pInInfo,
 	I32 mapFace,
 	I32 corner,
 	V2_I16 tile,
-	bool onLine
+	bool onLine,
+	I32 jobIdx
 ) {
-	bool realloced = false;
-	I32 outVert =
-		stucMeshAddVert(pArgs->pBasic->pCtx, &pArgs->pBasic->outMesh, &realloced);
-	stucCopyAllAttribs(
-		&pArgs->pBasic->outMesh.core.vertAttribs,
-		outVert,
-		&pBufMesh->mesh.core.vertAttribs,
-		*pVert
-	);
-	*pVert = outVert;
-	pVertEntry->vert = outVert;
-	pVertEntry->tile = tile;
+	pVertEntry->mergeTo.snap = false;
+	pVertEntry->mergeTo.pPiece = pPiece;
+	pVertEntry->mergeTo.pRootArr = pRootArr;
+	pVertEntry->mergeTo.corner = corner;
+	pVertEntry->vert = vert;
 	pVertEntry->mapEdge = mapEdge;
 	pVertEntry->corners = 1;
 	pVertEntry->inEdge = pInInfo->edge;
 	pVertEntry->inVert = pInInfo->vert;
 	pVertEntry->cornerIdx = pInInfo->vertCorner;
-	pVertEntry->mapFace = mapFace;
-	pVertEntry->corner = corner;
 	pVertEntry->onLine = onLine;
-	pVertEntry->job = (I8)pEntry->job;
 }
 
 static
@@ -1627,9 +1623,9 @@ void divideCornerAttribsByScalar(
 
 static
 bool doesOnInVertMatchVertEntry(
-	MapToMeshBasic *pBasic,
+	const MapToMeshBasic *pBasic,
 	BorderVert *pVertEntry,
-	BorderInInfo *pInInfo,
+	const BorderInInfo *pInInfo,
 	I32 mapFace,
 	I32 mapEdge,
 	bool onLine
@@ -1641,73 +1637,53 @@ bool doesOnInVertMatchVertEntry(
 		pMeshInUvA->d[0] == pMeshInUvB->d[0] &&
 		pMeshInUvA->d[1] == pMeshInUvB->d[1] &&
 		(
-			pVertEntry->mapFace == mapFace ||
+			pVertEntry->mergeTo.pPiece->pEntry->mapFace == mapFace ||
 			(pVertEntry->onLine && onLine && pVertEntry->mapEdge == mapEdge)
 		);
 }
 
 static
-Result addBorderCornerAndVert(
+Result addToOrFindInVertTable(
 	MakePiecesJobArgs *pArgs,
 	Piece *pPiece,
-	Piece *pPieceRoot,
-	I32 k,
-	bool addToTables
+	PieceRootsArr *pRootArr,
+	bool addToTables,
+	BufMesh *pBufMesh,
+	const BorderInInfo *pInInfo,
+	I32 mapEdge,
+	I32 mapCorner,
+	I32 corner,
+	I32 vert,
+	bool isOnInVert,
+	bool onLine,
+	BorderVert **ppVertEntry,
+	I32 jobIdx
+
 ) {
 	Result err = STUC_SUCCESS;
-	StucMap pMap = pArgs->pBasic->pMap;
-	BorderFace *pEntry = pPiece->pEntry;
-	STUC_ASSERT(
-		"This should not be called on a map corner",
-		!stucGetIfStuc(pEntry, k)
-	);
-	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
-	I32 corner = pPiece->bufFace.start - k;
-	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, k);
-	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
-	STUC_ASSERT("", vert < pBufMesh->mesh.vertBufSize);
-#ifndef STUC_DISABLE_EDGES_IN_BUF
-	I32 edge = stucBufMeshGetEdgeIdx(pPiece, pBufMesh, k);
-	STUC_ASSERT("", edge > pBufMesh->mesh.edgeBufSize - 1 - pBufMesh->borderEdgeCount);
-	STUC_ASSERT("", edge < pBufMesh->mesh.edgeBufSize);
-#endif
-	I32 mapCorner = stucGetMapCorner(pEntry, k);
-	STUC_ASSERT("",
-		mapCorner >= 0 && mapCorner < pMap->pMesh->core.cornerCount);
-	BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pEntry, k);
-	bool isOnInVert = stucGetIfOnInVert(pEntry, k);
-	bool onLine = isOnInVert ? stucGetIfOnLine(pEntry, k) : false;
-	I32 mapEdge;
-	if (!isOnInVert || onLine) {
-		FaceRange mapFace =
-			stucGetFaceRange(&pMap->pMesh->core, pEntry->mapFace, false);
-		mapEdge = pMap->pMesh->core.pEdges[mapFace.start + mapCorner];
-	}
-	else {
-		mapEdge = -1;
-	}
-	if (!isOnInVert) {
-		inInfo.vert = -1;
-	}
+	*ppVertEntry = NULL;
 	I32 hash = isOnInVert ?
-		stucFnvHash((U8 *)&inInfo.vert, 4, pArgs->pCTables->vertTableSize) :
+		stucFnvHash((U8 *)&pInInfo->vert, 4, pArgs->pCTables->vertTableSize) :
 		stucFnvHash((U8 *)&mapEdge, 4, pArgs->pCTables->vertTableSize);
 	BlendConfig blendConfigAdd = {.blend = STUC_BLEND_ADD};
 	BorderVert *pVertEntry = pArgs->pCTables->pVertTable + hash;
 	if (!pVertEntry->corners) {
 		if (addToTables) {
 			initVertTableEntry(
-				pArgs,
+				pArgs->pBasic,
 				pVertEntry,
-				pEntry,
+				pPiece,
+				pRootArr,
 				pBufMesh,
 				mapEdge,
-				&vert,
-				&inInfo,
-				pEntry->mapFace,
+				mapCorner,
+				vert,
+				pInInfo,
+				pPiece->pEntry->mapFace,
 				corner,
 				pPiece->tile,
-				onLine
+				onLine,
+				jobIdx
 			);
 		}
 		else {
@@ -1716,33 +1692,41 @@ Result addBorderCornerAndVert(
 	}
 	else {
 		do {
-			//Check vert entry is valid
+			Piece *pOtherPiece = pVertEntry->mergeTo.pPiece;
 			STUC_ASSERT("", pVertEntry->mapEdge >= -1);
-			STUC_ASSERT("", pVertEntry->mapEdge < pMap->pMesh->core.edgeCount);
-			STUC_ASSERT("", pVertEntry->mapFace >= 0);
-			STUC_ASSERT("", pVertEntry->mapFace < pMap->pMesh->core.faceCount);
+			STUC_ASSERT(
+				"",
+				pVertEntry->mapEdge < pArgs->pBasic->pMap->pMesh->core.edgeCount
+			);
+			STUC_ASSERT("", pOtherPiece->pEntry->mapFace >= 0);
+			STUC_ASSERT(
+				"",
+				pOtherPiece->pEntry->mapFace < pArgs->pBasic->pMap->pMesh->core.faceCount
+			);
 			bool match;
 			if (isOnInVert) {
 				match = doesOnInVertMatchVertEntry(
 					pArgs->pBasic,
 					pVertEntry,
-					&inInfo,
-					pEntry->mapFace,
+					pInInfo,
+					pPiece->pEntry->mapFace,
 					mapEdge,
 					onLine
 				);
 			}
 			else {
-				BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
+				BufMesh *pOtherBufMesh =
+					&pArgs->pMappingJobArgs[pOtherPiece->pEntry->job].bufMesh;
 				bool connected = 
-					_(pBufMesh->mesh.pUvs[corner] V2APROXEQL
-					pOtherBufMesh->mesh.pUvs[pVertEntry->corner]
+					_(pBufMesh->mesh.pUvs[pPiece->bufFace.start - corner] V2APROXEQL
+					pOtherBufMesh->mesh.pUvs[pOtherPiece->bufFace.start - pVertEntry->mergeTo.corner]
 					);
+				V2_I16 otherTile = stucGetTileMinFromBoundsEntry(pOtherPiece->pEntry);
 				match =
 					pVertEntry->mapEdge == mapEdge &&
-					pVertEntry->tile.d[0] == pPiece->tile.d[0] &&
-					pVertEntry->tile.d[1] == pPiece->tile.d[1] &&
-					pVertEntry->inEdge == inInfo.edge &&
+					otherTile.d[0] == pPiece->tile.d[0] &&
+					otherTile.d[1] == pPiece->tile.d[1] &&
+					pVertEntry->inEdge == pInInfo->edge &&
 					connected;
 			}
 			if (match) {
@@ -1754,16 +1738,17 @@ Result addBorderCornerAndVert(
 					(isOnInVert && pVertEntry->inVert != -1) ||
 					(!isOnInVert && pVertEntry->inVert == -1)
 				);
-				vert = pVertEntry->vert;
 				pVertEntry->corners++;
+				//move this to when buf vert indices are updated
 				if (isOnInVert) {
-					BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
+					BufMesh *pOtherBufMesh =
+						&pArgs->pMappingJobArgs[pOtherPiece->pEntry->job].bufMesh;
 					err = blendMergedCornerAttribs(
 						blendConfigAdd,
 						&pOtherBufMesh->mesh.core.cornerAttribs,
-						pVertEntry->corner,
+						pOtherPiece->bufFace.start - pVertEntry->mergeTo.corner,
 						&pBufMesh->mesh.core.cornerAttribs,
-						corner,
+						pPiece->bufFace.start - corner,
 						stucGetActiveAttrib(
 							pArgs->pBasic->pCtx,
 							&pOtherBufMesh->mesh.core,
@@ -1778,23 +1763,143 @@ Result addBorderCornerAndVert(
 				pVertEntry = pVertEntry->pNext =
 					pArgs->pBasic->pCtx->alloc.pCalloc(1, sizeof(BorderVert));
 				initVertTableEntry(
-					pArgs,
+					pArgs->pBasic,
 					pVertEntry,
-					pEntry,
+					pPiece,
+					pRootArr,
 					pBufMesh,
 					mapEdge,
-					&vert,
-					&inInfo,
-					pEntry->mapFace,
+					mapCorner,
+					vert,
+					pInInfo,
+					pPiece->pEntry->mapFace,
 					corner,
 					pPiece->tile,
-					onLine
+					onLine,
+					jobIdx
 				);
 				break;
 			}
 			pVertEntry = pVertEntry->pNext;
 		} while(pVertEntry);
 	}
+	*ppVertEntry = pVertEntry;
+	return err;
+}
+
+static
+I32 mergeWithStucIfOverlapping(
+	MapToMeshBasic *pBasic,
+	Piece *pPiece,
+	BufMesh *pBufMesh,
+	I32 corner,
+	I32 mapCorner
+	//bool *pDontRemoveAddFlag
+) {
+	STUC_ASSERT("", stucGetIfOnLine(pPiece->pEntry, corner));
+	const Mesh *pMapMesh = pBasic->pMap->pMesh;
+	FaceRange mapFace =
+		stucGetFaceRange(&pMapMesh->core, pPiece->pEntry->mapFace, false);
+	I32 mapCornerNext = (mapCorner + 1) % mapFace.size;
+	V3_F32 bufUvw = { .d = {
+		0, 0,
+		pBufMesh->pW[pPiece->bufFace.start - corner] * pBasic->wScale}
+	};
+	*(V2_F32 *)&bufUvw = pBufMesh->mesh.pUvs[pPiece->bufFace.start - corner];
+	V3_F32 mapVert =
+		pMapMesh->pVerts[pMapMesh->core.pCorners[mapFace.start + mapCornerNext]];
+	//TODO relying on each corner being within the approx margin.
+	//If one is not (and the other corners for that vert art) there will be a split uv.
+	//Though it's unlikely floating point imprecision would cause approxeql to fail
+	//(assuming the margin macro isn't changed to a lower value).
+	return _(bufUvw V3APROXEQL mapVert) ? mapCornerNext : -1;
+	/*
+	bool overlap = _(bufUvw V3APROXEQL mapVert);
+	if (!overlap) {
+		return false;
+	}
+	Piece *targetPiece = getPieceWithMapCorner(pPiece, mapCornerNext);
+	if (targetPiece) {
+		//map corner is within this piece, so just set add to false
+		*pDontRemoveAddFlag = false;
+	}
+	else {
+		//map corner is in another piece,
+		// so mark this corner as a map corner so it's merged later
+		BorderFaceBitArrs bitArrs = {0};
+		stucGetBorderFaceBitArrs(pPiece->pEntry, &bitArrs);
+		stucSetBitArr(bitArrs.pIsStuc, corner, true, 1);
+		*pDontRemoveAddFlag = true;
+	}
+	return true;
+	*/
+}
+
+
+static
+Result addBorderCornerAndVert(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
+	Piece *pPiece,
+	Piece *pPieceRoot,
+	PieceRootsArr *pRootArr,
+	I32 corner,
+	bool addToTables,
+	I32 jobIdx
+) {
+	Result err = STUC_SUCCESS;
+	const StucMap pMap = pArgs->pBasic->pMap;
+	const BorderFace *pEntry = pPiece->pEntry;
+	STUC_ASSERT(
+		"This should not be called on a map corner",
+		!stucGetIfStuc(pEntry, corner)
+	);
+	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
+	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, corner);
+	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
+	STUC_ASSERT("", vert < pBufMesh->mesh.vertBufSize);
+#ifndef STUC_DISABLE_EDGES_IN_BUF
+	I32 edge = stucBufMeshGetEdgeIdx(pPiece, pBufMesh, corner);
+	STUC_ASSERT("", edge > pBufMesh->mesh.edgeBufSize - 1 - pBufMesh->borderEdgeCount);
+	STUC_ASSERT("", edge < pBufMesh->mesh.edgeBufSize);
+#endif
+	I32 mapCorner = stucGetMapCorner(pEntry, corner);
+	STUC_ASSERT("",
+		mapCorner >= 0 && mapCorner < pMap->pMesh->core.cornerCount);
+	BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pEntry, corner);
+	bool isOnInVert = stucGetIfOnInVert(pEntry, corner);
+	bool onLine = isOnInVert ? stucGetIfOnLine(pEntry, corner) : false;
+	I32 mapEdge;
+	FaceRange mapFace = {0};
+	if (!isOnInVert || onLine) {
+		mapFace = stucGetFaceRange(&pMap->pMesh->core, pEntry->mapFace, false);
+		mapEdge = pMap->pMesh->core.pEdges[mapFace.start + mapCorner];
+	}
+	else {
+		mapEdge = -1;
+	}
+	if (!isOnInVert) {
+		inInfo.vert = -1;
+	}
+	BorderVert *pVertEntry = NULL;
+	err = addToOrFindInVertTable(
+		pArgs,
+		pPiece,
+		pRootArr,
+		addToTables,
+		pBufMesh,
+		&inInfo,
+		mapEdge,
+		mapCorner,
+		corner,
+		vert,
+		isOnInVert,
+		onLine,
+		&pVertEntry,
+		jobIdx
+	);
+	STUC_RETURN_ERR_IFNOT(err, "");
+
 	//TODO debug/ verify border edge implementation is working correctly
 	//TODO why cant you just determine connected edges with the above corner table?
 	//     is a separate table really needed? If you know 2 corners are connected,
@@ -1843,30 +1948,25 @@ Result addBorderCornerAndVert(
 	}
 #endif
 	if (pVertEntry) {
-		pBufMesh->mesh.core.pCorners[corner] = vert;
-		pBufMesh->mesh.core.pEdges[corner] = 0;
-	}
-	else {
-		//set add to false
-		UBitField16 mask = -0x1 ^ (0x1 << k);
-		pPiece->add &= mask;
-		//correct sort, as this corner will not be kept
-		I32 sort = pPiece->pOrder[k];
-		pPiece = pPieceRoot;
-		do {
-			for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
-				if (pPiece->pOrder[i] > sort) {
-					pPiece->pOrder[i]--;
-				}
-			}
-			pPiece = pPiece->pNext;
-		} while(pPiece);
+		I32 cornerIdxReal = pPiece->bufFace.start - corner;
+		I32 cornerIdxVirtual = pBufMesh->mesh.cornerBufSize - cornerIdxReal - 1;
+		STUC_ASSERT(
+			"",
+			cornerIdxVirtual >= 0 && cornerIdxVirtual < pBufMesh->borderCornerCount
+		);
+		pppVertLookup[pEntry->job][cornerIdxVirtual] = pVertEntry;
+
+		pBufMesh->mesh.core.pEdges[cornerIdxReal] = 0;
 	}
 	return err;
 }
 
 static
-Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 k) {
+Result mergeAttribsForSingleCorner(
+	MakePiecesJobArgs *pArgs,
+	Piece *pPiece, PieceArr *pPieceArr,
+	I32 k
+) {
 	Result err = STUC_SUCCESS;
 	StucMap pMap = pArgs->pBasic->pMap;
 	BorderFace *pEntry = pPiece->pEntry;
@@ -1891,8 +1991,8 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 
 	BlendConfig blendConfigReplace = {.blend = STUC_BLEND_REPLACE, .opacity = 1.0f };
 	do {
-		STUC_ASSERT("", pVertEntry->mapFace >= 0);
-		STUC_ASSERT("", pVertEntry->mapFace < pMap->pMesh->core.faceCount);
+		STUC_ASSERT("", pVertEntry->mergeTo.pPiece->pEntry->mapFace >= 0);
+		STUC_ASSERT("", pVertEntry->mergeTo.pPiece->pEntry->mapFace < pMap->pMesh->core.faceCount);
 		bool match = doesOnInVertMatchVertEntry(
 			pArgs->pBasic,
 			pVertEntry,
@@ -1903,12 +2003,12 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 		); 
 		if (match) {
 			STUC_RETURN_ERR_IFNOT_COND(err, pVertEntry->inVert != -1, "Entry is not onInVert");
-			BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->job].bufMesh;
+			BufMesh *pOtherBufMesh = &pArgs->pMappingJobArgs[pVertEntry->mergeTo.pPiece->pEntry->job].bufMesh;
 			if (!pVertEntry->divided) {
 				//TODO replace this call with the regular blend attrib func
 				divideCornerAttribsByScalar(
 					&pOtherBufMesh->mesh.core.cornerAttribs,
-					pVertEntry->corner,
+					pVertEntry->mergeTo.pPiece->bufFace.start - pVertEntry->mergeTo.corner,
 					pVertEntry->corners,
 					stucGetActiveAttrib(
 						pArgs->pBasic->pCtx,
@@ -1923,7 +2023,7 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 				&pBufMesh->mesh.core.cornerAttribs,
 				corner,
 				&pOtherBufMesh->mesh.core.cornerAttribs,
-				pVertEntry->corner,
+				pVertEntry->mergeTo.pPiece->bufFace.start - pVertEntry->mergeTo.corner,
 				stucGetActiveAttrib(
 					pArgs->pBasic->pCtx,
 					&pBufMesh->mesh.core,
@@ -1940,7 +2040,7 @@ Result mergeAttribsForSingleCorner(MakePiecesJobArgs *pArgs, Piece *pPiece, I32 
 }
 
 static
-void addToOutMesh(MakePiecesJobArgs *pArgs) {
+void addToOutMesh(MakePiecesJobArgs *pArgs, BorderVert ***pppVertLookup) {
 	StucContext pCtx = pArgs->pBasic->pCtx;
 	const StucAlloc *pAlloc = &pCtx->alloc;
 	StucMap pMap = pArgs->pBasic->pMap;
@@ -1976,6 +2076,7 @@ void addToOutMesh(MakePiecesJobArgs *pArgs) {
 				&mapFace,
 				&mergeBufHandles,
 				pInFaces,
+				pppVertLookup,
 				pieceCount
 			);
 			if (pInFaces) {
@@ -1991,13 +2092,15 @@ void addToOutMesh(MakePiecesJobArgs *pArgs) {
 static
 Result addPieceBorderCornersAndVerts(
 	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
 	PieceArr *pPieceArr,
-	PieceRootsArr *pPieceRoots,
+	PieceRootsArr *pRootArr,
 	bool preserve,
-	I32 pieceIdx
+	I32 pieceIdx,
+	I32 jobIdx
 ) {
 	Result err = STUC_SUCCESS;
-	Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[pieceIdx];
+	Piece *pPiece = pPieceArr->pArr + pRootArr->pArr[pieceIdx];
 	Piece *pPieceRoot = pPiece;
 	do {
 		for (I32 k = 0; k < pPiece->bufFace.size; ++k) {
@@ -2016,7 +2119,16 @@ Result addPieceBorderCornersAndVerts(
 					"corner marked add, but sort didn't touch it?",
 					pPiece->pOrder[k] > 0
 				);
-				err = addBorderCornerAndVert(pArgs, pPiece, pPieceRoot, k, !preserve);
+				err = addBorderCornerAndVert(
+					pArgs,
+					pppVertLookup,
+					pPiece,
+					pPieceRoot,
+					pRootArr,
+					k,
+					!preserve,
+					jobIdx
+				);
 				STUC_RETURN_ERR_IFNOT(err, "");
 			}
 		}
@@ -2026,7 +2138,11 @@ Result addPieceBorderCornersAndVerts(
 }
 
 static
-Result mergeIntersectionCorners(MakePiecesJobArgs *pArgs, bool preserve) {
+Result mergeIntersectionCorners(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
+	bool preserve
+) {
 	Result err = STUC_SUCCESS;
 	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	for (I32 i = 0; i < count; ++i) {
@@ -2036,10 +2152,12 @@ Result mergeIntersectionCorners(MakePiecesJobArgs *pArgs, bool preserve) {
 		for (I32 j = 0; j < pPieceRoots->count; ++j) {
 			err = addPieceBorderCornersAndVerts(
 				pArgs,
+				pppVertLookup,
 				pPieceArr,
 				pPieceRoots,
 				preserve,
-				j
+				j,
+				i
 			);
 			STUC_RETURN_ERR_IFNOT(err, "");
 		}
@@ -2063,7 +2181,7 @@ Result mergePieceCornerAttribs(
 			    !stucGetIfStuc(pPiece->pEntry, k) &&
 			    stucGetIfOnInVert(pPiece->pEntry, k)) {
 
-				err = mergeAttribsForSingleCorner(pArgs, pPiece, k);
+				err = mergeAttribsForSingleCorner(pArgs, pPiece, pPieceArr, k);
 				STUC_RETURN_ERR_IFNOT(err, "");
 			}
 		}
@@ -2338,25 +2456,262 @@ Result createAndJoinPieces(void *pArgsVoid) {
 }
 
 static
-Result mergeAndAddToOutMesh(
-	int32_t jobCount,
+bool findMapCornerInBorderFace(Piece *pPiece, I32 mapCorner, I32 *pCorner) {
+	for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
+		if (stucGetIfStuc(pPiece->pEntry, i) &&
+			stucGetMapCorner(pPiece->pEntry, i) == mapCorner
+			) {
+			if (pCorner) {
+				*pCorner = i;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+static
+Piece *getPieceWithMapCorner(PieceRootsArr *pRootArr, I32 mapCorner, I32 *pCorner) {
+	for (I32 i = 0; i < pRootArr->count; ++i) {
+		Piece *pPiece = pRootArr->pPieceArr->pArr + pRootArr->pArr[i];
+		do {
+			if (findMapCornerInBorderFace(pPiece, mapCorner, pCorner)) {
+				return pPiece;
+			}
+			pPiece = pPiece->pNext;
+		} while(pPiece);
+	}
+	return NULL;
+}
+
+static
+void setNewMergeTo(
+	const MapToMeshBasic *pBasic,
+	CornerIdx *pMergeTo,
+	V3_F32 bufUvw,
+	I32 mapCorner,
+	const FaceRange *pMapFace
+) {
+	STUC_ASSERT("", !pMergeTo->snap);
+	const Mesh *pMapMesh = pBasic->pMap->pMesh;
+	V3_F32 mapVert =
+		pMapMesh->pVerts[pMapMesh->core.pCorners[pMapFace->start + mapCorner]];
+	bool withinMargin = _(bufUvw V3APROXEQL mapVert);
+	if (withinMargin) {
+		I32 newCorner = 0;
+		Piece *pNewPiece = getPieceWithMapCorner(
+			pMergeTo->pRootArr,
+			mapCorner,
+			&newCorner
+		);
+		if (pNewPiece) {
+			pMergeTo->pPiece = pNewPiece;
+			pMergeTo->corner = newCorner;
+			pMergeTo->snap = true;
+		}
+	}
+}
+
+static
+void mergeIfInMargin(
+	const MapToMeshBasic *pBasic,
+	MappingJobArgs *pMappingJobArgs,
+	BorderVert *pVertEntry
+) {
+	Piece *pPiece = pVertEntry->mergeTo.pPiece;
+	I32 corner = pVertEntry->mergeTo.corner;
+	BufMesh *pBufMesh = &pMappingJobArgs[pPiece->pEntry->job].bufMesh;
+	V3_F32 bufUvw = { .d = {
+		0, 0,
+		pBufMesh->pW[pPiece->bufFace.start - corner] * pBasic->wScale}
+	};
+	*(V2_F32 *)&bufUvw = pBufMesh->mesh.pUvs[pPiece->bufFace.start - corner];
+	FaceRange mapFace = stucGetFaceRange(
+		&pBasic->pMap->pMesh->core,
+		pPiece->pEntry->mapFace,
+		false
+	);
+	I32 mapCorner = stucGetMapCorner(pPiece->pEntry, corner);
+	setNewMergeTo(
+		pBasic,
+		&pVertEntry->mergeTo,
+		bufUvw,
+		mapCorner, &mapFace
+	);
+	if (!pVertEntry->mergeTo.snap) {
+		I32 mapCornerNext = (mapCorner + 1) % mapFace.size;
+		setNewMergeTo(
+			pBasic,
+			&pVertEntry->mergeTo,
+			bufUvw,
+			mapCornerNext, &mapFace
+		);
+	}
+}
+
+static
+void addVertToOutMesh(
+	MapToMeshBasic *pBasic,
+	MappingJobArgs *pMappingJobArgs,
+	BorderVert *pVertEntry
+) {
+	Piece *pPiece = pVertEntry->mergeTo.pPiece;
+	BufMesh *pBufMesh = &pMappingJobArgs[pPiece->pEntry->job].bufMesh;
+	bool realloced = false;
+	I32 outVert = stucMeshAddVert(pBasic->pCtx, &pBasic->outMesh, &realloced);
+	stucCopyAllAttribs(
+		&pBasic->outMesh.core.vertAttribs, outVert,
+		&pBufMesh->mesh.core.vertAttribs, pVertEntry->vert
+	);
+	pVertEntry->vert = outVert;
+}
+
+static
+void addVertsToOutMeshAndSnap(
+	MapToMeshBasic *pBasic,
+	MappingJobArgs *pMappingJobArgs,
 	MakePiecesJobArgs *pArgArr
 ) {
+	for (I32 i = 0; i < pArgArr[0].pCTables->vertTableSize; ++i) {
+		BorderVert *pVertEntry = pArgArr[0].pCTables->pVertTable + i;
+		if (!pVertEntry->corners) {
+			continue;
+		}
+		do {
+			Piece *pPiece = pVertEntry->mergeTo.pPiece;
+			I32 corner = pVertEntry->mergeTo.corner;
+			BufMesh *pBufMesh = &pMappingJobArgs[pPiece->pEntry->job].bufMesh;
+			if (!stucGetIfOnInVert(pPiece->pEntry, corner) ||
+				stucGetIfOnLine(pPiece->pEntry, corner)
+			) {
+				mergeIfInMargin(pBasic, pMappingJobArgs, pVertEntry);
+			}
+			if (!pVertEntry->mergeTo.snap) {
+				addVertToOutMesh(pBasic, pMappingJobArgs, pVertEntry);
+			}
+			pVertEntry = pVertEntry->pNext;
+		} while(pVertEntry);
+	}
+}
+
+void stucCorrectSortAfterRemoval(Piece *pPiece, Piece *pPieceRoot, I32 corner) {
+	I32 sort = pPiece->pOrder[corner];
+	pPiece = pPieceRoot;
+	do {
+		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
+			if (pPiece->pOrder[i] > sort) {
+				pPiece->pOrder[i]--;
+			}
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+}
+
+static
+void setAddToFalse(Piece *pPiece, Piece *pPieceRoot, I32 corner) {
+	UBitField16 mask = -0x1 ^ (0x1 << corner);
+	pPiece->add &= mask;
+	//correct sort, as this corner will not be kept
+	stucCorrectSortAfterRemoval(pPiece, pPieceRoot, corner);
+}
+
+static
+void setVertIndicesInPiece(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
+	Piece *pPiece, PieceRootsArr *pPieceRoots, PieceArr *pPieceArr
+) {
+	do {
+		I32 job = pPiece->pEntry->job;
+		BufMesh *pBufMesh = &pArgs->pMappingJobArgs[job].bufMesh;
+		Piece *pPieceRoot = pPiece;
+		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
+			I32 corner = pPiece->bufFace.start - i;
+			if (stucGetIfStuc(pPiece->pEntry, i) || !(pPiece->add >> i & 0x1)) {
+				continue;
+			}
+			//TODO make a func for converting real indices back into virtual ones
+			I32 cornerIdxVirtual = pBufMesh->mesh.cornerBufSize - corner - 1;
+			STUC_ASSERT(
+				"",
+				cornerIdxVirtual >= 0 && cornerIdxVirtual < pBufMesh->borderCornerCount
+			);
+			const BorderVert *pVertEntry = pppVertLookup[job][cornerIdxVirtual];
+			if (!pVertEntry) {
+				setAddToFalse(pPiece, pPieceRoot, i);
+				continue;
+			}
+			if (pVertEntry->mergeTo.snap) {
+				pBufMesh->mesh.core.pCorners[corner] = -1;
+			}
+			else {
+				pBufMesh->mesh.core.pCorners[corner] = pVertEntry->vert;
+			}
+		}
+		pPiece = pPiece->pNext;
+	} while(pPiece);
+}
+
+static
+void setVertIndicesInBufMeshes(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup
+) {
+	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
+	for (I32 i = 0; i < count; ++i) {
+		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
+		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
+		for (I32 j = 0; j < pPieceRoots->count; ++j) {
+			Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[j];
+			setVertIndicesInPiece(
+				pArgs,
+				pppVertLookup,
+				pPiece, pPieceRoots, pPieceArr
+			);
+		}
+	}
+}
+
+static
+Result mergeAndAddToOutMesh(
+	MapToMeshBasic *pBasic,
+	I32 mapJobsSent, MappingJobArgs *pMappingJobArgs,
+	I32 jobCount, MakePiecesJobArgs *pArgArr
+) {
 	Result err = STUC_SUCCESS;
-	for (I32 i = 0; i < jobCount; ++i) {
-		err = mergeIntersectionCorners(pArgArr + i, false);
-		STUC_RETURN_ERR_IFNOT(err, "");
+	StucAlloc *pAlloc = &pBasic->pCtx->alloc;
+	BorderVert ***pppVertLookup = pAlloc->pCalloc(mapJobsSent, sizeof(void *));
+	for (I32 i = 0; i < mapJobsSent; ++i) {
+		BufMesh *pBufMesh = &pMappingJobArgs[i].bufMesh;
+		pppVertLookup[i] = pAlloc->pCalloc(pBufMesh->borderCornerCount, sizeof(void *));
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
-		err = mergeIntersectionCorners(pArgArr + i, true);
-		STUC_RETURN_ERR_IFNOT(err, "");
+		err = mergeIntersectionCorners(pArgArr + i, pppVertLookup, false);
+		STUC_THROW_IFNOT(err, "", 0);
+	}
+	for (I32 i = 0; i < jobCount; ++i) {
+		err = mergeIntersectionCorners(pArgArr + i, pppVertLookup, true);
+		STUC_THROW_IFNOT(err, "", 0);
+	}
+	addVertsToOutMeshAndSnap(pBasic, pMappingJobArgs, pArgArr);
+	for (I32 i = 0; i < jobCount; ++i) {
+		setVertIndicesInBufMeshes(pArgArr + i, pppVertLookup);
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
 		err = mergeCornerAttribs(pArgArr + i);
-		STUC_RETURN_ERR_IFNOT(err, "");
+		STUC_THROW_IFNOT(err, "", 0);
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
-		addToOutMesh(pArgArr + i);
+		addToOutMesh(pArgArr + i, pppVertLookup);
+	}
+	STUC_CATCH(0, err, ;);
+	if (pppVertLookup) {
+		for (I32 i = 0; i < mapJobsSent; ++i) {
+			if (pppVertLookup[i]) {
+				pAlloc->pFree(pppVertLookup[i]);
+			}
+		}
+		pAlloc->pFree(pppVertLookup);
 	}
 	return err;
 }
@@ -2666,7 +3021,10 @@ Result stucMergeBorderFaces(
 	STUC_THROW_IFNOT(err, "", 0);
 	err = stucJobGetErrs(pCtx, jobCount, &ppJobHandles);
 	STUC_THROW_IFNOT(err, "", 0);
-	err = mergeAndAddToOutMesh(jobCount, pJobArgs);
+	err = mergeAndAddToOutMesh(
+		pBasic,
+		mapJobsSent, pMappingJobArgs,
+		jobCount, pJobArgs);
 	STUC_THROW_IFNOT(err, "", 0);
 
 	STUC_CATCH(0, err, ;);
