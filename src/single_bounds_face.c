@@ -153,7 +153,9 @@ I32 addMapCorner(
 	BufMesh *pBufMesh,
 	Piece *pPiece,
 	I32 *pVert,
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	I32 *pEdge,
+#endif
 	I32 idx,
 	bool snapped
 ) {
@@ -173,20 +175,22 @@ I32 addMapCorner(
 	//important to make sure we're using the mapface from pPiece, incase this corner is snapped
 	FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pPiece->pEntry->mapFace, false);
 	I32 mapVert = pMap->pMesh->core.pCorners[mapFace.start + mapCorner];
-	if (snapped && pMapCornerBuf->count &&
+	if (pMapCornerBuf->count &&
 		(
 			pMapCornerBuf->pBuf[0] == mapVert ||
 			pMapCornerBuf->pBuf[pMapCornerBuf->count - 1] == mapVert
 		)
 	) {
 		//already added this map corner
-		// (this should only occur due to merging)
+		// (this should only occur due to snapping)
 		return 1;
 	}
 	pMapCornerBuf->pBuf[pMapCornerBuf->count] = mapVert;
 	pMapCornerBuf->count++;
 
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	*pEdge = pBufMesh->mesh.core.pEdges[pPiece->bufFace.start - idx];
+#endif
 	if (onLine) {
 		*pVert = stucBufMeshGetVertIdx(pPiece, pBufMesh, idx);
 		STUC_ASSERT("",
@@ -204,7 +208,9 @@ I32 addMapCorner(
 		*pVert = pBufMesh->mesh.core.pCorners[pPiece->bufFace.start - idx];
 		*pVert += pState->pArgs->pMappingJobBases[pPiece->pEntry->job].vertBase;
 	}
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	*pEdge += pState->pArgs->pMappingJobBases[pPiece->pEntry->job].edgeBase;
+#endif
 	return 0;
 }
 
@@ -224,28 +230,32 @@ I32 addCorner(
 	BufMesh *pBufMesh = &pState->pArgs->pMappingJobArgs[pPiece->pEntry->job].bufMesh;
 	FaceRange face = pPiece->bufFace;
 	I32 vert = 0;
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	I32 edge = 0;
+#endif
 	bool isStuc = stucGetIfStuc(pPiece->pEntry, corner);
 	if (!isStuc) {
 		//is not an stuc corner (is an intersection, or base corner))
-				
 		STUC_ASSERT("marked add but not sort", order > 0);
-		vert = pBufMesh->mesh.core.pCorners[face.start - corner];
-		if (vert == -1) {
-			//corner was snapped
-			I32 cornerIdxVirtual =
-				pBufMesh->mesh.cornerBufSize - (pPiece->bufFace.start - corner) - 1;
-			STUC_ASSERT(
-				"",
-				cornerIdxVirtual >= 0 && cornerIdxVirtual < pBufMesh->borderCornerCount
-			);
-			BorderVert *pVertEntry =
-				pState->pppVertLookup[pPiece->pEntry->job][cornerIdxVirtual];
-			STUC_ASSERT("", pVertEntry && pVertEntry->mergeTo.snap);
-			Piece *pMergeTo = pVertEntry->mergeTo.pPiece;
-			return addCorner(pState, pMergeTo, pVertEntry->mergeTo.corner, order, true);
+		I32 cornerIdxVirtual =
+			stucGetVirtualBufIdx(pBufMesh, pPiece->bufFace.start - corner);
+		BorderVert *pVertEntry =
+			pState->pppVertLookup[pPiece->pEntry->job][cornerIdxVirtual];
+		STUC_ASSERT("", pVertEntry);
+		if (pVertEntry->mergeTo.snapped) {
+			STUC_ASSERT("", pVertEntry && pVertEntry->mergeTo.snapped);
+			CornerIdx *pMergeTo = &pVertEntry->mergeTo;
+			if (pPiece == pMergeTo->pPiece) {
+				return 0;
+			}
+			return addCorner(pState, pMergeTo->pPiece, pMergeTo->corner, order, true);
 		}
+		vert = pVertEntry->vert;
+#ifndef STUC_DISABLE_EDGES_IN_BUF
+		//when edges are reimplemented, use an intermediary struct like BorderVert.
+		//Not storing out-mesh indices in buf-mesh anymore. It's confusing
 		edge = pBufMesh->mesh.core.pEdges[face.start - corner];
+#endif
 	}
 	else {
 		STUC_ASSERT("stuc corner has no sort", order > 0);
@@ -253,7 +263,11 @@ I32 addCorner(
 			pState,
 			pBufMesh,
 			pPiece,
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 			&vert, &edge,
+#else
+			&vert,
+#endif
 			corner,
 			snapped
 		)) {
@@ -273,7 +287,9 @@ I32 addCorner(
 	pBufEntry->bufCorner = face.start - corner;
 	pBufEntry->bufFace = pEntry->bufFace;
 	pBufEntry->corner = vert;
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	pBufEntry->edge = edge;
+#endif
 	pBufEntry->uv = pBufMesh->mesh.pUvs[face.start - corner];
 	pState->cornerBuf.count++;
 	STUC_ASSERT("", pState->cornerBuf.count <= pState->bufSize);
@@ -328,7 +344,9 @@ void addFaceToOutMesh(
 		STUC_ASSERT("", pState->cornerBuf.pBuf[bufIdx].edge >= 0);
 		STUC_ASSERT("", pState->cornerBuf.pBuf[bufIdx].edge < pMeshOut->core.edgeCount);
 #endif
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 		pMeshOut->core.pEdges[outCorner] = pState->cornerBuf.pBuf[bufIdx].edge;
+#endif
 		I32 bufCorner = pState->cornerBuf.pBuf[bufIdx].bufCorner;
 		I32 job = pState->cornerBuf.pBuf[bufIdx].job;
 		BufMesh *pBufMesh = &pArgs->pMappingJobArgs[job].bufMesh;

@@ -358,7 +358,7 @@ Piece *getEntryInPiece(Piece *pPieceRoot, I32 otherPiece) {
 
 static
 Piece *getNeighbourEntry(
-	MakePiecesJobArgs *pArgs,
+	const MapToMeshBasic *pBasic,
 	SharedEdgeWrap *pEdgeTable,
 	I32 edgeTableSize,
 	Piece *pPiece,
@@ -368,10 +368,10 @@ Piece *getNeighbourEntry(
 ) {
 	I32 segment = stucGetSegment(pPiece->pEntry, *pCorner);
 	BorderInInfo inInfo =
-		stucGetBorderEntryInInfo(pArgs->pBasic, pPiece->pEntry, *pCorner);
+		stucGetBorderEntryInInfo(pBasic, pPiece->pEntry, *pCorner);
 	I32 hash = stucFnvHash((U8*)&inInfo.edge, 4, edgeTableSize);
-	SharedEdgeWrap* pEdgeEntryWrap = pEdgeTable + hash;
-	SharedEdge* pEdgeEntry = pEdgeEntryWrap->pEntry;
+	SharedEdgeWrap *pEdgeEntryWrap = pEdgeTable + hash;
+	SharedEdge *pEdgeEntry = pEdgeEntryWrap->pEntry;
 	while (pEdgeEntry) {
 		if (pEdgeEntry->idx && !pEdgeEntry->removed) {
 			bool cornerMatches =
@@ -412,7 +412,7 @@ bool isCornerOnExterior(
 	I32 corner
 ) {
 	if (!getNeighbourEntry(
-		pArgs,
+		pArgs->pBasic,
 		pEdgeTable,
 		edgeTableSize,
 		pPiece,
@@ -644,7 +644,7 @@ SharedEdge *getIfQuadJunc(
 		//Set next corner
 		EdgeStack neighbour = {.corner = copy.corner};
 		neighbour.pPiece = getNeighbourEntry(
-			pArgs,
+			pArgs->pBasic,
 			pEdgeTable,
 			edgeTableSize,
 			copy.pPiece,
@@ -825,7 +825,7 @@ Result walkEdgesForPreserve(
 		if (!pItem->quad) {
 			neighbour.corner = pItem->corner;
 			neighbour.pPiece = getNeighbourEntry(
-				pArgs,
+				pArgs->pBasic,
 				pEdgeTable,
 				edgeTableSize,
 				pItem->pPiece,
@@ -1414,7 +1414,7 @@ void sortCorners(
 	Piece *pOtherPiece = NULL;
 	if (!single) {
 		pOtherPiece = getNeighbourEntry(
-			pArgs,
+			pArgs->pBasic,
 			pEdgeTable,
 			edgeTableSize,
 			pPiece,
@@ -1451,7 +1451,7 @@ void sortCorners(
 		pOtherPiece = NULL;
 		if (!single) {
 			pOtherPiece = getNeighbourEntry(
-				pArgs,
+				pArgs->pBasic,
 				pEdgeTable,
 				edgeTableSize,
 				pPiece,
@@ -1533,7 +1533,7 @@ void initVertTableEntry(
 	bool onLine,
 	I32 jobIdx
 ) {
-	pVertEntry->mergeTo.snap = false;
+	pVertEntry->mergeTo.snapped = false;
 	pVertEntry->mergeTo.pPiece = pPiece;
 	pVertEntry->mergeTo.pRootArr = pRootArr;
 	pVertEntry->mergeTo.corner = corner;
@@ -1738,7 +1738,6 @@ Result addToOrFindInVertTable(
 					(isOnInVert && pVertEntry->inVert != -1) ||
 					(!isOnInVert && pVertEntry->inVert == -1)
 				);
-				pVertEntry->corners++;
 				//move this to when buf vert indices are updated
 				if (isOnInVert) {
 					BufMesh *pOtherBufMesh =
@@ -1949,11 +1948,7 @@ Result addBorderCornerAndVert(
 #endif
 	if (pVertEntry) {
 		I32 cornerIdxReal = pPiece->bufFace.start - corner;
-		I32 cornerIdxVirtual = pBufMesh->mesh.cornerBufSize - cornerIdxReal - 1;
-		STUC_ASSERT(
-			"",
-			cornerIdxVirtual >= 0 && cornerIdxVirtual < pBufMesh->borderCornerCount
-		);
+		I32 cornerIdxVirtual = stucGetVirtualBufIdx(pBufMesh, cornerIdxReal);
 		pppVertLookup[pEntry->job][cornerIdxVirtual] = pVertEntry;
 
 		pBufMesh->mesh.core.pEdges[cornerIdxReal] = 0;
@@ -1964,7 +1959,7 @@ Result addBorderCornerAndVert(
 static
 Result mergeAttribsForSingleCorner(
 	MakePiecesJobArgs *pArgs,
-	Piece *pPiece, PieceArr *pPieceArr,
+	Piece *pPiece,
 	I32 k
 ) {
 	Result err = STUC_SUCCESS;
@@ -2090,7 +2085,7 @@ void addToOutMesh(MakePiecesJobArgs *pArgs, BorderVert ***pppVertLookup) {
 }
 
 static
-Result addPieceBorderCornersAndVerts(
+Result mergeIntersectionCorners(
 	MakePiecesJobArgs *pArgs,
 	BorderVert ***pppVertLookup,
 	PieceArr *pPieceArr,
@@ -2138,30 +2133,37 @@ Result addPieceBorderCornersAndVerts(
 }
 
 static
-Result mergeIntersectionCorners(
+Result iterJobPieces(
 	MakePiecesJobArgs *pArgs,
 	BorderVert ***pppVertLookup,
-	bool preserve
+	bool flag,
+	Result (*func)(
+		MakePiecesJobArgs *,
+		BorderVert ***,
+		PieceArr *,
+		PieceRootsArr *,
+		bool,
+		I32,
+		I32
+	)
 ) {
 	Result err = STUC_SUCCESS;
 	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
 	for (I32 i = 0; i < count; ++i) {
-		I32 reali = pArgs->entriesStart + i;
 		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
 		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
 		for (I32 j = 0; j < pPieceRoots->count; ++j) {
-			err = addPieceBorderCornersAndVerts(
+			err = func(
 				pArgs,
 				pppVertLookup,
 				pPieceArr,
 				pPieceRoots,
-				preserve,
+				flag,
 				j,
 				i
 			);
 			STUC_RETURN_ERR_IFNOT(err, "");
 		}
-		STUC_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
 	}
 	return err;
 }
@@ -2169,9 +2171,12 @@ Result mergeIntersectionCorners(
 static
 Result mergePieceCornerAttribs(
 	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
 	PieceArr *pPieceArr,
 	PieceRootsArr *pPieceRoots,
-	I32 pieceIdx
+	bool flag,
+	I32 pieceIdx,
+	I32 jobIdx
 ) {
 	Result err = STUC_SUCCESS;
 	Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[pieceIdx];
@@ -2181,29 +2186,12 @@ Result mergePieceCornerAttribs(
 			    !stucGetIfStuc(pPiece->pEntry, k) &&
 			    stucGetIfOnInVert(pPiece->pEntry, k)) {
 
-				err = mergeAttribsForSingleCorner(pArgs, pPiece, pPieceArr, k);
+				err = mergeAttribsForSingleCorner(pArgs, pPiece, k);
 				STUC_RETURN_ERR_IFNOT(err, "");
 			}
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
-	return err;
-}
-
-static
-Result mergeCornerAttribs(MakePiecesJobArgs *pArgs) {
-	Result err = STUC_SUCCESS;
-	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
-	for (I32 i = 0; i < count; ++i) {
-		I32 reali = pArgs->entriesStart + i;
-		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
-		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
-		for (I32 j = 0; j < pPieceRoots->count; ++j) {
-			err = mergePieceCornerAttribs(pArgs, pPieceArr, pPieceRoots, j);
-			STUC_RETURN_ERR_IFNOT(err, "");
-		}
-		STUC_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
-	}
 	return err;
 }
 
@@ -2485,68 +2473,122 @@ Piece *getPieceWithMapCorner(PieceRootsArr *pRootArr, I32 mapCorner, I32 *pCorne
 }
 
 static
-void setNewMergeTo(
-	const MapToMeshBasic *pBasic,
-	CornerIdx *pMergeTo,
+void setNewMergeToMapCorner(
+	MakePiecesJobArgs *pArgs,
+	const CornerIdx *pMergeTo,
 	V3_F32 bufUvw,
 	I32 mapCorner,
-	const FaceRange *pMapFace
+	const FaceRange *pMapFace,
+	CornerIdx *pNewMergeTo
 ) {
-	STUC_ASSERT("", !pMergeTo->snap);
-	const Mesh *pMapMesh = pBasic->pMap->pMesh;
+	STUC_ASSERT("", !pMergeTo->snapped);
+	const Mesh *pMapMesh = pArgs->pBasic->pMap->pMesh;
 	V3_F32 mapVert =
 		pMapMesh->pVerts[pMapMesh->core.pCorners[pMapFace->start + mapCorner]];
-	bool withinMargin = _(bufUvw V3APROXEQL mapVert);
-	if (withinMargin) {
-		I32 newCorner = 0;
-		Piece *pNewPiece = getPieceWithMapCorner(
-			pMergeTo->pRootArr,
-			mapCorner,
-			&newCorner
-		);
-		if (pNewPiece) {
-			pMergeTo->pPiece = pNewPiece;
-			pMergeTo->corner = newCorner;
-			pMergeTo->snap = true;
-		}
+	if (!_(bufUvw V3APROXEQL mapVert)) {
+		return;
+	}
+	I32 newCorner = 0;
+	Piece *pNewPiece = getPieceWithMapCorner(
+		pMergeTo->pRootArr,
+		mapCorner,
+		&newCorner
+	);
+	if (pNewPiece && (pNewPiece->add >> newCorner & 0x1)) {
+		pNewMergeTo->pPiece = pNewPiece;
+		pNewMergeTo->corner = newCorner;
+		pNewMergeTo->snapped = true;
 	}
 }
 
 static
-void mergeIfInMargin(
-	const MapToMeshBasic *pBasic,
-	MappingJobArgs *pMappingJobArgs,
-	BorderVert *pVertEntry
+void setNewMergeToOnInVert(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
+	BufMesh *pBufMesh,
+	Piece *pPiece,
+	I32 corner,
+	V3_F32 uvw,
+	CornerIdx *pMergeTo
 ) {
-	Piece *pPiece = pVertEntry->mergeTo.pPiece;
-	I32 corner = pVertEntry->mergeTo.corner;
-	BufMesh *pBufMesh = &pMappingJobArgs[pPiece->pEntry->job].bufMesh;
-	V3_F32 bufUvw = { .d = {
-		0, 0,
-		pBufMesh->pW[pPiece->bufFace.start - corner] * pBasic->wScale}
-	};
-	*(V2_F32 *)&bufUvw = pBufMesh->mesh.pUvs[pPiece->bufFace.start - corner];
+	if (!stucGetIfStuc(pPiece->pEntry, corner)) {
+		I32 cornerIdxVirtual =
+			stucGetVirtualBufIdx(pBufMesh, pPiece->bufFace.start - corner);
+		const BorderVert *pOtherVertEntry =
+			pppVertLookup[pPiece->pEntry->job][cornerIdxVirtual];
+		if (!pOtherVertEntry || !stucGetIfOnInVert(pPiece->pEntry, corner)) {
+			return;
+		}
+	}
+	V3_F32 thisUvw =
+		stucGetBufCornerUvw(pArgs->pBasic, pBufMesh, pPiece->bufFace.start - corner);
+	if (!_(uvw V3APROXEQL thisUvw)) {
+		return;
+	}
+	pMergeTo->pPiece = pPiece;
+	pMergeTo->corner = corner;
+	pMergeTo->snapped = true;
+}
+
+static
+void snapToOnInVerts(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
+	BufMesh *pBufMesh,
+	Piece *pPiece,
+	I32 corner,
+	CornerIdx *pMergeTo
+) {
+	V3_F32 bufUvw =
+		stucGetBufCornerUvw(pArgs->pBasic, pBufMesh, pPiece->bufFace.start - corner);
+	I32 cornerNext = (corner + 1) % pPiece->bufFace.size;
+	setNewMergeToOnInVert(
+		pArgs,
+		pppVertLookup,
+		pBufMesh,
+		pPiece,
+		cornerNext,
+		bufUvw,
+		pMergeTo
+	);
+	if (pMergeTo->snapped) {
+		return;
+	}
+	I32 cornerPrev = corner ? corner - 1 : pPiece->bufFace.size - 1;
+	setNewMergeToOnInVert(
+		pArgs,
+		pppVertLookup,
+		pBufMesh,
+		pPiece,
+		cornerPrev,
+		bufUvw,
+		pMergeTo
+	);
+}
+
+static
+void snapIfInMargin(
+	MakePiecesJobArgs *pArgs,
+	const CornerIdx *pMergeTo,
+	CornerIdx *pNewMergeTo
+) {
+	Piece *pPiece = pMergeTo->pPiece;
+	I32 corner = pMergeTo->corner;
+	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pPiece->pEntry->job].bufMesh;
+	V3_F32 bufUvw =
+		stucGetBufCornerUvw(pArgs->pBasic, pBufMesh, pPiece->bufFace.start - corner);
 	FaceRange mapFace = stucGetFaceRange(
-		&pBasic->pMap->pMesh->core,
+		&pArgs->pBasic->pMap->pMesh->core,
 		pPiece->pEntry->mapFace,
 		false
 	);
 	I32 mapCorner = stucGetMapCorner(pPiece->pEntry, corner);
-	setNewMergeTo(
-		pBasic,
-		&pVertEntry->mergeTo,
-		bufUvw,
-		mapCorner, &mapFace
-	);
-	if (!pVertEntry->mergeTo.snap) {
-		I32 mapCornerNext = (mapCorner + 1) % mapFace.size;
-		setNewMergeTo(
-			pBasic,
-			&pVertEntry->mergeTo,
-			bufUvw,
-			mapCornerNext, &mapFace
-		);
+	setNewMergeToMapCorner(pArgs, pMergeTo, bufUvw, mapCorner, &mapFace, pNewMergeTo);
+	if (pNewMergeTo->snapped) {
+		return;
 	}
+	I32 mapCornerNext = (mapCorner + 1) % mapFace.size;
+	setNewMergeToMapCorner(pArgs, pMergeTo, bufUvw, mapCornerNext, &mapFace, pNewMergeTo);
 }
 
 static
@@ -2558,7 +2600,8 @@ void addVertToOutMesh(
 	Piece *pPiece = pVertEntry->mergeTo.pPiece;
 	BufMesh *pBufMesh = &pMappingJobArgs[pPiece->pEntry->job].bufMesh;
 	bool realloced = false;
-	I32 outVert = stucMeshAddVert(pBasic->pCtx, &pBasic->outMesh, &realloced);
+	I32 outVert =
+		stucMeshAddVert(pBasic->pCtx, &pBasic->outMesh, &realloced);
 	stucCopyAllAttribs(
 		&pBasic->outMesh.core.vertAttribs, outVert,
 		&pBufMesh->mesh.core.vertAttribs, pVertEntry->vert
@@ -2567,31 +2610,51 @@ void addVertToOutMesh(
 }
 
 static
-void addVertsToOutMeshAndSnap(
-	MapToMeshBasic *pBasic,
-	MappingJobArgs *pMappingJobArgs,
-	MakePiecesJobArgs *pArgArr
+void snapToMapCorners(MakePiecesJobArgs *pArgs, const CornerIdx *pMergeTo, CornerIdx *pNewMergeTo) {
+	Piece *pPiece = pMergeTo->pPiece;
+	I32 corner = pMergeTo->corner;
+	if (!stucGetIfOnInVert(pPiece->pEntry, corner) ||
+		stucGetIfOnLine(pPiece->pEntry, corner)
+	) {
+		snapIfInMargin(pArgs, pMergeTo, pNewMergeTo);
+	}
+}
+
+static
+Result snapVerts(
+	MakePiecesJobArgs *pArgs,
+	BorderVert ***pppVertLookup,
+	PieceArr *pPieceArr,
+	PieceRootsArr *pRootArr,
+	bool flag,
+	I32 pieceIdx,
+	I32 jobIdx
 ) {
-	for (I32 i = 0; i < pArgArr[0].pCTables->vertTableSize; ++i) {
-		BorderVert *pVertEntry = pArgArr[0].pCTables->pVertTable + i;
-		if (!pVertEntry->corners) {
+	Piece *pPiece = pPieceArr->pArr + pRootArr->pArr[pieceIdx];
+	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pPiece->pEntry->job].bufMesh;
+	for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
+		I32 cornerIdxReal = pPiece->bufFace.start - i;
+		I32 cornerIdxVirtual = stucGetVirtualBufIdx(pBufMesh, cornerIdxReal);
+		BorderVert *pVertEntry = pppVertLookup[pPiece->pEntry->job][cornerIdxVirtual];
+		if (!pVertEntry || pVertEntry->mergeTo.snapped) {
 			continue;
 		}
-		do {
-			Piece *pPiece = pVertEntry->mergeTo.pPiece;
-			I32 corner = pVertEntry->mergeTo.corner;
-			BufMesh *pBufMesh = &pMappingJobArgs[pPiece->pEntry->job].bufMesh;
-			if (!stucGetIfOnInVert(pPiece->pEntry, corner) ||
-				stucGetIfOnLine(pPiece->pEntry, corner)
-			) {
-				mergeIfInMargin(pBasic, pMappingJobArgs, pVertEntry);
-			}
-			if (!pVertEntry->mergeTo.snap) {
-				addVertToOutMesh(pBasic, pMappingJobArgs, pVertEntry);
-			}
-			pVertEntry = pVertEntry->pNext;
-		} while(pVertEntry);
+		CornerIdx newMergeTo = {0};
+		if (pPiece == pVertEntry->mergeTo.pPiece) {
+			//the above guard ensures this is only one once per entry.
+			//more than once would be pointless
+			snapToMapCorners(pArgs, &pVertEntry->mergeTo, &newMergeTo);
+		}
+		pVertEntry->corners++;
+		if (!newMergeTo.snapped) {
+			snapToOnInVerts(pArgs, pppVertLookup, pBufMesh, pPiece, i, &newMergeTo);
+		}
+		if (!newMergeTo.snapped) {
+			continue;
+		}
+		pVertEntry->mergeTo = newMergeTo;
 	}
+	return STUC_SUCCESS;
 }
 
 void stucCorrectSortAfterRemoval(Piece *pPiece, Piece *pPieceRoot, I32 corner) {
@@ -2616,59 +2679,54 @@ void setAddToFalse(Piece *pPiece, Piece *pPieceRoot, I32 corner) {
 }
 
 static
-void setVertIndicesInPiece(
+Result removeUnlinkedCorners(
 	MakePiecesJobArgs *pArgs,
-	BorderVert ***pppVertLookup,
-	Piece *pPiece, PieceRootsArr *pPieceRoots, PieceArr *pPieceArr
+	const BorderVert ***pppVertLookup,
+	PieceArr *pPieceArr,
+	PieceRootsArr *pPieceRoots,
+	bool flag,
+	I32 pieceIdx,
+	I32 jobIdx
 ) {
+	Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[pieceIdx];
+	Piece *pPieceRoot = pPiece;
 	do {
 		I32 job = pPiece->pEntry->job;
 		BufMesh *pBufMesh = &pArgs->pMappingJobArgs[job].bufMesh;
-		Piece *pPieceRoot = pPiece;
 		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
 			I32 corner = pPiece->bufFace.start - i;
 			if (stucGetIfStuc(pPiece->pEntry, i) || !(pPiece->add >> i & 0x1)) {
 				continue;
 			}
-			//TODO make a func for converting real indices back into virtual ones
-			I32 cornerIdxVirtual = pBufMesh->mesh.cornerBufSize - corner - 1;
-			STUC_ASSERT(
-				"",
-				cornerIdxVirtual >= 0 && cornerIdxVirtual < pBufMesh->borderCornerCount
-			);
+			I32 cornerIdxVirtual = stucGetVirtualBufIdx(pBufMesh, corner);
 			const BorderVert *pVertEntry = pppVertLookup[job][cornerIdxVirtual];
 			if (!pVertEntry) {
 				setAddToFalse(pPiece, pPieceRoot, i);
-				continue;
-			}
-			if (pVertEntry->mergeTo.snap) {
-				pBufMesh->mesh.core.pCorners[corner] = -1;
-			}
-			else {
-				pBufMesh->mesh.core.pCorners[corner] = pVertEntry->vert;
 			}
 		}
 		pPiece = pPiece->pNext;
 	} while(pPiece);
+	return STUC_SUCCESS;
 }
 
 static
-void setVertIndicesInBufMeshes(
-	MakePiecesJobArgs *pArgs,
-	BorderVert ***pppVertLookup
+void addVertsToOutMesh(
+	MapToMeshBasic *pBasic,
+	MappingJobArgs *pMappingJobArgs,
+	MakePiecesJobArgs *pArgArr
 ) {
-	I32 count = pArgs->entriesEnd - pArgs->entriesStart;
-	for (I32 i = 0; i < count; ++i) {
-		PieceRootsArr *pPieceRoots = pArgs->pPieceRootTable + i;
-		PieceArr *pPieceArr = pArgs->pPieceArrTable + i;
-		for (I32 j = 0; j < pPieceRoots->count; ++j) {
-			Piece *pPiece = pPieceArr->pArr + pPieceRoots->pArr[j];
-			setVertIndicesInPiece(
-				pArgs,
-				pppVertLookup,
-				pPiece, pPieceRoots, pPieceArr
-			);
+	for (I32 i = 0; i < pArgArr[0].pCTables->vertTableSize; ++i) {
+		BorderVert *pVertEntry = pArgArr[0].pCTables->pVertTable + i;
+		if (!pVertEntry->corners) {
+			continue;
 		}
+		do {
+			STUC_ASSERT("", pVertEntry->corners >= 0);
+			if (pVertEntry->corners && !pVertEntry->mergeTo.snapped) {
+				addVertToOutMesh(pBasic, pMappingJobArgs, pVertEntry);
+			}
+			pVertEntry = pVertEntry->pNext;
+		} while(pVertEntry);
 	}
 }
 
@@ -2678,6 +2736,9 @@ Result mergeAndAddToOutMesh(
 	I32 mapJobsSent, MappingJobArgs *pMappingJobArgs,
 	I32 jobCount, MakePiecesJobArgs *pArgArr
 ) {
+	//TODO low prio: this can be multithreaded.
+	//move on-line map vert merging into here (currently in single_bounds_face.c),
+	//so they're merged ad the same time as intersection verts.
 	Result err = STUC_SUCCESS;
 	StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	BorderVert ***pppVertLookup = pAlloc->pCalloc(mapJobsSent, sizeof(void *));
@@ -2686,24 +2747,45 @@ Result mergeAndAddToOutMesh(
 		pppVertLookup[i] = pAlloc->pCalloc(pBufMesh->borderCornerCount, sizeof(void *));
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
-		err = mergeIntersectionCorners(pArgArr + i, pppVertLookup, false);
+		err = iterJobPieces(pArgArr + i, pppVertLookup, false, mergeIntersectionCorners);
 		STUC_THROW_IFNOT(err, "", 0);
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
-		err = mergeIntersectionCorners(pArgArr + i, pppVertLookup, true);
+		err = iterJobPieces(pArgArr + i, pppVertLookup, false, snapVerts);
 		STUC_THROW_IFNOT(err, "", 0);
 	}
-	addVertsToOutMeshAndSnap(pBasic, pMappingJobArgs, pArgArr);
+	addVertsToOutMesh(pBasic, pMappingJobArgs, pArgArr);
+	//add mapcorners to outmesh here
+	//not multithreaded up until now
+	//start multithreading here
 	for (I32 i = 0; i < jobCount; ++i) {
-		setVertIndicesInBufMeshes(pArgArr + i, pppVertLookup);
-	}
-	for (I32 i = 0; i < jobCount; ++i) {
-		err = mergeCornerAttribs(pArgArr + i);
+		err = iterJobPieces(pArgArr + i, pppVertLookup, true, mergeIntersectionCorners);
 		STUC_THROW_IFNOT(err, "", 0);
 	}
 	for (I32 i = 0; i < jobCount; ++i) {
+		//should only modify thread's pieces and bufmesh
+		err = iterJobPieces(pArgArr + i, pppVertLookup, false, removeUnlinkedCorners);
+		STUC_THROW_IFNOT(err, "", 0);
+	}
+	//barrier, below is single threaded
+	for (I32 i = 0; i < jobCount; ++i) {
+		//make a separate attribute array for averaged corner attributes, indexed by outmesh verts.
+		//this way they can be averaged in one go
+		//this can't be multithreaded unless you assign each thread it's own batch of out verts to
+		//average. That's probably the best call.
+		//don't need to send off a new job, each thread can just take a batch after the barrier
+		err = iterJobPieces(pArgArr + i, NULL, false, mergePieceCornerAttribs);
+		STUC_THROW_IFNOT(err, "", 0);
+	}
+	//barrier
+	//multithreading resumes here
+	for (I32 i = 0; i < jobCount; ++i) {
+		//each thread has it's own new bufmesh. add to this.
+		//we'll only be adding corners and faces (still ignoring edges for now)
 		addToOutMesh(pArgArr + i, pppVertLookup);
 	}
+	//multithreading ends here.
+	//call combine mesh arr func here to merge all the buf meshes into 
 	STUC_CATCH(0, err, ;);
 	if (pppVertLookup) {
 		for (I32 i = 0; i < mapJobsSent; ++i) {

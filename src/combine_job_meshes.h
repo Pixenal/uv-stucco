@@ -13,7 +13,9 @@ typedef struct {
 	I32 bufCorner;
 	I32 bufFace;
 	I32 corner;
+#ifndef STUC_DISABLE_EDGES_IN_BUF
 	I32 edge;
+#endif
 	I8 job;
 } BoundsCornerBufEntry;
 
@@ -96,7 +98,7 @@ typedef struct {
 	Piece *pPiece;
 	PieceRootsArr *pRootArr;
 	I16 corner;
-	bool snap;
+	bool snapped;
 } CornerIdx;
 
 typedef struct OnLine {
