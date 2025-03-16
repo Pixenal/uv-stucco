@@ -246,7 +246,7 @@ I32 addCorner(
 			STUC_ASSERT("", pVertEntry && pVertEntry->mergeTo.snapped);
 			CornerIdx *pMergeTo = &pVertEntry->mergeTo;
 			if (pPiece == pMergeTo->pPiece) {
-				return 0;
+				return 1;
 			}
 			return addCorner(pState, pMergeTo->pPiece, pMergeTo->corner, order, true);
 		}
