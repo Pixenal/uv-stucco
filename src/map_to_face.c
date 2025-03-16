@@ -55,6 +55,17 @@ typedef struct {
 	I32 corner;
 } IslandIdxPair;
 
+typedef enum {
+	OUTSIDE,
+	INSIDE,
+	ON_LINE
+} InsideStatus;
+
+typedef struct {
+	int8_t status; // uses InsideStatus
+	bool markAsOnLine;
+} InsideCache;
+
 static
 bool checkIfOnVert(CornerBufWrap *pCornerBuf, I32 i, I32 iNext) {
 	return
@@ -93,8 +104,9 @@ void handleOnInVert(
 			pBaseCorner->localIdx : pBaseCorner->localIdxNext;
 		if (!whichVert) {
 			//if the corner maintains it's existing incorner,
-			//then ensure the segment also carries over
-			// same for else statement
+			//then ensure the segment also carries over.
+			// This is redundant if called on an insideCorner,
+			// as whole corner buf entry is copied
 			pNewEntry->segment = pCornerBuf->buf[idx].segment;
 		}
 	}
@@ -112,7 +124,7 @@ static
 void addInsideCornerToBuf(
 	CornerBufWrap *pNewCornerBuf,
 	CornerBufWrap *pCornerBuf,
-	I32 *pInsideBuf,
+	InsideCache *pInside,
 	I32 i,
 	I32 iNext,
 	I32 iPrev,
@@ -125,16 +137,13 @@ void addInsideCornerToBuf(
 ) {
 	CornerBuf *pNewEntry = pNewCornerBuf->buf + pNewCornerBuf->size;
 	pNewCornerBuf->buf[pNewCornerBuf->size] = pCornerBuf->buf[i];
-	if (pInsideBuf[i] == 2) {
-		//pNewCornerBuf->buf[pNewCornerBuf->size].onLine = true;
-	}
 	//using += so that base corners can be determined. ie, if an stuc
 	//vert has a dot of 0 twice, then it is sitting on a base vert,
 	//but if once, then it's sitting on an edge.
-	if (pInsideBuf[i] < 0) {
+	if (pInside[i].status == ON_LINE) {
 		//is on line
-		if ((pInsideBuf[iPrev] == 0 && pInsideBuf[iNext] == 1) ||
-			(pInsideBuf[iPrev] == 1 && pInsideBuf[iNext] == 0)) {
+		if ((pInside[iPrev].status == OUTSIDE && pInside[iNext].status == INSIDE) ||
+			(pInside[iPrev].status == INSIDE && pInside[iNext].status == OUTSIDE)) {
 			//add to intersection buf
 			pIntersectCache[*pCount].pIsland = pNewCornerBuf;
 			pIntersectCache[*pCount].corner = pNewCornerBuf->size;
@@ -167,7 +176,17 @@ void addInsideCornerToBuf(
 			pNewEntry->baseCorner = pBaseCorner->localIdx;
 		}
 		pNewCornerBuf->onLine = true;
-		pNewEntry->onLine = 1;
+		pNewEntry->onLine = true;
+	}
+	else if (pInside[i].markAsOnLine) {
+		handleOnInVert(
+			pNewEntry,
+			pCornerBuf, i,
+			pBaseCorner,
+			mapFaceWindDir, 
+			faceWindDir
+		);
+		pNewEntry->onLine = true;
 	}
 	pNewCornerBuf->size++;
 }
@@ -196,8 +215,8 @@ void addIntersectionToBuf(
 	CornerBufWrap *pNewCornerBuf,
 	CornerBufWrap *pCornerBuf,
 	I32 i,
-	CornerInfo *pBaseCorner,
 	I32 iNext,
+	CornerInfo *pBaseCorner,
 	IslandIdxPair *pIntersectCache,
 	F32 *ptBuf,
 	I32 *pCount,
@@ -436,12 +455,48 @@ void setSegments(
 	}
 }
 
+//set inside to same as last non on-line corner
+static
+void modifyOnLineStatus(
+	CornerBufWrap *pCornerBuf,
+	InsideCache *pInside,
+	I32 corner
+) {
+	I32 prev = corner ? corner - 1 : pCornerBuf->size - 1;
+	I32 next = (corner + 1) % pCornerBuf->size;
+	if (pInside[prev].status != ON_LINE && pInside[next].status == ON_LINE) {
+		pInside[corner].status = pInside[prev].status;
+		pInside[corner].markAsOnLine = true;
+	}
+	else if (pInside[prev].status == ON_LINE && pInside[next].status != ON_LINE) {
+		pInside[corner].status = pInside[next].status;
+		pInside[corner].markAsOnLine = true;
+	}
+	else if (pInside[prev].status != ON_LINE) {
+		//neither prev nor next are on-line
+		//note we don't set markAsOnLine to true here. 
+		if (pInside[prev].status == pInside[next].status) {
+			//equal, so set to either
+			pInside[corner].status = pInside[prev].status;
+		}
+		else {
+			//one is out and the other is in
+			//set to previous
+			pInside[corner].status = pInside[prev].status;
+		}
+	}
+	else {
+		//if no cases are true, both prev and next are on-line, so keep corner as is
+		return;
+	}
+}
+
 static
 Result clipMapFaceAgainstCorner(
 	MappingJobState *pState,
 	CornerBufWrap *pCornerBuf,
 	CornerBufWrap *pNewCornerBuf,
-	I32 *pInsideBuf,
+	InsideCache *pInside,
 	CornerInfo *pBaseCorner,
 	V2_F32 baseCornerCross,
 	I32 mapFaceWindDir,
@@ -455,7 +510,19 @@ Result clipMapFaceAgainstCorner(
 		V2_F32 uvMapDir = _(mapVert V2SUB pBaseCorner->vert);
 		F32 dot = _(baseCornerCross V2DOT uvMapDir);
 		bool onLine = dot == .0f;
-		pInsideBuf[i] = onLine ? -1 : (dot < .0f) ^ ((bool)mapFaceWindDir ^ (bool)faceWindDir);
+		if (onLine)
+			pInside[i].status = ON_LINE;
+		else {
+			pInside[i].status =
+				(dot < .0f) ^ ((bool)mapFaceWindDir ^ (bool)faceWindDir) ?
+					INSIDE : OUTSIDE;
+		}
+	}
+	for (I32 i = 0; i < pCornerBuf->size; ++i) {
+		if (pInside[i].status == ON_LINE && !pCornerBuf->buf[i].isStuc) {
+			//only map corners can be on-line
+			modifyOnLineStatus(pCornerBuf, pInside, i);
+		}
 	}
 	bool in = false;
 	CornerBufWrap *pIsland = NULL;
@@ -467,7 +534,7 @@ Result clipMapFaceAgainstCorner(
 	for (I32 i = 0; i < pCornerBuf->size; ++i) {
 		I32 iNext = (i + 1) % pCornerBuf->size;
 		I32 iPrev = i ? i - 1 : pCornerBuf->size - 1;
-		if (pInsideBuf[i]) {
+		if (pInside[i].status & (INSIDE | ON_LINE)) {
 			//point is inside, or on the line
 			err = setIsland(
 				pState,
@@ -481,10 +548,8 @@ Result clipMapFaceAgainstCorner(
 			addInsideCornerToBuf(
 				pIsland,
 				pCornerBuf,
-				pInsideBuf,
-				i,
-				iNext,
-				iPrev,
+				pInside,
+				i, iNext, iPrev,
 				pBaseCorner,
 				intersectCache,
 				ptBuf,
@@ -496,13 +561,12 @@ Result clipMapFaceAgainstCorner(
 		else if (in) {
 			in = false;
 		}
-		if ((pInsideBuf[i] != 0) ^ (pInsideBuf[iNext] != 0) &&
-		    pInsideBuf[i] >= 0 && pInsideBuf[iNext] >= 0) {
+		if ((pInside[i].status != OUTSIDE) ^ (pInside[iNext].status != OUTSIDE) &&
+		    pInside[i].status != ON_LINE && pInside[iNext].status != ON_LINE) {
 
 			//the current point is inside, but the next is not (or visa versa),
-			//so calc intersection point. The != and ^ are to account for the
+			//so calc intersection point. The != account for the
 			//fact that insideBuf can be negative if the point is on the line.
-			//The != converts the value to absolute, thus ignoring this.
 			err = setIsland(
 				pState,
 				&pIsland,
@@ -517,8 +581,8 @@ Result clipMapFaceAgainstCorner(
 				pIsland,
 				pCornerBuf,
 				i,
-				pBaseCorner,
 				iNext,
+				pBaseCorner,
 				intersectCache,
 				ptBuf,
 				&count,
@@ -656,13 +720,13 @@ Result clipMapFaceAgainstInFace(
 			.edgeFace = pCornerBuf->edgeFace,
 			.onLine = pCornerBuf->onLine
 		};
-		I32 insideBuf[65] = {0};
+		InsideCache insideCache[65] = {0};
 		V2_F32 baseCornerCross = v2F32Cross(baseCorner.dir);
 		err = clipMapFaceAgainstCorner(
 			pState,
 			pCornerBuf,
 			&newCornerBuf,
-			insideBuf,
+			insideCache,
 			&baseCorner,
 			baseCornerCross,
 			mapFaceWindDir,
