@@ -1477,9 +1477,12 @@ void sortCorners(
 			continue;
 		}
 		else if (!adj) {
-			if ((pPiece->keepPreserve >> corner & 0x01) ||
-			    (pPiece->keepSeam >> corner & 0x01) ||
-			    (pPiece->keepVertPreserve >> corner & 0x01)
+			if (!onLine && !isStuc &&
+				(
+					(pPiece->keepPreserve >> corner & 0x01) ||
+					(pPiece->keepSeam >> corner & 0x01) ||
+					(pPiece->keepVertPreserve >> corner & 0x01)
+				)
 			) {
 				pPiece->add |= (I64)true << corner;
 				pPiece->pOrder[corner] = (U8)sort;
@@ -2446,7 +2449,8 @@ Result createAndJoinPieces(void *pArgsVoid) {
 static
 bool findMapCornerInBorderFace(Piece *pPiece, I32 mapCorner, I32 *pCorner) {
 	for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
-		if (stucGetIfStuc(pPiece->pEntry, i) &&
+		if ((pPiece->add >> i & 0x1) &&
+			stucGetIfStuc(pPiece->pEntry, i) &&
 			stucGetMapCorner(pPiece->pEntry, i) == mapCorner
 			) {
 			if (pCorner) {
@@ -2519,6 +2523,9 @@ void setNewMergeToOnInVert(
 		if (!pOtherVertEntry || !stucGetIfOnInVert(pPiece->pEntry, corner)) {
 			return;
 		}
+	}
+	else if (!(pPiece->add >> corner & 0x1)) {
+		return;
 	}
 	V3_F32 thisUvw =
 		stucGetBufCornerUvw(pArgs->pBasic, pBufMesh, pPiece->bufFace.start - corner);
