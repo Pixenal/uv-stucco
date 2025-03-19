@@ -37,7 +37,7 @@ typedef struct {
 	BorderVert ***pppVertLookup;
 	BoundsCornerBuf cornerBuf;
 	MapCornerBuf mapCornerBuf;
-	I32 *pIdxTable;
+	I8 *pIdxTable;
 	Piece *pPieceRoot;
 	I32 bufSize;
 	I32 bufFace;
@@ -62,9 +62,8 @@ void stucAllocMergeBufs(
 	pHandle->pCornerBuf =
 		pCtx->alloc.pMalloc(sizeof(BoundsCornerBufEntry) * (pHandle->size + 1));
 	pHandle->pMapCornerBuf = pCtx->alloc.pMalloc(sizeof(I32) * pHandle->size);
-	pHandle->pIdxTable = pCtx->alloc.pMalloc(sizeof(I32) * pHandle->size);
+	pHandle->pIdxTable = pCtx->alloc.pMalloc(pHandle->size);
 	pHandle->pSortedVerts = pCtx->alloc.pMalloc(sizeof(I32) * pHandle->size);
-	pHandle->pIdxTable = pCtx->alloc.pMalloc(sizeof(I32) * pHandle->size);
 }
 
 static
@@ -215,7 +214,18 @@ I32 addMapCorner(
 }
 
 static
+bool isVertDup(const BoundsCornerBuf *pCorners, I32 vert) {
+	for (I32 i = 0; i < pCorners->count; ++i) {
+		if (pCorners->pBuf[i].corner == vert) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static
 I32 addCorner(
+	const MapToMeshBasic *pBasic,
 	AddFaceState *pState,
 	Piece *pPiece,
 	I32 corner,
@@ -248,9 +258,17 @@ I32 addCorner(
 			if (pPiece == pMergeTo->pPiece) {
 				return 1;
 			}
-			return addCorner(pState, pMergeTo->pPiece, pMergeTo->corner, order, true);
+			return
+				addCorner(pBasic, pState, pMergeTo->pPiece, pMergeTo->corner, order, true);
 		}
 		vert = pVertEntry->vert;
+		STUC_ASSERT("", vert >= 0 && vert < pBasic->outMesh.core.vertCount);
+		if (!v3F32IsFinite(pBasic->outMesh.pVerts[vert])) {
+			return 1;
+		}
+		if (isVertDup(&pState->cornerBuf, vert)) {
+			return 1;
+		}
 #ifndef STUC_DISABLE_EDGES_IN_BUF
 		//when edges are reimplemented, use an intermediary struct like BorderVert.
 		//Not storing out-mesh indices in buf-mesh anymore. It's confusing
@@ -297,7 +315,7 @@ I32 addCorner(
 }
 
 static
-void addCornersToBufAndVertsToMesh(AddFaceState *pState) {
+void addCornersToBufAndVertsToMesh(const MapToMeshBasic *pBasic, AddFaceState *pState) {
 	MakePiecesJobArgs *pArgs = pState->pArgs;
 	Piece *pPiece = pState->pPieceRoot;
 	do {
@@ -306,7 +324,7 @@ void addCornersToBufAndVertsToMesh(AddFaceState *pState) {
 			if (!(pPiece->add >> i & 0x01)) {
 				continue;
 			}
-			if (addCorner(pState, pPiece, i, pPiece->pOrder[i], false)) {
+			if (addCorner(pBasic, pState, pPiece, i, pPiece->pOrder[i], false)) {
 				//using piece as root, not point updating previous pieces
 				stucCorrectSortAfterRemoval(pPiece, pPiece, i);
 				//correct order in corner buf
@@ -334,6 +352,7 @@ void addFaceToOutMesh(
 	bool realloced = false;
 	for (I32 i = 0; i < count; ++i) {
 		I32 bufIdx = pState->pIdxTable[pIndices[i]];
+		STUC_ASSERT("", bufIdx >= 0);
 		STUC_ASSERT("", pState->cornerBuf.pBuf[bufIdx].corner >= 0);
 		STUC_ASSERT("", pState->cornerBuf.pBuf[bufIdx].corner < pMeshOut->core.vertCount);
 		I32 outCorner =
@@ -408,6 +427,31 @@ void nullEntries(Piece *pPiece) {
 	} while(pPiece);
 }
 
+static
+bool isFaceInvalid(const MapToMeshBasic *pBasic, const AddFaceState *pState) {
+	BoundsCornerBufEntry *pCorners = pState->cornerBuf.pBuf;
+	for (I32 i = 0; i < pState->cornerBuf.count; ++i) {
+		if (pState->pIdxTable[i] == -1) {
+			return true; //corner wasn't added to idx table
+		}
+	}
+	for (I32 i = 0; i < pState->cornerBuf.count; i += 2) {
+		I32 idx = pState->pIdxTable[i];
+		I32 idxPrev = idx ? idx - 1 : pState->cornerBuf.count - 1;
+		I32 idxNext = (idx + 1) % pState->cornerBuf.count;
+		if (v3F32DegenerateTri(
+				pBasic->outMesh.pVerts[pCorners[idxPrev].corner],
+				pBasic->outMesh.pVerts[pCorners[idx].corner],
+				pBasic->outMesh.pVerts[pCorners[idxNext].corner],
+				.0f
+			)
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void stucMergeSingleBorderFace(
 	MakePiecesJobArgs *pArgs,
 	I32 entryIdx,
@@ -434,9 +478,13 @@ void stucMergeSingleBorderFace(
 	if (!state.pPieceRoot->pEntry) {
 		return;
 	}
-	addCornersToBufAndVertsToMesh(&state);
+	memset(state.pIdxTable, -1, pArgs->totalVerts);
+	addCornersToBufAndVertsToMesh(pArgs->pBasic, &state);
 
 	if (state.cornerBuf.count <= 2) {
+		return;
+	}
+	if (isFaceInvalid(pArgs->pBasic, &state)) {
 		return;
 	}
 	if (state.pPieceRoot->triangulate) {

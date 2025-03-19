@@ -28,7 +28,7 @@ typedef struct {
 typedef struct {
 	BoundsCornerBufEntry* pCornerBuf;
 	I32 *pMapCornerBuf;
-	I32 *pIdxTable;
+	I8 *pIdxTable;
 	I32 *pSortedVerts;
 	I32 size;
 } MergeBufHandles;

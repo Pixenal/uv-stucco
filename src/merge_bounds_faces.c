@@ -1881,6 +1881,13 @@ I32 mergeWithStucIfOverlapping(
 	*/
 }
 
+static
+bool isCornerUvOutsideTile(BufMesh *pBufMesh, Piece *pPiece, I32 corner) {
+	V2_F32 uv = pBufMesh->mesh.pUvs[pPiece->bufFace.start + corner];
+	V2_I16 tile = stucGetTileMinFromBoundsEntry(pPiece->pEntry);
+	V2_F32 fTileMin = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
+	return _(uv V2LESS fTileMin) || _(uv V2GREAT _(fTileMin V2ADDS 1.0f));
+}
 
 static
 Result addBorderCornerAndVert(
@@ -1901,6 +1908,9 @@ Result addBorderCornerAndVert(
 		!stucGetIfStuc(pEntry, corner)
 	);
 	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
+	if (isCornerUvOutsideTile(pBufMesh, pPiece, corner)) {
+		return;
+	}
 	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, corner);
 	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
 	STUC_ASSERT("", vert < pBufMesh->mesh.vertBufSize);

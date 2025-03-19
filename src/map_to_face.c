@@ -206,6 +206,7 @@ I32 appendToAncestors(
 static
 void getMapVertsFromBufCorners(
 	StucMap pMap,
+	V2_F32 fTileMin,
 	CornerBuf *pCorner, CornerBuf *pCornerNext,
 	FaceRange *pMapFace,
 	V3_F32 *pVertA, V3_F32 *pVertB
@@ -216,6 +217,7 @@ void getMapVertsFromBufCorners(
 		I32 mapCornerNext = (pCorner->mapCorner + 1) % pMapFace->size;
 		*pVertB =
 			pMapMesh->pVerts[pMapMesh->core.pCorners[pMapFace->start + mapCornerNext]];
+		_(pVertB V2ADDEQL fTileMin);
 	}
 	else if (pCornerNext->isMapCorner) {
 		*pVertB = pCornerNext->corner;
@@ -223,6 +225,7 @@ void getMapVertsFromBufCorners(
 			pCornerNext->mapCorner - 1 : pMapFace->size - 1;
 		*pVertA =
 			pMapMesh->pVerts[pMapMesh->core.pCorners[pMapFace->start + mapCornerPrev]];
+		_(pVertA V2ADDEQL fTileMin);
 	}
 	else {
 		V3_F32 mapVert =
@@ -237,6 +240,8 @@ void getMapVertsFromBufCorners(
 		bool which = dot >= .0f;
 		*pVertA = which ? mapVert : mapVertNext;
 		*pVertB = which ? mapVertNext : mapVert;
+		_(pVertA V2ADDEQL fTileMin);
+		_(pVertB V2ADDEQL fTileMin);
 	}
 }
 
@@ -261,6 +266,7 @@ bool areCornersOnSameMapEdge(
 static
 void addIntersectionToBuf(
 	MapToMeshBasic *pBasic,
+	V2_F32 fTileMin,
 	FaceRange *pMapFace,
 	CornerBufWrap *pNewCornerBuf,
 	CornerBufWrap *pCornerBuf,
@@ -290,6 +296,7 @@ void addIntersectionToBuf(
 		V3_F32 mapVertB = {0};
 		getMapVertsFromBufCorners(
 			pBasic->pMap,
+			fTileMin,
 			pCorner, pCornerNext,
 			pMapFace,
 			&mapVertA, &mapVertB
@@ -646,6 +653,7 @@ InsideStatus isCornerInOrOut(
 static
 Result clipMapFaceAgainstCorner(
 	MappingJobState *pState,
+	V2_F32 fTileMin,
 	FaceRange *pMapFace,
 	CornerBufWrap *pCornerBuf,
 	CornerBufWrap *pNewCornerBuf,
@@ -727,6 +735,7 @@ Result clipMapFaceAgainstCorner(
 			STUC_RETURN_ERR_IFNOT(err, "");
 			addIntersectionToBuf(
 				pState->pBasic,
+				fTileMin,
 				pMapFace,
 				pIsland,
 				pCornerBuf,
@@ -746,8 +755,8 @@ Result clipMapFaceAgainstCorner(
 	if (!pIsland || count == 0) {
 		return err;
 	}
-	STUC_ASSERT("", count >= 2);
-	STUC_ASSERT("should be even", !(count % 2));
+	STUC_RETURN_ERR_IFNOT_COND(err, count >= 2, "");
+	STUC_RETURN_ERR_IFNOT_COND(err, !(count % 2), "should be even");
 	I32 idxTable[65] = {-1}; //first element to point to first tbuf element
 	I32 *pIdxTable = idxTable + 1;
 	if (pInCorner->flipEdgeDir) {
@@ -873,6 +882,7 @@ void mergeDupCorners(
 static
 Result clipMapFaceAgainstInFace(
 	MappingJobState *pState,
+	V2_F32 fTileMin,
 	FaceBounds *pInBounds,
 	FaceRange *pMapFace,
 	FaceRange *pInFace,
@@ -892,6 +902,7 @@ Result clipMapFaceAgainstInFace(
 		InsideCache insideCache[65] = {0};
 		err = clipMapFaceAgainstCorner(
 			pState,
+			fTileMin,
 			pMapFace,
 			pCornerBuf,
 			&newCornerBuf,
@@ -2085,8 +2096,7 @@ void initCornerBuf(
 		pCorner->isMapCorner = 1;
 		pCorner->inCorner = (I8)((vertIdx + 1) * -1);
 		pCorner->corner = pMap->pMesh->pVerts[vertIdx];
-		pCorner->corner.d[0] += fTileMin.d[0];
-		pCorner->corner.d[1] += fTileMin.d[1];
+		_(&pCorner->corner V2ADDEQL fTileMin);
 		pCorner->mapCorner = (I8)k;
 		pCorner->normal = pMap->pMesh->pNormals[pMapFace->start + k];
 	}
@@ -2155,6 +2165,7 @@ void snapInVertsToMapEdges(
 static
 Result clipMapFaceIntoFaces(
 	MappingJobState *pState,
+	V2_F32 fTileMin,
 	FaceBounds *pInBounds,
 	CornerBufWrap *pCornerBuf,
 	FaceRange *pMapFace,
@@ -2173,6 +2184,7 @@ Result clipMapFaceIntoFaces(
 		if (!pCornerBufPtr->invalid) {
 			err = clipMapFaceAgainstInFace(
 				pState,
+				fTileMin,
 				pInBounds,
 				pMapFace,
 				pInFace,
@@ -2336,6 +2348,7 @@ Result stucMapToSingleFace(
 			ancestors.count = 0;
 			err = clipMapFaceIntoFaces(
 				pState,
+				fTileMin,
 				&bounds,
 				&cornerBuf,
 				&mapFace,
@@ -2344,7 +2357,7 @@ Result stucMapToSingleFace(
 				pSegments,
 				&ancestors
 			);
-			STUC_THROW_IFNOT(err, "", 0);
+			STUC_THROW_IFNOT(err, "", 1);
 			sortSegments(pSegments, pInFace);
 			addOrDiscardClippedFaces(
 				pState,
@@ -2357,6 +2370,9 @@ Result stucMapToSingleFace(
 				&mapFace,
 				pInTriConst,
 				inFaceWind, mapFaceWind
+			);
+			STUC_CATCH(1, err, 
+				err = STUC_SUCCESS; //skipping this face, reset err
 			);
 			err = stucLinAllocClear(pState->pCornerBufWrapAlloc, true);
 			STUC_THROW_IFNOT(err, "", 0);
