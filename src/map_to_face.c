@@ -217,7 +217,7 @@ void getMapVertsFromBufCorners(
 		I32 mapCornerNext = (pCorner->mapCorner + 1) % pMapFace->size;
 		*pVertB =
 			pMapMesh->pVerts[pMapMesh->core.pCorners[pMapFace->start + mapCornerNext]];
-		_(pVertB V2ADDEQL fTileMin);
+		_((V2_F32 *)pVertB V2ADDEQL fTileMin);
 	}
 	else if (pCornerNext->isMapCorner) {
 		*pVertB = pCornerNext->corner;
@@ -225,7 +225,7 @@ void getMapVertsFromBufCorners(
 			pCornerNext->mapCorner - 1 : pMapFace->size - 1;
 		*pVertA =
 			pMapMesh->pVerts[pMapMesh->core.pCorners[pMapFace->start + mapCornerPrev]];
-		_(pVertA V2ADDEQL fTileMin);
+		_((V2_F32 *)pVertA V2ADDEQL fTileMin);
 	}
 	else {
 		V3_F32 mapVert =
@@ -240,8 +240,8 @@ void getMapVertsFromBufCorners(
 		bool which = dot >= .0f;
 		*pVertA = which ? mapVert : mapVertNext;
 		*pVertB = which ? mapVertNext : mapVert;
-		_(pVertA V2ADDEQL fTileMin);
-		_(pVertB V2ADDEQL fTileMin);
+		_((V2_F32 *)pVertA V2ADDEQL fTileMin);
+		_((V2_F32 *)pVertB V2ADDEQL fTileMin);
 	}
 }
 
@@ -533,97 +533,6 @@ void setSegments(
 	}
 }
 
-//set inside to same as last non on-line corner
-static
-void modifyOnLineStatus(
-	CornerBufWrap *pCornerBuf,
-	InsideCache *pInside,
-	I32 corner
-) {
-	I32 prev = corner ? corner - 1 : pCornerBuf->count - 1;
-	I32 next = (corner + 1) % pCornerBuf->count;
-	if (pInside[prev].status != ON_LINE && pInside[next].status == ON_LINE) {
-		pInside[corner].status = pInside[prev].status;
-		pInside[corner].markAsOnLine = true;
-	}
-	else if (pInside[prev].status == ON_LINE && pInside[next].status != ON_LINE) {
-		pInside[corner].status = pInside[next].status;
-		pInside[corner].markAsOnLine = true;
-	}
-	else if (pInside[prev].status != ON_LINE) {
-		//neither prev nor next are on-line
-		//note we don't set markAsOnLine to true here. 
-		if (pInside[prev].status == pInside[next].status) {
-			//equal, so set to either
-			pInside[corner].status = pInside[prev].status;
-		}
-		else {
-			return;
-			//one is out and the other is in
-			//set to previous
-			if (pCornerBuf->buf[next].isMapCorner) {
-				pInside[corner].status = pInside[next].status;
-			}
-			else {
-				pInside[corner].status = pInside[prev].status;
-			}
-			
-		}
-	}
-	else {
-		//if no cases are true, both prev and next are on-line, so keep corner as is
-		return;
-	}
-}
-
-static
-bool snapPointToEdgeIntern(
-	V2_F32 a, V2_F32 b,
-	V2_F32 ab, F32 abLen,
-	V2_F32 *pPoint
-) {
-	if (v2F32AproxEqualThres(*pPoint, a, STUC_ON_LINE_SNAP_THRESHOLD)) {
-			*pPoint = a;
-			return true;
-	}
-	else if (
-		v2F32AproxEqualThres(*pPoint, b, STUC_ON_LINE_SNAP_THRESHOLD)
-	) {
-		*pPoint = b;
-		return true;
-	}
-	//TODO should this threshold be lower than the one for verts?
-	//incase a position is too far from a vert to be snapped, but close
-	// enough to the edge to be snapped to that?
-	V2_F32 dirUnit = _(_(*pPoint V2SUB a) V2DIVS abLen);
-	F32 t = _(dirUnit V2DOT _(ab V2DIVS abLen));
-	if (t >= .0f && t <= 1.0f) {
-		V2_F32 projPt = _(a V2ADD _(ab V2MULS t));
-		F32 perpDist = v2F32Len(_(projPt V2SUB *pPoint));
-		if (perpDist < STUC_ON_LINE_SNAP_THRESHOLD) {
-			*pPoint = projPt;
-			return true;
-		}
-	}
-	return false;
-}
-
-static
-bool snapPointToEdge(V2_F32 a, V2_F32 b, V2_F32 *pPoint) {
-	V2_F32 ab = _(b V2SUB a);
-	F32 len = v2F32Len(ab);
-	return snapPointToEdgeIntern(a, b, ab, len, pPoint);
-}
-
-static
-bool snapPointToInEdge(const InCornerCache *pInCorner, V2_F32 *pPoint) {
-	return snapPointToEdgeIntern(
-		pInCorner->uv, pInCorner->uvNext,
-		pInCorner->dir, pInCorner->len,
-		pPoint
-	);
-}
-
 static
 InsideStatus isCornerInOrOut(
 	CornerBuf *pCornerBuf,
@@ -672,15 +581,6 @@ Result clipMapFaceAgainstCorner(
 				mapFaceWind, inFaceWind,
 				true
 			);
-	}
-	for (I32 i = 0; i < pCornerBuf->count; ++i) {
-		if (pInside[i].status == ON_LINE &&
-			!pCornerBuf->buf[i].isMapCorner &&
-			pCornerBuf->buf[i].inCorner != pInCorner->idxPrev
-		) {
-			//only map corners can be on-line
-			//modifyOnLineStatus(pCornerBuf, pInside, i);
-		}
 	}
 	bool in = false;
 	CornerBufWrap *pIsland = NULL;
@@ -2096,7 +1996,7 @@ void initCornerBuf(
 		pCorner->isMapCorner = 1;
 		pCorner->inCorner = (I8)((vertIdx + 1) * -1);
 		pCorner->corner = pMap->pMesh->pVerts[vertIdx];
-		_(&pCorner->corner V2ADDEQL fTileMin);
+		_((V2_F32 *)&pCorner->corner V2ADDEQL fTileMin);
 		pCorner->mapCorner = (I8)k;
 		pCorner->normal = pMap->pMesh->pNormals[pMapFace->start + k];
 	}
@@ -2136,6 +2036,45 @@ void buildInCornerCache(
 		pCache[i].idxPrev = (I8)idxPrev;
 		pCache[i].idxNext = (I8)idxNext;
 	}
+}
+
+static
+bool snapPointToEdgeIntern(
+	V2_F32 a, V2_F32 b,
+	V2_F32 ab, F32 abLen,
+	V2_F32 *pPoint
+) {
+	if (v2F32AproxEqualThres(*pPoint, a, STUC_ON_LINE_SNAP_THRESHOLD)) {
+		*pPoint = a;
+		return true;
+	}
+	else if (
+		v2F32AproxEqualThres(*pPoint, b, STUC_ON_LINE_SNAP_THRESHOLD)
+		) {
+		*pPoint = b;
+		return true;
+	}
+	//TODO should this threshold be lower than the one for verts?
+	//incase a position is too far from a vert to be snapped, but close
+	// enough to the edge to be snapped to that?
+	V2_F32 dirUnit = _(_(*pPoint V2SUB a) V2DIVS abLen);
+	F32 t = _(dirUnit V2DOT _(ab V2DIVS abLen));
+	if (t >= .0f && t <= 1.0f) {
+		V2_F32 projPt = _(a V2ADD _(ab V2MULS t));
+		F32 perpDist = v2F32Len(_(projPt V2SUB *pPoint));
+		if (perpDist < STUC_ON_LINE_SNAP_THRESHOLD) {
+			*pPoint = projPt;
+			return true;
+		}
+	}
+	return false;
+}
+
+static
+bool snapPointToEdge(V2_F32 a, V2_F32 b, V2_F32 *pPoint) {
+	V2_F32 ab = _(b V2SUB a);
+	F32 len = v2F32Len(ab);
+	return snapPointToEdgeIntern(a, b, ab, len, pPoint);
 }
 
 static

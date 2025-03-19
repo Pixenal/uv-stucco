@@ -1909,7 +1909,7 @@ Result addBorderCornerAndVert(
 	);
 	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pEntry->job].bufMesh;
 	if (isCornerUvOutsideTile(pBufMesh, pPiece, corner)) {
-		return;
+		return err;
 	}
 	I32 vert = stucBufMeshGetVertIdx(pPiece, pBufMesh, corner);
 	STUC_ASSERT("", vert > pBufMesh->mesh.vertBufSize - 1 - pBufMesh->borderVertCount);
