@@ -2275,13 +2275,7 @@ Result stucMapToSingleFace(
 			}
 			pState->facesUsed++;
 			resetSegments(pSegments, pInFace);
-			I32 mapFaceWind = stucCalcFaceOrientation(pMap->pMesh, &mapFace, false);
-			STUC_THROW_IFNOT_COND(
-				err,
-				mapFaceWind != 2,
-				"invalid map face, this should have been caught in export/ import",
-				0
-			);
+			bool mapFaceWind = stucCalcFaceOrientation(pMap->pMesh, &mapFace, false);
 			CornerBufWrap cornerBuf = {0};
 			initCornerBuf(pMap, fTileMin, &cornerBuf, pInFace, &mapFace, mapFaceWind);
 			ancestors.count = 0;
