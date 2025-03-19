@@ -263,7 +263,7 @@ Result addEntryToSharedEdgeTable(
 		//Get in mesh details for current buf corner
 		BorderInInfo inInfo = stucGetBorderEntryInInfo(pArgs->pBasic, pEntry, i);
 		I32 lasti = i ? i - 1 : face.size - 1;
-		if (stucGetBaseCorner(pEntry, i) == stucGetBaseCorner(pEntry, lasti) &&
+		if (stucGetInCorner(pEntry, i) == stucGetInCorner(pEntry, lasti) &&
 			!(stucGetIfStuc(pEntry, lasti) && !stucGetIfOnLine(pEntry, lasti))) {
 			//Edge belongs to last corner, not this one
 			continue;
@@ -1374,6 +1374,34 @@ void markKeepInVertsPreserve(MakePiecesJobArgs *pArgs, Piece* pPiece) {
 }
 
 static
+bool isPrevCornerSeam(
+	const Mesh *pMesh,
+	const BorderFace *pEntry,
+	I32 corner
+) {
+	if (!stucGetIfOnInVert(pEntry, corner)) {
+		return false;
+	}
+	FaceRange inFace = stucGetFaceRange(&pMesh->core, pEntry->inFace, false);
+	I32 inCornerPrev = stucGetCornerPrev(stucGetInCorner(pEntry, corner), &inFace);
+	return stucGetIfSeamEdge(pMesh, &inFace, inCornerPrev);
+}
+
+static
+bool isCornerSeam(
+	const Mesh *pMesh,
+	const BorderFace *pEntry,
+	I32 corner
+) {
+	if (!stucGetIfOnInVert(pEntry, corner)) {
+		return false;
+	}
+	FaceRange inFace = stucGetFaceRange(&pMesh->core, pEntry->inFace, false);
+	I32 inCorner = stucGetInCorner(pEntry, corner);
+	return stucGetIfSeamEdge(pMesh, &inFace, inCorner);
+}
+
+static
 I32 getPieceCount(Piece* pPiece) {
 	I32 count = 0;
 	do {
@@ -1430,6 +1458,7 @@ void sortCorners(
 		adj = true;
 		pPiece = pOtherPiece;
 	}
+	bool adjIsSeam = false;
 	do {
 		corner %= pPiece->bufFace.size;
 		if (pPiece->pOrder[corner]) {
@@ -1445,6 +1474,7 @@ void sortCorners(
 			sort++;
 			corner++;
 			adj = false;
+			adjIsSeam = false;
 			continue;
 		}
 		I32 otherCorner = corner;
@@ -1461,7 +1491,12 @@ void sortCorners(
 			);
 		}
 		if (!pOtherPiece) {
-			if (!adj || (isStuc && onLine)) {
+			STUC_ASSERT("", !(!adj && adjIsSeam));
+			bool seamVert = !isStuc ?
+				adjIsSeam ^ isCornerSeam(pArgs->pBasic->pInMesh, pPiece->pEntry, corner) :
+				false;
+			adjIsSeam = false;
+			if (!adj || isStuc && onLine || seamVert) {
 				pPiece->add |= (I64)true << corner;
 				pPiece->pOrder[corner] = (U8)sort;
 				//set keep preserve to false if true
@@ -1477,19 +1512,28 @@ void sortCorners(
 			continue;
 		}
 		else if (!adj) {
+			STUC_ASSERT("", !adjIsSeam);
 			if (!onLine && !isStuc &&
 				(
 					(pPiece->keepPreserve >> corner & 0x01) ||
 					(pPiece->keepSeam >> corner & 0x01) ||
 					(pPiece->keepVertPreserve >> corner & 0x01)
 				)
+
 			) {
+
 				pPiece->add |= (I64)true << corner;
 				pPiece->pOrder[corner] = (U8)sort;
 				sort++;
 			}
 			else {
 				pPiece->pOrder[corner] = 1;
+				if (!isStuc) {
+					adjIsSeam = isPrevCornerSeam(
+						pArgs->pBasic->pInMesh,
+						pPiece->pEntry, corner
+					);
+				}
 			}
 			adj = true;
 		}
@@ -1729,8 +1773,8 @@ Result addToOrFindInVertTable(
 					pVertEntry->mapEdge == mapEdge &&
 					otherTile.d[0] == pPiece->tile.d[0] &&
 					otherTile.d[1] == pPiece->tile.d[1] &&
-					pVertEntry->inEdge == pInInfo->edge &&
-					connected;
+					pVertEntry->inEdge == pInInfo->edge;// &&
+					//connected;
 			}
 			if (match) {
 				//If corner isOnInVert,
@@ -2638,29 +2682,32 @@ Result snapVerts(
 	I32 jobIdx
 ) {
 	Piece *pPiece = pPieceArr->pArr + pRootArr->pArr[pieceIdx];
-	BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pPiece->pEntry->job].bufMesh;
-	for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
-		I32 cornerIdxReal = pPiece->bufFace.start - i;
-		I32 cornerIdxVirtual = stucGetVirtualBufIdx(pBufMesh, cornerIdxReal);
-		BorderVert *pVertEntry = pppVertLookup[pPiece->pEntry->job][cornerIdxVirtual];
-		if (!pVertEntry || pVertEntry->mergeTo.snapped) {
-			continue;
+	do {
+		BufMesh *pBufMesh = &pArgs->pMappingJobArgs[pPiece->pEntry->job].bufMesh;
+		for (I32 i = 0; i < pPiece->bufFace.size; ++i) {
+			I32 cornerIdxReal = pPiece->bufFace.start - i;
+			I32 cornerIdxVirtual = stucGetVirtualBufIdx(pBufMesh, cornerIdxReal);
+			BorderVert *pVertEntry = pppVertLookup[pPiece->pEntry->job][cornerIdxVirtual];
+			if (!pVertEntry || pVertEntry->mergeTo.snapped) {
+				continue;
+			}
+			CornerIdx newMergeTo = { 0 };
+			if (pPiece == pVertEntry->mergeTo.pPiece) {
+				//the above guard ensures this is only one once per entry.
+				//more than once would be pointless
+				snapToMapCorners(pArgs, &pVertEntry->mergeTo, &newMergeTo);
+			}
+			pVertEntry->corners++;
+			if (!newMergeTo.snapped) {
+				snapToOnInVerts(pArgs, pppVertLookup, pBufMesh, pPiece, i, &newMergeTo);
+			}
+			if (!newMergeTo.snapped) {
+				continue;
+			}
+			pVertEntry->mergeTo = newMergeTo;
 		}
-		CornerIdx newMergeTo = {0};
-		if (pPiece == pVertEntry->mergeTo.pPiece) {
-			//the above guard ensures this is only one once per entry.
-			//more than once would be pointless
-			snapToMapCorners(pArgs, &pVertEntry->mergeTo, &newMergeTo);
-		}
-		pVertEntry->corners++;
-		if (!newMergeTo.snapped) {
-			snapToOnInVerts(pArgs, pppVertLookup, pBufMesh, pPiece, i, &newMergeTo);
-		}
-		if (!newMergeTo.snapped) {
-			continue;
-		}
-		pVertEntry->mergeTo = newMergeTo;
-	}
+		pPiece = pPiece->pNext;
+;	} while(pPiece);
 	return STUC_SUCCESS;
 }
 

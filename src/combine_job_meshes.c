@@ -128,7 +128,7 @@ BorderInInfo stucGetBorderEntryInInfo(
 ) {
 	BorderInInfo inInfo = {0};
 	STUC_ASSERT("", pEntry->inFace >= 0);
-	inInfo.cornerLocal = stucGetBaseCorner(pEntry, cornerIdx);
+	inInfo.cornerLocal = stucGetInCorner(pEntry, cornerIdx);
 	STUC_ASSERT("", inInfo.cornerLocal >= 0);
 	inInfo.start = pBasic->pInMesh->core.pFaces[pEntry->inFace];
 	inInfo.end = pBasic->pInMesh->core.pFaces[pEntry->inFace + 1];
@@ -213,7 +213,7 @@ I32 stucGetMapCorner(const BorderFace *pEntry, const I32 cornerIdx) {
 	return false;
 }
 
-I32 stucGetBaseCorner(const BorderFace *pEntry, I32 cornerIdx) {
+I32 stucGetInCorner(const BorderFace *pEntry, I32 cornerIdx) {
 	switch (pEntry->memType) {
 	case 0:
 		return stucIdxBitArray(((BorderFaceSmall *)pEntry)->baseCorner, cornerIdx, 2);

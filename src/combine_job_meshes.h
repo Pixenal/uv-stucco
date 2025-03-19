@@ -201,7 +201,14 @@ bool stucGetIfOnInVert(const BorderFace *pEntry, I32 cornerIdx);
 bool stucGetIfOnLine(const BorderFace *pEntry, I32 cornerIdx);
 I32 stucGetSegment(const BorderFace *pEntry, I32 cornerIdx);
 I32 stucGetMapCorner(const BorderFace *pEntry, I32 cornerIdx);
-I32 stucGetBaseCorner(const BorderFace *pEntry, I32 cornerIdx);
+I32 stucGetInCorner(const BorderFace *pEntry, I32 cornerIdx);
+bool stucGetIfSeamVert(
+	const Mesh *pMesh,
+	const BorderFace *pEntry,
+	I32 corner,
+	const BorderFace *pEntryAdj,
+	I32 cornerAdj
+);
 V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry);
 I32 stucBufMeshGetVertIdx(const Piece *pPiece, const BufMesh *pBufMesh, I32 localCorner);
 I32 stucBufMeshGetEdgeIdx(const Piece *pPiece, const BufMesh *pBufMesh, I32 localCorner);

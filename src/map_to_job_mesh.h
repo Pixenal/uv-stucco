@@ -21,12 +21,12 @@ typedef struct CornerBuf {
 	F32 mapAlpha;
 	F32 inTSign;
 	I8 triCorners[3];
-	I8 baseCorner;
-	I8 stucCorner;
+	I8 inCorner;
+	I8 mapCorner;
 	I8 segment;
 	U8 onLine : 1;
-	U8 isBaseCorner : 1;
-	U8 isStuc : 1;
+	U8 onInVert : 1;
+	U8 isMapCorner : 1;
 } CornerBuf;
 
 typedef struct CornerBufWrap {
@@ -35,7 +35,7 @@ typedef struct CornerBufWrap {
 	I32 *pPendingMerge;
 	I32 mergeCount;
 	I32 mergeSize;
-	I32 size;
+	I32 count;
 	I32 lastInCorner;
 	bool invalid;
 	bool edgeFace;
