@@ -1951,7 +1951,6 @@ void stucReallocAttribArr(
 		//Check entry is valid
 		STUC_ASSERT("corrupt attrib", pAttrib->interpolate % 2 == pAttrib->interpolate);
 		stucReallocAttrib(&pCtx->alloc, pMesh, &pAttrib->core, newLen);
-		STUC_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
 	stucAssignActiveAliases(pCtx, pMesh, 0xffffffff, domain); //0xffffffff for set all
 }
@@ -1988,7 +1987,6 @@ void stucReallocAndMoveAttribs(
 			STUC_ASSERT("", newLastElement == oldLastElement);
 		}
 		reassignIfSpecialBuf((BufMesh *)pMesh, &pAttrib->core, specialBuf);
-		STUC_ASSERT("", i >= 0 && i < pAttribArr->count);
 	}
 }
 

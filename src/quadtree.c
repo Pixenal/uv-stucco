@@ -54,7 +54,6 @@ Result addCellToEncasingCells(
 			dupIdx = i;
 			break;
 		}
-		STUC_ASSERT("", i >= 0 && i < pEncasingCells->cellSize);
 	}
 	if (dupIdx >= 0) {
 		if (!pEncasingCells->pCellType[dupIdx] && edge) {
@@ -251,7 +250,6 @@ void getNextChild(
 			nextChild = i;
 			break;
 		}
-		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 	if (nextChild == -1) {
 		--*pCellStackPtr;
@@ -283,7 +281,6 @@ Result stucGetAllEncasingCells(
 		STUC_ASSERT("", pRootCell->pChildren[i].localIdx >= 0);
 		STUC_ASSERT("", pRootCell->pChildren[i].localIdx < 4);
 		pState->pCellInits[pRootCell->pChildren[i].cellIdx] = 0;
-		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 	do {
 		STUC_ASSERT(
@@ -330,7 +327,6 @@ Result stucGetAllEncasingCells(
 		pState->pCellInits[pCell->cellIdx] = 1;
 		for (I32 i = 0; i < 4; ++i) {
 			pState->pCellInits[pCell->pChildren[i].cellIdx] = 0;
-			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		I32 nextChild = 0;
 		for (I32 i = 0; i < 4; ++i) {
@@ -338,7 +334,6 @@ Result stucGetAllEncasingCells(
 				nextChild = i;
 				break;
 			}
-			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		cellStackPtr++;
 		cellStack[cellStackPtr] = pCell->pChildren + nextChild;
@@ -763,7 +758,6 @@ I32 checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, const Mesh *pMesh, Range *p
 			}
 			pRange->end = i;
 		}
-		STUC_ASSERT("", i >= 0 && i < pAncestor->edgeFaceSize);
 	}
 	STUC_ASSERT("", pRange->start >= 0 && pRange->end <= pAncestor->edgeFaceSize);
 	pRange->end++;
@@ -798,7 +792,6 @@ void addLinkEdgesToCells(
 				rangeBuf[bufSize] = range;
 				bufSize++;
 			}
-			STUC_ASSERT("", j >= 0 && j <= cellStackPtr);
 		}
 		if (bufSize) {
 			pChild->pLinkEdges = pCtx->alloc.pMalloc(sizeof(I32) * bufSize);
@@ -808,7 +801,6 @@ void addLinkEdgesToCells(
 				memcpy(pChild->pLinkEdgeRanges, rangeBuf, sizeof(Range) * bufSize);
 			pChild->linkEdgeSize = bufSize;
 		}
-		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 }
 
@@ -847,7 +839,6 @@ void addEnclosedVertsToCell(
 			STUC_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
 			pParentCell->edgeFaceSize++;
 		}
-		STUC_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
 	for (I32 i = 0; i < 4; ++i) {
 		Cell *cell = pParentCell->pChildren + i;
@@ -857,7 +848,6 @@ void addEnclosedVertsToCell(
 		if (cell->faceSize) {
 			cell->pFaces = pCtx->alloc.pMalloc(sizeof(I32) * cell->faceSize);
 		}
-		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 	STUC_ASSERT("", pParentCell->edgeFaceSize >= 0);
 	STUC_ASSERT("", pParentCell->edgeFaceSize <= pParentCell->faceSize);
@@ -889,7 +879,6 @@ void addEnclosedVertsToCell(
 			edgeFacesSize++;
 		}
 		pFaceFlag[i] = 0;
-		STUC_ASSERT("", i >= 0 && i < pParentCell->faceSize);
 	}
 	STUC_ASSERT("", pParentCell->initialized % 2 == pParentCell->initialized);
 }
@@ -952,7 +941,6 @@ void allocateChildren(
 		pTree->cellCount++;
 		cell->localIdx = (U32)i;
 		setCellBounds(cell, pTree->cellTable.pArr + parentCell, cellStackPtr);
-		STUC_ASSERT("", i >= 0 && i < 4);
 	}
 	pTree->leafCount += 4;
 }
@@ -1008,7 +996,6 @@ Result processCell(
 		STUC_ASSERT("", childSize >= 0);
 		for (I32 i = 0; i < 4; ++i) {
 			childSize += (I32)pCellTable->pArr[cell].pChildren[i].initialized;
-			STUC_ASSERT("", i >= 0 && i < 4);
 		}
 		// If the cell has children, and they are not yet all initialized,
 		// then add the next one to the stack

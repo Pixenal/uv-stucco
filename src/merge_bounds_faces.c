@@ -338,7 +338,6 @@ Result addEntryToSharedEdgeTable(
 			segment
 		);
 		STUC_RETURN_ERR_IFNOT(err, "");
-		STUC_ASSERT("", i >= 0 && i < face.size);
 	}
 	return err;
 }
@@ -1133,7 +1132,6 @@ void combineConnectedIntoPiece(
 				&pTail,
 				j
 			);
-			STUC_ASSERT("", j < pPiece->edgeCount);
 		}
 		depth++;
 		if (depth > pPieceArr->count) {
@@ -1187,7 +1185,6 @@ Result joinAdjIntoPieceArr(
 			"",
 			!pPieceRoots->count || pPieceArr->pArr[pPieceRoots->count - 1].pEntry
 		);
-		STUC_ASSERT("", j >= 0 && j < pPieceArr->count);
 	}
 	return err;
 }
@@ -2134,7 +2131,6 @@ void addToOutMesh(MakePiecesJobArgs *pArgs, BorderVert ***pppVertLookup) {
 			if (pInFaces) {
 				pAlloc->pFree(pInFaces);
 			}
-			STUC_ASSERT("", j >= 0 && j < pPieceRoots->count);
 		}
 		STUC_ASSERT("", reali >= pArgs->entriesStart && reali < pArgs->entriesEnd);
 	}
@@ -2961,9 +2957,7 @@ void compileBorderTables(
 				i,
 				hash
 			);
-			STUC_ASSERT("", hash >= 0 && hash < pMappingJobArgs[i].borderTable.size);
 		}
-		STUC_ASSERT("", i >= 0 && i < mapJobsSent);
 	}
 }
 

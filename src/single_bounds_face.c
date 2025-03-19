@@ -375,7 +375,6 @@ void addFaceToOutMesh(
 			&pBufMesh->mesh.core.cornerAttribs,
 			bufCorner
 		);
-		STUC_ASSERT("", i >= 0 && i < count);
 	}
 	realloced = false;
 	I32 outFace = stucMeshAddFace(pArgs->pBasic->pCtx, pMeshOut, &realloced);
@@ -493,7 +492,6 @@ void stucMergeSingleBorderFace(
 		for (I32 i = 0; i < state.cornerBuf.count; ++i) {
 			I32 vertIdx = state.cornerBuf.pBuf[state.pIdxTable[i]].corner;
 			pMergeBufHandles->pSortedVerts[i] = vertIdx;
-			STUC_ASSERT("", i >= 0 && i < state.cornerBuf.count);
 		}
 		FaceTriangulated tris = {0};
 		tris = stucTriangulateFace(
@@ -512,7 +510,6 @@ void stucMergeSingleBorderFace(
 				entryCount,
 				pMapFace
 			);
-			STUC_ASSERT("", i >= 0 && i < tris.triCount);
 		}
 		pCtx->alloc.pFree(tris.pCorners);
 	}
