@@ -1,3 +1,8 @@
+/* 
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: Apache-2.0
+*/
+
 #define STUC_CELL_STACK_SIZE 16
 
 #include <stdio.h>

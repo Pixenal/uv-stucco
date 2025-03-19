@@ -1,3 +1,8 @@
+/* 
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: Apache-2.0
+*/
+
 //TODO these should be prefixed with STUC_
 #define VERT_ATTRIBUTE_AMOUNT 3
 #define LOOP_ATTRIBUTE_AMOUNT 3

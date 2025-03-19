@@ -1,3 +1,8 @@
+/* 
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: Apache-2.0
+*/
+
 #include <math.h>
 #include <float.h>
 #include <stdio.h>
