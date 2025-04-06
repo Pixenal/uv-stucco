@@ -10,7 +10,29 @@ SPDX-License-Identifier: Apache-2.0
 #include <utils.h>
 #include <types.h>
 
-typedef struct CornerBuf {
+typedef enum IntersectTravelDir {
+	INBOUND,
+	OUTBOUND
+} IntersectTravelDir;
+
+typedef enum IslandType {
+	MAP_FACE,
+	IN_FACE
+} IslandType;
+
+typedef struct Island {
+	IslandType type;
+} Island;
+
+typedef struct InFaceIsland{
+	Island type;
+	FaceCorner pCorners;
+	I32 size;
+	I32 count;
+} InFaceIsland;
+
+/*
+typedef struct MapIslandCorner {
 	Mat3x3 tbn;
 	V3_F32 uvw;
 	V3_F32 corner;
@@ -20,82 +42,165 @@ typedef struct CornerBuf {
 	V3_F32 bc; //barycentric coords
 	V3_F32 projNormal;
 	V2_F32 uv;
+	InFaceIsland *pInIslandNext;
+	InFaceIsland *pInIslandPrev;
+	I32 inFace;
+	InsideStatus inside;
 	I32 ancestor;
 	I32 ancestorNext;
-	F32 alpha;
-	F32 mapAlpha;
+	F32 tInEdge;
+	F32 tMapEdge;
 	F32 inTSign;
 	I8 triCorners[3];
-	I8 inCorner;
 	I8 mapCorner;
 	I8 segment;
 	U8 onLine : 1;
 	U8 onInVert : 1;
 	U8 isMapCorner : 1;
-} CornerBuf;
+	U8 intersect : 1;
+} MapIslandCorner;
 
-typedef struct CornerBufWrap {
-	CornerBuf buf[64];
-	struct CornerBufWrap *pNext;
+struct MapIsland;
+*/
+
+typedef enum CornerType {
+	STUC_CORNER_NONE,
+	STUC_CORNER_ROOT,
+	STUC_CORNER_MAP,
+	STUC_CORNER_IN,
+	STUC_CORNER_INTERSECT
+} CornerType;
+
+typedef struct CornerCore {
+	struct CornerCore *pNext;
+	struct CornerCore *pPrev;
+	I8 type;
+	bool checked;
+} CornerCore;
+
+typedef struct InCorner {
+	CornerCore core;
+	I32 inFace;
+	I32 corner;
+} InCorner;
+
+typedef struct MapCorner {
+	CornerCore core;
+	I32 corner;
+	I32 inFace;
+} MapCorner;
+
+typedef struct IntersectCorner {
+	CornerCore core;
+	V3_F32 pos;
+	I32 borderIdx;
+	I32 mapCorner;
+	F32 tInEdge;
+	F32 tMapEdge;
+	FaceCorner inCorner;
+	I32 borderEdge;
+	I8 type;
+	I8 travelDir;
+} IntersectCorner;
+
+typedef struct ClippedRoot {
+	CornerCore root;
+} ClippedRoot;
+
+typedef struct ClippedArr {
+	LinAlloc mapAlloc;
+	ClippedRoot *pArr;
+	I32 size;
+	I32 count;
+} ClippedArr;
+
+/*
+typedef struct MapIsland {
+	Island type;
+	struct MapIsland *pNext;
+	I32 *pCorners;
+	const IntersectCorner *pInbound;
+	const IntersectCorner *pOutbound;
 	I32 *pPendingMerge;
+	I32 size;
+	I32 count;
 	I32 mergeCount;
 	I32 mergeSize;
-	I32 count;
 	I32 lastInCorner;
 	bool invalid;
 	bool edgeFace;
 	bool onLine;
-} CornerBufWrap;
+} MapIsland;
+*/
 
-typedef struct LocalVert {
-	struct LocalVert *pNext;
-	V2_I32 tile;
-	I32 vert;
-	I32 cornerSize;
-	I32 inFace;
-	I32 mapVert;
-} LocalVert;
-
-typedef struct LocalEdge  {
-	struct LocalEdge *pNext;
-	I32 edge;
-	I32 refFace;
-	I32 refEdge;
-	I32 cornerCount;
-} LocalEdge;
+/*
+typedef struct IntersectTreeNode {
+	struct IntersectTreeNode *pLess;
+	struct IntersectTreeNode *pGreat;
+	IntersectCorner *pCorner;
+} IntersectTreeNode;
 
 typedef struct {
-	LocalVert *pVertTable;
-	LocalEdge *pEdgeTable;
-	void *pVertTableAlloc;
-	void *pEdgeTableAlloc;
-	U32 vertTableSize;
-	I32 edgeTableSize;
-} LocalTables;
+	IntersectCorner *pList;
+	IntersectTreeNode *pTree;
+	void *pListAlloc;
+	void *pNodeAlloc;
+	I32 len;
+} IntersectList;
 
 typedef struct {
-	BufMesh bufMesh;
-	LocalTables localTables;
-	Mat3x3 tbn;
-	Mat3x3 tbnInv;
-	MapToMeshBasic *pBasic;
-	void *pCornerBufWrapAlloc;
-	BorderTable borderTable;
-	Range inFaceRange;
-	BorderTableAlloc borderTableAlloc;
-	I32 id;
-	I32 bufSize;
-	I32 rawBufSize;
-	I32 finalBufSize;
-	I32 cornerBufSize;
-	I32 facesChecked;
-	I32 facesUsed;
-} MappingJobState;
+	IntersectList *pArr;
+	I32 count;
+} IntersectListArr;
+*/
 
-Result stucMapToJobMesh(void *pArgsVoid);
-Result stucMapToSingleFace(
-	MappingJobState *pState,
+typedef struct IntersectArr {
+	const I32 *pSortedIn;
+	const I32 *pSortedMap;
+	Range *pBorderRanges;
+	IntersectCorner *pArr;
+	I32 size;
+	I32 count;
+} IntersectArr;
+
+typedef struct xformAndInterpVertsJobArgs {
+	JobArgs core;
+	Mesh *pOutMesh;// outmesh in core.pBasic is const
+	const InPieceArr *pInPieces;
+	const InPieceArr *pInPiecesClip;
+	LinAlloc *pVertAlloc;
+	bool intersect;
+} xformAndInterpVertsJobArgs;
+
+typedef struct InterpAttribsJobArgs {
+	JobArgs core;
+	Mesh *pOutMesh;
+	const InPieceArr *pInPieces;
+	const InPieceArr *pInPiecesClip;
+	const HTable *pMergeTable;
+} InterpAttribsJobArgs;
+
+Result stucFindEncasedFaces(void *pArgsVoid);
+Result stucGetEncasedFacesPerFace(
+	FindEncasedFacesJobArgs *pArgs,
 	FaceCellsTable *pFaceCellsTable,
-	V2_I32 tile,
+	V2_I16 tile,
 	FaceRange *pInFace
 );
+
+Result stucClipMapFace(
+	const MapToMeshBasic *pBasic,
+	I32 inPieceOffset,
+	const InPiece *pInPiece,
+	BufMesh *pBufMesh
+);
+Result stucAddMapFaceToBufMesh(
+	const MapToMeshBasic *pBasic,
+	I32 inPieceOffset,
+	const InPiece *pInPiece,
+	BufMesh *pBufMesh
+);
+Result stucBufMeshInit(void *pArgsVoid);
+Result stucXformAndInterpVertsInRange(void *pArgsVoid);
+Result stucInterpCornerAttribs(void *pArgsVoid);
+Result stucInterpFaceAttribs(void *pArgsVoid);

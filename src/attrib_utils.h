@@ -16,6 +16,7 @@ typedef StucAttrib Attrib;
 typedef StucAttribIndexed AttribIndexed;
 typedef StucAttribActive AttribActive;
 typedef StucAttribType AttribType;
+typedef StucAttribUse AttribUse;
 typedef StucAttribArray AttribArray;
 typedef StucAttribIndexedArr AttribIndexedArr;
 typedef StucAttribOrigin AttribOrigin;
@@ -26,7 +27,7 @@ typedef StucCommonAttribList CommonAttribList;
 
 //TODO switch pAttrib pData ptr from void * to U8 *?
 
-typedef enum {
+typedef enum SpecialBufAttrib {
 	STUC_ATTRIB_SP_BUF_NONE,
 	STUC_ATTRIB_SP_BUF_W,
 	STUC_ATTRIB_SP_BUF_IN_NORMAL,
@@ -89,6 +90,7 @@ const char *stucAttribAsStrConst(const AttribCore *pAttrib, I32 idx);
 char *stucAttribAsStr(AttribCore *pAttrib, I32 idx);
 void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx);
 const void *stucAttribAsVoidConst(const AttribCore *pAttrib, I32 idx);
+I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32 iSrc);
 I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc);
 void stucCopyAllAttribs(
 	AttribArray *pDest,
@@ -137,29 +139,24 @@ AttribIndexed *stucGetAttribIndexedInternConst(
 	const char *pName
 );
 void stucLerpAttrib(
-	Attrib *pDest,
-	I32 iDest,
-	Attrib *pSrcA,
-	I32 iSrcA,
-	Attrib *pSrcB,
-	I32 iSrcB,
-	F32 alpha);
+	AttribCore *pDest, I32 iDest,
+	const AttribCore *pSrcA, I32 iSrcA,
+	const AttribCore *pSrcB, I32 iSrcB,
+	F32 alpha
+);
 void stucTriInterpolateAttrib(
-	Attrib *pDest,
-	I32 iDest,
-	const Attrib *pSrc,
-	I32 iSrcA,
-	I32 iSrcB,
-	I32 iSrcC,
+	AttribCore *pDest, I32 iDest,
+	const AttribCore *pSrc,
+	I32 iSrcA, I32 iSrcB, I32 iSrcC,
 	V3_F32 bc
 );
 void stucBlendAttribs(
 	AttribCore *pDest, I32 iDest,
-	AttribCore *pA, I32 iA,
-	AttribCore *pB, I32 iB,
+	const AttribCore *pA, I32 iA,
+	const AttribCore *pB, I32 iB,
 	StucBlendConfig blendConfig
 );
-void stucDivideAttribByScalarInt(Attrib *pAttrib, I32 idx, U64 scalar);
+void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar);
 Result stucAllocAttribs(
 	StucContext pCtx,
 	StucDomain domain,
@@ -184,6 +181,7 @@ void stucReallocAttribArr(
 	AttribArray *pAttribArr,
 	I32 newLen
 );
+#ifndef TEMP_DISABLE
 void stucReallocAndMoveAttribs(
 	const StucAlloc *pAlloc,
 	const BufMesh *pMesh,
@@ -199,6 +197,7 @@ void stucAppendBufOnlySpecialAttribs(
 	BufMesh *pBufMesh,
 	bool getInFaces
 );
+#endif
 void stucSetAttribCopyOpt(
 	StucContext pCtx,
 	StucMesh *pMesh,
@@ -289,3 +288,7 @@ void stucAppendToIndexedAttrib(
 AttribType stucAttribGetCompTypeIntern(AttribType type);
 I32 stucAttribTypeGetVecSizeIntern(AttribType type);
 bool stucIsAttribUseRequired(StucAttribUse use);
+UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count);
+
+#define STUC_ATTRIB_USE_FIELD(arr)\
+	stucAttribUseField((arr), sizeof(arr) / sizeof(StucAttribUse))

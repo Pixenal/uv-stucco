@@ -297,12 +297,12 @@ F64 v2F64Dot(V2_F64 a, V2_F64 b) {
 	return a.d[0] * b.d[0] + a.d[1] * b.d[1];
 }
 
-V2_F32 v2F32Cross(V2_F32 a) {
+V2_F32 v2F32LineNormal(V2_F32 a) {
 	V2_F32 b = {a.d[1], -a.d[0]};
 	return b;
 }
 
-V2_F64 v2F64Cross(V2_F64 a) {
+V2_F64 v2F64LineNormal(V2_F64 a) {
 	V2_F64 b = {a.d[1], -a.d[0]};
 	return b;
 }
@@ -597,24 +597,24 @@ bool v4F64Equal(V4_F64 a, V4_F64 b) {
 	return a.d[0] == b.d[0] && a.d[1] == b.d[1] && a.d[2] == b.d[2] && a.d[3] == b.d[3];
 }
 
-V3_F32 barycentricToCartesian(const V3_F32 *pTri, const V3_F32 *pPoint) {
+V3_F32 stucBarycentricToCartesian(const V3_F32 *pTri, V3_F32 point) {
 	V3_F32 pointCartesian = {0};
 	pointCartesian.d[0] =
-		(pPoint->d[0] * pTri[0].d[0]) +
-		(pPoint->d[1] * pTri[1].d[0]) +
-		(pPoint->d[2] * pTri[2].d[0]);
+		(point.d[0] * pTri[0].d[0]) +
+		(point.d[1] * pTri[1].d[0]) +
+		(point.d[2] * pTri[2].d[0]);
 	pointCartesian.d[1] =
-		(pPoint->d[0] * pTri[0].d[1]) +
-		(pPoint->d[1] * pTri[1].d[1]) +
-		(pPoint->d[2] * pTri[2].d[1]);
+		(point.d[0] * pTri[0].d[1]) +
+		(point.d[1] * pTri[1].d[1]) +
+		(point.d[2] * pTri[2].d[1]);
 	pointCartesian.d[2] =
-		(pPoint->d[0] * pTri[0].d[2]) +
-		(pPoint->d[1] * pTri[1].d[2]) +
-		(pPoint->d[2] * pTri[2].d[2]);
+		(point.d[0] * pTri[0].d[2]) +
+		(point.d[1] * pTri[1].d[2]) +
+		(point.d[2] * pTri[2].d[2]);
 	return pointCartesian;
 }
 
-V3_F32 cartesianToBarycentric(const V2_F32 *pTri32, const V2_F32 *pPoint32) {
+V3_F32 stucCartesianToBarycentric(const V2_F32 *pTri32, const V2_F32 *pPoint32) {
 	V3_F32 pointBc = {0};
 	F64 derta = .0;
 	F64 dertau = .0;

@@ -41,7 +41,7 @@ typedef struct StucMapInternal *StucMap;
 //TODO unify naming. different structs and enums called "type", "attrib", "blend".
 //Make it consistent. They're attribute types;
 //or maybe just have STUC_I8? can they be generic like that?
-typedef enum {
+typedef enum StucAttribType {
 	STUC_ATTRIB_I8,
 	STUC_ATTRIB_I16,
 	STUC_ATTRIB_I32,
@@ -71,7 +71,7 @@ typedef enum {
 	STUC_ATTRIB_TYPE_ENUM_COUNT
 } StucAttribType;
 
-typedef enum {
+typedef enum StucAttribUse {
 	STUC_ATTRIB_USE_NONE,
 	STUC_ATTRIB_USE_POS,
 	STUC_ATTRIB_USE_UV,
@@ -88,6 +88,7 @@ typedef enum {
 	STUC_ATTRIB_USE_SEAM_EDGE,
 	STUC_ATTRIB_USE_SEAM_VERT,
 	STUC_ATTRIB_USE_NUM_ADJ_PRESERVE,
+	STUC_ATTRIB_USE_EDGE_FACES,
 	STUC_ATTRIB_USE_EDGE_CORNERS,
 	STUC_ATTRIB_USE_SP_ENUM_COUNT,//denotes number of sp uses
 	STUC_ATTRIB_USE_COLOR,
@@ -97,7 +98,7 @@ typedef enum {
 	STUC_ATTRIB_USE_ENUM_COUNT
 } StucAttribUse;
 
-typedef enum {
+typedef enum StucBlendMode {
 	STUC_BLEND_REPLACE, //only replace & append can be used with strings
 	STUC_BLEND_MULTIPLY,
 	STUC_BLEND_DIVIDE,
@@ -112,7 +113,7 @@ typedef enum {
 	STUC_BLEND_APPEND //strings only
 } StucBlendMode;
 
-typedef enum {
+typedef enum StucAttribOrigin {
 	STUC_ATTRIB_ORIGIN_MAP,
 	STUC_ATTRIB_ORIGIN_MESH_IN,//TODO put this at idx 0, so its set when user makes a struct
 	STUC_ATTRIB_ORIGIN_MESH_OUT,
@@ -120,19 +121,19 @@ typedef enum {
 	STUC_ATTRIB_ORIGIN_MESH_BUF
 } StucAttribOrigin;
 
-typedef enum {
+typedef enum StucAttribCopyOpt {
 	STUC_ATTRIB_COPY,
 	STUC_ATTRIB_DONT_COPY
 } StucAttribCopyOpt;
 
-typedef enum {
+typedef enum StucImageType {
 	STUC_IMAGE_UI8,
 	STUC_IMAGE_UI16,
 	STUC_IMAGE_UI32,
 	STUC_IMAGE_F32,
 } StucImageType;
 
-typedef enum {
+typedef enum StucDomain {
 	STUC_DOMAIN_NONE,
 	STUC_DOMAIN_FACE,
 	STUC_DOMAIN_CORNER,
@@ -141,136 +142,136 @@ typedef enum {
 	STUC_DOMAIN_MESH
 } StucDomain;
 
-typedef enum {
+typedef enum StucResult {
 	STUC_NOT_SET,
 	STUC_SUCCESS,
 	STUC_ERROR
 } StucResult;
 
-typedef struct {
+typedef struct StucVec2 {
 	float x;
 	float y;
 } StucVec2;
 
-typedef struct {
+typedef struct StucVec3 {
 	float x;
 	float y;
 	float z;
 } StucVec3;
 
-typedef struct {
+typedef struct Stuc_V2_I8 {
 	int8_t d[2];
 } Stuc_V2_I8;
 
-typedef struct {
+typedef struct Stuc_V2_I16 {
 	int16_t d[2];
 } Stuc_V2_I16;
 
-typedef struct {
+typedef struct Stuc_V2_I32 {
 	int32_t d[2];
 } Stuc_V2_I32;
 
-typedef struct {
+typedef struct Stuc_V2_I64 {
 	int64_t d[2];
 } Stuc_V2_I64;
 
-typedef struct {
+typedef struct Stuc_V2_F32 {
 	float d[2];
 } Stuc_V2_F32;
 
-typedef struct {
+typedef struct Stuc_V2_F64 {
 	double d[2];
 } Stuc_V2_F64;
 
-typedef struct {
+typedef struct Stuc_V3_I8 {
 	int8_t d[3];
 } Stuc_V3_I8;
 
-typedef struct {
+typedef struct Stuc_V3_I16 {
 	int16_t d[3];
 } Stuc_V3_I16;
 
-typedef struct {
+typedef struct Stuc_V3_I32 {
 	int32_t d[3];
 } Stuc_V3_I32;
 
-typedef struct {
+typedef struct Stuc_V3_I64 {
 	int64_t d[3];
 } Stuc_V3_I64;
 
-typedef struct {
+typedef struct Stuc_V3_F32 {
 	float d[3];
 } Stuc_V3_F32;
 
-typedef struct {
+typedef struct Stuc_V3_F64 {
 	double d[3];
 } Stuc_V3_F64;
 
-typedef struct {
+typedef struct Stuc_V4_I8 {
 	int8_t d[4];
 } Stuc_V4_I8;
 
-typedef struct {
+typedef struct Stuc_V4_I16 {
 	int16_t d[4];
 } Stuc_V4_I16;
 
-typedef struct {
+typedef struct Stuc_V4_I32 {
 	int32_t d[4];
 } Stuc_V4_I32;
 
-typedef struct {
+typedef struct Stuc_V4_I64 {
 	int64_t d[4];
 } Stuc_V4_I64;
 
-typedef struct {
+typedef struct Stuc_V4_F32 {
 	float d[4];
 } Stuc_V4_F32;
 
-typedef struct {
+typedef struct Stuc_V4_F64 {
 	double d[4];
 } Stuc_V4_F64;
 
-typedef struct {
+typedef struct Stuc_M4x4_F32 {
 	float d[4][4];
 } Stuc_M4x4_F32;
 
-typedef struct {
+typedef struct Stuc_String {
 	char d[STUC_ATTRIB_STRING_MAX_LEN];
 } Stuc_String;
 
-typedef struct {
+typedef struct StucAttribCore {
 	void *pData;
 	char name[STUC_ATTRIB_NAME_MAX_LEN];
 	StucAttribType type;
 	StucAttribUse use;
 } StucAttribCore;
 
-typedef struct {
+typedef struct StucAttrib {
 	StucAttribCore core;
 	StucAttribOrigin origin;
 	StucAttribCopyOpt copyOpt;
 	bool interpolate;
 } StucAttrib;
 
-typedef struct {
+typedef struct StucAttribIndexed {
 	StucAttribCore core;
 	int32_t size;//add size to existing vars that only use count
 	int32_t count;
 } StucAttribIndexed;
 
-typedef struct {
+typedef struct StucAttribIndexedArr {
 	StucAttribIndexed *pArr;
 	int32_t size;
 	int32_t count;
 } StucAttribIndexedArr;
 
-typedef struct {
+typedef struct StucAttribArray {
 	StucAttrib *pArr;
 	int32_t size;
 	int32_t count;
 } StucAttribArray;
 
-typedef struct {
+typedef struct StucBlendConfig {
 	double fMin;
 	double fMax;
 	int64_t iMin;
@@ -281,18 +282,18 @@ typedef struct {
 	bool order;
 } StucBlendConfig;
 
-typedef struct {
+typedef struct StucCommonAttrib {
 	char name[STUC_ATTRIB_NAME_MAX_LEN];
 	StucBlendConfig blendConfig;
 } StucCommonAttrib;
 
-typedef struct {
+typedef struct StucCommonAttribArr {
 	StucCommonAttrib *pArr;
 	int32_t size;
 	int32_t count;
 } StucCommonAttribArr;
 
-typedef struct {
+typedef struct StucCommonAttribList {
 	StucCommonAttribArr mesh;
 	StucCommonAttribArr face;
 	StucCommonAttribArr corner;
@@ -300,11 +301,11 @@ typedef struct {
 	StucCommonAttribArr vert;
 } StucCommonAttribList;
 
-typedef struct {
+typedef struct StucTypeDefault {
 	StucBlendConfig blendConfig;
 } StucTypeDefault;
 
-typedef struct {
+typedef struct StucTypeDefaultConfig {
 	StucTypeDefault i8;
 	StucTypeDefault i16;
 	StucTypeDefault i32;
@@ -332,18 +333,18 @@ typedef struct {
 	StucTypeDefault string;
 } StucTypeDefaultConfig;
 
-typedef enum {
+typedef enum StucObjectType {
 	STUC_OBJECT_DATA_NULL,
 	STUC_OBJECT_DATA_MESH,
 	STUC_OBJECT_DATA_MESH_INTERN,
 	STUC_OBJECT_DATA_MESH_BUF
 } StucObjectType;
 
-typedef struct {
+typedef struct StucObjectData {
 	StucObjectType type;
 } StucObjectData;
 
-typedef struct {
+typedef struct StucMapArr {
 	StucMap *ppArr;
 	int8_t *pMatArr;
 	//TODO maybe rename CommonAttrib to Blend or such? It's shorter
@@ -352,13 +353,13 @@ typedef struct {
 	int32_t count;
 } StucMapArr;
 
-typedef struct {
+typedef struct StucAttribActive {
 	StucDomain domain;
 	int16_t idx;
 	bool active;
 } StucAttribActive;
 
-typedef struct {
+typedef struct StucMesh {
 	StucObjectData type;
 	StucAttribActive activeAttribs[STUC_ATTRIB_USE_ENUM_COUNT];
 	int32_t *pFaces;
@@ -375,21 +376,21 @@ typedef struct {
 	int32_t vertCount;
 } StucMesh;
 
-typedef struct {
+typedef struct StucObject {
 	StucObjectData *pData;
 	Stuc_M4x4_F32 transform;
 } StucObject;
 
-typedef struct {
-	void *(*pMalloc)(size_t);
-	void *(*pCalloc)(size_t, size_t);
-	void (*pFree)(void *);
-	void *(*pRealloc)(void *, size_t);
+typedef struct StucAlloc {
+	void *(*fpMalloc)(size_t);
+	void *(*fpCalloc)(size_t, size_t);
+	void (*fpFree)(void *);
+	void *(*fpRealloc)(void *, size_t);
 } StucAlloc;
 
-typedef struct {
-	void (*pInit)(void **, int32_t *, const StucAlloc *);
-	void (*pJobStackGetJob)(void *, void **);
+typedef struct StucThreadPool {
+	void (*fpInit)(void **, int32_t *, const StucAlloc *);
+	void (*fpJobStackGetJob)(void *, void **);
 	StucResult (*pJobStackPushJobs)(
 		void *,
 		int32_t,
@@ -397,34 +398,34 @@ typedef struct {
 		StucResult (*)(void *),
 		void **
 	);
-	StucResult (*pWaitForJobs)(void *, int32_t, void **, bool, bool *);
-	StucResult (*pJobHandleDestroy)(void *, void **);
-	StucResult (*pGetJobErr)(void *, void *, StucResult *);
-	bool (*pGetAndDoJob)(void *);
-	void (*pMutexGet)(void *, void **);
-	void (*pMutexLock)(void *, void *);
-	void (*pMutexUnlock)(void *, void *);
-	void (*pMutexDestroy)(void *, void *);
-	void (*pBarrierGet)(void *, void **, int32_t);
-	bool (*pBarrierWait)(void *, void *);
-	void (*pBarrierDestroy)(void *, void *);
-	void (*pDestroy)(void *);
+	StucResult (*fpWaitForJobs)(void *, int32_t, void **, bool, bool *);
+	StucResult (*fpJobHandleDestroy)(void *, void **);
+	StucResult (*fpGetJobErr)(void *, void *, StucResult *);
+	bool (*fpGetAndDoJob)(void *);
+	void (*fpMutexGet)(void *, void **);
+	void (*fpMutexLock)(void *, void *);
+	void (*fpMutexUnlock)(void *, void *);
+	void (*fpMutexDestroy)(void *, void *);
+	void (*fpBarrierGet)(void *, void **, int32_t);
+	bool (*fpBarrierWait)(void *, void *);
+	void (*fpBarrierDestroy)(void *, void *);
+	void (*fpDestroy)(void *);
 } StucThreadPool;
 
-typedef struct {
-	StucResult (*pOpen)(void **, const char *, int32_t, StucAlloc *);
-	StucResult (*pWrite)(void *, unsigned char *, int32_t);
-	StucResult (*pRead)(void *, unsigned char *, int32_t);
-	StucResult (*pClose)(void *);
+typedef struct StucIo {
+	StucResult (*fpOpen)(void **, const char *, int32_t, StucAlloc *);
+	StucResult (*fpWrite)(void *, unsigned char *, int32_t);
+	StucResult (*fpRead)(void *, unsigned char *, int32_t);
+	StucResult (*fpClose)(void *);
 } StucIo;
 
-typedef struct {
+typedef struct StucImage {
 	void *pData;
 	StucImageType type;
 	int32_t res;
 } StucImage;
 
-typedef struct {
+typedef struct StucUsg {
 	StucObject obj;
 	StucObject *pFlatCutoff;
 } StucUsg;
@@ -432,9 +433,9 @@ typedef struct {
 #define STUC_STAGE_NAME_LEN 64
 typedef struct StucStageReport {
 	char stage[STUC_STAGE_NAME_LEN];
-	void (*pBegin)(void *, struct StucStageReport *, const char *);
-	void (*pProgress)(void *, struct StucStageReport* , int32_t);
-	void (*pEnd)(void *, struct StucStageReport *);
+	void (*fpBegin)(void *, struct StucStageReport *, const char *);
+	void (*fpProgress)(void *, struct StucStageReport* , int32_t);
+	void (*fpEnd)(void *, struct StucStageReport *);
 	int32_t progress;
 	int32_t outOf;
 } StucStageReport;

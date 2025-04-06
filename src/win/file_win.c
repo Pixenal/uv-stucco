@@ -13,7 +13,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #define ERR_MESSAGE_MAX_LEN 128
 
-typedef struct {
+typedef struct PlatformContext {
 	HANDLE *pHFile;
 	StucAlloc alloc;
 } PlatformContext;
@@ -39,7 +39,7 @@ StucResult stucPlatformFileOpen(
 		default:
 			STUC_RETURN_ERR(err, "Invalid action passed to function\n");
 	}
-	PlatformContext *pState = pAlloc->pMalloc(sizeof(PlatformContext));
+	PlatformContext *pState = pAlloc->fpMalloc(sizeof(PlatformContext));
 	pState->alloc = *pAlloc;
 	pState->pHFile = CreateFile(
 		filePath,
@@ -116,7 +116,7 @@ StucResult stucPlatformFileClose(void *file) {
 	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
 	bool success = CloseHandle(pState->pHFile);
-	pState->alloc.pFree(pState);
+	pState->alloc.fpFree(pState);
 	if (!success) {
 		char message[ERR_MESSAGE_MAX_LEN] = {0};
 		snprintf(message, ERR_MESSAGE_MAX_LEN, "Win error: %d\n", GetLastError());

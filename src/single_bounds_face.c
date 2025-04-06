@@ -22,12 +22,12 @@ SPDX-License-Identifier: Apache-2.0
 #include <usg.h>
 #include <error.h>
 
-typedef struct {
+typedef struct MapCornerBuf {
 	I32 *pBuf;
 	I32 count;
 } MapCornerBuf;
 
-typedef struct {
+typedef struct MergeBufs {
 	BoundsCornerBuf cornerBuf;
 	MapCornerBuf mapCornerBuf;
 	I32 *pIdxTable;
@@ -36,6 +36,7 @@ typedef struct {
 	I32 size;
 } MergeBufs;
 
+#ifndef TEMP_DISABLE
 typedef struct {
 	MakePiecesJobArgs *pArgs;
 	PieceArr *pPieceArr;
@@ -50,10 +51,10 @@ typedef struct {
 
 void stucDestroyMergeBufs(StucContext pCtx, MergeBufHandles *pHandle) {
 	if (pHandle->size) {
-		pCtx->alloc.pFree(pHandle->pCornerBuf);
-		pCtx->alloc.pFree(pHandle->pMapCornerBuf);
-		pCtx->alloc.pFree(pHandle->pIdxTable);
-		pCtx->alloc.pFree(pHandle->pSortedVerts);
+		pCtx->alloc.fpFree(pHandle->pCornerBuf);
+		pCtx->alloc.fpFree(pHandle->pMapCornerBuf);
+		pCtx->alloc.fpFree(pHandle->pIdxTable);
+		pCtx->alloc.fpFree(pHandle->pSortedVerts);
 	}
 }
 
@@ -65,10 +66,10 @@ void stucAllocMergeBufs(
 	STUC_ASSERT("", totalVerts >= 0 && totalVerts < 100000);
 	pHandle->size = totalVerts;
 	pHandle->pCornerBuf =
-		pCtx->alloc.pMalloc(sizeof(BoundsCornerBufEntry) * (pHandle->size + 1));
-	pHandle->pMapCornerBuf = pCtx->alloc.pMalloc(sizeof(I32) * pHandle->size);
-	pHandle->pIdxTable = pCtx->alloc.pMalloc(pHandle->size);
-	pHandle->pSortedVerts = pCtx->alloc.pMalloc(sizeof(I32) * pHandle->size);
+		pCtx->alloc.fpMalloc(sizeof(BoundsCornerBufEntry) * (pHandle->size + 1));
+	pHandle->pMapCornerBuf = pCtx->alloc.fpMalloc(sizeof(I32) * pHandle->size);
+	pHandle->pIdxTable = pCtx->alloc.fpMalloc(pHandle->size);
+	pHandle->pSortedVerts = pCtx->alloc.fpMalloc(sizeof(I32) * pHandle->size);
 }
 
 static
@@ -134,7 +135,7 @@ void addOnLineVert(
 			}
 			if (!pOnLineEntry->pNext) {
 				pOnLineEntry = pOnLineEntry->pNext =
-					pArgs->pBasic->pCtx->alloc.pCalloc(1, sizeof(OnLine));
+					pArgs->pBasic->pCtx->alloc.fpCalloc(1, sizeof(OnLine));
 				initOnLineTableEntry(
 					pArgs,
 					pOnLineEntry,
@@ -268,7 +269,7 @@ I32 addCorner(
 		}
 		vert = pVertEntry->vert;
 		STUC_ASSERT("", vert >= 0 && vert < pBasic->outMesh.core.vertCount);
-		if (!v3F32IsFinite(pBasic->outMesh.pVerts[vert])) {
+		if (!v3F32IsFinite(pBasic->outMesh.pPos[vert])) {
 			return 1;
 		}
 		if (isVertDup(&pState->cornerBuf, vert)) {
@@ -387,7 +388,7 @@ void addFaceToOutMesh(
 		if (realloced) {
 			//realloc to match meshOut face buf
 			I32 byteCount = sizeof(InFaceArr) * pMeshOut->faceBufSize;
-			pArgs->pBasic->pInFaceTable->pArr = pArgs->pBasic->pCtx->alloc.pRealloc(
+			pArgs->pBasic->pInFaceTable->pArr = pArgs->pBasic->pCtx->alloc.fpRealloc(
 				pArgs->pBasic->pInFaceTable->pArr,
 				byteCount
 			);
@@ -444,9 +445,9 @@ bool isFaceInvalid(const MapToMeshBasic *pBasic, const AddFaceState *pState) {
 		I32 idxPrev = idx ? idx - 1 : pState->cornerBuf.count - 1;
 		I32 idxNext = (idx + 1) % pState->cornerBuf.count;
 		if (v3F32DegenerateTri(
-				pBasic->outMesh.pVerts[pCorners[idxPrev].corner],
-				pBasic->outMesh.pVerts[pCorners[idx].corner],
-				pBasic->outMesh.pVerts[pCorners[idxNext].corner],
+				pBasic->outMesh.pPos[pCorners[idxPrev].corner],
+				pBasic->outMesh.pPos[pCorners[idx].corner],
+				pBasic->outMesh.pPos[pCorners[idxNext].corner],
 				.0f
 			)
 		) {
@@ -502,7 +503,7 @@ void stucMergeSingleBorderFace(
 		tris = stucTriangulateFace(
 			pCtx->alloc,
 			&tempFace,
-			pArgs->pBasic->outMesh.pVerts,
+			pArgs->pBasic->outMesh.pPos,
 			pMergeBufHandles->pSortedVerts,
 			false
 		);
@@ -516,12 +517,12 @@ void stucMergeSingleBorderFace(
 				pMapFace
 			);
 		}
-		pCtx->alloc.pFree(tris.pCorners);
+		pCtx->alloc.fpFree(tris.pCorners);
 	}
 	else {
 		//STUC_ASSERT("", state.cornerBuf.count <= 16);
 		I32 *pIndices =
-			pCtx->alloc.pMalloc(sizeof(I32) * state.cornerBuf.count);
+			pCtx->alloc.fpMalloc(sizeof(I32) * state.cornerBuf.count);
 		for (I32 i = 0; i < state.cornerBuf.count; ++i) {
 			pIndices[i] = i;
 		}
@@ -533,7 +534,8 @@ void stucMergeSingleBorderFace(
 			entryCount,
 			pMapFace
 		);
-		pCtx->alloc.pFree(pIndices);
+		pCtx->alloc.fpFree(pIndices);
 	}
 	//nullEntries(state.pPieceRoot);
 }
+#endif

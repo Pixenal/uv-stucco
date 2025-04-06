@@ -9,16 +9,17 @@ SPDX-License-Identifier: Apache-2.0
 #include <io.h>
 #include <quadtree.h>
 #include <uv_stucco.h>
+#include <mesh.h>
 #include <usg.h>
 #include <types.h>
 
-typedef struct {
+typedef struct AttributeDesc {
 	char name[64];
 	char type[2];
 	I32 sizeInBits;
 } AttributeDesc;
 
-typedef struct {
+typedef struct StucHeader {
 	char format[MAP_FORMAT_NAME_MAX_LEN];
 	I64 dataSize;
 	I64 dataSizeCompressed;
@@ -31,6 +32,7 @@ typedef struct {
 typedef struct StucMapInternal {
 	UsgArr usgArr;
 	const Mesh *pMesh;
+	TriCache triCache;
 	QuadTree quadTree;
 	StucAttribIndexedArr indexedAttribs;
 	V2_F32 zBounds;

@@ -21,7 +21,7 @@ typedef struct HitEdge {
 	bool valid;
 } HitEdge;
 
-typedef struct {
+typedef struct HitEdgeTable {
 	HitEdge *pTable;
 	I32 size;
 } HitEdgeTable;
@@ -41,7 +41,7 @@ bool addToHitEdges(
 	I32 a, I32 b
 ) {
 	U32 sum = b < 0 ? a : a + b;
-	I32 hash = stucFnvHash((U8 *)&sum, 4, pHitEdges->size);
+	I32 hash = stucFnvHash((U8 *)&sum, sizeof(sum), pHitEdges->size);
 	HitEdge *pEntry = pHitEdges->pTable + hash;
 	if (!pEntry->valid) {
 		initHitEdgeEntry(pEntry, a, b);
@@ -55,7 +55,7 @@ bool addToHitEdges(
 			return false;
 		}
 		if (!pEntry->pNext) {
-			pEntry = pEntry->pNext = pAlloc->pCalloc(1, sizeof(HitEdge));
+			pEntry = pEntry->pNext = pAlloc->fpCalloc(1, sizeof(HitEdge));
 			initHitEdgeEntry(pEntry, a, b);
 			return true;
 		}
@@ -78,7 +78,7 @@ bool hitTestTri(
 		*(V2_F32 *)&pTri[1],
 		*(V2_F32 *)&pTri[2]
 	};
-	V3_F32 bc = cartesianToBarycentric(triV2, (V2_F32 *)&point);
+	V3_F32 bc = stucCartesianToBarycentric(triV2, (V2_F32 *)&point);
 	if (!v3F32IsFinite(bc)) {
 		//degenerate
 		return false;
@@ -86,7 +86,7 @@ bool hitTestTri(
 	if (bc.d[0] < .0f || bc.d[1] < .0f || bc.d[2] < .0f) {
 		return false;
 	}
-	V3_F32 intersection = barycentricToCartesian(pTri, &bc);
+	V3_F32 intersection = stucBarycentricToCartesian(pTri, bc);
 	if (point.d[2] < intersection.d[2]) {
 		return false; //point is below triangle
 	}
@@ -133,9 +133,9 @@ void getTri(
 	pVerts[0] = pMesh->core.pCorners[pFace->start + a];
 	pVerts[1] = pMesh->core.pCorners[pFace->start + b];
 	pVerts[2] = pMesh->core.pCorners[pFace->start + c];
-	pTri[0] = pMesh->pVerts[pVerts[0]];
-	pTri[1] = pMesh->pVerts[pVerts[1]];
-	pTri[2] = pMesh->pVerts[pVerts[2]];
+	pTri[0] = pMesh->pPos[pVerts[0]];
+	pTri[1] = pMesh->pPos[pVerts[1]];
+	pTri[2] = pMesh->pPos[pVerts[2]];
 
 }
 
@@ -145,9 +145,9 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 	I32 wind = 0;
 	HitEdgeTable hitEdges = {0};
 	hitEdges.size = pMesh->core.edgeCount;
-	hitEdges.pTable = pAlloc->pCalloc(hitEdges.size, sizeof(HitEdge));
+	hitEdges.pTable = pAlloc->fpCalloc(hitEdges.size, sizeof(HitEdge));
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
-		FaceRange face = stucGetFaceRange(&pMesh->core, i, false);
+		FaceRange face = stucGetFaceRange(&pMesh->core, i);
 		V3_F32 tri[3] = {0};
 		I32 triVerts[3] = {0};
 		if (face.size == 3) {
@@ -161,25 +161,23 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 			wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 		}
 		else {
-			FaceTriangulated tris = stucTriangulateFace(
-				*pAlloc,
-				&face,
-				pMesh->pVerts,
-				pMesh->core.pCorners,
-				false
-			);
-			for (I32 j = 0; j < tris.cornerCount; j += 3) {
+			I32 triCount = face.size - 2;
+			FaceTriangulated tris = {.pTris = pAlloc->fpCalloc(triCount * 3, 1)};
+			stucTriangulateFaceFromVerts(pAlloc, &face, pMesh, &tris);
+			for (I32 j = 0; j < triCount; ++j) {
+				I32 triStart = j * 3;
 				getTri(
 					tri,
 					triVerts,
 					pMesh,
 					&face,
-					tris.pCorners[j],
-					tris.pCorners[j + 1],
-					tris.pCorners[j + 2]
+					tris.pTris[triStart],
+					tris.pTris[triStart + 1],
+					tris.pTris[triStart + 2]
 				);
 				wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 			}
+			pAlloc->fpFree(tris.pTris);
 		}
 	}
 	return wind % 2;
@@ -190,7 +188,7 @@ void getUsgBoundsSquare(Mesh *pMesh, const Mesh *pSrcMesh) {
 	V2_F32 min = {FLT_MAX, FLT_MAX};
 	V2_F32 max = {-FLT_MAX, -FLT_MAX};
 	for (I32 j = 0; j < pSrcMesh->core.vertCount; ++j) {
-		V3_F32 vert = pSrcMesh->pVerts[j];
+		V3_F32 vert = pSrcMesh->pPos[j];
 		if (vert.d[0] < min.d[0]) {
 			min.d[0] = vert.d[0];
 		}
@@ -215,7 +213,7 @@ void getUsgBoundsSquare(Mesh *pMesh, const Mesh *pSrcMesh) {
 	for (I32 i = 0; i < 4; ++i) {
 		pCore->pCorners[pCore->cornerCount] = pCore->vertCount;
 		pCore->pEdges[pCore->cornerCount] = pCore->edgeCount;
-		pMesh->pVerts[pCore->vertCount] = stuc[i];
+		pMesh->pPos[pCore->vertCount] = stuc[i];
 		//can probably delete the stuc once the groups are set,
 		//they're only used for that
 		pMesh->pUvs[pCore->cornerCount] = *(V2_F32 *)&stuc[i];
@@ -240,10 +238,10 @@ StucResult stucAllocUsgSquaresMesh(
 	pMesh->cornerBufSize = usgCount * 4;
 	pMesh->edgeBufSize = pMesh->cornerBufSize;
 	pMesh->vertBufSize = pMesh->cornerBufSize;
-	pCore->pFaces = pCtx->alloc.pCalloc(pMesh->faceBufSize, sizeof(I32));
-	pCore->pCorners = pCtx->alloc.pCalloc(pMesh->cornerBufSize * 4, sizeof(I32));
-	pCore->pEdges = pCtx->alloc.pCalloc(pMesh->edgeBufSize * 4, sizeof(I32));
-	pCore->vertAttribs.pArr = pCtx->alloc.pCalloc(1, sizeof(StucAttrib));
+	pCore->pFaces = pCtx->alloc.fpCalloc(pMesh->faceBufSize, sizeof(I32));
+	pCore->pCorners = pCtx->alloc.fpCalloc(pMesh->cornerBufSize * 4, sizeof(I32));
+	pCore->pEdges = pCtx->alloc.fpCalloc(pMesh->edgeBufSize * 4, sizeof(I32));
+	pCore->vertAttribs.pArr = pCtx->alloc.fpCalloc(1, sizeof(StucAttrib));
 	Attrib *pPosAttrib = pCore->vertAttribs.pArr;
 	stucInitAttrib(
 		&pCtx->alloc,
@@ -258,7 +256,7 @@ StucResult stucAllocUsgSquaresMesh(
 	);
 	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_POS, STUC_DOMAIN_VERT);
 	pCore->vertAttribs.count = 1;
-	pCore->cornerAttribs.pArr = pCtx->alloc.pCalloc(2, sizeof(StucAttrib));
+	pCore->cornerAttribs.pArr = pCtx->alloc.fpCalloc(2, sizeof(StucAttrib));
 	Attrib *pUvAttrib = pCore->cornerAttribs.pArr;
 	stucInitAttrib(
 		&pCtx->alloc,
@@ -286,7 +284,16 @@ StucResult stucAllocUsgSquaresMesh(
 	);
 	stucSetAttribIdxActive(pCore, 1, STUC_ATTRIB_USE_NORMAL, STUC_DOMAIN_CORNER);
 	pCore->cornerAttribs.count = 2;
-	err = stucAssignActiveAliases(pCtx, pMesh, 0xe, STUC_DOMAIN_NONE); // 1110 - set pos uv and normal
+	err = stucAssignActiveAliases(
+		pCtx, 
+		pMesh, 
+		STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
+			STUC_ATTRIB_USE_POS,
+			STUC_ATTRIB_USE_UV,
+			STUC_ATTRIB_USE_NORMAL
+		})),
+		STUC_DOMAIN_NONE
+	);
 	STUC_THROW_IFNOT(err, "", 0);
 	STUC_CATCH(0, err, ;);
 	return err;
@@ -316,7 +323,7 @@ void assignUsgToVertsInFace(
 	I32 *pCellFaces,
 	FaceRange *pSquaresFace
 ) {
-	FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[faceIdx], false);
+	FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[faceIdx]);
 	//the uv of corners 0 and 2 can be treated and min and max for the bounding square
 	V2_F32 min = pSquares->pUvs[pSquaresFace->start];
 	V2_F32 max = pSquares->pUvs[pSquaresFace->start + 2];
@@ -325,7 +332,7 @@ void assignUsgToVertsInFace(
 	}
 	for (I32 l = 0; l < mapFace.size; ++l) {
 		I32 vertIdx = pMap->pMesh->core.pCorners[mapFace.start + l];
-		V3_F32 vert = pMap->pMesh->pVerts[vertIdx];
+		V3_F32 vert = pMap->pMesh->pPos[vertIdx];
 		if (stucIsPointInsideMesh(pAlloc, vert, pMesh)) {
 			pMap->pMesh->pUsg[vertIdx] = usgIdx + 1;
 			if (pFlatCutoff &&
@@ -359,7 +366,7 @@ StucResult stucAssignUsgsToVerts(
 	for (I32 i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
 		Mesh *pFlatCutoff = (Mesh *)pUsgArr[i].pFlatCutoff->pData;
-		FaceRange squaresFace = stucGetFaceRange(&pSquares->core, i, false);
+		FaceRange squaresFace = stucGetFaceRange(&pSquares->core, i);
 		FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, 0);
 		for (I32 j = 0; j < pFaceCellsEntry->cellSize; ++j) {
 			//put this cell stuff into a generic function
@@ -463,10 +470,10 @@ Result isFaceClosestToOrigin(
 	for (I32 k = 0; k < pInFace->size; ++k) {
 		_(triStuc + k V2SUBEQL fTileMin);
 	}
-	V3_F32 bc = stucGetBarycentricInFace(
-		triStuc,
+	V3_F32 bc = stucGetBarycentricInFaceFromUvs(
+		pInMesh,
+		pInFace,
 		triCorners,
-		pInFace->size,
 		pUsg->origin
 	);
 	I32 inside = bc.d[0] >= .0f && bc.d[1] >= .0f && bc.d[2] >= .0f;
@@ -505,7 +512,7 @@ StucResult getClosestTriToOrigin(
 ) {
 	Result err = STUC_SUCCESS;
 	for (I32 j = 0; j < pInFaceTable[i].count; ++j) {
-		FaceRange inFace = stucGetFaceRange(&pInMesh->core, pInFaceTable[i].pArr[j], false);
+		FaceRange inFace = stucGetFaceRange(&pInMesh->core, pInFaceTable[i].pArr[j]);
 		FaceBounds faceBounds = {0};
 		stucGetFaceBoundsForTileTest(&faceBounds, pInMesh, &inFace);
 		V2_I32 minTile = faceBounds.min;
@@ -571,33 +578,33 @@ StucResult stucSampleInAttribsAtUsgOrigins(
 			stucGetInterpolatedTbn(pInMesh, &closestFace, closestFaceCorners, closestBc);
 		pInFaceTable[i].normal = *(V3_F32 *)&pInFaceTable[i].tbn.d[2];
 		//add offset if current position will cause intersections with surface
-		FaceRange face = stucGetFaceRange(pSquares, i, false);
+		FaceRange face = stucGetFaceRange(pSquares, i);
 		I32 triVerts[3] = {
 			pInMesh->core.pCorners[pInFaceTable[i].tri[0]],
 			pInMesh->core.pCorners[pInFaceTable[i].tri[1]],
 			pInMesh->core.pCorners[pInFaceTable[i].tri[2]]
 		};
 		V3_F32 tri[3] = {
-			pInMesh->pVerts[triVerts[0]],
-			pInMesh->pVerts[triVerts[1]],
-			pInMesh->pVerts[triVerts[2]]
+			pInMesh->pPos[triVerts[0]],
+			pInMesh->pPos[triVerts[1]],
+			pInMesh->pPos[triVerts[2]]
 		};
 		Mesh squaresWrap = {.core = *pSquares};
 		err = stucAssignActiveAliases(
 			pCtx,
 			&squaresWrap,
-			0x02, //set only position
+			0x1 << STUC_ATTRIB_USE_POS,
 			STUC_DOMAIN_NONE
 		);
 		STUC_THROW_IFNOT(err, "", 0);
 		// where a is the origin, ab is the normal, and c is the square vert
-		V3_F32 a = barycentricToCartesian(tri, &closestBc);
+		V3_F32 a = stucBarycentricToCartesian(tri, closestBc);
 		V3_F32 ab = pInFaceTable[i].normal;
 		F32 tMax = -FLT_MAX;
 		STUC_ASSERT("", face.start >= 0 && face.size >= 3);
 		for (I32 j = 0; j < face.size; ++j) {
 			I32 vert = pSquares->pCorners[face.start + j];
-			V3_F32 ac = _(squaresWrap.pVerts[vert] V3SUB a);
+			V3_F32 ac = _(squaresWrap.pPos[vert] V3SUB a);
 			F32 t = _(ab V3DOT ac);
 			if (t > tMax) {
 				tMax = t;
@@ -616,44 +623,35 @@ StucResult stucSampleInAttribsAtUsgOrigins(
 
 void stucUsgVertTransform(
 	UsgInFace *pEntry,
-	V3_F32 uvw,
+	V2_F32 uv,
 	V3_F32 *pPos,
 	const Mesh *pInMesh,
-	V2_F32 tileMin,
+	V2_F32 fTileMin,
 	Mat3x3 *pTbn
 ) {
 	BaseTriVerts usgTri = {
 		.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
 		       pInMesh->pUvs[pEntry->pEntry->tri[1]],
 		       pInMesh->pUvs[pEntry->pEntry->tri[2]]},
-		.xyz = {pInMesh->pVerts[pInMesh->core.pCorners[pEntry->pEntry->tri[0]]],
-		        pInMesh->pVerts[pInMesh->core.pCorners[pEntry->pEntry->tri[1]]],
-		        pInMesh->pVerts[pInMesh->core.pCorners[pEntry->pEntry->tri[2]]]}
+		.xyz = {pInMesh->pPos[pInMesh->core.pCorners[pEntry->pEntry->tri[0]]],
+		        pInMesh->pPos[pInMesh->core.pCorners[pEntry->pEntry->tri[1]]],
+		        pInMesh->pPos[pInMesh->core.pCorners[pEntry->pEntry->tri[2]]]}
 	};
-	_(&usgTri.uv[0] V2SUBEQL tileMin);
-	_(&usgTri.uv[1] V2SUBEQL tileMin);
-	_(&usgTri.uv[2] V2SUBEQL tileMin);
-	V3_F32 usgBc = cartesianToBarycentric(usgTri.uv, (V2_F32 *)&uvw);
-	*pPos = barycentricToCartesian(usgTri.xyz, &usgBc);
+	_(&usgTri.uv[0] V2SUBEQL fTileMin);
+	_(&usgTri.uv[1] V2SUBEQL fTileMin);
+	_(&usgTri.uv[2] V2SUBEQL fTileMin);
+	V3_F32 usgBc = stucCartesianToBarycentric(usgTri.uv, &uv);
+	*pPos = stucBarycentricToCartesian(usgTri.xyz, usgBc);
 	if (pEntry->pEntry->offset) {
 		_(pPos V3ADDEQL _(pEntry->pEntry->normal V3MULS pEntry->pEntry->offset));
 	}
 	*pTbn = pEntry->pEntry->tbn;
 }
 
-void stucUsgVertSetNormal(UsgInFace *pEntry, V3_F32 *pNormal) {
-	//V3_F32 mapRealNormal = getCornerRealNormal(pMapMesh, &mapFace, stucCorner);
-	//V3_F32 up = { .0f, .0f, 1.0f };
-	//F32 upMask = abs(_(mapRealNormal V3DOT up));
-	//pCorner->projNormalMasked = v3Normalize(v3Lerp(normal, pEntry->pEntry->normal, upMask));
-	//pCorner->projNormalMasked = pEntry->pEntry->normal;
-	*pNormal = pEntry->pEntry->normal;
-}
-
 UsgInFace *stucGetUsgForCorner(
 	I32 stucCorner,
-	StucMap pMap,
-	FaceRange *pMapFace,
+	const StucMap pMap,
+	const FaceRange *pMapFace,
 	I32 inFace,
 	bool *pAboveCutoff
 ) {
@@ -666,7 +664,7 @@ UsgInFace *stucGetUsgForCorner(
 	if (usg) {
 		usg = abs(usg) - 1;
 		U32 sum = usg + inFace;
-		I32 hash = stucFnvHash((U8 *)&sum, 4, pMap->usgArr.tableSize);
+		I32 hash = stucFnvHash((U8 *)&sum, sizeof(sum), pMap->usgArr.tableSize);
 		UsgInFace *pEntry = pMap->usgArr.pInFaceTable + hash;
 		do {
 			if (pEntry->face == inFace && pEntry->pEntry && pEntry->pEntry->usg == usg) {

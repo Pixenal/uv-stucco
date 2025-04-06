@@ -14,10 +14,11 @@ SPDX-License-Identifier: Apache-2.0
 #include <map.h>
 #include <error.h>
 
+#ifndef TEMP_DISABLE
 static
 void combineJobInFaceLists(
 	MapToMeshBasic *pBasic,
-	MappingJobArgs *pMappingJobArgs,
+	FindEncasedFacesJobArgs *pMappingJobArgs,
 	I32 mapJobsSent
 ) {
 	I32 face = 0;
@@ -37,7 +38,7 @@ void combineJobInFaceLists(
 
 Result stucCombineJobMeshes(
 	MapToMeshBasic *pBasic,
-	MappingJobArgs *pMappingJobArgs,
+	FindEncasedFacesJobArgs *pMappingJobArgs,
 	I32 mapJobsSent
 ) {
 	Result err = STUC_SUCCESS;
@@ -65,9 +66,9 @@ Result stucCombineJobMeshes(
 	pMeshOut->cornerBufSize = 2 + totalCount.corners + totalBoundsCount.corners / 10;
 	pMeshOut->edgeBufSize = 2 + totalCount.edges + totalBoundsCount.edges / 10;
 	pMeshOut->vertBufSize = 2 + totalCount.verts + totalBoundsCount.verts / 10;
-	pMeshOut->core.pFaces = pAlloc->pMalloc(sizeof(I32) * pMeshOut->faceBufSize);
-	pMeshOut->core.pCorners = pAlloc->pMalloc(sizeof(I32) * pMeshOut->cornerBufSize);
-	pMeshOut->core.pEdges = pAlloc->pMalloc(sizeof(I32) * pMeshOut->cornerBufSize);
+	pMeshOut->core.pFaces = pAlloc->fpMalloc(sizeof(I32) * pMeshOut->faceBufSize);
+	pMeshOut->core.pCorners = pAlloc->fpMalloc(sizeof(I32) * pMeshOut->cornerBufSize);
+	pMeshOut->core.pEdges = pAlloc->fpMalloc(sizeof(I32) * pMeshOut->cornerBufSize);
 	//only need to use the first buf mesh, as attribs are the same across all jobs
 	Mesh *src = NULL;
 	//get first bufmesh that isn't empty
@@ -81,7 +82,7 @@ Result stucCombineJobMeshes(
 	STUC_THROW_IFNOT(err, "", 0);
 	err = stucAssignActiveAliases(pBasic->pCtx, pMeshOut, 0xe, STUC_DOMAIN_NONE); //1110 - set only verts, stuc, & normals
 	STUC_THROW_IFNOT(err, "", 0);
-	pMappingJobBases = pAlloc->pMalloc(sizeof(JobBases) * mapJobsSent);
+	pMappingJobBases = pAlloc->fpMalloc(sizeof(JobBases) * mapJobsSent);
 	U64 reallocTime = 0;
 	for (I32 i = 0; i < mapJobsSent; ++i) {
 		reallocTime += pMappingJobArgs[i].reallocTime;
@@ -101,7 +102,7 @@ Result stucCombineJobMeshes(
 		}
 	}
 	if (pBasic->pInFaceTable) {
-		pBasic->pInFaceTable->pArr = pAlloc->pCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
+		pBasic->pInFaceTable->pArr = pAlloc->fpCalloc(pMeshOut->faceBufSize, sizeof(InFaceArr));
 		combineJobInFaceLists(pBasic, pMappingJobArgs, mapJobsSent);
 	}
 #ifdef WIN32
@@ -117,7 +118,7 @@ Result stucCombineJobMeshes(
 		stucMeshDestroy(pBasic->pCtx, &pBasic->outMesh.core);
 	;);
 	if (pMappingJobBases) {
-		pBasic->pCtx->alloc.pFree(pMappingJobBases);
+		pBasic->pCtx->alloc.fpFree(pMappingJobBases);
 	}
 	return err;
 }
@@ -268,3 +269,4 @@ I32 stucBufMeshGetEdgeIdx(
 	}
 	return edge;
 }
+#endif

@@ -39,19 +39,29 @@ typedef Stuc_V4_F32 V4_F32;
 typedef Stuc_V4_F64 V4_F64;
 typedef Stuc_String String;
 
-typedef struct {
+typedef struct Mat2x3 {
 	F32 d[2][3];
 } Mat2x3;
 
-typedef struct {
+typedef struct Mat2x2 {
 	F32 d[2][2];
 } Mat2x2;
 
-typedef struct {
+typedef struct Mat3x3 {
 	F32 d[3][3];
 } Mat3x3;
 
 typedef Stuc_M4x4_F32 Mat4x4;
+
+inline
+F32 stucF32Lerp(F32 a, F32 b, F32 alpha) {
+	return b * alpha + (1.0 - alpha) * a;
+}
+
+inline
+F64 stucF64Lerp(F64 a, F64 b, F64 alpha) {
+	return b * alpha + (1.0 - alpha) * a;
+}
 
 V2_I32 v2F32FloorAssign(V2_F32 *pA);
 
@@ -90,8 +100,8 @@ F32 v3F32TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
 F32 v3F32SquareLen(V3_F32);
 F32 v3F32Len(V3_F32 a);
 F32 v3F32TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
-V3_F32 cartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
-V3_F32 barycentricToCartesian(const V3_F32 *pTri, const V3_F32 *pPoint);
+V3_F32 stucCartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
+V3_F32 stucBarycentricToCartesian(const V3_F32 *pTri, V3_F32 point);
 
 V2_F32 v2F32Abs(V2_F32 a);
 V2_F32 v2F32Multiply(V2_F32 a, V2_F32 b);
@@ -110,8 +120,8 @@ void v2F32MultiplyEqualScalar(V2_F32 *pA, F32 b);
 V2_F32 v2F32MultiplyScalar(V2_F32 a, F32 b);
 F32 v2F32Dot(V2_F32 a, V2_F32 b);
 F64 v2F64Dot(V2_F64 a, V2_F64 b);
-V2_F32 v2F32Cross(V2_F32 a);
-V2_F64 v2F64Cross(V2_F64 a);
+V2_F32 v2F32LineNormal(V2_F32 a);
+V2_F64 v2F64LineNormal(V2_F64 a);
 V2_F32 v2F32ModScalar(V2_F32 a, F32 b);
 void v2F32ModEqualScalar(V2_F32 *pA, F32 b);
 F32 v2F32SquareLen(V2_F32 a);

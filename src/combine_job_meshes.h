@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <quadtree.h>
 #include <types.h>
 
-typedef struct {
+typedef struct BoundsCornerBufEntry {
 	V3_F32 normal;
 	V2_F32 uv;
 	V2_F32 vertBuf;
@@ -24,13 +24,13 @@ typedef struct {
 	I8 job;
 } BoundsCornerBufEntry;
 
-typedef struct {
+typedef struct BoundsCornerBuf {
 	BoundsCornerBufEntry* pBuf;
 	I32 count;
 	I32 top;
 } BoundsCornerBuf;
 
-typedef struct {
+typedef struct MergeBufHandles {
 	BoundsCornerBufEntry* pCornerBuf;
 	I32 *pMapCornerBuf;
 	I8 *pIdxTable;
@@ -39,7 +39,7 @@ typedef struct {
 } MergeBufHandles;
 
 
-typedef struct {
+typedef struct BorderInInfo {
 	I32 start;
 	I32 end;
 	I32 size;
@@ -50,13 +50,14 @@ typedef struct {
 	I32 vert;
 } BorderInInfo;
 
-typedef struct {
+typedef struct EdgeSegmentPair {
 	I32 edge;
 	I32 segment;
 } EdgeSegmentPair;
 
 struct CornerIdx;
 
+#ifndef TEMP_DISABLE
 // '//' indicates only used in createAndJoinPieces
 //TODO vary size of bit fields like in BorderFace struct
 typedef struct Piece {
@@ -150,7 +151,7 @@ typedef struct {
 
 typedef struct {
 	MapToMeshBasic *pBasic;
-	MappingJobArgs *pMappingJobArgs;
+	FindEncasedFacesJobArgs *pMappingJobArgs;
 	UBitField8 *pInVertKeep;
 	CompiledBorderTable *pBorderTable;
 	JobBases *pMappingJobBases;
@@ -171,7 +172,7 @@ typedef struct {
 
 Result stucMergeBorderFaces(
 	MapToMeshBasic *pBasic,
-	MappingJobArgs *pMappingJobArgs,
+	FindEncasedFacesJobArgs *pMappingJobArgs,
 	JobBases *pMappingJobBases,
 	I32 mapJobsSent
 );
@@ -193,7 +194,7 @@ void stucMergeSingleBorderFace(
 void stucDestroyMergeBufs(StucContext pCtx, MergeBufHandles *pHandle);
 Result stucCombineJobMeshes(
 	MapToMeshBasic *pBasic,
-	MappingJobArgs *pMappingJobArgs,
+	FindEncasedFacesJobArgs *pMappingJobArgs,
 	I32 mapJobsSent
 );
 BorderInInfo stucGetBorderEntryInInfo(
@@ -218,3 +219,4 @@ V2_I16 stucGetTileMinFromBoundsEntry(BorderFace *pEntry);
 I32 stucBufMeshGetVertIdx(const Piece *pPiece, const BufMesh *pBufMesh, I32 localCorner);
 I32 stucBufMeshGetEdgeIdx(const Piece *pPiece, const BufMesh *pBufMesh, I32 localCorner);
 void stucCorrectSortAfterRemoval(Piece *pPiece, Piece *pPieceRoot, I32 corner);
+#endif
