@@ -21,7 +21,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #ifdef WIN32
 	#define STUC_EXPORT __declspec(dllexport)
-#elif PLATFORM_LINUX
+#else
 	#define STUC_EXPORT __attribute__((visibility("default")))
 #endif
 
@@ -413,8 +413,8 @@ typedef struct StucThreadPool {
 } StucThreadPool;
 
 typedef struct StucIo {
-	StucResult (*fpOpen)(void **, const char *, int32_t, StucAlloc *);
-	StucResult (*fpWrite)(void *, unsigned char *, int32_t);
+	StucResult (*fpOpen)(void **, const char *, int32_t, const StucAlloc *);
+	StucResult (*fpWrite)(void *, const unsigned char *, int32_t);
 	StucResult (*fpRead)(void *, unsigned char *, int32_t);
 	StucResult (*fpClose)(void *);
 } StucIo;
@@ -444,10 +444,7 @@ typedef struct StucStageReport {
 extern "C" {
 #endif
 STUC_EXPORT
-StucResult stucThreadPoolSetCustom(
-	StucContext context,
-	const StucThreadPool *pThreadPool
-);
+StucResult stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
 StucResult stucContextInit(
 	StucContext *pCtx,

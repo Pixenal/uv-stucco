@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 #ifdef WIN32
 #define STUC_FORCE_INLINE __forceinline
 #else
-#define STUC_INLINE __attribute__((always_inline))
+#define STUC_FORCE_INLINE __attribute__((always_inline)) static inline
 #endif
 
 typedef U64 UBitField64;

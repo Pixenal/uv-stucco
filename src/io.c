@@ -322,7 +322,7 @@ void getUniqueFlatCutoffs(
 			continue;
 		}
 		(*ppIndices)[i] =
-			addUniqToPtrArr(pUsgArr[i].pFlatCutoff, pCutoffCount, *pppCutoffs);
+			addUniqToPtrArr(pUsgArr[i].pFlatCutoff, pCutoffCount, (void **)*pppCutoffs);
 	}
 	*pppCutoffs = pCtx->alloc.fpRealloc(*pppCutoffs, sizeof(void *) * *pCutoffCount);
 }
@@ -449,11 +449,7 @@ StucResult stucWriteStucFile(
 			STUC_THROW(err, "Failed to compress STUC data, output buffer too small\n", 0);
 	}
 	I64 compressedDataSize = (I64)uCompressedDataSize;
-#ifdef WIN32
-	printf("Compressed data is %llu long\n", compressedDataSize);
-#else
-	printf("Compressed data is %lu long\n", compressedDataSize);
-#endif
+	printf("Compressed data is %lld long\n", compressedDataSize);
 
 	//encode header
 	const char *format = "UV Stucco Map File";

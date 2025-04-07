@@ -19,6 +19,9 @@ SPDX-License-Identifier: Apache-2.0
 
 static Stuc_M4x4_F32 identM4x4 = STUC_IDENT_MAT4X4;
 
+#define STUC_MIN(a, b) (a < b ? a : b)
+#define STUC_MAX(a, b) (a > b ? a : b)
+
 typedef Stuc_V2_I8 V2_I8;
 typedef Stuc_V2_I16 V2_I16;
 typedef Stuc_V2_I32 V2_I32;
@@ -53,12 +56,12 @@ typedef struct Mat3x3 {
 
 typedef Stuc_M4x4_F32 Mat4x4;
 
-inline
+static inline
 F32 stucF32Lerp(F32 a, F32 b, F32 alpha) {
 	return b * alpha + (1.0 - alpha) * a;
 }
 
-inline
+static inline
 F64 stucF64Lerp(F64 a, F64 b, F64 alpha) {
 	return b * alpha + (1.0 - alpha) * a;
 }

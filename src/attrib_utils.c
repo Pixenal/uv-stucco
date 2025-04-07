@@ -152,20 +152,20 @@ void fBlendAddSub(F64 *pDest, F64 a, F64 b) {
 
 static
 void fBlendLighten(F64 *pDest, F64 a, F64 b) {
-	*pDest = max(a, b);
+	*pDest = STUC_MAX(a, b);
 }
 static
 void iBlendLighten(I64 *pDest, I64 a, I64 b) {
-	*pDest = max(a, b);
+	*pDest = STUC_MAX(a, b);
 }
 
 static
 void fBlendDarken(F64 *pDest, F64 a, F64 b) {
-	*pDest = min(a, b);
+	*pDest = STUC_MIN(a, b);
 }
 static
 void iBlendDarken(I64 *pDest, I64 a, I64 b) {
-	*pDest = min(a, b);
+	*pDest = STUC_MIN(a, b);
 }
 	
 static
@@ -687,6 +687,8 @@ I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32
 			       ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pSrc->pData)[iSrc],
 			       sizeof(F64[STUC_ATTRIB_STRING_MAX_LEN]));
 			break;
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 	return 0;
 }
@@ -827,6 +829,8 @@ const StucCommonAttrib *stucGetCommonAttribFromDomain(
 			return stucGetCommonAttrib(&pList->edge, pName);
 		case STUC_DOMAIN_VERT:
 			return stucGetCommonAttrib(&pList->vert, pName);
+		default:
+			STUC_ASSERT("invalid domain", false);
 	}
 	STUC_ASSERT("invalid domain", false);
 	return NULL;
@@ -943,6 +947,8 @@ void stucLerpAttrib(
 			break;
 		case STUC_ATTRIB_STRING:
 			break;
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 }
 
@@ -1035,6 +1041,8 @@ void stucTriInterpolateAttrib(
 			break;
 		case STUC_ATTRIB_STRING:
 			break;
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 }
 
@@ -1073,6 +1081,8 @@ I64 makeIntWide(const void *ptr, AttribType type, bool isSigned) {
 			return (I64)(isSigned ? *(I32 *)ptr : *(U32 *)ptr);
 		case STUC_ATTRIB_I64:
 			return (I64)(isSigned ? *(I64 *)ptr : *(U64 *)ptr);
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 	STUC_ASSERT("invalid type", false);
 	return 0;
@@ -1100,6 +1110,8 @@ I32 getAttribCompTypeSize(AttribType type) {
 			return 4;
 		case STUC_ATTRIB_F64:
 			return 8;
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 	STUC_ASSERT("invalid type", false);
 	return 0;
@@ -1128,6 +1140,8 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 			return getSigned ? INT32_MAX : UINT32_MAX;
 		case STUC_ATTRIB_I64:
 			return getSigned ? INT64_MAX : UINT64_MAX;
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 	STUC_ASSERT("invalid type", false);
 	return 0;
@@ -1206,7 +1220,7 @@ void blendComponents(
 ) {
 	bool aIsFloat = isAttribTypeFloat(aCompType);
 	bool bIsFloat = isAttribTypeFloat(bCompType);
-	I32 size = min(min(aVecSize, bVecSize), destVecSize);
+	I32 size = STUC_MIN(STUC_MIN(aVecSize, bVecSize), destVecSize);
 	for (I32 i = 0; i < size; ++i) {
 		void *pDestComp = (int8_t *)pDest + getAttribCompTypeSize(destCompType) * i;
 		const void *pAComp =
@@ -1531,6 +1545,8 @@ void stucBlendAttribs(
 		case STUC_ATTRIB_USE_SCALAR:
 			blendUseScalar(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
+		default:
+			STUC_ASSERT("invalid attrib use for this func", false);
 	}
 }
 
@@ -1647,6 +1663,8 @@ void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar) {
 		case STUC_ATTRIB_STRING:
 			STUC_ASSERT("Can't divide a string by 1", false);
 			break;
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 }
 
@@ -2329,6 +2347,8 @@ bool stucCmpAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB) 
 				(const char *)pBData,
 				STUC_ATTRIB_STRING_MAX_LEN
 			);
+		default:
+			STUC_ASSERT("invalid attrib type", false);
 	}
 	STUC_ASSERT("invalid attrib type", false);
 	return false;

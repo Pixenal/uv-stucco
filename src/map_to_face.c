@@ -1488,7 +1488,7 @@ void getCellMapFaces(
 	const MapToMeshBasic *pBasic,
 	const FaceCells *pFaceCellsEntry,
 	I32 faceCellsIdx,
-	I32 **ppCellFaces,
+	const I32 **ppCellFaces,
 	Range *pRange
 ) {
 	I32 cellIdx = pFaceCellsEntry->pCells[faceCellsIdx];
@@ -1792,7 +1792,7 @@ SearchResult inFaceCacheGet(
 		pCache,
 		0,
 		&face,
-		ppEntry,
+		(void**)ppEntry,
 		addEntry, &(InFaceCacheInitInfo) {.wind = wind},
 		stucKeyFromI32, NULL, inFaceCacheEntryInit, inFaceCacheEntryCmp
 	);
@@ -2767,9 +2767,7 @@ void destroyClippedArr(const MapToMeshBasic *pBasic, ClippedArr *pArr) {
 		STUC_ASSERT("", pArr->size);
 		pBasic->pCtx->alloc.fpFree(pArr->pArr);
 	}
-	if (&pArr->mapAlloc) {
-		stucLinAllocDestroy(&pArr->mapAlloc);
-	}
+	stucLinAllocDestroy(&pArr->mapAlloc);
 	*pArr = (ClippedArr) {0};
 }
 
@@ -2847,7 +2845,7 @@ void insertNewMapCornerIntoList(
 		encasingInFace != -1
 	);
 	MapCorner *pNewCorner = NULL;
-	stucLinAlloc(&pClippedFaces->mapAlloc, &pNewCorner, 1);
+	stucLinAlloc(&pClippedFaces->mapAlloc, (void**)&pNewCorner, 1);
 	insertCornerIntoList(pListCorner, &pNewCorner->core);
 	pNewCorner->core.type = STUC_CORNER_MAP;
 	pNewCorner->corner = mapCorner;
@@ -3403,7 +3401,7 @@ EncasedMapFace *addToEncasedFaces(
 		&pArgs->encasedFaces,
 		0,
 		&(InPieceKey) {.mapFace = pMapFace->idx, .tile = tile},
-		&pEntry,
+		(void**)&pEntry,
 		true, &(EncasedMapFaceInitInfo) {.pInFace = pInFace, .inFaceWind = inFaceWind},
 		stucInPieceMakeKey, NULL, encasedMapFaceInit, encasedMapFaceCmp
 	);
@@ -3725,7 +3723,7 @@ void interpCacheUpdateTriMap(
 	pCache->active = STUC_INTERP_CACHE_TRI_MAP;
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
-	const I8 *pTri = stucGetTri(pBasic->pMap->triCache.pArr + mapFace.idx, mapTri);
+	const U8 *pTri = stucGetTri(pBasic->pMap->triCache.pArr + mapFace.idx, mapTri);
 	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.start + inCorner];
 	pCache->triMap.bc =
 		stucGetBarycentricInTriFromVerts(pBasic->pMap->pMesh, &mapFace, pTri, inUv);
@@ -3779,6 +3777,8 @@ void interpBufVertIn(
 				pInterpCache->cache.triMap.bc
 			);
 			break;
+		default:
+			STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -3824,6 +3824,8 @@ void interpBufVertMap(
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyMap.a);
 			break;
+		default:
+			STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -3867,6 +3869,8 @@ void interpBufVertEdgeIn(
 				pVert->in.tMapEdge
 			);
 			break;
+		default:
+			STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -3910,6 +3914,8 @@ void interpBufVertEdgeMap(
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyMap.a);
 			break;
+		default:
+			STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -3947,6 +3953,8 @@ void interpBufVertOverlap(
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyMap.a);
 			break;
+		default:
+			STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -3996,6 +4004,8 @@ void interpBufVertIntersect(
 				pVert->tMapEdge
 			);
 			break;
+		default:
+			STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -4176,65 +4186,6 @@ void getUsgEntry(
 }
 
 static
-Result xformVertFromUvwToXyz(
-	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
-	const BufMesh *pBufMesh,
-	FaceCorner bufCorner,
-	InterpCaches *pInterpCaches,
-	V3_F32 *pPos,
-	Mat3x3 *pTbn
-) {
-	Result err = STUC_SUCCESS;
-	STUC_ASSERT(
-		"",
-		pInterpCaches->in.domain == STUC_DOMAIN_CORNER &&
-		pInterpCaches->map.domain == STUC_DOMAIN_VERT
-	);
-	V3_F32 mapUvw = {0};
-	err = interpActiveAttrib(
-		pBasic,
-		pInPiece,
-		pBufMesh,
-		bufCorner,
-		&pInterpCaches->map,
-		&mapUvw,
-		STUC_ATTRIB_V3_F32,
-		STUC_ATTRIB_USE_POS
-	);
-	STUC_RETURN_ERR_IFNOT(err, "");
-	V2_F32 fTileMin = {.d = {pInPiece->pList->tile.d[0], pInPiece->pList->tile.d[1]}};
-	_((V2_F32 *)&mapUvw V2SUBEQL fTileMin);
-	bool aboveCutoff = false;
-	UsgInFace *pUsgEntry = NULL;
-	if (pBasic->pMap->pMesh->pUsg) {
-		getUsgEntry(pBasic, mapUvw, &pInterpCaches->map, &pUsgEntry, &aboveCutoff);
-	}
-	V3_F32 xyzFlat = {0};
-	Mat3x3 tbn = {0};
-	if (pUsgEntry && aboveCutoff) {
-		V2_F32 uv = *(V2_F32 *)&mapUvw;
-		stucUsgVertTransform(pUsgEntry, uv, &xyzFlat, pBasic->pInMesh, fTileMin, &tbn);
-	}
-	else {
-		err = mapUvwToXyzFlat(
-			pBasic,
-			pInPiece,
-			pBufMesh,
-			bufCorner,
-			mapUvw,
-			&pInterpCaches->in,
-			&xyzFlat,
-			&tbn
-		);
-		STUC_RETURN_ERR_IFNOT(err, "");
-	}
-	*pPos = _(xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale));
-	*pTbn = tbn;
-	return err;
-}
-
-static
 Result interpActiveAttrib(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
@@ -4397,6 +4348,65 @@ Result mapUvwToXyzFlat(
 				false
 			);
 	}
+	return err;
+}
+
+static
+Result xformVertFromUvwToXyz(
+	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
+	const BufMesh *pBufMesh,
+	FaceCorner bufCorner,
+	InterpCaches *pInterpCaches,
+	V3_F32 *pPos,
+	Mat3x3 *pTbn
+) {
+	Result err = STUC_SUCCESS;
+	STUC_ASSERT(
+		"",
+		pInterpCaches->in.domain == STUC_DOMAIN_CORNER &&
+		pInterpCaches->map.domain == STUC_DOMAIN_VERT
+	);
+	V3_F32 mapUvw = {0};
+	err = interpActiveAttrib(
+		pBasic,
+		pInPiece,
+		pBufMesh,
+		bufCorner,
+		&pInterpCaches->map,
+		&mapUvw,
+		STUC_ATTRIB_V3_F32,
+		STUC_ATTRIB_USE_POS
+	);
+	STUC_RETURN_ERR_IFNOT(err, "");
+	V2_F32 fTileMin = {.d = {pInPiece->pList->tile.d[0], pInPiece->pList->tile.d[1]}};
+	_((V2_F32 *)&mapUvw V2SUBEQL fTileMin);
+	bool aboveCutoff = false;
+	UsgInFace *pUsgEntry = NULL;
+	if (pBasic->pMap->pMesh->pUsg) {
+		getUsgEntry(pBasic, mapUvw, &pInterpCaches->map, &pUsgEntry, &aboveCutoff);
+	}
+	V3_F32 xyzFlat = {0};
+	Mat3x3 tbn = {0};
+	if (pUsgEntry && aboveCutoff) {
+		V2_F32 uv = *(V2_F32 *)&mapUvw;
+		stucUsgVertTransform(pUsgEntry, uv, &xyzFlat, pBasic->pInMesh, fTileMin, &tbn);
+	}
+	else {
+		err = mapUvwToXyzFlat(
+			pBasic,
+			pInPiece,
+			pBufMesh,
+			bufCorner,
+			mapUvw,
+			&pInterpCaches->in,
+			&xyzFlat,
+			&tbn
+		);
+		STUC_RETURN_ERR_IFNOT(err, "");
+	}
+	*pPos = _(xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale));
+	*pTbn = tbn;
 	return err;
 }
 
@@ -4580,6 +4590,8 @@ void interpAndBlendAttribs(
 			case STUC_ATTRIB_ORIGIN_MAP:
 				stucCopyAttribCore(&pOutAttrib->core, dataIdx, &mapAttribWrap.core, 0);
 				break;
+			default:
+				STUC_ASSERT("invalid origin override", false);
 		}
 	}
 }
@@ -4625,7 +4637,7 @@ Result stucXformAndInterpVertsInRange(void *pArgsVoid) {
 		VertMerge *pEntry = stucLinAllocGetItem(&iter);
 		STUC_ASSERT(
 			"",
-			!(pArgs->intersect ^ pEntry->key.type == STUC_BUF_VERT_INTERSECT)
+			!(pArgs->intersect ^ (pEntry->key.type == STUC_BUF_VERT_INTERSECT))
 		);
 		if (pArgs->intersect) {
 			VertMergeIntersect *pIntersect = (VertMergeIntersect *)pEntry;

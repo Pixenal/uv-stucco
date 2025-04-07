@@ -33,7 +33,7 @@ StucResult stucPlatformFileOpen(
 		default:
 			STUC_RETURN_ERR(err, "Invalid action passed to function\n");
 	}
-	PlatformContext *pState = pAlloc->pMalloc(sizeof(PlatformContext));
+	PlatformContext *pState = pAlloc->fpMalloc(sizeof(PlatformContext));
 	*file = pState;
 	pState->pAlloc = pAlloc;
 	pState->pFile = fopen(filePath, mode);
@@ -80,6 +80,6 @@ StucResult stucPlatformFileClose(void *file) {
 	PlatformContext *pState = file;
 	STUC_ASSERT("", pState && pState->pFile);
 	fclose(pState->pFile);
-	pState->pAlloc->pFree(pState);
+	pState->pAlloc->fpFree(pState);
 	return err;
 }

@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <uv_stucco_intern.h>
 #include <uv_stucco.h>
-#include <quadTree.h>
+#include <quadtree.h>
 #include <utils.h>
 #include <types.h>
 
