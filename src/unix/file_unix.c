@@ -3,18 +3,25 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: Apache-2.0
 */
 
-#include "PlatformIo.h"
 #include <stdio.h>
-#include <assert.h>
+
+#include "platform_io.h"
+#include <error.h>
 
 typedef struct {
 	FILE *pFile;
-	RuvmAlloc alloc;
+	const StucAlloc *pAlloc;
 } PlatformContext;
 
-int32_t ruvmPlatformFileOpen(void **file, char *filePath, int32_t action, RuvmAlloc *pAlloc) {
-	assert(file && filePath && pAlloc);
-	assert(action == 0 || action == 1);
+StucResult stucPlatformFileOpen(
+	void **file,
+	const char *filePath,
+	I32 action,
+	const StucAlloc *pAlloc
+) {
+	StucResult err = STUC_SUCCESS;
+	STUC_ASSERT("", file && filePath && pAlloc);
+	STUC_ASSERT("", action == 0 || action == 1);
 	char *mode = "  ";
 	switch (action) {
 		case 0:
@@ -24,49 +31,55 @@ int32_t ruvmPlatformFileOpen(void **file, char *filePath, int32_t action, RuvmAl
 			mode = "rb";
 			break;
 		default:
-			printf("Failed to open file. Invalid action passed to function\n");
-			return 1;
+			STUC_RETURN_ERR(err, "Invalid action passed to function\n");
 	}
 	PlatformContext *pState = pAlloc->pMalloc(sizeof(PlatformContext));
 	*file = pState;
-	pState->alloc = *pAlloc;
+	pState->pAlloc = pAlloc;
 	pState->pFile = fopen(filePath, mode);
-	if (!pState->pFile) {
-		printf("Failed to open file. fopen returned NULL");
-		assert(pState->pFile);
-		return 1;
-	}
-	return 0;
+	STUC_RETURN_ERR_IFNOT_COND(err, pState->pFile, "");
+	return err;
 }
 
-int32_t ruvmPlatformFileWrite(void *file, unsigned char *data, int32_t dataSize) {
+StucResult stucPlatformFileWrite(
+	void *file,
+	const unsigned char *data,
+	I32 dataSize
+) {
+	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
-	assert(pState && pState->pFile && data && dataSize > 0);
+	STUC_ASSERT("", pState && pState->pFile && data && dataSize > 0);
 	int32_t bytesWritten = fwrite(data, 1, dataSize, pState->pFile);
-	if (bytesWritten != dataSize) {
-		printf("Failed to write to file. Bytes written does not equal specified amount\n");
-		assert(bytesWritten == dataSize);
-		return 1;
-	}
-	return 0;
+	STUC_RETURN_ERR_IFNOT_COND(
+		err,
+		bytesWritten == dataSize,
+		"Number of bytes read does not match data len"
+	);
+	return err;
 }
 
-int32_t ruvmPlatformFileRead(void *file, unsigned char *data, int32_t bytesToRead) {
+StucResult stucPlatformFileRead(
+	void *file,
+	unsigned char *data,
+	I32 bytesToRead
+) {
+	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
-	assert(pState && pState->pFile && data && bytesToRead > 0);
+	STUC_ASSERT("", pState && pState->pFile && data && bytesToRead > 0);
 	int32_t bytesRead = fread(data, 1, bytesToRead, pState->pFile);
-	if (bytesRead != bytesToRead) {
-		printf("Failed to read file. Bytes read does not equal specified amount\n");
-		assert(bytesRead == bytesToRead);
-		return 1;
-	}
-	return 0;
+	STUC_RETURN_ERR_IFNOT_COND(
+		err,
+		bytesRead == bytesToRead,
+		"Number of bytes read does not match data len"
+	);
+	return err;
 }
 
-int32_t ruvmPlatformFileClose(void *file) {
+StucResult stucPlatformFileClose(void *file) {
+	StucResult err = STUC_SUCCESS;
 	PlatformContext *pState = file;
-	assert(pState && pState->pFile);
+	STUC_ASSERT("", pState && pState->pFile);
 	fclose(pState->pFile);
-	pState->alloc.pFree(pState);
-	return 0;
+	pState->pAlloc->pFree(pState);
+	return err;
 }
