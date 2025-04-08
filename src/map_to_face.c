@@ -2291,6 +2291,9 @@ void destroyIntersectArr(const MapToMeshBasic *pBasic, IntersectArr *pArr) {
 		STUC_ASSERT("", pArr->size);
 		pAlloc->fpFree(pArr->pArr);
 	}
+	if (pArr->pBorderRanges) {
+		pAlloc->fpFree(pArr->pBorderRanges);
+	}
 	*pArr = (IntersectArr) {0};
 }
 
@@ -2493,7 +2496,6 @@ Result clipMapEdgeAgainstInPiece(
 	IntersectArr *pIntersect,
 	ClippedArr *pClippedFaces
 ) {
-	printf("clipping mapface %d, inface %p\n", pInPiece->pList->mapFace, &pInPiece->pList->inFaces);
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pMapFace->size; ++i) {
 		/*
@@ -3164,6 +3166,22 @@ Result addNonClipInPieceToBufMesh(
 	return err;
 }
 
+static
+void inFaceCacheDestroy(const MapToMeshBasic *pBasic, HTable *pTable
+) {
+	LinAlloc *pAlloc = stucHTableAllocGet(pTable, 0);
+	LinAllocIter iter = {0};
+	stucLinAllocIterInit(pAlloc, (Range) {0, INT32_MAX}, &iter);
+	for (; !stucLinAllocIterAtEnd(&iter); stucLinAllocIterInc(&iter)) {
+		InFaceCacheEntryIntern *pEntry = stucLinAllocGetItem(&iter);
+		if (pEntry->pCorners) {
+			pBasic->pCtx->alloc.fpFree(pEntry->pCorners);
+			pEntry->pCorners = NULL;
+		}
+	}
+	stucHTableDestroy(pTable);
+}
+
 Result stucClipMapFace(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
@@ -3253,7 +3271,7 @@ Result stucClipMapFace(
 	}
 	destroyClippedArr(&clippedFaces);
 	destroyIntersectArr(pBasic, &intersectArr);
-	stucHTableDestroy(&inFaceCache);
+	inFaceCacheDestroy(pBasic, &inFaceCache);
 
 	/*
 	addOrDiscardClippedFaces(
@@ -3302,7 +3320,7 @@ Result stucAddMapFaceToBufMesh(
 		&inFaceCache
 	);
 	STUC_RETURN_ERR_IFNOT(err, "");
-	stucHTableDestroy(&inFaceCache);
+	inFaceCacheDestroy(pBasic, &inFaceCache);
 	return err;
 }
 
