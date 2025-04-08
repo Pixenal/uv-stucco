@@ -3125,16 +3125,14 @@ void addMapVertToBufMesh(
 	I32 newCorner = -1;
 	BUF_MESH_ADD(BufCorner, pBasic, pCorners, newCorner);
 	STUC_ASSERT("", newCorner >= 0);
-	I32 vert = -1;
-	vert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
-	pBufMesh->inOrMapVerts.pArr[pBufMesh->inOrMapVerts.count].map = (MapVert){
+	I32 newVert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
+	pBufMesh->inOrMapVerts.pArr[newVert].map = (MapVert){
 		.type = STUC_BUF_VERT_SUB_TYPE_MAP,
 		.mapCorner = mapCorner,
 		.inFace = encasingInFace
 	};
-	pCorners->pArr[pCorners->count].type = STUC_BUF_VERT_IN_OR_MAP;
-	pCorners->pArr[pCorners->count].vert = vert;
-	pCorners->count++;
+	pCorners->pArr[newCorner].type = STUC_BUF_VERT_IN_OR_MAP;
+	pCorners->pArr[newCorner].vert = newVert;
 }
 
 static
