@@ -1644,6 +1644,7 @@ typedef struct TrisCache {
 	I32 size;
 } TrisCache;
 
+/*
 static
 void initTrisCache(const StucAlloc *pAlloc, TrisCache *pCache, I32 size) {
 	pCache->size = size;
@@ -1659,6 +1660,7 @@ void destroyTrisCache(const StucAlloc *pAlloc, TrisCache *pCache) {
 	stucLinAllocDestroy(&pCache->triAlloc);
 	*pCache = (TrisCache) {0};
 }
+*/
 
 
 /*
@@ -1877,7 +1879,6 @@ InCornerCache *initInCornerCache(
 	const FaceRange *pInFace,
 	InCornerCache *pCache
 ) {
-	StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	for (I32 i = 0; i < pInFace->size; ++i) {
 		/*
 		if (mapFaceWind) {
@@ -1938,7 +1939,6 @@ void testAgainstInCorner(
 ) {
 	InCornerCache *pInCornerCacheArr = getInCornerCache(pBasic, inCorner.pFace);
 	InCornerCache *pInCornerCache = pInCornerCacheArr + inCorner.corner;
-	F32 t = .0f;
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
 	I32 mapCornerNext = stucGetCornerNext(mapCorner, pMapFace);
 	V3_F32 mapVert =
@@ -1998,7 +1998,6 @@ void testAgainstInCorner(
 		pResult->type = STUC_INTERSECT_TYPE_NONE;
 		return;
 	}
-	I32 inCornerNext = (inCorner.corner + 1) % inCorner.pFace->face.size;
 	V3_F32 newPoint = {0};
 	F32 tMapEdge = .0f;
 	F32 tInEdge = .0f;
@@ -2133,9 +2132,6 @@ void intersectWithPiecePerim(
 	HTable *pInFaceCache,
 	IntersectArr *pIntersectArr
 ) {
-	const Mesh *pInMesh = pBasic->pInMesh;
-	const EncasingInFaceArr *pInFaces = &pInPiece->pList->inFaces;
-	InFaceIsland *pInFaceIsland = NULL;
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
 		FaceCorner startCorner = pInPiece->borderArr.pArr[i].start;
 		InFaceCorner inCorner = {.corner = startCorner.corner};
@@ -2300,29 +2296,19 @@ void destroyIntersectArr(const MapToMeshBasic *pBasic, IntersectArr *pArr) {
 
 static
 void initClippedArr(const MapToMeshBasic *pBasic, ClippedArr *pArr) {
-	pArr->size = 2;
-	pArr->pArr = pBasic->pCtx->alloc.fpMalloc(pArr->size * sizeof(ClippedRoot));
+	stucLinAllocInit(&pBasic->pCtx->alloc, &pArr->rootAlloc, sizeof(ClippedRoot), 1, true);
 	stucLinAllocInit(&pBasic->pCtx->alloc, &pArr->mapAlloc, sizeof(MapCorner), 4, true);
 }
 
 static
 void newClippedFace(
-	const MapToMeshBasic *pBasic,
 	CornerCore *pCornerToLink,
 	ClippedArr *pArr
 ) {
-	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	STUC_ASSERT("", pArr->count <= pArr->size);
-	if (pArr->count == pArr->size) {
-		pArr->size *= 2;
-		pArr->pArr = pAlloc->fpRealloc(pArr->pArr, pArr->size * sizeof(ClippedRoot));
-	}
-	pCornerToLink->pPrev = &pArr->pArr[pArr->count].root;
-	pArr->pArr[pArr->count].root = (CornerCore){
-		.pNext = pCornerToLink,
-		.type = STUC_CORNER_ROOT 
-	};
-	pArr->count++;
+	ClippedRoot *pRoot = NULL;
+	stucLinAlloc(&pArr->rootAlloc, (void **)&pRoot, 1);
+	pCornerToLink->pPrev = &pRoot->root;
+	pRoot->root = (CornerCore){.pNext = pCornerToLink, .type = STUC_CORNER_ROOT};
 }
 
 static
@@ -2409,7 +2395,7 @@ void createClippedFaces(
 			);
 			CornerCore *pCornerToLink = isThisAStartingCorner(pCornerA, pCornerB);
 			if (pCornerToLink) {
-				newClippedFace(pBasic, pCornerToLink, pClipped);
+				newClippedFace(pCornerToLink, pClipped);
 			}
 			pCornerA->core.pNext = &pCornerB->core;
 			pCornerB->core.pPrev = &pCornerA->core;
@@ -2444,12 +2430,15 @@ void setBorderRanges(IntersectArr *pArr) {
 
 static
 void removeInvalidRoots(ClippedArr *pArr) {
-	for (I32 i = 0; i < pArr->count; ++i) {
-		CornerCore *pStartCorner = pArr->pArr[i].root.pNext;
+	LinAllocIter iter = {0};
+	stucLinAllocIterInit(&pArr->rootAlloc, (Range) {0, INT32_MAX}, &iter);
+	for (; !stucLinAllocIterAtEnd(&iter); stucLinAllocIterInc(&iter)) {
+		ClippedRoot *pRoot = stucLinAllocGetItem(&iter);
+		CornerCore *pStartCorner = pRoot->root.pNext;
 		STUC_ASSERT("", pStartCorner);
 		if (pStartCorner->checked) {
 			//root points to a previous root's list, so remove it
-			pArr->pArr[i].root.pNext = NULL;
+			pRoot->root.pNext = NULL;
 			continue;
 		}
 		CornerCore *pCorner = pStartCorner;
@@ -2504,6 +2493,7 @@ Result clipMapEdgeAgainstInPiece(
 	IntersectArr *pIntersect,
 	ClippedArr *pClippedFaces
 ) {
+	printf("clipping mapface %d, inface %p\n", pInPiece->pList->mapFace, &pInPiece->pList->inFaces);
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pMapFace->size; ++i) {
 		/*
@@ -2519,6 +2509,12 @@ Result clipMapEdgeAgainstInPiece(
 			pInFaceCache,
 			pIntersect
 		);
+	}
+	if (!pIntersect->count) {
+		ClippedRoot *pRoot = NULL;
+		stucLinAlloc(&pClippedFaces->rootAlloc, (void **)&pRoot, 1);
+		pRoot->noIntersect = true;
+		return err;
 	}
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	I32 *pSortedIn = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
@@ -2762,18 +2758,10 @@ I32 getFaceEncasingVert(
 }
 
 static
-void destroyClippedArr(const MapToMeshBasic *pBasic, ClippedArr *pArr) {
-	if (pArr->pArr) {
-		STUC_ASSERT("", pArr->size);
-		pBasic->pCtx->alloc.fpFree(pArr->pArr);
-	}
+void destroyClippedArr(ClippedArr *pArr) {
+	stucLinAllocDestroy(&pArr->rootAlloc);
 	stucLinAllocDestroy(&pArr->mapAlloc);
 	*pArr = (ClippedArr) {0};
-}
-
-static
-CornerCore *getStartingCorner(ClippedArr *pClippedFaces, I32 clippedFace) {
-	return pClippedFaces->pArr[clippedFace].root.pNext;
 }
 
 static
@@ -2879,6 +2867,7 @@ void insertMapCornersIntoList(
 	} while(pCorner = pCorner->pNext, pCorner != pStartCorner);
 }
 
+/*
 static
 V3_F32 getCornerPos(
 	const MapToMeshBasic *pBasic,
@@ -2898,6 +2887,7 @@ V3_F32 getCornerPos(
 			return (V3_F32) {0};
 	}
 }
+*/
 
 #define BUF_MESH_ADD(t, pBasic, pBufArr, newIdx) \
 	STUC_ASSERT("", pBufArr->count <= pBufArr->size);\
@@ -2964,9 +2954,6 @@ void setIntersectBufVertInfo(
 	BufVertType *pType,
 	I32 *pVert
 ) {
-	const Mesh *pMapMesh = pBasic->pMap->pMesh;
-	const Mesh *pInMesh = pBasic->pInMesh;
-	BufCornerArr *pCorners = &pBufMesh->corners;
 	IntersectCorner *pCornerCast = (IntersectCorner *)pCorner;
 	FaceCorner mapCorner = (FaceCorner){
 		.face = pMapFace->idx,
@@ -3040,7 +3027,6 @@ void bufMeshAddVert(
 	I32 newCorner = -1;
 	BUF_MESH_ADD(BufCorner, pBasic, pCorners, newCorner);
 	STUC_ASSERT("", newCorner >= 0);
-	const Mesh *pMapMesh = pBasic->pMap->pMesh;
 	BufVertType type = 0;
 	I32 vert = -1;
 	switch (pCorner->type) {
@@ -3103,14 +3089,15 @@ void addFacesToBufMesh(
 	ClippedArr *pClippedFaces,
 	IntersectArr *pIntersect
 ) {
-	STUC_ASSERT("", pClippedFaces->size && pIntersect->size);
-	I32 facesToAdd = pClippedFaces->count;
-	for (I32 i = 0; i < facesToAdd; ++i) {
-		if (!pClippedFaces->pArr[i].root.pNext) {
+	STUC_ASSERT("", pIntersect->size);
+	LinAllocIter iter = {0};
+	stucLinAllocIterInit(&pClippedFaces->rootAlloc, (Range) {0, INT32_MAX}, &iter);
+	for (; !stucLinAllocIterAtEnd(&iter); stucLinAllocIterInc(&iter)) {
+		ClippedRoot *pRoot = stucLinAllocGetItem(&iter);
+		if (!pRoot->root.pNext) {
 			continue; //invalid root
 		}
-		CornerCore *pStartCorner = getStartingCorner(pClippedFaces, i);	
-		STUC_ASSERT("", pStartCorner);
+		CornerCore *pStartCorner = pRoot->root.pNext;
 		insertMapCornersIntoList(
 			pBasic,
 			pInPiece,
@@ -3119,19 +3106,64 @@ void addFacesToBufMesh(
 			pClippedFaces,
 			pStartCorner
 		);
-		I32 len = getCornerListLen(&pClippedFaces->pArr[i].root);
+		I32 len = getCornerListLen(&pRoot->root);
 		if (len < 3) {
 			continue;
 		}
-		addFaceToBufMesh(
-			pBasic,
-			inPieceOffset,
-			pBufMesh,
-			pMapFace,
-			&pClippedFaces->pArr[i].root,
-			len
-		);
+		addFaceToBufMesh(pBasic, inPieceOffset, pBufMesh, pMapFace, &pRoot->root, len);
 	}
+}
+
+static
+void addMapVertToBufMesh(
+	const MapToMeshBasic *pBasic,
+	BufMesh *pBufMesh,
+	I32 mapCorner,
+	I32 encasingInFace
+) {
+	BufCornerArr *pCorners = &pBufMesh->corners;
+	I32 newCorner = -1;
+	BUF_MESH_ADD(BufCorner, pBasic, pCorners, newCorner);
+	STUC_ASSERT("", newCorner >= 0);
+	I32 vert = -1;
+	vert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
+	pBufMesh->inOrMapVerts.pArr[pBufMesh->inOrMapVerts.count].map = (MapVert){
+		.type = STUC_BUF_VERT_SUB_TYPE_MAP,
+		.mapCorner = mapCorner,
+		.inFace = encasingInFace
+	};
+	pCorners->pArr[pCorners->count].type = STUC_BUF_VERT_IN_OR_MAP;
+	pCorners->pArr[pCorners->count].vert = vert;
+	pCorners->count++;
+}
+
+static
+Result addNonClipInPieceToBufMesh(
+	const MapToMeshBasic *pBasic,
+	I32 inPieceOffset,
+	const InPiece *pInPiece,
+	BufMesh *pBufMesh,
+	HTable *pInFaceCache
+) {
+	Result err = STUC_SUCCESS;
+	const Mesh *pMapMesh = pBasic->pMap->pMesh;
+	FaceRange mapFace = stucGetFaceRange(&pMapMesh->core, pInPiece->pList->mapFace);
+	I32 bufFaceStart = pBufMesh->corners.count;
+	for (I32 i = 0; i < mapFace.size; ++i) {
+		V2_F32 vert =
+			*(V2_F32 *)&pMapMesh->pPos[pMapMesh->core.pCorners[mapFace.start + i]];
+		I32 encasingInFace = getFaceEncasingVert(pBasic, vert, pInPiece, pInFaceCache);
+		if (encasingInFace == -1) {
+			if (!i) {
+				//mapface is outside piece - skip
+				return err;
+			}
+			STUC_ASSERT("non-clipped map faces must be fully in or out", false);
+		}
+		addMapVertToBufMesh(pBasic, pBufMesh, i, encasingInFace);
+	}
+	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size);
+	return err;
 }
 
 Result stucClipMapFace(
@@ -3141,7 +3173,6 @@ Result stucClipMapFace(
 	BufMesh *pBufMesh
 ) {
 	Result err = STUC_SUCCESS;
-	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	FaceRange mapFace = 
 		stucGetFaceRange(&pBasic->pMap->pMesh->core, pInPiece->pList->mapFace);
 
@@ -3199,18 +3230,31 @@ Result stucClipMapFace(
 		&clippedFaces
 	);
 	STUC_RETURN_ERR_IFNOT(err, "");
-	addFacesToBufMesh(
-		pBasic,
-		inPieceOffset,
-		pInPiece,
-		pBufMesh,
-		&inFaceCache,
-		&mapFace,
-		&clippedFaces,
-		&intersectArr
-	);
-	//destroyClippedArr(pBasic, &clippedFaces);
-	//destroyIntersectArr(pBasic, &intersectArr);
+	STUC_ASSERT("", stucLinAllocGetCount(&clippedFaces.rootAlloc));
+	if (((ClippedRoot *)stucLinAllocIdx(&clippedFaces.rootAlloc, 0))->noIntersect) {
+		//no edges clipped the mapface, treat as a non-clip inPiece
+		addNonClipInPieceToBufMesh(
+			pBasic,
+			inPieceOffset,
+			pInPiece,
+			pBufMesh,
+			&inFaceCache
+		);
+	}
+	else {
+		addFacesToBufMesh(
+			pBasic,
+			inPieceOffset,
+			pInPiece,
+			pBufMesh,
+			&inFaceCache,
+			&mapFace,
+			&clippedFaces,
+			&intersectArr
+		);
+	}
+	destroyClippedArr(&clippedFaces);
+	destroyIntersectArr(pBasic, &intersectArr);
 	stucHTableDestroy(&inFaceCache);
 
 	/*
@@ -3234,31 +3278,6 @@ Result stucClipMapFace(
 	return err;
 }
 
-static
-void addMapVertToBufMesh(
-	const MapToMeshBasic *pBasic,
-	BufMesh *pBufMesh,
-	I32 mapCorner,
-	I32 encasingInFace
-) {
-	BufCornerArr *pCorners = &pBufMesh->corners;
-	I32 newCorner = -1;
-	BUF_MESH_ADD(BufCorner, pBasic, pCorners, newCorner);
-	STUC_ASSERT("", newCorner >= 0);
-	const Mesh *pMapMesh = pBasic->pMap->pMesh;
-	I8 type = 0;
-	I32 vert = -1;
-	pCorners->pArr[pCorners->count].type = STUC_BUF_VERT_IN_OR_MAP;
-	vert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
-	pBufMesh->inOrMapVerts.pArr[pBufMesh->inOrMapVerts.count].map = (MapVert){
-		.type = STUC_BUF_VERT_SUB_TYPE_MAP,
-		.mapCorner = mapCorner,
-		.inFace = encasingInFace
-	};
-	pCorners->pArr[pCorners->count].vert = vert;
-	pCorners->count++;
-}
-
 Result stucAddMapFaceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
@@ -3266,8 +3285,6 @@ Result stucAddMapFaceToBufMesh(
 	BufMesh *pBufMesh
 ) {
 	Result err = STUC_SUCCESS;
-	const Mesh *pMapMesh = pBasic->pMap->pMesh;
-	FaceRange mapFace = stucGetFaceRange(&pMapMesh->core, pInPiece->pList->mapFace);
 
 	InFaceCacheState inFaceCacheState = {.pBasic = pBasic, .initBounds = true};
 	HTable inFaceCache = {0};
@@ -3279,21 +3296,14 @@ Result stucAddMapFaceToBufMesh(
 		&inFaceCacheState
 	);
 
-	I32 bufFaceStart = pBufMesh->corners.count;
-	for (I32 i = 0; i < mapFace.size; ++i) {
-		V2_F32 vert =
-			*(V2_F32 *)&pMapMesh->pPos[pMapMesh->core.pCorners[mapFace.start + i]];
-		I32 encasingInFace = getFaceEncasingVert(pBasic, vert, pInPiece, &inFaceCache);
-		if (encasingInFace == -1) {
-			if (!i) {
-				//mapface is outside piece - skip
-				return err;
-			}
-			STUC_ASSERT("non-clipped map faces must be fully in or out", false);
-		}
-		addMapVertToBufMesh(pBasic, pBufMesh, i, encasingInFace);
-	}
-	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size);
+	err = addNonClipInPieceToBufMesh(
+		pBasic,
+		inPieceOffset,
+		pInPiece,
+		pBufMesh,
+		&inFaceCache
+	);
+	STUC_RETURN_ERR_IFNOT(err, "");
 	stucHTableDestroy(&inFaceCache);
 	return err;
 }
@@ -3308,7 +3318,7 @@ Result stucBufMeshInit(void *pArgsVoid) {
 		pArgs->fpAddPiece(
 			pArgs->core.pBasic,
 			i,
-			pArgs->pInPiecesSplit->pArr + i,
+			pArgs->pInPiecesSplit->pArr + inPieceIdx,
 			&pArgs->bufMesh
 		);
 	}
@@ -3351,7 +3361,6 @@ void encasedMapFaceInit(
 	pEntry->inFaces.pArr = pAlloc->fpMalloc(pEntry->inFaces.size * sizeof(EncasingInFace));
 	pEntry->inFaces.pArr[0].idx = (U32)pInitInfo->pInFace->idx;
 	pEntry->inFaces.pArr[0].wind = pInitInfo->inFaceWind;
-	pState->entryCount++;
 }
 
 static
@@ -3412,6 +3421,7 @@ EncasedMapFace *addToEncasedFaces(
 	return pEntry;
 }
 
+/*
 static
 InsideStatus isPointInFace(
 	V2_F32 point,
@@ -3432,6 +3442,7 @@ InsideStatus isPointInFace(
 	}
 	return STUC_INSIDE_STATUS_INSIDE;
 }
+*/
 
 /*
 //note, this is used later for vert merging, and attirb interpolation.
@@ -3497,7 +3508,6 @@ Result stucGetEncasedFacesPerFace(
 	Result err = STUC_SUCCESS;
 	V2_F32 fTileMin = {(F32)tile.d[0], (F32)tile.d[1]};
 	STUC_ASSERT("", pInFace->size == 3 || pInFace->size == 4);
-	const StucAlloc *pAlloc = &pArgs->core.pBasic->pCtx->alloc;
 	const Mesh *pInMesh = pArgs->core.pBasic->pInMesh;
 	const StucMap pMap = pArgs->core.pBasic->pMap;
 	FaceBounds bounds = {0};
@@ -3534,7 +3544,7 @@ Result stucGetEncasedFacesPerFace(
 				) {
 				continue;
 			}
-			EncasedMapFace *pEntry = addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
+			addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
 			/*
 			recordEncasedMapCorners(
 				pArgs->core.pBasic,
@@ -4630,7 +4640,6 @@ Result stucXformAndInterpVertsInRange(void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
 	xformAndInterpVertsJobArgs *pArgs = pArgsVoid;
 	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
-	const Mesh *pMapMesh = pBasic->pMap->pMesh;
 	LinAllocIter iter = {0};
 	stucLinAllocIterInit(pArgs->pVertAlloc, pArgs->core.range, &iter);
 	for (; !stucLinAllocIterAtEnd(&iter); stucLinAllocIterInc(&iter)) {

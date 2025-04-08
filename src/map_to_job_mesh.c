@@ -136,7 +136,6 @@ StucResult stucFindEncasedFaces(void *pArgsVoid) {
 	);
 	err = getEncasedFaces(pArgs, &faceCellsTable);
 	STUC_THROW_IFNOT(err, "", 0);
-	pArgs->entryCount = tableState.entryCount;
 	STUC_CATCH(0, err, ;);
 	stucDestroyFaceCellsTable(&pCtx->alloc, &faceCellsTable, pArgs->core.range);
 	return err;

@@ -105,13 +105,12 @@ typedef struct IntersectCorner {
 
 typedef struct ClippedRoot {
 	CornerCore root;
+	bool noIntersect;
 } ClippedRoot;
 
 typedef struct ClippedArr {
 	LinAlloc mapAlloc;
-	ClippedRoot *pArr;
-	I32 size;
-	I32 count;
+	LinAlloc rootAlloc;
 } ClippedArr;
 
 /*

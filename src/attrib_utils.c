@@ -17,20 +17,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <mesh.h>
 #include <error.h>
 
-//special buf attribs should not be set by user,
-//so unlike special attribs, they're hardcoded here
-static
-char spBufAttribs[STUC_ATTRIB_SP_BUF_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN] = {
-	"",
-	"StucW",
-	"StucInNormal",
-	"StucInTangent",
-	"StucInTSign",
-	"StucAlpha",
-	"StucInMapFacePair"
-
-};
-
 void stucSetDefaultSpAttribNames(StucContext pCtx) {
 	strcpy(pCtx->spAttribNames[1], "position");
 	strcpy(pCtx->spAttribNames[2], "UVMap");
@@ -93,10 +79,12 @@ void stucSetDefaultSpAttribTypes(StucContext pCtx) {
 
 #define CLAMP(a, min, max) (a <= min ? min : (a > max ? max : a))
 
+/*
 static
 F64 clamp(F64 a, F64 min, F64 max) {
 	return CLAMP(a, min, max);
 }
+*/
 
 static
 void fBlendReplace(F64 *pDest, F64 a, F64 b) {
@@ -1871,6 +1859,7 @@ Result stucAllocAttribs(
 	return err;
 }
 
+/*
 static
 I32 checkIfSpecialBufAttrib(Attrib *pAttrib) {
 	I32 size = sizeof(spBufAttribs) / STUC_ATTRIB_NAME_MAX_LEN;
@@ -1881,6 +1870,7 @@ I32 checkIfSpecialBufAttrib(Attrib *pAttrib) {
 	}
 	return -1;
 }
+*/
 
 #ifndef TEMP_DISABLE
 static
@@ -2130,7 +2120,6 @@ void stucReallocAttrib(
 	AttribCore *pAttrib,
 	const I32 newLen
 ) {
-	SpecialBufAttrib specialBuf = STUC_ATTRIB_SP_BUF_NONE;
 	I8 oldFirstElement = *(I8 *)stucAttribAsVoid(pAttrib, 0);
 	I32 attribSize = stucGetAttribSizeIntern(pAttrib->type);
 	pAttrib->pData = pAlloc->fpRealloc(pAttrib->pData, attribSize * newLen);

@@ -24,7 +24,7 @@ typedef StucResult Result;
 	assert(condition);
 #endif
 
-static
+static inline
 void printError(
 	Result err,
 	int32_t idx,

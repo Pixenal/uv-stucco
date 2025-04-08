@@ -10,14 +10,12 @@ SPDX-License-Identifier: Apache-2.0
 
 #define FLOAT_EQUAL_MARGIN .000002f
 
-#define STUC_IDENT_MAT4X4 {\
+#define STUC_IDENT_MAT4X4 (Stuc_M4x4_F32) {\
 	1.0, .0, .0, .0,\
 	.0, 1.0, .0, .0,\
 	.0, .0, 1.0, .0,\
 	.0, .0, .0, 1.0\
 }
-
-static Stuc_M4x4_F32 identM4x4 = STUC_IDENT_MAT4X4;
 
 #define STUC_MIN(a, b) (a < b ? a : b)
 #define STUC_MAX(a, b) (a > b ? a : b)

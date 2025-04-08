@@ -285,6 +285,7 @@ StucResult encodeObj(
 	return STUC_SUCCESS;
 }
 
+/*
 static
 void addSpacing(ByteString *pByteString, I32 lenInBits, I64 *pSize) {
 	I32 lenInBytes = lenInBits / 8;
@@ -292,6 +293,7 @@ void addSpacing(ByteString *pByteString, I32 lenInBits, I64 *pSize) {
 	pByteString->nextBitIdx = lenInBits - lenInBytes * 8;
 	*pSize -= lenInBits;
 }
+*/
 
 static
 I32 addUniqToPtrArr(void *pPtr, I32 *pCount, void **ppArr) {
