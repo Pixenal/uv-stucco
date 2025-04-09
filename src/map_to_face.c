@@ -34,19 +34,6 @@ typedef struct TriUv {
 	V2_F32 c;
 } TriUv;
 
-typedef struct InCornerCache {
-	V2_F32 uv;
-	V2_F32 uvNext;
-	V2_F32 dir;
-	V2_F32 dirUnit;
-	V2_F32 halfPlane;
-	F32 len;
-	I8 idx;
-	I8 idxPrev;
-	I8 idxNext;
-	bool flipEdgeDir;
-} InCornerCache;
-
 typedef struct InFaceCacheEntry {
 	HTableEntryCore core;
 	FaceRange face;
@@ -57,7 +44,7 @@ typedef struct InFaceCacheEntry {
 
 typedef struct InFaceCacheEntryIntern {
 	InFaceCacheEntry faceEntry;
-	InCornerCache *pCorners;
+	HalfPlane *pCorners;
 } InFaceCacheEntryIntern;
 
 /*
@@ -1874,48 +1861,7 @@ InFaceCorner getExteriorInPieceCorner(
 */
 
 static
-InCornerCache *initInCornerCache(
-	const MapToMeshBasic *pBasic,
-	const FaceRange *pInFace,
-	InCornerCache *pCache
-) {
-	for (I32 i = 0; i < pInFace->size; ++i) {
-		/*
-		if (mapFaceWind) {
-			idxNext = ((i + 1) % pInFace->size);
-			idxPrev = i ? i - 1 : pInFace->size - 1;
-			edgeCorner = pInFace->start + i;
-		}
-		else {
-			idxNext = i ? i - 1 : pInFace->size - 1;
-			idxPrev = ((i + 1) % pInFace->size);
-			edgeCorner = pInFace->start + idxNext;
-		}
-		I32 edgeIdx = pBasic->pInMesh->core.pEdges[edgeCorner];
-		V2_I8 edgeCorners = pBasic->pInMesh->pEdgeCorners[edgeIdx];
-		STUC_ASSERT(
-			"",
-			edgeCorners.d[0] == edgeCorner || edgeCorners.d[1] == edgeCorner
-		);
-		pCache[i].flipEdgeDir = edgeCorner != edgeCorners.d[0];
-		*/
-		pCache[i].idx = (I8)i;
-		pCache[i].idxNext = (I8)stucGetCornerNext(i, pInFace);
-		pCache[i].idxPrev = (I8)stucGetCornerPrev(i, pInFace);
-
-		pCache[i].uv = pBasic->pInMesh->pUvs[pInFace->start + i];
-		pCache[i].uvNext = pBasic->pInMesh->pUvs[pInFace->start + pCache[i].idxNext];
-		
-		pCache[i].dir = _(pCache[i].uvNext V2SUB pCache[i].uv);
-		pCache[i].len = v2F32Len(pCache[i].dir);
-		pCache[i].dirUnit = _(pCache[i].dir V2DIVS pCache[i].len);
-		pCache[i].halfPlane = v2F32LineNormal(pCache[i].dir);
-	}
-	return pCache;
-}
-
-static
-InCornerCache *getInCornerCache(
+HalfPlane *getInCornerCache(
 	const MapToMeshBasic *pBasic,
 	InFaceCacheEntry *pInFaceCacheEntry
 ) {
@@ -1923,8 +1869,12 @@ InCornerCache *getInCornerCache(
 	InFaceCacheEntryIntern *pFaceEntry = (InFaceCacheEntryIntern *)pInFaceCacheEntry;
 	if (!pFaceEntry->pCorners) {
 		pFaceEntry->pCorners =
-			pAlloc->fpCalloc(pFaceEntry->faceEntry.face.size, sizeof(InCornerCache));
-		initInCornerCache(pBasic, &pFaceEntry->faceEntry.face, pFaceEntry->pCorners);
+			pAlloc->fpCalloc(pFaceEntry->faceEntry.face.size, sizeof(HalfPlane));
+		initHalfPlaneLookup(
+			pBasic->pInMesh,
+			&pFaceEntry->faceEntry.face,
+			pFaceEntry->pCorners
+		);
 	}
 	return pFaceEntry->pCorners;
 }
@@ -1937,8 +1887,8 @@ void testAgainstInCorner(
 	InFaceCorner inCorner,
 	IntersectResult *pResult
 ) {
-	InCornerCache *pInCornerCacheArr = getInCornerCache(pBasic, inCorner.pFace);
-	InCornerCache *pInCornerCache = pInCornerCacheArr + inCorner.corner;
+	HalfPlane *pInCornerCacheArr = getInCornerCache(pBasic, inCorner.pFace);
+	HalfPlane *pInCornerCache = pInCornerCacheArr + inCorner.corner;
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
 	I32 mapCornerNext = stucGetCornerNext(mapCorner, pMapFace);
 	V3_F32 mapVert =
@@ -2738,7 +2688,7 @@ I32 getFaceEncasingVert(
 		if (!_(vert V2GREAT pInFaceEntry->fMin) || !_(vert V2LESS pInFaceEntry->fMax)) {
 			continue;
 		}
-		InCornerCache *pInCornerCache = getInCornerCache(pBasic, pInFaceEntry);
+		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInFaceEntry);
 		bool inside = true;
 		for (I32 j = 0; j < pInFaceEntry->face.size; ++j) {
 			InsideStatus status = stucIsPointInHalfPlane(
