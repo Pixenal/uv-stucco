@@ -1812,6 +1812,15 @@ InFaceCorner getAdjFaceInPiece(
 	HTable *pInFaceCache,
 	InFaceCorner corner
 ) {
+	I32 edge = stucGetMeshEdge(
+		&pBasic->pInMesh->core, (FaceCorner) {
+			.face = corner.pFace->face.idx,
+			.corner = corner.corner
+		}
+	);
+	if (couldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
+		return (InFaceCorner) {.pFace = NULL, .corner = -1};
+	}
 	FaceCorner adjCorner = {0};
 	stucGetAdjCorner(
 		pBasic->pInMesh,
@@ -2074,7 +2083,7 @@ void testAgainstInEdge(
 }
 
 static
-void intersectWithPiecePerim(
+Result intersectWithPiecePerim(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const FaceRange *pMapFace,
@@ -2082,6 +2091,7 @@ void intersectWithPiecePerim(
 	HTable *pInFaceCache,
 	IntersectArr *pIntersectArr
 ) {
+	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
 		FaceCorner startCorner = pInPiece->borderArr.pArr[i].start;
 		InFaceCorner inCorner = {.corner = startCorner.corner};
@@ -2094,7 +2104,13 @@ void intersectWithPiecePerim(
 		);
 		STUC_ASSERT("", inCorner.pFace);
 		I32 borderEdge = 0;
+		I32 j = 0;
 		do {
+			STUC_RETURN_ERR_IFNOT_COND(
+				err,
+				j < pInPiece->faceCount * 4,
+				"stuck in loop"
+			);
 			if (borderEdge != 0 &&
 				inCorner.pFace->face.idx == startCorner.face &&
 				inCorner.corner == startCorner.corner
@@ -2123,8 +2139,9 @@ void intersectWithPiecePerim(
 				inCorner.corner = stucGetCornerNext(inCorner.corner, &inCorner.pFace->face);
 				borderEdge++;
 			}
-		} while (true);
+		} while (j++, true);
 	}
+	return err;
 }
 
 /*
@@ -2453,7 +2470,7 @@ Result clipMapEdgeAgainstInPiece(
 			addCornerToIsland(pBasic, islands.pIsland, i);
 		}
 		*/
-		intersectWithPiecePerim(
+		err = intersectWithPiecePerim(
 			pBasic,
 			pInPiece,
 			pMapFace,
@@ -2461,6 +2478,7 @@ Result clipMapEdgeAgainstInPiece(
 			pInFaceCache,
 			pIntersect
 		);
+		STUC_RETURN_ERR_IFNOT(err, "");
 	}
 	STUC_RETURN_ERR_IFNOT_COND(err, pIntersect->count % 2 == 0, "odd num intersections");
 	if (!pIntersect->count) {
