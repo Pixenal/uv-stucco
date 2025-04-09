@@ -2462,6 +2462,7 @@ Result clipMapEdgeAgainstInPiece(
 			pIntersect
 		);
 	}
+	STUC_RETURN_ERR_IFNOT_COND(err, pIntersect->count % 2 == 0, "odd num intersections");
 	if (!pIntersect->count) {
 		ClippedRoot *pRoot = NULL;
 		stucLinAlloc(&pClippedFaces->rootAlloc, (void **)&pRoot, 1);
@@ -3195,7 +3196,7 @@ Result stucClipMapFace(
 		&intersectArr,
 		&clippedFaces
 	);
-	STUC_RETURN_ERR_IFNOT(err, "");
+	STUC_THROW_IFNOT(err, "", 0);
 	STUC_ASSERT("", stucLinAllocGetCount(&clippedFaces.rootAlloc));
 	if (((ClippedRoot *)stucLinAllocIdx(&clippedFaces.rootAlloc, 0))->noIntersect) {
 		//no edges clipped the mapface, treat as a non-clip inPiece
@@ -3219,28 +3220,12 @@ Result stucClipMapFace(
 			&intersectArr
 		);
 	}
+	STUC_CATCH(0, err, 
+		err = STUC_SUCCESS; //skipping this face, reset err
+	);
 	destroyClippedArr(&clippedFaces);
 	destroyIntersectArr(pBasic, &intersectArr);
 	inFaceCacheDestroy(pBasic, &inFaceCache);
-
-	/*
-	addOrDiscardClippedFaces(
-		pState,
-		fTileMin,
-		&MapIslandCorner,
-		tile,
-		pInFace,
-		&mapFace,
-		pInTriConst,
-		inFaceWind, mapFaceWind
-	);
-	*/
-	STUC_CATCH(1, err, 
-		err = STUC_SUCCESS; //skipping this face, reset err
-	);
-	//err = stucLinAllocClear(pState->pMapIslandAlloc, true);
-	STUC_THROW_IFNOT(err, "", 0);
-	STUC_CATCH(0, err, ;);
 	return err;
 }
 
@@ -3283,7 +3268,7 @@ Result stucBufMeshInit(void *pArgsVoid) {
 		I32 inPieceIdx = pArgs->core.range.start + i;
 		pArgs->fpAddPiece(
 			pArgs->core.pBasic,
-			i,
+			inPieceIdx,
 			pArgs->pInPiecesSplit->pArr + inPieceIdx,
 			&pArgs->bufMesh
 		);

@@ -1534,7 +1534,9 @@ void stucBlendAttribs(
 			blendUseScalar(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		default:
-			STUC_ASSERT("invalid attrib use for this func", false);
+			//blending not currently supported for this use - copying instead
+			//TODO add warning
+			stucCopyAttribCore(pDest, iDest, pA, iB);
 	}
 }
 
