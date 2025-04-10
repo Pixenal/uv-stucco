@@ -2866,31 +2866,11 @@ V3_F32 getCornerPos(
 }
 */
 
-#define BUF_MESH_ADD(t, pBasic, pBufArr, newIdx) \
-	STUC_ASSERT("", pBufArr->count <= pBufArr->size);\
-	if (!pBufArr->size) {\
-		STUC_ASSERT("", !pBufArr->pArr);\
-		pBufArr->size = 4;\
-		pBufArr->pArr = pBasic->pCtx->alloc.fpMalloc(\
-			pBufArr->size * sizeof(t)\
-		);\
-	}\
-	else if (pBufArr->count == pBufArr->size) {\
-		pBufArr->size *= 2;\
-		pBufArr->pArr = pBasic->pCtx->alloc.fpRealloc(\
-			pBufArr->pArr,\
-			pBufArr->size * sizeof(t)\
-		);\
-	}\
-	newIdx = pBufArr->count;\
-	pBufArr->count++;
-
-
 static
 I32 bufMeshAddInOrMapVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertInOrMapArr *pVertArr = &pBufMesh->inOrMapVerts;
 	I32 newVert = -1;
-	BUF_MESH_ADD(InOrMapVert, pBasic, pVertArr, newVert);
+	STUC_DYN_ARR_ADD(InOrMapVert, pBasic, pVertArr, newVert);
 	STUC_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -2899,7 +2879,7 @@ static
 I32 bufMeshAddOnEdgeVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertOnEdgeArr *pVertArr = &pBufMesh->onEdgeVerts;
 	I32 newVert = -1;
-	BUF_MESH_ADD(BufVertOnEdge, pBasic, pVertArr, newVert);
+	STUC_DYN_ARR_ADD(BufVertOnEdge, pBasic, pVertArr, newVert);
 	STUC_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -2908,7 +2888,7 @@ static
 I32 bufMeshAddOverlapVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertOverlapArr *pVertArr = &pBufMesh->overlapVerts;
 	I32 newVert = -1;
-	BUF_MESH_ADD(OverlapVert, pBasic, pVertArr, newVert);
+	STUC_DYN_ARR_ADD(OverlapVert, pBasic, pVertArr, newVert);
 	STUC_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -2917,7 +2897,7 @@ static
 I32 bufMeshAddIntersectVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertIntersectArr *pVertArr = &pBufMesh->intersectVerts;
 	I32 newVert = -1;
-	BUF_MESH_ADD(IntersectVert, pBasic, pVertArr, newVert);
+	STUC_DYN_ARR_ADD(IntersectVert, pBasic, pVertArr, newVert);
 	STUC_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -2985,7 +2965,7 @@ void bufMeshAddFace(
 	I32 faceSize
 ) {
 	I32 newIdx = -1;
-	BUF_MESH_ADD(BufFace, pBasic, (&pBufMesh->faces), newIdx);
+	STUC_DYN_ARR_ADD(BufFace, pBasic, (&pBufMesh->faces), newIdx);
 	STUC_ASSERT("", newIdx != -1);
 	pBufMesh->faces.pArr[newIdx].start = start;
 	pBufMesh->faces.pArr[newIdx].size = faceSize;
@@ -3002,7 +2982,7 @@ void bufMeshAddVert(
 ) {
 	BufCornerArr *pCorners = &pBufMesh->corners;
 	I32 newCorner = -1;
-	BUF_MESH_ADD(BufCorner, pBasic, pCorners, newCorner);
+	STUC_DYN_ARR_ADD(BufCorner, pBasic, pCorners, newCorner);
 	STUC_ASSERT("", newCorner >= 0);
 	BufVertType type = 0;
 	I32 vert = -1;
@@ -3105,7 +3085,7 @@ void addMapVertToBufMesh(
 ) {
 	BufCornerArr *pCorners = &pBufMesh->corners;
 	I32 newCorner = -1;
-	BUF_MESH_ADD(BufCorner, pBasic, pCorners, newCorner);
+	STUC_DYN_ARR_ADD(BufCorner, pBasic, pCorners, newCorner);
 	STUC_ASSERT("", newCorner >= 0);
 	I32 newVert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
 	pBufMesh->inOrMapVerts.pArr[newVert].map = (MapVert){
@@ -3600,11 +3580,6 @@ typedef struct InterpCacheLimited {
 	const AttribOrigin origin;
 	InterpCache cache;
 } InterpCacheLimited;
-
-typedef struct SrcFaces {
-	I32 in;
-	I32 map;
-} SrcFaces;
 
 typedef struct InterpCaches {
 	InterpCacheLimited in;
@@ -4609,7 +4584,7 @@ void xformNormals(StucMesh *pMesh, I32 idx, const Mat3x3 *pTbn, StucDomain domai
 	}
 }
 
-void getBufMeshForVertMergeEntry(
+void stucGetBufMeshForVertMergeEntry(
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	const VertMerge *pVert,
@@ -4642,7 +4617,7 @@ Result stucXformAndInterpVertsInRange(void *pArgsVoid) {
 		}
 		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
-		getBufMeshForVertMergeEntry(
+		stucGetBufMeshForVertMergeEntry(
 			pArgs->pInPieces, pArgs->pInPiecesClip,
 			pEntry,
 			&pInPiece,
@@ -4706,7 +4681,7 @@ Result stucInterpCornerAttribs(void *pArgsVoid) {
 
 		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
-		getBufMeshForVertMergeEntry(
+		stucGetBufMeshForVertMergeEntry(
 			pArgs->pInPieces, pArgs->pInPiecesClip,
 			pVertEntry,
 			&pInPiece,
@@ -4739,8 +4714,7 @@ Result stucInterpCornerAttribs(void *pArgsVoid) {
 	return err;
 }
 
-static
-SrcFaces getSrcFacesForBufCorner(
+SrcFaces stucGetSrcFacesForBufCorner(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
@@ -4805,14 +4779,14 @@ Result stucInterpFaceAttribs(void *pArgsVoid) {
 
 		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
-		getBufMeshForVertMergeEntry(
+		stucGetBufMeshForVertMergeEntry(
 			pArgs->pInPieces, pArgs->pInPiecesClip,
 			pVertEntry,
 			&pInPiece,
 			&pBufMesh
 		);
 		SrcFaces srcFaces = {0};
-		getSrcFacesForBufCorner(
+		stucGetSrcFacesForBufCorner(
 			pArgs->core.pBasic,
 			pInPiece,
 			pBufMesh,
