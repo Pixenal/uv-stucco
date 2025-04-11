@@ -2106,17 +2106,17 @@ Result intersectWithPiecePerim(
 		I32 borderEdge = 0;
 		I32 j = 0;
 		do {
-			STUC_RETURN_ERR_IFNOT_COND(
-				err,
-				j < pInPiece->faceCount * 4,
-				"stuck in loop"
-			);
 			if (borderEdge != 0 &&
 				inCorner.pFace->face.idx == startCorner.face &&
 				inCorner.corner == startCorner.corner
 				) {
 				break; //full loop
 			}
+			STUC_RETURN_ERR_IFNOT_COND(
+				err,
+				j < pInPiece->faceCount * 4,
+				"stuck in loop"
+			);
 			InFaceCorner adjInCorner = getAdjFaceInPiece(
 				pBasic,
 				pInFaceCache,
@@ -3465,6 +3465,69 @@ void recordEncasedMapCorners(
 }
 */
 
+//TODO merge this with stucCalcIntersection, & add quick exit to clipping
+static
+bool intersectTest(V2_F32 a, V2_F32 ab, V2_F32 c, V2_F32 cd) {
+	V2_F32 ac = _(c V2SUB a);
+	F32 det2 = _(ab V2DET cd);
+	if (det2 == .0f) {
+		return false;
+	}
+	F32 tMapEdge = _(ac V2DET cd) / det2;
+	if (tMapEdge < .0f || tMapEdge > 1.0f) {
+		return false;
+	}
+	det2 = _(cd V2DET ab);
+	if (det2 == .0f) {
+		return false;
+	}
+	V2_F32 ca = _(a V2SUB c);
+	F32 tInEdge = _(ca V2DET ab) / det2;
+	return (tInEdge >= .0f && tInEdge <= 1.0f);
+}
+
+static
+bool doInAndMapFacesOverlap(
+	const Mesh *pInMesh, const FaceRange *pInFace, HalfPlane *pInCorners,
+	const Mesh *pMapMesh, const FaceRange *pMapFace,
+	bool inFaceWind
+) {
+	V2_F32 windLine = { .d = {.0f, 2.0f - pInCorners[0].uv.d[1]}};
+	I32 windNum = 0;
+	for (I32 i = 0; i < pMapFace->size; ++i) {
+		I32 iNext = stucGetCornerNext(i, pMapFace);
+		V2_F32 a = stucGetVertPosAsV2(pMapMesh, pMapFace, i);
+		V2_F32 b = stucGetVertPosAsV2(pMapMesh, pMapFace, iNext);
+		V2_F32 ab = _(b V2SUB a);
+		bool inside = true;
+		for (I32 j = 0; j < pInFace->size; ++j) {
+			InsideStatus status = stucIsPointInHalfPlane(
+				a,
+				pInCorners[j].uv,
+				pInCorners[j].halfPlane,
+				inFaceWind
+			);
+			if (status == STUC_INSIDE_STATUS_OUTSIDE){
+				inside = false;
+			}
+			if (intersectTest(a, ab, pInCorners[j].uv, pInCorners[j].dir)) {
+				return true;
+			}
+		}
+		if (inside) {
+			return true;
+		}
+		if (!ab.d[0] || a.d[0] == pInCorners[0].uv.d[0]) {
+			//colinear (if b is on windLine, it will be counted as 1 intersection)
+			continue;
+		}
+		if (intersectTest(a, ab, pInCorners[0].uv, windLine)) {
+			windNum++;
+		}
+	}
+	return windNum % 2;
+}
+
 Result stucGetEncasedFacesPerFace(
 	FindEncasedFacesJobArgs *pArgs,
 	FaceCellsTable *pFaceCellsTable,
@@ -3480,6 +3543,9 @@ Result stucGetEncasedFacesPerFace(
 	stucGetInFaceBounds(&bounds, pInMesh->pUvs, *pInFace);
 	_(&bounds.fBBox.min V2SUBEQL fTileMin);
 	_(&bounds.fBBox.max V2SUBEQL fTileMin);
+
+	HalfPlane inCorners[4] = {0};
+	initHalfPlaneLookup(pInMesh, pInFace, inCorners);
 
 	BaseTriVerts inTri = {0};
 	//const qualifier is cast away from in-mesh here, to init inTri
@@ -3506,7 +3572,13 @@ Result stucGetEncasedFacesPerFace(
 				continue;
 			}
 			FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
-			addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
+			if (doInAndMapFacesOverlap(
+				pInMesh, pInFace, inCorners,
+				pMap->pMesh, &mapFace,
+				inFaceWind
+			)) {
+				addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
+			}
 			/*
 			recordEncasedMapCorners(
 				pArgs->core.pBasic,
