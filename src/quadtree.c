@@ -28,14 +28,14 @@ void calcCellBounds(Cell *cell) {
 	F32 xSide = (F32)(cell->localIdx % 2);
 	F32 ySide = (F32)(((cell->localIdx + 2) / 2) % 2);
 	STUC_ASSERT("", isfinite(xSide) && isfinite(ySide));
-	cell->boundsMin.d[0] = xSide * .5f;
-	cell->boundsMin.d[1] = ySide * .5f;
-	cell->boundsMax.d[0] = 1.0f - (1.0f - xSide) * .5f;
-	cell->boundsMax.d[1] = 1.0f - (1.0f - ySide) * .5f;
+	cell->bbox.min.d[0] = xSide * .5f;
+	cell->bbox.min.d[1] = ySide * .5f;
+	cell->bbox.max.d[0] = 1.0f - (1.0f - xSide) * .5f;
+	cell->bbox.max.d[1] = 1.0f - (1.0f - ySide) * .5f;
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	STUC_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
-	STUC_ASSERT("", _(cell->boundsMax V2LESSEQL one));
+	STUC_ASSERT("", _(cell->bbox.min V2GREATEQL zero));
+	STUC_ASSERT("", _(cell->bbox.max V2LESSEQL one));
 }
 
 static
@@ -210,10 +210,10 @@ Result findEncasingChildCells(
 	Result err = STUC_SUCCESS;
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	STUC_THROW_IFNOT_COND(err, _(pCell->boundsMin V2GREATEQL zero), "", 0);
-	STUC_THROW_IFNOT_COND(err, _(pCell->boundsMax V2LESSEQL one), "", 0);
-	V2_F32 midPoint = _(_(pCell->boundsMax V2SUB pCell->boundsMin) V2MULS .5);
-	_(&midPoint V2ADDEQL pCell->boundsMin);
+	STUC_THROW_IFNOT_COND(err, _(pCell->bbox.min V2GREATEQL zero), "", 0);
+	STUC_THROW_IFNOT_COND(err, _(pCell->bbox.max V2LESSEQL one), "", 0);
+	V2_F32 midPoint = _(_(pCell->bbox.max V2SUB pCell->bbox.min) V2MULS .5);
+	_(&midPoint V2ADDEQL pCell->bbox.min);
 	STUC_ASSERT("", v2F32IsFinite(midPoint));
 	V2_I32 signs;
 	V2_I32 commonSides;
@@ -371,8 +371,8 @@ I32 stucCheckIfFaceIsInsideTile(
 		//like if a face entered the tile, and then exited the same side,
 		//with a single vert in the tile. Checking for verts will catch this:
 		faceVertInside +=
-			_(pVerts[i] V2GREAT pFaceBounds->fMin) &&
-			_(pVerts[i] V2LESSEQL pFaceBounds->fMax);
+			_(pVerts[i] V2GREAT pFaceBounds->fBBox.min) &&
+			_(pVerts[i] V2LESSEQL pFaceBounds->fBBox.max);
 	}
 	I32 isInside =
 		isInsideBuf[0] || isInsideBuf[1] ||
@@ -729,34 +729,39 @@ Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos) {
 		depth++;
 		I32 childIdx = (pos.d[0] >= midPoint.d[0]) + (pos.d[1] < midPoint.d[1]) * 2;
 		cell = cell->pChildren + childIdx;
-		cellBoundsMin = cell->boundsMin;
-		cellBoundsMax = cell->boundsMax;
+		cellBoundsMin = cell->bbox.min;
+		cellBoundsMax = cell->bbox.max;
 	};
 }
 
 static
 void setCellBounds(Cell *cell, Cell *parentCell, I32 cellStackPtr) {
 	calcCellBounds(cell);
-	_(&cell->boundsMin V2DIVSEQL (F32)pow(2.0, cellStackPtr));
-	_(&cell->boundsMax V2DIVSEQL (F32)pow(2.0, cellStackPtr));
-	V2_F32 *ancestorBoundsMin = &parentCell->boundsMin;
-	_(&cell->boundsMin V2ADDEQL *ancestorBoundsMin);
-	_(&cell->boundsMax V2ADDEQL *ancestorBoundsMin);
+	_(&cell->bbox.min V2DIVSEQL (F32)pow(2.0, cellStackPtr));
+	_(&cell->bbox.max V2DIVSEQL (F32)pow(2.0, cellStackPtr));
+	V2_F32 *ancestorBoundsMin = &parentCell->bbox.min;
+	_(&cell->bbox.min V2ADDEQL *ancestorBoundsMin);
+	_(&cell->bbox.max V2ADDEQL *ancestorBoundsMin);
 	V2_F32 zero = {.0f, .0f};
 	V2_F32 one = {1.0f, 1.0f};
-	STUC_ASSERT("", _(cell->boundsMin V2GREATEQL zero));
-	STUC_ASSERT("", _(cell->boundsMax V2LESSEQL one));
+	STUC_ASSERT("", _(cell->bbox.min V2GREATEQL zero));
+	STUC_ASSERT("", _(cell->bbox.max V2LESSEQL one));
 }
 
 static
-I32 checkIfLinkedEdge(Cell *pChild, Cell *pAncestor, const Mesh *pMesh, Range *pRange) {
+I32 checkIfLinkedEdge(
+	Cell *pChild,
+	Cell *pAncestor,
+	const BBox *pFaceBBoxes,
+	Range *pRange
+) {
 	I32 linked = 0;
 	for (I32 i = 0; i < pAncestor->edgeFaceSize; ++i) {
 		I32 faceIdx = pAncestor->pEdgeFaces[i];
-		FaceRange face = stucGetFaceRange(&pMesh->core, faceIdx);
+		//FaceRange face = stucGetFaceRange(&pMap->pMesh->core, faceIdx);
 		//doesn't catch cases where edge intersect with bounds,
 		//replace with a better method
-		if (stucCheckFaceIsInBounds(pChild->boundsMin, pChild->boundsMax, face, pMesh)) {
+		if (stucIsBBoxInBBox(pChild->bbox, pFaceBBoxes[faceIdx])) {
 			if (!linked) {
 				linked = 1;
 				pRange->start = i;
@@ -773,7 +778,7 @@ static
 void addLinkEdgesToCells(
 	StucContext pCtx,
 	I32 parentCell,
-	const Mesh *pMesh,
+	const BBox *pFaceBBoxes,
 	CellTable *pTable,
 	I32 *pCellStack,
 	I32 cellStackPtr
@@ -792,7 +797,7 @@ void addLinkEdgesToCells(
 			STUC_ASSERT("", pAncestor->localIdx >= 0);
 			STUC_ASSERT("", pAncestor->localIdx < 4);
 			Range range = {0};
-			if (checkIfLinkedEdge(pChild, pAncestor, pMesh, &range)) {
+			if (checkIfLinkedEdge(pChild, pAncestor, pFaceBBoxes, &range)) {
 				buf[bufSize] = pAncestor->cellIdx;
 				rangeBuf[bufSize] = range;
 				bufSize++;
@@ -820,7 +825,7 @@ void addEnclosedVertsToCell(
 	// Get enclosed verts if not already present
 	// First, determine which verts are enclosed, and mark them by negating
 	Cell* pParentCell = pTable->pArr + parentCellIdx;
-	V2_F32 midPoint = pParentCell->pChildren[1].boundsMin;
+	V2_F32 midPoint = pParentCell->pChildren[1].bbox.min;
 	STUC_ASSERT("", v2F32IsFinite(midPoint));
 	STUC_ASSERT("", midPoint.d[0] < 1.0f && midPoint.d[1] < 1.0f);
 	STUC_ASSERT("", midPoint.d[0] > .0f && midPoint.d[1] > .0f);
@@ -956,6 +961,7 @@ Result processCell(
 	I32 *pCellStack,
 	I32 *pCellStackPtr,
 	const Mesh *pMesh,
+	const BBox *pFaceBBoxes,
 	QuadTree *pTree,
 	I8 *pFaceFlag,
 	I32 *pProgress
@@ -992,7 +998,7 @@ Result processCell(
 			addLinkEdgesToCells(
 				pCtx,
 				cell,
-				pMesh,
+				pFaceBBoxes,
 				&pTree->cellTable,
 				pCellStack,
 				*pCellStackPtr
@@ -1027,6 +1033,7 @@ Result initRootAndChildren(
 	I32 *pCellStack,
 	QuadTree *pTree,
 	const Mesh *pMesh,
+	const BBox *pFaceBBoxes,
 	I8 *pFaceFlag
 ) {
 	CellTable* pTable = &pTree->cellTable;
@@ -1034,7 +1041,7 @@ Result initRootAndChildren(
 	pRoot->cellIdx = 0;
 	pTree->cellCount = 1;
 	pCellStack[0] = 0;
-	pRoot->boundsMax.d[0] = pRoot->boundsMax.d[1] = 1.0f;
+	pRoot->bbox.max.d[0] = pRoot->bbox.max.d[1] = 1.0f;
 	pRoot->initialized = 1;
 	pRoot->pFaces = pCtx->alloc.fpMalloc(sizeof(I32) * pMesh->core.faceCount);
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
@@ -1059,12 +1066,17 @@ Result initRootAndChildren(
 	}
 	allocateChildren(pCtx, 0, 0, pTree);
 	addEnclosedVertsToCell(pCtx, 0, pMesh, pTable, pFaceFlag);
-	addLinkEdgesToCells(pCtx, 0, pMesh, pTable, pCellStack, 0);
+	addLinkEdgesToCells(pCtx, 0, pFaceBBoxes, pTable, pCellStack, 0);
 	pCellStack[1] = 1;
 	return STUC_SUCCESS;
 }
 
-Result stucCreateQuadTree(StucContext pCtx, QuadTree *pTree, const Mesh *pMesh) {
+Result stucCreateQuadTree(
+	StucContext pCtx,
+	QuadTree *pTree,
+	const Mesh *pMesh,
+	const BBox *pFaceBBoxes
+) {
 	Result err = STUC_NOT_SET;
 	STUC_ASSERT("", pMesh->core.faceCount > 0);
 	stucStageBeginWrap(pCtx, "Creating quad tree", pCtx->stageReport.outOf);
@@ -1077,7 +1089,7 @@ Result stucCreateQuadTree(StucContext pCtx, QuadTree *pTree, const Mesh *pMesh) 
 
 	pTree->pRootCell = pTree->cellTable.pArr;
 	I32 cellStack[STUC_CELL_STACK_SIZE];
-	err =  initRootAndChildren(pCtx, cellStack, pTree, pMesh, pFaceFlag);
+	err =  initRootAndChildren(pCtx, cellStack, pTree, pMesh, pFaceBBoxes, pFaceFlag);
 	STUC_THROW_IFNOT(err, "All faces were outside 0-1 tile", 0);
 	I32 cellStackPtr = 1;
 	I32 progress = 0;
@@ -1088,6 +1100,7 @@ Result stucCreateQuadTree(StucContext pCtx, QuadTree *pTree, const Mesh *pMesh) 
 			cellStack,
 			&cellStackPtr,
 			pMesh,
+			pFaceBBoxes,
 			pTree,
 			pFaceFlag,
 			&progress
@@ -1130,13 +1143,38 @@ void stucGetFaceBoundsForTileTest(
 	const Mesh *pMesh,
 	FaceRange *pFace
 ) {
-	stucGetFaceBounds(pFaceBounds, pMesh->pUvs, *pFace);
-	pFaceBounds->fMinSmall = pFaceBounds->fMin;
-	pFaceBounds->fMaxSmall = pFaceBounds->fMax;
-	pFaceBounds->min = v2F32FloorAssign(&pFaceBounds->fMin);
-	pFaceBounds->max = v2F32FloorAssign(&pFaceBounds->fMax);
-	_(&pFaceBounds->fMax V2ADDEQLS 1.0f);
+	stucGetInFaceBounds(pFaceBounds, pMesh->pUvs, *pFace);
+	pFaceBounds->fBBoxSmall.min = pFaceBounds->fBBox.min;
+	pFaceBounds->fBBoxSmall.max = pFaceBounds->fBBox.max;
+	pFaceBounds->min = v2F32FloorAssign(&pFaceBounds->fBBox.min);
+	pFaceBounds->max = v2F32FloorAssign(&pFaceBounds->fBBox.max);
+	_(&pFaceBounds->fBBox.max V2ADDEQLS 1.0f);
 }
+
+/*
+static
+I32 boundsLookupAdd(const StucAlloc *pAlloc, BoundsLookup *pLookup) {
+	STUC_ASSERT("", pLookup->count <= pLookup->size);
+	if (!pLookup->size) {
+		STUC_ASSERT("", !pLookup->pBounds && !pLookup->pFaces);
+		pLookup->size = 4;
+		pLookup->pBounds = pAlloc->fpMalloc(pLookup->size * sizeof(BoundsLookupEntry));
+		pLookup->pFaces = pAlloc->fpMalloc(pLookup->size * sizeof(I32));
+	}
+	else if (pLookup->count == pLookup->size) {
+		pLookup->size *= 2;
+		pLookup->pBounds = pAlloc->fpRealloc(
+			pLookup->pBounds,
+			pLookup->size * sizeof(BoundsLookupEntry)
+		);
+		pLookup->pFaces = pAlloc->fpRealloc(pLookup->pFaces, pLookup->size * sizeof(I32));
+	}
+	return pLookup->count++;
+}
+*/
+
+#define STUC_BOUNDS_LOOKUP_ADD() \
+	STUC_DYN_ARR_ADD()
 
 Result stucGetEncasingCells(
 	const StucAlloc *pAlloc,

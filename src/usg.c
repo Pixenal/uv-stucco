@@ -325,9 +325,11 @@ void assignUsgToVertsInFace(
 ) {
 	FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[faceIdx]);
 	//the uv of corners 0 and 2 can be treated and min and max for the bounding square
-	V2_F32 min = pSquares->pUvs[pSquaresFace->start];
-	V2_F32 max = pSquares->pUvs[pSquaresFace->start + 2];
-	if (!stucCheckFaceIsInBounds(min, max, mapFace, pMap->pMesh)) {
+	BBox bbox = {
+		.min = pSquares->pUvs[pSquaresFace->start],
+		.max = pSquares->pUvs[pSquaresFace->start + 2]
+	};
+	if (!stucIsBBoxInBBox(bbox, pMap->pFaceBBoxes[mapFace.idx])) {
 		return;
 	}
 	for (I32 l = 0; l < mapFace.size; ++l) {

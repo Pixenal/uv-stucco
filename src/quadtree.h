@@ -16,9 +16,8 @@ typedef struct Cell {
 	I32 *pFaces;
 	I32 *pEdgeFaces;
 	I32 *pLinkEdges;
-	Range* pLinkEdgeRanges;
-	V2_F32 boundsMin;
-	V2_F32 boundsMax;
+	Range *pLinkEdgeRanges;
+	BBox bbox;
 	U32 localIdx;
 	U32 initialized;
 	I32 faceSize;
@@ -66,6 +65,7 @@ typedef struct {
 	I32 cellFacesTotal;
 	I32 cellFacesMax;
 	I32 uniqueFaces;
+	Range faceRange;
 } FaceCellsTable;
 
 typedef struct {
@@ -95,7 +95,12 @@ Result stucGetCellsForSingleFace(
 );
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
-Result stucCreateQuadTree(StucContext pCtx, QuadTree *pTree, const Mesh *pMesh);
+Result stucCreateQuadTree(
+	StucContext pCtx,
+	QuadTree *pTree,
+	const Mesh *pMesh,
+	const BBox *pFaceBBoxes
+);
 void stucDestroyQuadTree(StucContext pCtx, QuadTree *pTree);
 Result stucGetEncasingCells(
 	const StucAlloc *pAlloc,

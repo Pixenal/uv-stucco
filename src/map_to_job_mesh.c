@@ -116,6 +116,16 @@ StucResult stucFindEncasedFaces(void *pArgsVoid) {
 
 	FaceCellsTable faceCellsTable = {0};
 	I32 averageMapFacesPerFace = 0;
+	/*
+	HTable boundsLookup = {0};
+	stucHTableInit(
+		&pArgs->core.pBasic->pCtx->alloc,
+		&boundsLookup,
+		faceCellsTable.uniqueFaces / 2,
+		(I32Arr) {.pArr = (I32[]) {sizeof(BoundsLookupEntry)}, .count = 1},
+		NULL
+	);
+	*/
 	stucGetEncasingCells(
 		&pCtx->alloc,
 		pArgs->core.pBasic->pMap,

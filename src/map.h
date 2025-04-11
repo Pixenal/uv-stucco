@@ -32,6 +32,7 @@ typedef struct StucHeader {
 typedef struct StucMapInternal {
 	UsgArr usgArr;
 	const Mesh *pMesh;
+	BBox *pFaceBBoxes;
 	TriCache triCache;
 	QuadTree quadTree;
 	StucAttribIndexedArr indexedAttribs;

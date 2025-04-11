@@ -1736,9 +1736,9 @@ void inFaceCacheEntryInit(
 	pEntry->face = stucGetFaceRange(&pState->pBasic->pInMesh->core, *(I32 *)pKeyData);
 	if (pState->initBounds) {
 		FaceBounds bounds = { 0 };
-		stucGetFaceBounds(&bounds, pState->pBasic->pInMesh->pUvs, pEntry->face);
-		pEntry->fMin = bounds.fMin;
-		pEntry->fMax = bounds.fMax;
+		stucGetInFaceBounds(&bounds, pState->pBasic->pInMesh->pUvs, pEntry->face);
+		pEntry->fMin = bounds.fBBox.min;
+		pEntry->fMax = bounds.fBBox.max;
 	}
 	pEntry->wind = pInitInfo->wind;
 }
@@ -3477,7 +3477,9 @@ Result stucGetEncasedFacesPerFace(
 	const Mesh *pInMesh = pArgs->core.pBasic->pInMesh;
 	const StucMap pMap = pArgs->core.pBasic->pMap;
 	FaceBounds bounds = {0};
-	stucGetFaceBounds(&bounds, pInMesh->pUvs, *pInFace);
+	stucGetInFaceBounds(&bounds, pInMesh->pUvs, *pInFace);
+	_(&bounds.fBBox.min V2SUBEQL fTileMin);
+	_(&bounds.fBBox.max V2SUBEQL fTileMin);
 
 	BaseTriVerts inTri = {0};
 	//const qualifier is cast away from in-mesh here, to init inTri
@@ -3500,16 +3502,10 @@ Result stucGetEncasedFacesPerFace(
 		Range range = {0};
 		getCellMapFaces(pArgs->core.pBasic, pFaceCellsEntry, i, &pCellFaces, &range);
 		for (I32 j = range.start; j < range.end; ++j) {
-			FaceRange mapFace =
-				stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
-			if (!stucCheckFaceIsInBounds(
-				_(bounds.fMin V2SUB fTileMin),
-				_(bounds.fMax V2SUB fTileMin),
-				mapFace,
-				pMap->pMesh)
-				) {
+			if (!stucIsBBoxInBBox(bounds.fBBox, pMap->pFaceBBoxes[pCellFaces[j]])) {
 				continue;
 			}
+			FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
 			addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
 			/*
 			recordEncasedMapCorners(
