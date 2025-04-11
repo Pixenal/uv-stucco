@@ -109,6 +109,7 @@ typedef struct ClippedRoot {
 } ClippedRoot;
 
 typedef struct ClippedArr {
+	LinAlloc inAlloc;
 	LinAlloc mapAlloc;
 	LinAlloc rootAlloc;
 } ClippedArr;

@@ -2053,33 +2053,100 @@ void beginIsland(
 }
 */
 
+typedef struct TestAgainstInEdgeArgs {
+	IntersectArr *pIntersectArr;
+	I32 borderIdx;
+	const FaceRange *pMapFace;
+	I32 mapCorner;
+} TestAgainstInEdgeArgs;
+
 static
-void testAgainstInEdge(
+bool testAgainstInEdge(
 	const MapToMeshBasic *pBasic,
-	IntersectArr *pIntersectArr,
-	I32 borderIdx,
-	const FaceRange *pMapFace,
-	I32 mapCorner,
+	void *pArgsVoid,
 	InFaceCorner inCorner,
-	I32 borderEdge
+	InFaceCorner adjInCorner,
+	I32 borderEdge,
+	I32 walkIdx,
+	bool adj
 ) {
+	TestAgainstInEdgeArgs *pArgs = pArgsVoid;
 	I32 inEdge =
 		pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
 	if (couldInEdgeIntersectMapFace(pBasic->pInMesh, inEdge)) {
 		IntersectResult result = {0};
-		testAgainstInCorner(pBasic, pMapFace, mapCorner, inCorner, &result);
+		testAgainstInCorner(pBasic, pArgs->pMapFace, pArgs->mapCorner, inCorner, &result);
 		if (result.type != STUC_INSIDE_STATUS_NONE) {
 			addIntersectCorner(
 				pBasic,
-				pIntersectArr,
-				borderIdx,
-				mapCorner,
+				pArgs->pIntersectArr,
+				pArgs->borderIdx,
+				pArgs->mapCorner,
 				borderEdge,
 				(FaceCorner) {.face = inCorner.pFace->face.idx, .corner = inCorner.corner},
 				&result
 			);
 		}
 	}
+	return false;
+}
+
+static
+Result walkInPieceBorder(
+	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
+	HTable *pInFaceCache,
+	FaceCorner startCorner,
+	bool (* fpFunc)(
+		const MapToMeshBasic *, void *, InFaceCorner, InFaceCorner, I32, I32, bool
+	),
+	void *pFuncArgs
+) {
+	Result err = STUC_SUCCESS;
+	InFaceCorner inCorner = {.corner = startCorner.corner};
+	inFaceCacheGet(
+		pInFaceCache,
+		startCorner.face,
+		false,
+		&(InFaceCacheInitInfo) {.wind = 0},
+		&inCorner.pFace
+	);
+	STUC_ASSERT("", inCorner.pFace);
+	I32 borderEdge = 0;
+	I32 j = 0;
+	bool adj = false;//value is invalid on first iteration
+	do {
+		if (borderEdge != 0 &&
+			inCorner.pFace->face.idx == startCorner.face &&
+			inCorner.corner == startCorner.corner
+			) {
+			break; //full loop
+		}
+		STUC_RETURN_ERR_IFNOT_COND(
+			err,
+			j < pInPiece->faceCount * 4,
+			"stuck in loop"
+		);
+		InFaceCorner adjInCorner = getAdjFaceInPiece(
+			pBasic,
+			pInFaceCache,
+			inCorner
+		);
+		if (fpFunc(pBasic, pFuncArgs, inCorner, adjInCorner, borderEdge, j, adj)) {
+			break;
+		}
+		if (adjInCorner.pFace) {
+			inCorner = adjInCorner; //edge is internal, move to adj face
+			adj = true;
+		}
+		else {
+			//edge is on boundary, continue on this face
+			inCorner.corner = stucGetCornerNext(inCorner.corner, &inCorner.pFace->face);
+			borderEdge++;
+			adj = false;
+		}
+	} while (j++, true);
+	return err;
 }
 
 static
@@ -2094,52 +2161,20 @@ Result intersectWithPiecePerim(
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
 		FaceCorner startCorner = pInPiece->borderArr.pArr[i].start;
-		InFaceCorner inCorner = {.corner = startCorner.corner};
-		inFaceCacheGet(
+		TestAgainstInEdgeArgs testArgs = {
+			pIntersectArr,
+			i,
+			pMapFace,
+			mapCorner
+		};
+		err = walkInPieceBorder(
+			pBasic,
+			pInPiece,
 			pInFaceCache,
-			startCorner.face,
-			false,
-			&(InFaceCacheInitInfo) {.wind = 0},
-			&inCorner.pFace
+			startCorner,
+			testAgainstInEdge, &testArgs
 		);
-		STUC_ASSERT("", inCorner.pFace);
-		I32 borderEdge = 0;
-		I32 j = 0;
-		do {
-			if (borderEdge != 0 &&
-				inCorner.pFace->face.idx == startCorner.face &&
-				inCorner.corner == startCorner.corner
-				) {
-				break; //full loop
-			}
-			STUC_RETURN_ERR_IFNOT_COND(
-				err,
-				j < pInPiece->faceCount * 4,
-				"stuck in loop"
-			);
-			InFaceCorner adjInCorner = getAdjFaceInPiece(
-				pBasic,
-				pInFaceCache,
-				inCorner
-			);
-			testAgainstInEdge(
-				pBasic,
-				pIntersectArr,
-				i,
-				pMapFace,
-				mapCorner,
-				inCorner,
-				borderEdge
-			);
-			if (adjInCorner.pFace) {
-				inCorner = adjInCorner; //edge is internal, move to adj face
-			}
-			else {
-				//edge is on boundary, continue on this face
-				inCorner.corner = stucGetCornerNext(inCorner.corner, &inCorner.pFace->face);
-				borderEdge++;
-			}
-		} while (j++, true);
+		STUC_RETURN_ERR_IFNOT(err, "");
 	}
 	return err;
 }
@@ -2267,6 +2302,7 @@ void destroyIntersectArr(const MapToMeshBasic *pBasic, IntersectArr *pArr) {
 static
 void initClippedArr(const MapToMeshBasic *pBasic, ClippedArr *pArr) {
 	stucLinAllocInit(&pBasic->pCtx->alloc, &pArr->rootAlloc, sizeof(ClippedRoot), 1, true);
+	stucLinAllocInit(&pBasic->pCtx->alloc, &pArr->inAlloc, sizeof(InCorner), 4, true);
 	stucLinAllocInit(&pBasic->pCtx->alloc, &pArr->mapAlloc, sizeof(MapCorner), 4, true);
 }
 
@@ -2731,6 +2767,7 @@ I32 getFaceEncasingVert(
 static
 void destroyClippedArr(ClippedArr *pArr) {
 	stucLinAllocDestroy(&pArr->rootAlloc);
+	stucLinAllocDestroy(&pArr->inAlloc);
 	stucLinAllocDestroy(&pArr->mapAlloc);
 	*pArr = (ClippedArr) {0};
 }
@@ -2745,6 +2782,21 @@ I32 getCornersMapCorner(const CornerCore *pCorner) {
 	default:
 		STUC_ASSERT("invalid corner type for this func", false);
 		return -1;
+	}
+}
+
+static
+FaceCorner getCornersInCorner(const CornerCore *pCorner) {
+	switch (pCorner->type) {
+	case STUC_CORNER_IN: {
+		InCorner *pInCorner = (InCorner *)pCorner;
+		return (FaceCorner) {.face = pInCorner->inFace, .corner = pInCorner->corner};
+	}
+	case STUC_CORNER_INTERSECT:
+		return ((IntersectCorner *)pCorner)->inCorner;
+	default:
+		STUC_ASSERT("invalid corner type for this func", false);
+		return (FaceCorner) {.face = -1, .corner = -1};
 	}
 }
 
@@ -2831,7 +2883,7 @@ Result insertMapCornersIntoList(
 		if (mapCorner == -1) {
 			continue;
 		}
-		insertNewMapCornerIntoList(
+		err = insertNewMapCornerIntoList(
 			pBasic,
 			pInPiece,
 			pInFaceCache,
@@ -3035,6 +3087,125 @@ void addFaceToBufMesh(
 	} while(pCorner = pCorner->pNext, pCorner != pStartCorner);
 }
 
+typedef struct InCornerInsertPredicateArgs {
+	FaceCorner inCornerNext;
+	FaceCorner cornerToInsert;
+} InCornerInsertPredicateArgs;
+
+static
+bool inCornerInsertPredicate(
+	const MapToMeshBasic *pBasic,
+	void *pArgsVoid,
+	InFaceCorner inCorner,
+	InFaceCorner adjInCorner,
+	I32 borderEdge,
+	I32 walkIdx,
+	bool adj
+) {
+	InCornerInsertPredicateArgs *pArgs = pArgsVoid;
+	bool single = !adjInCorner.pFace;
+	if (walkIdx && !adj) {
+		I32 vert = pBasic->pInMesh->core.pCorners[
+			inCorner.pFace->face.start + inCorner.corner
+		];
+		if (single || stucCheckIfVertIsPreserve(pBasic->pInMesh, vert)
+		) {
+			//vert is single, or marked preserve
+			pArgs->cornerToInsert = (FaceCorner) {
+				.face = inCorner.pFace->face.idx, inCorner.corner
+			};
+			return true;
+		}
+	}
+	if (inCorner.pFace->face.idx == pArgs->inCornerNext.face &&
+		inCorner.corner == pArgs->inCornerNext.corner
+	) {
+		pArgs->cornerToInsert = (FaceCorner) {.face = -1, .corner = -1};
+		return true;
+	}
+	return false;
+}
+
+static
+Result getNextInCorner(
+	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
+	HTable *pInFaceCache,
+	const CornerCore *pCorner,
+	FaceCorner *pCornerToInsert
+) {
+	Result err = STUC_SUCCESS;
+	if (pCorner->type == STUC_CORNER_ROOT) {
+		*pCornerToInsert = (FaceCorner) {.face = -1, .corner = -1};
+		return err;
+	}
+	if (pCorner->type == STUC_CORNER_MAP ||
+		pCorner->type == STUC_CORNER_INTERSECT &&
+		((IntersectCorner *)pCorner)->travelDir == INBOUND
+	) {
+		*pCornerToInsert = (FaceCorner) {.face = -1, .corner = -1};
+		return err;
+	}
+	FaceCorner inCorner = getCornersInCorner(pCorner);
+	STUC_ASSERT("", pCorner->pNext);
+	STUC_ASSERT("", pCorner->pNext->type == STUC_CORNER_INTERSECT);
+	InCornerInsertPredicateArgs args = {
+		.inCornerNext = getCornersInCorner(pCorner->pNext),
+	};
+	err = walkInPieceBorder(
+		pBasic,
+		pInPiece,
+		pInFaceCache,
+		inCorner,
+		inCornerInsertPredicate, &args
+	);
+	STUC_RETURN_ERR_IFNOT(err, "");
+	*pCornerToInsert = args.cornerToInsert;
+	return err;
+}
+
+static
+void insertNewInCornerIntoList(
+	FaceCorner inCorner,
+	CornerCore *pListCorner,
+	ClippedArr *pClippedFaces
+) {
+	InCorner *pNewCorner = NULL;
+	stucLinAlloc(&pClippedFaces->inAlloc, (void**)&pNewCorner, 1);
+	insertCornerIntoList(pListCorner, &pNewCorner->core);
+	pNewCorner->core.type = STUC_CORNER_IN;
+	pNewCorner->corner = inCorner.corner;
+	pNewCorner->inFace = inCorner.face;
+}
+
+
+static
+Result insertInCornersIntoList(
+	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
+	HTable *pInFaceCache,
+	ClippedArr *pClippedFaces,
+	CornerCore *pStartCorner
+) {
+	Result err = STUC_SUCCESS;
+	STUC_ASSERT("", pStartCorner->type != STUC_CORNER_ROOT);
+	CornerCore *pCorner = pStartCorner;
+	do {
+		FaceCorner inCorner = {0};
+		err = getNextInCorner(pBasic, pInPiece, pInFaceCache, pCorner, &inCorner);
+		STUC_RETURN_ERR_IFNOT(err, "");
+		if (inCorner.face == -1) {
+			continue;
+		}
+		insertNewInCornerIntoList(
+			inCorner,
+			pCorner,
+			pClippedFaces
+		);
+	} while(pCorner = pCorner->pNext, pCorner != pStartCorner);
+	return err;
+}
+
 static
 void addFacesToBufMesh(
 	const MapToMeshBasic *pBasic,
@@ -3056,11 +3227,19 @@ void addFacesToBufMesh(
 			continue; //invalid root
 		}
 		CornerCore *pStartCorner = pRoot->root.pNext;
-		insertMapCornersIntoList(
+		err = insertMapCornersIntoList(
 			pBasic,
 			pInPiece,
 			pInFaceCache,
 			pMapFace,
+			pClippedFaces,
+			pStartCorner
+		);
+		STUC_THROW_IFNOT(err, "", 0);
+		err = insertInCornersIntoList(
+			pBasic,
+			pInPiece,
+			pInFaceCache,
 			pClippedFaces,
 			pStartCorner
 		);
