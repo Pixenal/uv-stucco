@@ -1818,9 +1818,11 @@ InFaceCorner getAdjFaceInPiece(
 			.corner = corner.corner
 		}
 	);
+	/*
 	if (couldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
 		return (InFaceCorner) {.pFace = NULL, .corner = -1};
 	}
+	*/
 	FaceCorner adjCorner = {0};
 	stucGetAdjCorner(
 		pBasic->pInMesh,
@@ -2073,10 +2075,10 @@ bool testAgainstInEdge(
 	TestAgainstInEdgeArgs *pArgs = pArgsVoid;
 	I32 inEdge =
 		pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
-	if (couldInEdgeIntersectMapFace(pBasic->pInMesh, inEdge)) {
+	if (!adjInCorner.pFace && couldInEdgeIntersectMapFace(pBasic->pInMesh, inEdge)) {
 		IntersectResult result = {0};
 		testAgainstInCorner(pBasic, pArgs->pMapFace, pArgs->mapCorner, inCorner, &result);
-		if (result.type != STUC_INSIDE_STATUS_NONE) {
+		if (result.type != STUC_INTERSECT_TYPE_NONE) {
 			addIntersectCorner(
 				pBasic,
 				pArgs->pIntersectArr,
@@ -3093,6 +3095,24 @@ typedef struct InCornerInsertPredicateArgs {
 } InCornerInsertPredicateArgs;
 
 static
+bool inCornerPredicate(
+	const MapToMeshBasic *pBasic,
+	InFaceCorner inCorner,
+	InFaceCorner adjInCorner,
+	I32 walkIdx,
+	bool adj
+) {
+	if (walkIdx && adj) {//adj isn't set on first walk iteration
+		return false;
+	}
+	bool single = !adjInCorner.pFace;
+	I32 vert = pBasic->pInMesh->core.pCorners[
+		inCorner.pFace->face.start + inCorner.corner
+	];
+	return single || stucCheckIfVertIsPreserve(pBasic->pInMesh, vert);
+}
+
+static
 bool inCornerInsertPredicate(
 	const MapToMeshBasic *pBasic,
 	void *pArgsVoid,
@@ -3103,14 +3123,8 @@ bool inCornerInsertPredicate(
 	bool adj
 ) {
 	InCornerInsertPredicateArgs *pArgs = pArgsVoid;
-	bool single = !adjInCorner.pFace;
-	if (walkIdx && !adj) {
-		I32 vert = pBasic->pInMesh->core.pCorners[
-			inCorner.pFace->face.start + inCorner.corner
-		];
-		if (single || stucCheckIfVertIsPreserve(pBasic->pInMesh, vert)
-		) {
-			//vert is single, or marked preserve
+	if (walkIdx) {
+		if (inCornerPredicate(pBasic, inCorner, adjInCorner, walkIdx, adj)) {
 			pArgs->cornerToInsert = (FaceCorner) {
 				.face = inCorner.pFace->face.idx, inCorner.corner
 			};
@@ -3256,24 +3270,108 @@ void addFacesToBufMesh(
 }
 
 static
-void addMapVertToBufMesh(
+void addInOrMapVertToBufMesh(
 	const MapToMeshBasic *pBasic,
 	BufMesh *pBufMesh,
-	I32 mapCorner,
-	I32 encasingInFace
+	IntersectType type,
+	I32 corner,
+	I32 inFace
 ) {
 	BufCornerArr *pCorners = &pBufMesh->corners;
 	I32 newCorner = -1;
 	STUC_DYN_ARR_ADD(BufCorner, pBasic, pCorners, newCorner);
 	STUC_ASSERT("", newCorner >= 0);
 	I32 newVert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
-	pBufMesh->inOrMapVerts.pArr[newVert].map = (MapVert){
-		.type = STUC_BUF_VERT_SUB_TYPE_MAP,
-		.mapCorner = mapCorner,
-		.inFace = encasingInFace
-	};
+	switch (type) {
+		case STUC_CORNER_IN:
+			pBufMesh->inOrMapVerts.pArr[newVert].in = (InVert){
+				.type = STUC_BUF_VERT_SUB_TYPE_IN,
+				.inCorner = corner,
+				.inFace = inFace
+			};
+			break;
+		case STUC_CORNER_MAP:
+			pBufMesh->inOrMapVerts.pArr[newVert].map = (MapVert){
+				.type = STUC_BUF_VERT_SUB_TYPE_MAP,
+				.mapCorner = corner,
+				.inFace = inFace 
+			};
+			break;
+	}
 	pCorners->pArr[newCorner].type = STUC_BUF_VERT_IN_OR_MAP;
 	pCorners->pArr[newCorner].vert = newVert;
+}
+
+typedef struct GetExteriorBorderArgs {
+	I32 border;
+	I32 lowestBorder;
+	V2_F32 lowestPos;
+} GetExteriorBorderArgs;
+
+static
+bool getLowestBorder(
+	const MapToMeshBasic *pBasic,
+	void *pArgsVoid,
+	InFaceCorner inCorner,
+	InFaceCorner adjInCorner,
+	I32 borderEdge,
+	I32 walkIdx,
+	bool adj
+) {
+	GetExteriorBorderArgs *pArgs = pArgsVoid;
+	if (!walkIdx || (!adj && !adjInCorner.pFace)) {
+		V2_F32 pos =
+			stucGetUvPos(pBasic->pInMesh, &inCorner.pFace->face, inCorner.corner);
+		if (pos.d[0] <= pArgs->lowestPos.d[0] &&
+			pos.d[1] < pArgs->lowestPos.d[1]
+		) {
+			pArgs->lowestPos = pos;
+			pArgs->lowestBorder = pArgs->border;
+		}
+	}
+	return false;
+}
+
+static
+I32 getExteriorBorder(
+	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
+	HTable *pInFaceCache
+) {
+	GetExteriorBorderArgs args = {.lowestPos = {.d = {FLT_MAX, FLT_MAX}}};
+	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
+		args.border = i;
+		walkInPieceBorder(
+			pBasic,
+			pInPiece,
+			pInFaceCache,
+			pInPiece->borderArr.pArr[i].start,
+			getLowestBorder, &args
+		);
+	}
+	return args.lowestBorder;
+}
+
+static
+bool addInCornerIfValid(
+	const MapToMeshBasic *pBasic,
+	void *pArgsVoid,
+	InFaceCorner inCorner,
+	InFaceCorner adjInCorner,
+	I32 borderEdge,
+	I32 walkIdx,
+	bool adj
+) {
+	BufMesh *pBufMesh = pArgsVoid;
+	if (inCornerPredicate(pBasic, inCorner, adjInCorner, walkIdx, adj)) {
+		addInOrMapVertToBufMesh(
+			pBasic,
+			pBufMesh,
+			STUC_CORNER_IN,
+			inCorner.corner, inCorner.pFace->face.idx
+		);
+	}
+	return false;
 }
 
 static
@@ -3298,10 +3396,18 @@ Result addNonClipInPieceToBufMesh(
 				!i,
 				"non-clipped map faces must be fully in or out"
 			);
-			//mapface is outside piece - skip
-			return err;
+			//map-face encloses in-faces
+			I32 border = getExteriorBorder(pBasic, pInPiece, pInFaceCache);
+			walkInPieceBorder(
+				pBasic,
+				pInPiece,
+				pInFaceCache,
+				pInPiece->borderArr.pArr[border].start,
+				addInCornerIfValid, pBufMesh
+			);
+			break;
 		}
-		addMapVertToBufMesh(pBasic, pBufMesh, i, encasingInFace);
+		addInOrMapVertToBufMesh(pBasic, pBufMesh, STUC_CORNER_MAP, i, encasingInFace);
 	}
 	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size);
 	return err;
@@ -3941,10 +4047,18 @@ void interpCacheUpdateTriMap(
 	pCache->active = STUC_INTERP_CACHE_TRI_MAP;
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
-	const U8 *pTri = stucGetTri(pBasic->pMap->triCache.pArr + mapFace.idx, mapTri);
+	const U8 *pTri = stucGetTri(pBasic->pMap->triCache.pArr, mapFace.idx, mapTri);
 	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.start + inCorner];
-	pCache->triMap.bc =
-		stucGetBarycentricInTriFromVerts(pBasic->pMap->pMesh, &mapFace, pTri, inUv);
+	I8 triBuf[3] = {0};
+	if (pTri) {
+		pCache->triMap.bc =
+			stucGetBarycentricInTriFromVerts(pBasic->pMap->pMesh, &mapFace, pTri, inUv);
+	}
+	else {
+		pCache->triMap.bc =
+			stucGetBarycentricInFaceFromVerts(pBasic->pMap->pMesh, &mapFace, triBuf, inUv);
+		pTri = triBuf;
+	}
 	for (I32 i = 0; i < 3; ++i) {
 		pCache->triMap.triReal[i] = mapFace.start + pTri[i];
 		if (domain == STUC_DOMAIN_VERT) {
@@ -4856,6 +4970,9 @@ Result stucXformAndInterpVertsInRange(void *pArgsVoid) {
 			"",
 			!(pArgs->intersect ^ (pEntry->key.type == STUC_BUF_VERT_INTERSECT))
 		);
+		if (pEntry->removed) {
+			continue;
+		}
 		if (pArgs->intersect) {
 			VertMergeIntersect *pIntersect = (VertMergeIntersect *)pEntry;
 			if (pIntersect->pSnapTo) {
