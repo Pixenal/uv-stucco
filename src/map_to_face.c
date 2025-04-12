@@ -3771,14 +3771,23 @@ bool intersectTest(V2_F32 a, V2_F32 ab, V2_F32 c, V2_F32 cd) {
 	return (tInEdge >= .0f && tInEdge <= 1.0f);
 }
 
+typedef enum OverlapType {
+	STUC_FACE_OVERLAP_NONE,
+	STUC_FACE_OVERLAP_INTERSECT,
+	STUC_FACE_OVERLAP_IN_INSIDE_MAP,
+	STUC_FACE_OVERLAP_MAP_INSIDE_IN
+} OverlapType;
+
 static
-bool doInAndMapFacesOverlap(
+OverlapType doInAndMapFacesOverlap(
 	const Mesh *pInMesh, const FaceRange *pInFace, HalfPlane *pInCorners,
 	const Mesh *pMapMesh, const FaceRange *pMapFace,
 	bool inFaceWind
 ) {
 	V2_F32 windLine = { .d = {.0f, 2.0f - pInCorners[0].uv.d[1]}};
 	I32 windNum = 0;
+	bool halfPlaneOnly = false;
+	bool allInside = true;
 	for (I32 i = 0; i < pMapFace->size; ++i) {
 		I32 iNext = stucGetCornerNext(i, pMapFace);
 		V2_F32 a = stucGetVertPosAsV2(pMapMesh, pMapFace, i);
@@ -3793,24 +3802,42 @@ bool doInAndMapFacesOverlap(
 				inFaceWind
 			);
 			if (status == STUC_INSIDE_STATUS_OUTSIDE){
+				if (halfPlaneOnly) {
+					//a previous map vert was inside
+					return STUC_FACE_OVERLAP_INTERSECT;
+				}
 				inside = false;
+				allInside = false;
 			}
-			if (intersectTest(a, ab, pInCorners[j].uv, pInCorners[j].dir)) {
-				return true;
+			if (!halfPlaneOnly &&
+				intersectTest(a, ab, pInCorners[j].uv, pInCorners[j].dir)
+			) {
+				return STUC_FACE_OVERLAP_INTERSECT;
 			}
 		}
 		if (inside) {
-			return true;
-		}
-		if (!ab.d[0] || a.d[0] == pInCorners[0].uv.d[0]) {
-			//colinear (if b is on windLine, it will be counted as 1 intersection)
+			if (!allInside) {
+				//a previous map corner was outside
+				return STUC_FACE_OVERLAP_INTERSECT;
+			}
+			halfPlaneOnly = true;//continue, but only perform halfplane tests
 			continue;
 		}
-		if (intersectTest(a, ab, pInCorners[0].uv, windLine)) {
-			windNum++;
+		if (!halfPlaneOnly) {
+			if (!ab.d[0] || a.d[0] == pInCorners[0].uv.d[0]) {
+				//colinear (if b is on windLine, it will be counted as 1 intersection)
+				continue;
+			}
+			if (intersectTest(a, ab, pInCorners[0].uv, windLine)) {
+				windNum++;
+			}
 		}
 	}
-	return windNum % 2;
+	if (halfPlaneOnly) {
+		STUC_ASSERT("should have returned earlier if not", allInside);
+		return STUC_FACE_OVERLAP_MAP_INSIDE_IN;
+	}
+	return windNum % 2 ? STUC_FACE_OVERLAP_IN_INSIDE_MAP : STUC_FACE_OVERLAP_NONE;
 }
 
 Result stucGetEncasedFacesPerFace(
@@ -3857,11 +3884,12 @@ Result stucGetEncasedFacesPerFace(
 				continue;
 			}
 			FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
-			if (doInAndMapFacesOverlap(
+			OverlapType overlap = doInAndMapFacesOverlap(
 				pInMesh, pInFace, inCorners,
 				pMap->pMesh, &mapFace,
 				inFaceWind
-			)) {
+			);
+			if (overlap != STUC_FACE_OVERLAP_NONE) {
 				addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
 			}
 			/*
