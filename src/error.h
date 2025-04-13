@@ -75,6 +75,15 @@ void printError(
 	}\
 }
 
+#define STUC_RETURN_QUIET_ERR_IFNOT_COND(err, condition, message)\
+{\
+	bool isNotCondition = !(condition);\
+	if (err != STUC_SUCCESS || isNotCondition) { \
+		err = STUC_ERROR_QUIET;\
+		return err;\
+	}\
+}
+
 #define STUC_RETURN_ERR_IFNOT(err, message)\
 	if (err != STUC_SUCCESS) { \
 		printError(err, -1, true, "'N/A'", #message, __func__);\

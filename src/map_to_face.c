@@ -34,19 +34,6 @@ typedef struct TriUv {
 	V2_F32 c;
 } TriUv;
 
-typedef struct InFaceCacheEntry {
-	HTableEntryCore core;
-	FaceRange face;
-	V2_F32 fMin;
-	V2_F32 fMax;
-	bool wind;
-} InFaceCacheEntry;
-
-typedef struct InFaceCacheEntryIntern {
-	InFaceCacheEntry faceEntry;
-	HalfPlane *pCorners;
-} InFaceCacheEntryIntern;
-
 /*
 typedef struct {
 	InFaceCacheEntryIntern *pList;
@@ -1546,7 +1533,8 @@ typedef enum IntersectType {
 	STUC_INTERSECT_TYPE_NONE,
 	STUC_INTERSECT_TYPE_INTERSECT,
 	STUC_INTERSECT_TYPE_ON_EDGE,
-	STUC_INTERSECT_TYPE_ON_VERT
+	STUC_INTERSECT_TYPE_ON_VERT,
+	STUC_INTERSECT_TYPE_DEGEN
 } IntersectType;
 
 typedef struct IntersectResult {
@@ -1558,14 +1546,24 @@ typedef struct IntersectResult {
 	I8 type;
 } IntersectResult;
 
+typedef struct TestAgainstInEdgeArgs {
+	const InPiece *pInPiece;
+	IntersectArr *pIntersectArr;
+	Border border;
+	I32 borderIdx;
+	const FaceRange *pMapFace;
+	I32 mapCorner;
+	//IntersectResult first;
+	//IntersectResult prev;
+} TestAgainstInEdgeArgs;
+
 static
 const IntersectCorner *addIntersectCorner(
 	const MapToMeshBasic *pBasic,
 	IntersectArr *pArr,
-	I32 borderIdx,
 	I32 mapCorner,
-	I32 inEdge,
-	FaceCorner inCorner,
+	I32 borderIdx, I32 borderEdge,
+	InFaceCorner inCorner,
 	const IntersectResult *pResult
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
@@ -1581,13 +1579,20 @@ const IntersectCorner *addIntersectCorner(
 	}
 	IntersectCorner *pNewCorner = pArr->pArr + pArr->count;
 	pArr->count++;
+	FaceCorner inCornerToAdd = {.face = inCorner.pFace->face.idx,};
+	if (pResult->type == STUC_INTERSECT_TYPE_ON_VERT && pResult->tInEdge == 1.0f) {
+		inCornerToAdd.corner = stucGetCornerNext(inCorner.corner, &inCorner.pFace->face);
+	}
+	else {
+		inCornerToAdd.corner = inCorner.corner;
+	}
 	*pNewCorner = (IntersectCorner) {
 		.core.type = STUC_CORNER_INTERSECT,
 		.type = pResult->type,
 		.borderIdx = borderIdx,
 		.mapCorner = mapCorner,
-		.borderEdge = inEdge,
-		.inCorner = inCorner,
+		.borderEdge = borderEdge,
+		.inCorner = inCornerToAdd,
 		.tInEdge = pResult->tInEdge,
 		.travelDir = pResult->travelDir,
 	};
@@ -1698,11 +1703,6 @@ const FaceTriangulated *getFaceTris(
 	} while(true);
 }
 */
-
-typedef struct InFaceCorner {
-	InFaceCacheEntry *pFace;
-	I32 corner;
-} InFaceCorner;
 
 typedef struct InFaceCacheInitInfo {
 	bool wind;
@@ -1895,9 +1895,11 @@ void testAgainstInCorner(
 	const MapToMeshBasic *pBasic,
 	const FaceRange *pMapFace,
 	I32 mapCorner,
-	InFaceCorner inCorner,
+	const InFaceCornerArr *pBorder,
+	I32 borderEdge,
 	IntersectResult *pResult
 ) {
+	InFaceCorner inCorner = pBorder->pArr[borderEdge];
 	HalfPlane *pInCornerCacheArr = getInCornerCache(pBasic, inCorner.pFace);
 	HalfPlane *pInCornerCache = pInCornerCacheArr + inCorner.corner;
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
@@ -1917,25 +1919,37 @@ void testAgainstInCorner(
 		pInCornerCache->uv,
 		pInCornerCache->halfPlane,
 		inCorner.pFace->wind
-	);
+	);	
 	if (status == STUC_INSIDE_STATUS_ON_LINE) {
+		IntersectTravelDir travelDir = 0;
 		I32 mapCornerPrev = stucGetCornerPrev(mapCorner, pMapFace);
 		V3_F32 mapVertPrev =
 			pMapMesh->pPos[pMapMesh->core.pCorners[pMapFace->start + mapCornerPrev]];
-		InsideStatus statusPrev = stucIsPointInHalfPlane(
+		InsideStatus prevStatus = stucIsPointInHalfPlane(
 			*(V2_F32 *)&mapVertPrev,
 			pInCornerCache->uv,
 			pInCornerCache->halfPlane,
 			inCorner.pFace->wind
 		);
-		if ((statusPrev == STUC_INSIDE_STATUS_OUTSIDE) ==
-			(nextStatus == STUC_INSIDE_STATUS_OUTSIDE)
-		) {
+		bool degen = false;
+		if (nextStatus == prevStatus) {
+			if (nextStatus == STUC_INSIDE_STATUS_ON_LINE) {
+				degen = true;
+				return;
+			}
 			pResult->type = STUC_INTERSECT_TYPE_NONE;
 			return;
 		}
+		else {
+			if (nextStatus != STUC_INSIDE_STATUS_ON_LINE) {
+				travelDir = nextStatus == STUC_INSIDE_STATUS_OUTSIDE ? OUTBOUND : INBOUND;
+			}
+			else {
+				travelDir = prevStatus == STUC_INSIDE_STATUS_OUTSIDE ? INBOUND : OUTBOUND;
+			}
+		}
 		F32 tInEdge = stucGetT(
-			*(V2_F32 *)&mapVertPrev,
+			*(V2_F32 *)&mapVert,
 			pInCornerCache->uv,
 			pInCornerCache->dirUnit,
 			pInCornerCache->len
@@ -1946,15 +1960,20 @@ void testAgainstInCorner(
 		}
 		bool onInVert = tInEdge == .0f || tInEdge == 1.0f;
 		*pResult = (IntersectResult){
-			.type = onInVert ? STUC_INTERSECT_TYPE_ON_VERT : STUC_INTERSECT_TYPE_ON_EDGE,
+			.type = degen ?
+				STUC_INTERSECT_TYPE_DEGEN :
+				onInVert ? STUC_INTERSECT_TYPE_ON_VERT : STUC_INTERSECT_TYPE_ON_EDGE,
 			.mapCorner = mapCorner,
 			.tInEdge = tInEdge,
-			.travelDir = nextStatus == STUC_INSIDE_STATUS_OUTSIDE ? OUTBOUND : INBOUND
+			.travelDir = travelDir,
 		};
+		if (onInVert) {
+			goto verifyVertIntersection;
+		}
 		return;
 	}
-	if ((status == STUC_INSIDE_STATUS_OUTSIDE) ==
-		(nextStatus == STUC_INSIDE_STATUS_OUTSIDE)
+	if (status == nextStatus ||
+		nextStatus == STUC_INSIDE_STATUS_ON_LINE
 	) {
 		pResult->type = STUC_INTERSECT_TYPE_NONE;
 		return;
@@ -1968,7 +1987,7 @@ void testAgainstInCorner(
 		&newPoint,
 		&tMapEdge, &tInEdge
 	);
-	if (tInEdge <= .0f || tInEdge >= 1.0f) {
+	if (tInEdge < .0f || tInEdge > 1.0f) {
 		pResult->type = STUC_INTERSECT_TYPE_NONE;
 		return;
 	}
@@ -1979,6 +1998,31 @@ void testAgainstInCorner(
 		.tInEdge = tInEdge,
 		.travelDir = nextStatus == STUC_INSIDE_STATUS_OUTSIDE ? OUTBOUND : INBOUND
 	};
+	if (pResult->tInEdge != .0f && pResult->tInEdge != 1.0f) {
+		return;
+	}
+verifyVertIntersection:
+	I32 adjEdgeIdx = pResult->tInEdge == .0f ?
+		borderEdge ? borderEdge - 1 : pBorder->count - 1 :
+		(borderEdge + 1) % pBorder->count;
+	InFaceCorner adjEdge = pBorder->pArr[adjEdgeIdx];
+	HalfPlane *pAdjCornerCacheArr = getInCornerCache(pBasic, adjEdge.pFace);
+	HalfPlane *pAdjCornerCache = pAdjCornerCacheArr + adjEdge.corner;
+	InsideStatus adjStatus = stucIsPointInHalfPlane(
+		*(V2_F32 *)&mapVert,
+		pAdjCornerCache->uv,
+		pAdjCornerCache->halfPlane,
+		adjEdge.pFace->wind
+	);
+	InsideStatus nextAdjStatus = stucIsPointInHalfPlane(
+		*(V2_F32 *)&mapVertNext,
+		pAdjCornerCache->uv,
+		pAdjCornerCache->halfPlane,
+		adjEdge.pFace->wind
+	);
+	if (adjStatus == nextAdjStatus) {
+		pResult->type = STUC_INTERSECT_TYPE_NONE;
+	}
 }
 
 /*
@@ -2055,40 +2099,100 @@ void beginIsland(
 }
 */
 
-typedef struct TestAgainstInEdgeArgs {
-	IntersectArr *pIntersectArr;
-	I32 borderIdx;
-	const FaceRange *pMapFace;
-	I32 mapCorner;
-} TestAgainstInEdgeArgs;
+/*
+static
+bool isIntersectOnSameVert(
+	const TestAgainstInEdgeArgs *pArgs,
+	const IntersectResult *pResult,
+	I32 borderEdge
+) {
+	if (pArgs->prev.type != STUC_INTERSECT_TYPE_NONE &&
+		pArgs->prev.tInEdge == 1.0f && pResult->tInEdge == .0f
+	) {
+		return true;
+	}
+	else if (borderEdge == pArgs->border.len - 1) {
+		//last border edge, so check first's intersect result
+		return
+			pArgs->first.type != STUC_INTERSECT_TYPE_NONE &&
+			pArgs->first.tInEdge == .0f && pResult->tInEdge == 1.0f;
+	}
+	return false;
+}
+*/
+
+static
+bool isIntersectDup(
+	const TestAgainstInEdgeArgs *pArgs,
+	I32 borderEdge,
+	const IntersectResult *pResult
+) {
+	I32 borderNext = -1;
+	I32 borderPrev = -1;
+	I32 borderLen = pArgs->pInPiece->borderArr.pArr[pArgs->borderIdx].len;
+	if (pResult->tInEdge == 1.0f) {
+		borderNext = (borderEdge + 1) % borderLen;
+	}
+	if (pResult->tInEdge == .0f) {
+		borderPrev = borderEdge ? borderEdge - 1 : borderLen - 1;
+	}
+	for (I32 i = 0; i < pArgs->pIntersectArr->count; ++i) {
+		IntersectCorner *pCorner = pArgs->pIntersectArr->pArr + i;
+		if (pArgs->borderIdx != pCorner->borderIdx) {
+			continue;
+		}
+		//check if intersects same vert
+		if (borderNext == pCorner->borderEdge && pCorner->tInEdge == .0f) {
+			return true;
+		}
+		if (borderPrev == pCorner->borderEdge && pCorner->tInEdge == 1.0f) {
+			return true;
+		}
+	}
+	return false;
+}
 
 static
 bool testAgainstInEdge(
 	const MapToMeshBasic *pBasic,
-	void *pArgsVoid,
-	InFaceCorner inCorner,
-	InFaceCorner adjInCorner,
-	I32 borderEdge,
-	I32 walkIdx,
-	bool adj
+	IntersectArr *pIntersectArr,
+	const FaceRange *pMapFace, I32 mapCorner,
+	const InFaceCornerArr *pBorder,
+	I32 borderIdx, I32 borderEdge
 ) {
-	TestAgainstInEdgeArgs *pArgs = pArgsVoid;
+	InFaceCorner inCorner = pBorder->pArr[borderEdge];
 	I32 inEdge =
 		pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
-	if (!adjInCorner.pFace && couldInEdgeIntersectMapFace(pBasic->pInMesh, inEdge)) {
+	if (couldInEdgeIntersectMapFace(pBasic->pInMesh, inEdge)) {
 		IntersectResult result = {0};
-		testAgainstInCorner(pBasic, pArgs->pMapFace, pArgs->mapCorner, inCorner, &result);
+		testAgainstInCorner(pBasic, pMapFace, mapCorner, pBorder, borderEdge, &result);
 		if (result.type != STUC_INTERSECT_TYPE_NONE) {
-			addIntersectCorner(
-				pBasic,
-				pArgs->pIntersectArr,
-				pArgs->borderIdx,
-				pArgs->mapCorner,
-				borderEdge,
-				(FaceCorner) {.face = inCorner.pFace->face.idx, .corner = inCorner.corner},
-				&result
-			);
+			/*
+			if (isIntersectOnSameVert(pArgs, &result, borderEdge)) {
+				//already intersected this in-vert
+				result.type = STUC_INTERSECT_TYPE_NONE;
+			}
+			else {
+			*/
+			//if (!isIntersectDup(pArgs, borderEdge, &result)) {
+				addIntersectCorner(
+					pBasic,
+					pIntersectArr,
+					mapCorner,
+					borderIdx,
+					borderEdge,
+					inCorner,
+					&result
+				);
+			//}
+			//}
 		}
+		/*
+		pArgs->prev = result;
+		if (!borderEdge) {
+			pArgs->first = result;
+		}
+		*/
 	}
 	return false;
 }
@@ -2157,25 +2261,29 @@ Result intersectWithPiecePerim(
 	const InPiece *pInPiece,
 	const FaceRange *pMapFace,
 	I32 mapCorner,
-	HTable *pInFaceCache,
+	const BorderCache *pBorderCache,
 	IntersectArr *pIntersectArr
 ) {
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
-		FaceCorner startCorner = pInPiece->borderArr.pArr[i].start;
+		Border border = pInPiece->borderArr.pArr[i];
 		TestAgainstInEdgeArgs testArgs = {
-			pIntersectArr,
-			i,
-			pMapFace,
-			mapCorner
+			.pInPiece = pInPiece,
+			.pIntersectArr = pIntersectArr,
+			.border = border,
+			.borderIdx = i,
+			.pMapFace = pMapFace,
+			.mapCorner = mapCorner
 		};
-		err = walkInPieceBorder(
-			pBasic,
-			pInPiece,
-			pInFaceCache,
-			startCorner,
-			testAgainstInEdge, &testArgs
-		);
+		for (I32 j = 0; j < pBorderCache->pBorders[i].count; ++j) {
+			testAgainstInEdge(
+				pBasic,
+				pIntersectArr,
+				pMapFace, mapCorner,
+				pBorderCache->pBorders + i,
+				i, j
+			);
+		}
 		STUC_RETURN_ERR_IFNOT(err, "");
 	}
 	return err;
@@ -2492,10 +2600,76 @@ void sortAlongMapFace(I32 *pSortedMap, const IntersectArr *pIntersect) {
 }
 
 static
+void intersectArrRemoveCorner(IntersectArr *pArr, I32 corner) {
+	if (pArr->count == 1) {
+		pArr->count = 0;
+		return;
+	}
+	else {
+		STUC_ASSERT("", pArr->count);
+	}
+	I32 idxReal = pArr->pSortedMap[corner];
+	if (corner != pArr->count - 1) {
+		memmove(
+			pArr->pSortedMap + corner,
+			pArr->pSortedMap + corner + 1,
+			(pArr->count - corner - 1) * sizeof(IntersectCorner)
+		);
+	}
+	if (idxReal == pArr->count - 1) {
+		pArr->count--;
+	}
+	else {
+		memmove(
+			pArr->pArr + idxReal,
+			pArr->pArr + idxReal + 1,
+			(pArr->count - idxReal - 1) * sizeof(IntersectCorner)
+		);
+		pArr->count--;
+		for (I32 i = 0; i < pArr->count; ++i) {
+			if (pArr->pSortedMap[i] > idxReal) {
+				pArr->pSortedMap[i]--;
+				continue;
+			}
+			STUC_ASSERT(
+				"multiple references to same corner in sorted idx arr",
+				pArr->pSortedMap[i] != idxReal
+			);
+		}
+	}
+}
+
+static
+void intersectArrRemoveDegen(IntersectArr *pArr) {
+	for (I32 i = 0; i < pArr->count; ++i) {
+		IntersectCorner *pCorner = pArr->pArr + pArr->pSortedMap[i];
+		if (pCorner->type == STUC_INTERSECT_TYPE_INTERSECT) {
+			continue;
+		}
+		I32 iNext = (i + 1) % pArr->count;
+		IntersectCorner *pNext = pArr->pArr + pArr->pSortedMap[iNext];
+		if (pCorner->travelDir == pNext->travelDir) {
+			//crosses edge, so merge intersections into one
+
+			//we want the map corners between these intersections to
+			// to be added to the list later,
+			//so pick which to remove based on travel direction
+			I32 toRemove = pCorner->travelDir == INBOUND ? iNext : i;
+			intersectArrRemoveCorner(pArr, toRemove);
+		}
+		else {
+			//'fake' intersection (doesn't actually cross face boundary)
+			intersectArrRemoveCorner(pArr, i);
+			intersectArrRemoveCorner(pArr, iNext);
+		}
+	}
+}
+
+static
 Result clipMapEdgeAgainstInPiece(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache,
+	const BorderCache *pBorderCache,
 	const FaceRange *pMapFace,
 	bool mapFaceWind,
 	IntersectArr *pIntersect,
@@ -2513,12 +2687,11 @@ Result clipMapEdgeAgainstInPiece(
 			pInPiece,
 			pMapFace,
 			i,
-			pInFaceCache,
+			pBorderCache,
 			pIntersect
 		);
 		STUC_RETURN_ERR_IFNOT(err, "");
 	}
-	STUC_RETURN_ERR_IFNOT_COND(err, pIntersect->count % 2 == 0, "odd num intersections");
 	if (!pIntersect->count) {
 		ClippedRoot *pRoot = NULL;
 		stucLinAlloc(&pClippedFaces->rootAlloc, (void **)&pRoot, 1);
@@ -2526,21 +2699,29 @@ Result clipMapEdgeAgainstInPiece(
 		return err;
 	}
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	I32 *pSortedIn = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
-	I32 *pSortedMap = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
-	pSortedIn[0] = pSortedMap[0] = -1;
-	sortAlongInPieceBoundary(pSortedIn, pIntersect);
-	sortAlongMapFace(pSortedMap, pIntersect);
-	pIntersect->pSortedIn = pSortedIn + 1;
-	pIntersect->pSortedMap = pSortedMap + 1;
-	setBorderRanges(pIntersect);
-	linkInboundOutboundPairs(pInPiece, pIntersect);
-	createClippedFaces(pBasic, pInPiece, pIntersect, pClippedFaces);
-	removeInvalidRoots(pClippedFaces);
-	pAlloc->fpFree(pSortedIn);
-	pAlloc->fpFree(pSortedMap);
-	pIntersect->pSortedIn = NULL;
-	pIntersect->pSortedMap = NULL;
+	I32 *pSortedMapMem = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
+	pSortedMapMem[0] = -1;
+	pIntersect->pSortedMap = pSortedMapMem + 1;
+	sortAlongMapFace(pSortedMapMem, pIntersect);
+	intersectArrRemoveDegen(pIntersect);
+	if (pIntersect->count > 2) {
+		STUC_RETURN_ERR_IFNOT_COND(
+			err,
+			pIntersect->count % 2 == 0,
+			"odd num intersections"
+		);
+		I32 *pSortedInMem = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
+		pSortedInMem[0] = -1;
+		sortAlongInPieceBoundary(pSortedInMem, pIntersect);
+		pIntersect->pSortedIn = pSortedInMem + 1;
+		setBorderRanges(pIntersect);
+		linkInboundOutboundPairs(pInPiece, pIntersect);
+		createClippedFaces(pBasic, pInPiece, pIntersect, pClippedFaces);
+		removeInvalidRoots(pClippedFaces);
+		pAlloc->fpFree(pSortedInMem);
+	}
+	pAlloc->fpFree(pSortedMapMem);
+	pIntersect->pSortedMap = pIntersect->pSortedIn = NULL;
 	return err;
 }
 
@@ -2742,7 +2923,7 @@ I32 getFaceEncasingVert(
 			&(InFaceCacheInitInfo) {.wind = pInFaces->pArr[i].wind},
 			&pInFaceEntry
 		);
-		if (!_(vert V2GREAT pInFaceEntry->fMin) || !_(vert V2LESS pInFaceEntry->fMax)) {
+		if (!_(vert V2GREATEQL pInFaceEntry->fMin) || !_(vert V2LESSEQL pInFaceEntry->fMax)) {
 			continue;
 		}
 		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInFaceEntry);
@@ -3429,11 +3610,90 @@ void inFaceCacheDestroy(const MapToMeshBasic *pBasic, HTable *pTable
 	stucHTableDestroy(pTable);
 }
 
+static
+bool borderCacheAdd(
+	const MapToMeshBasic *pBasic,
+	void *pArgsVoid,
+	InFaceCorner inCorner,
+	InFaceCorner adjInCorner,
+	I32 borderEdge,
+	I32 walkIdx,
+	bool adj
+) {
+	if (!adjInCorner.pFace) {
+		InFaceCornerArr *pBorder = pArgsVoid;
+		I32 newIdx = -1;
+		STUC_DYN_ARR_ADD(InFaceCorner, pBasic, pBorder, newIdx);
+		STUC_ASSERT("", newIdx != -1);
+		pBorder->pArr[newIdx] = inCorner;
+	}
+	return false;
+}
+
+static
+void borderCacheAlloc(
+	const StucAlloc *pAlloc,
+	const BorderArr *pBorderArr,
+	BorderCache *pCache
+) {
+	if (!pCache->size) {
+		pCache->size = pBorderArr->count;
+		pCache->pBorders = pAlloc->fpCalloc(pCache->size, sizeof(InFaceCornerArr));
+	}
+	else if (pBorderArr->count > pCache->size) {
+		pCache->pBorders = pAlloc->fpRealloc(
+			pCache->pBorders,
+			pBorderArr->count * sizeof(InFaceCornerArr)
+		);
+		I32 diff = pBorderArr->count - pCache->size;
+		memset(pCache->pBorders + pCache->size, 0, diff * sizeof(InFaceCornerArr));
+		pCache->size = pBorderArr->count;
+	}
+	pCache->count = pBorderArr->count;
+}
+
+static
+void borderCacheInit(
+	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
+	HTable *pInFaceCache,
+	BorderCache *pBorderCache
+) {
+	borderCacheAlloc(&pBasic->pCtx->alloc, &pInPiece->borderArr, pBorderCache);
+	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
+		InFaceCornerArr *pBorder = pBorderCache->pBorders + i;
+		pBorder->count = 0;
+		walkInPieceBorder(
+			pBasic,
+			pInPiece,
+			pInFaceCache,
+			pInPiece->borderArr.pArr[i].start,
+			borderCacheAdd, pBorder 
+		);
+	}
+}
+
+static
+void borderCacheDestroy(const StucAlloc *pAlloc, BorderCache *pCache) {
+	if (pCache->pBorders) {
+		STUC_ASSERT("", pCache->size);
+		for (I32 i = 0; i < pCache->size; ++i) {
+			if (pCache->pBorders[i].pArr) {
+				STUC_ASSERT("", pCache->pBorders[i].size);
+				pAlloc->fpFree(pCache->pBorders[i].pArr);
+			}
+		}
+		pAlloc->fpFree(pCache->pBorders);
+	}
+	*pCache = (BorderCache) {0};
+}
+
 Result stucClipMapFace(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
-	BufMesh *pBufMesh
+	BufMesh *pBufMesh,
+	BorderCache *pBorderCache
 ) {
 	Result err = STUC_SUCCESS;
 	FaceRange mapFace = 
@@ -3466,6 +3726,7 @@ Result stucClipMapFace(
 		insideCount++;
 	}
 	*/
+
 	InFaceCacheState inFaceCacheState = {.pBasic = pBasic, .initBounds = true};
 	HTable inFaceCache = {0};
 	stucHTableInit(
@@ -3479,6 +3740,8 @@ Result stucClipMapFace(
 	//V2_F32 fPieceMax = {0};
 	getInPieceBounds(pBasic, pInPiece, &inFaceCache);
 
+	borderCacheInit(pBasic, pInPiece, &inFaceCache, pBorderCache);
+
 	IntersectArr intersectArr = {0};
 	ClippedArr clippedFaces = {0};
 	initIntersectArr(pBasic, pInPiece, &intersectArr);
@@ -3486,7 +3749,7 @@ Result stucClipMapFace(
 	err = clipMapEdgeAgainstInPiece(
 		pBasic,
 		pInPiece,
-		&inFaceCache,
+		pBorderCache,
 		&mapFace,
 		mapFaceWind,
 		&intersectArr,
@@ -3530,7 +3793,8 @@ Result stucAddMapFaceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
-	BufMesh *pBufMesh
+	BufMesh *pBufMesh,
+	BorderCache *pBorderCache
 ) {
 	Result err = STUC_SUCCESS;
 
@@ -3563,6 +3827,8 @@ Result stucBufMeshInit(void *pArgsVoid) {
 	Result err = STUC_SUCCESS;
 	BufMeshInitJobArgs *pArgs = pArgsVoid;
 
+	BorderCache borderCache = {0};
+
 	I32 rangeSize = pArgs->core.range.end - pArgs->core.range.start;
 	for (I32 i = 0; i < rangeSize; ++i) {
 		I32 inPieceIdx = pArgs->core.range.start + i;
@@ -3570,9 +3836,12 @@ Result stucBufMeshInit(void *pArgsVoid) {
 			pArgs->core.pBasic,
 			inPieceIdx,
 			pArgs->pInPiecesSplit->pArr + inPieceIdx,
-			&pArgs->bufMesh
+			&pArgs->bufMesh,
+			&borderCache
 		);
 	}
+	const StucAlloc *pAlloc = &pArgs->core.pBasic->pCtx->alloc;
+	borderCacheDestroy(pAlloc, &borderCache);
 	return err;
 }
 

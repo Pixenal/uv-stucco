@@ -145,7 +145,8 @@ typedef enum StucDomain {
 typedef enum StucResult {
 	STUC_NOT_SET,
 	STUC_SUCCESS,
-	STUC_ERROR
+	STUC_ERROR,
+	STUC_ERROR_QUIET
 } StucResult;
 
 typedef struct StucVec2 {

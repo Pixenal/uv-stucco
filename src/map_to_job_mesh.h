@@ -155,8 +155,8 @@ typedef struct {
 */
 
 typedef struct IntersectArr {
-	const I32 *pSortedIn;
-	const I32 *pSortedMap;
+	I32 *pSortedIn;
+	I32 *pSortedMap;
 	Range *pBorderRanges;
 	IntersectCorner *pArr;
 	I32 size;
@@ -188,17 +188,62 @@ Result stucGetEncasedFacesPerFace(
 	FaceRange *pInFace
 );
 
+typedef struct InFaceCacheEntry {
+	HTableEntryCore core;
+	FaceRange face;
+	V2_F32 fMin;
+	V2_F32 fMax;
+	bool wind;
+} InFaceCacheEntry;
+
+typedef struct InFaceCacheEntryIntern {
+	InFaceCacheEntry faceEntry;
+	HalfPlane *pCorners;
+} InFaceCacheEntryIntern;
+
+typedef struct InFaceCorner {
+	InFaceCacheEntry *pFace;
+	I32 corner;
+} InFaceCorner;
+
+typedef struct InFaceCornerArr {
+	InFaceCorner *pArr;
+	I32 size;
+	I32 count;
+} InFaceCornerArr;
+
+typedef struct BorderCache {
+	InFaceCornerArr *pBorders;
+	I32 size;
+	I32 count;
+} BorderCache;
+
+typedef struct BufMeshInitJobArgs {
+	JobArgs core;
+	Result (* fpAddPiece)(
+		const MapToMeshBasic *,
+		I32,
+		const InPiece *,
+		BufMesh *,
+		BorderCache *
+	);
+	const InPieceArr *pInPiecesSplit;
+	BufMesh bufMesh;
+} BufMeshInitJobArgs;
+
 Result stucClipMapFace(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
-	BufMesh *pBufMesh
+	BufMesh *pBufMesh,
+	BorderCache *pBorderCache
 );
 Result stucAddMapFaceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
-	BufMesh *pBufMesh
+	BufMesh *pBufMesh,
+	BorderCache *pBorderCache
 );
 Result stucBufMeshInit(void *pArgsVoid);
 Result stucXformAndInterpVertsInRange(void *pArgsVoid);
