@@ -2020,7 +2020,7 @@ verifyVertIntersection:
 		pAdjCornerCache->halfPlane,
 		adjEdge.pFace->wind
 	);
-	if (adjStatus == nextAdjStatus) {
+	if (adjStatus == nextAdjStatus && adjStatus != STUC_INSIDE_STATUS_ON_LINE) {
 		pResult->type = STUC_INTERSECT_TYPE_NONE;
 	}
 }
@@ -2266,15 +2266,6 @@ Result intersectWithPiecePerim(
 ) {
 	Result err = STUC_SUCCESS;
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
-		Border border = pInPiece->borderArr.pArr[i];
-		TestAgainstInEdgeArgs testArgs = {
-			.pInPiece = pInPiece,
-			.pIntersectArr = pIntersectArr,
-			.border = border,
-			.borderIdx = i,
-			.pMapFace = pMapFace,
-			.mapCorner = mapCorner
-		};
 		for (I32 j = 0; j < pBorderCache->pBorders[i].count; ++j) {
 			testAgainstInEdge(
 				pBasic,
@@ -2358,7 +2349,7 @@ StucCompare compareIntersectMap(const void *pData, I32 idxA, I32 idxB) {
 		return STUC_COMPARE_GREAT;
 	}
 	else {
-		STUC_ASSERT("", pA->tMapEdge != pB->tMapEdge);
+		//STUC_ASSERT("", pA->tMapEdge != pB->tMapEdge);
 		return pA->tMapEdge < pB->tMapEdge ? STUC_COMPARE_LESS : STUC_COMPARE_GREAT;
 	}
 }
@@ -2613,7 +2604,7 @@ void intersectArrRemoveCorner(IntersectArr *pArr, I32 corner) {
 		memmove(
 			pArr->pSortedMap + corner,
 			pArr->pSortedMap + corner + 1,
-			(pArr->count - corner - 1) * sizeof(IntersectCorner)
+			(pArr->count - corner - 1) * sizeof(I32)
 		);
 	}
 	if (idxReal == pArr->count - 1) {
@@ -2643,11 +2634,13 @@ static
 void intersectArrRemoveDegen(IntersectArr *pArr) {
 	for (I32 i = 0; i < pArr->count; ++i) {
 		IntersectCorner *pCorner = pArr->pArr + pArr->pSortedMap[i];
-		if (pCorner->type == STUC_INTERSECT_TYPE_INTERSECT) {
-			continue;
-		}
 		I32 iNext = (i + 1) % pArr->count;
 		IntersectCorner *pNext = pArr->pArr + pArr->pSortedMap[iNext];
+		if (pCorner->type == STUC_INTERSECT_TYPE_INTERSECT) {
+			if (pCorner->tInEdge == pNext->tInEdge) {
+				intersectArrRemoveCorner(pArr, iNext);
+			}
+		}
 		if (pCorner->travelDir == pNext->travelDir) {
 			//crosses edge, so merge intersections into one
 
@@ -2698,13 +2691,18 @@ Result clipMapEdgeAgainstInPiece(
 		pRoot->noIntersect = true;
 		return err;
 	}
+	STUC_RETURN_ERR_IFNOT_COND(
+		err,
+		pIntersect->count % 2 == 0,
+		"odd num intersections"
+	);
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	I32 *pSortedMapMem = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
 	pSortedMapMem[0] = -1;
 	pIntersect->pSortedMap = pSortedMapMem + 1;
 	sortAlongMapFace(pSortedMapMem, pIntersect);
 	intersectArrRemoveDegen(pIntersect);
-	if (pIntersect->count > 2) {
+	if (pIntersect->count) {
 		STUC_RETURN_ERR_IFNOT_COND(
 			err,
 			pIntersect->count % 2 == 0,
@@ -2719,6 +2717,11 @@ Result clipMapEdgeAgainstInPiece(
 		createClippedFaces(pBasic, pInPiece, pIntersect, pClippedFaces);
 		removeInvalidRoots(pClippedFaces);
 		pAlloc->fpFree(pSortedInMem);
+	}
+	else {
+		ClippedRoot *pRoot = NULL;
+		stucLinAlloc(&pClippedFaces->rootAlloc, (void **)&pRoot, 1);
+		pRoot->noIntersect = true;
 	}
 	pAlloc->fpFree(pSortedMapMem);
 	pIntersect->pSortedMap = pIntersect->pSortedIn = NULL;
