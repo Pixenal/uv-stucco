@@ -36,13 +36,11 @@ V3_F32 divideByW(const V4_F32 *pA) {
 }
 
 V3_F32 v3F32MultiplyScalar(V3_F32 a, F32 b) {
-	V3_F32 c = {a.d[0] * b, a.d[1] * b, a.d[2] * b};
-	return c;
+	return (V3_F32) {a.d[0] * b, a.d[1] * b, a.d[2] * b};
 }
 
 V3_F64 v3F64MultiplyScalar(V3_F64 a, F64 b) {
-	V3_F64 c = {a.d[0] * b, a.d[1] * b, a.d[2] * b};
-	return c;
+	return (V3_F64) {a.d[0] * b, a.d[1] * b, a.d[2] * b};
 }
 
 void v3F32DivideEqualScalar(V3_F32 *pA, F32 b) {
@@ -52,38 +50,31 @@ void v3F32DivideEqualScalar(V3_F32 *pA, F32 b) {
 }
 
 V3_F32 v3F32DivideScalar(V3_F32 a, F32 b) {
-	V3_F32 c = {a.d[0] / b, a.d[1] / b, a.d[2] / b};
-	return c;
+	return (V3_F32) {a.d[0] / b, a.d[1] / b, a.d[2] / b};
 }
 
 V3_F32 v3F32SubtractScalar(V3_F32 a, F32 b) {
-	V3_F32 c = {a.d[0] - b, a.d[1] - b, a.d[2] - b};
-	return c;
+	return (V3_F32) {a.d[0] - b, a.d[1] - b, a.d[2] - b};
 }
 
 V3_F32 v3F32Subtract(V3_F32 a, V3_F32 b) {
-	V3_F32 c = {a.d[0] - b.d[0], a.d[1] - b.d[1], a.d[2] - b.d[2]};
-	return c;
+	return (V3_F32) {a.d[0] - b.d[0], a.d[1] - b.d[1], a.d[2] - b.d[2]};
 }
 
 V3_F64 v3F64Subtract(V3_F64 a, V3_F64 b) {
-	V3_F64 c = {a.d[0] - b.d[0], a.d[1] - b.d[1], a.d[2] - b.d[2]};
-	return c;
+	return (V3_F64) {a.d[0] - b.d[0], a.d[1] - b.d[1], a.d[2] - b.d[2]};
 }
 
 V3_F32 v3F32AddScalar(V3_F32 a, F32 b) {
-	V3_F32 c = {a.d[0] + b, a.d[1] + b, a.d[2] + b};
-	return c;
+	return (V3_F32) {a.d[0] + b, a.d[1] + b, a.d[2] + b};
 }
 
 V3_F32 v3F32Add(V3_F32 a, V3_F32 b) {
-	V3_F32 c = {a.d[0] + b.d[0], a.d[1] + b.d[1], a.d[2] + b.d[2]};
-	return c;
+	return (V3_F32) {a.d[0] + b.d[0], a.d[1] + b.d[1], a.d[2] + b.d[2]};
 }
 
 V3_F64 v3F64Add(V3_F64 a, V3_F64 b) {
-	V3_F64 c = {a.d[0] + b.d[0], a.d[1] + b.d[1], a.d[2] + b.d[2]};
-	return c;
+	return (V3_F64) {a.d[0] + b.d[0], a.d[1] + b.d[1], a.d[2] + b.d[2]};
 }
 
 void v3F32AddEqual(V3_F32 *pA, V3_F32 b) {
@@ -93,33 +84,35 @@ void v3F32AddEqual(V3_F32 *pA, V3_F32 b) {
 }
 
 bool v3F32Equal(V3_F32 a, V3_F32 b) {
-	return a.d[0] == b.d[0] && a.d[1] == b.d[1] && a.d[2] == b.d[2];
+	return
+		_(a.d[0] F32_EQL b.d[0]) && _(a.d[1] F32_EQL b.d[1]) && _(a.d[2] F32_EQL b.d[2]);
 }
 bool v3F64Equal(V3_F64 a, V3_F64 b) {
-	return a.d[0] == b.d[0] && a.d[1] == b.d[1] && a.d[2] == b.d[2];
+	return
+		_(a.d[0] F64_EQL b.d[0]) && _(a.d[1] F64_EQL b.d[1]) && _(a.d[2] F64_EQL b.d[2]);
 }
 
 I32 v3F32GreaterThan(V3_F32 a, V3_F32 b) {
-	return (a.d[0] > b.d[0]) && (a.d[1] > b.d[1]) && (a.d[2] > b.d[2]);
+	return
+		_(a.d[0] F32_GREAT b.d[0]) &&
+		_(a.d[1] F32_GREAT b.d[1]) &&
+		_(a.d[2] F32_GREAT b.d[2]);
 }
 
 I32 v3F32LessThan(V3_F32 a, V3_F32 b) {
-	return (a.d[0] < b.d[0]) && (a.d[1] < b.d[1]) && (a.d[2] < b.d[2]);
-}
-
-I32 v3F32AproxEqual(V3_F32 a, V3_F32 b) {
-	V3_F32 bLow = _(b V3SUBS FLOAT_EQUAL_MARGIN);
-	V3_F32 bHigh = _(b V3ADDS FLOAT_EQUAL_MARGIN);
-	return _(a V3LESS bHigh) && _(a V3GREAT bLow);
+	return
+		_(a.d[0] F32_LESS b.d[0]) &&
+		_(a.d[1] F32_LESS b.d[1]) &&
+		_(a.d[2] F32_LESS b.d[2]);
 }
 
 V3_F32 v3F32Lerp(V3_F32 a, V3_F32 b, F32 alpha) {
 	F32 alphaInverse = 1.0f - alpha;
-	V3_F32 c = {0};
-	c.d[0] = a.d[0] * alphaInverse + b.d[0] * alpha;
-	c.d[1] = a.d[1] * alphaInverse + b.d[1] * alpha;
-	c.d[2] = a.d[2] * alphaInverse + b.d[2] * alpha;
-	return c;
+	return (V3_F32) {.d = {
+		a.d[0] * alphaInverse + b.d[0] * alpha,
+		a.d[1] * alphaInverse + b.d[1] * alpha,
+		a.d[2] * alphaInverse + b.d[2] * alpha
+	}};
 }
 
 V3_F32 v3F32UnitFromPoints(V3_F32 a, V3_F32 b) {
@@ -129,29 +122,27 @@ V3_F32 v3F32UnitFromPoints(V3_F32 a, V3_F32 b) {
 }
 
 V3_F32 v3F32Cross(V3_F32 a, V3_F32 b) {
-	V3_F32 c = {
+	return (V3_F32) {
 		.d[0] = a.d[1] * b.d[2] - a.d[2] * b.d[1],
 		.d[1] = a.d[2] * b.d[0] - a.d[0] * b.d[2],
 		.d[2] = a.d[0] * b.d[1] - a.d[1] * b.d[0]
 	};
-	return c;
 }
 
 V3_F64 v3F64Cross(V3_F64 a, V3_F64 b) {
-	V3_F64 c = {
+	return (V3_F64) {
 		.d[0] = a.d[1] * b.d[2] - a.d[2] * b.d[1],
 		.d[1] = a.d[2] * b.d[0] - a.d[0] * b.d[2],
 		.d[2] = a.d[0] * b.d[1] - a.d[1] * b.d[0]
 	};
-	return c;
 }
 
 V3_F32 v3F32MultiplyMat3x3(V3_F32 a, const Mat3x3 *pB) {
-	V3_F32 c = {0};
-	c.d[0] = a.d[0] * pB->d[0][0] + a.d[1] * pB->d[1][0] + a.d[2] * pB->d[2][0];
-	c.d[1] = a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1];
-	c.d[2] = a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2];
-	return c;
+	return (V3_F32) {.d = {
+		a.d[0] * pB->d[0][0] + a.d[1] * pB->d[1][0] + a.d[2] * pB->d[2][0],
+		a.d[0] * pB->d[0][1] + a.d[1] * pB->d[1][1] + a.d[2] * pB->d[2][1],
+		a.d[0] * pB->d[0][2] + a.d[1] * pB->d[1][2] + a.d[2] * pB->d[2][2]
+	}};
 }
 
 void v3F32MultiplyEqualMat3x3(V3_F32 *pA, const Mat3x3 *pB) {
@@ -187,7 +178,7 @@ bool v3F32DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, F32 threshold) {
 	V3_F32 bc = _(b V3SUB c);
 	V3_F32 cross = _(ac V3CROSS bc);
 	F32 len = v3F32Len(cross);
-	return len <= threshold && len >= -threshold;
+	return _(len F32_LESSEQL threshold) && _(len F32_GREATEQL -threshold);
 }
 
 F32 v3F32TriHeight(V3_F32 a, V3_F32 b, V3_F32 c) {
@@ -206,20 +197,11 @@ F64 v3F64Dot(V3_F64 a, V3_F64 b) {
 }
 
 V2_F32 v2F32Abs(V2_F32 a) {
-	if (a.d[0] < .0f) {
-		a.d[0] *= -1.0f;
-	}
-	if (a.d[1] < .0f) {
-		a.d[1] *= -1.0f;
-	}
-	return a;
+	return (V2_F32) {fabsf(a.d[0]), fabsf(a.d[1])};
 }
 
 V2_F32 v2F32Multiply(V2_F32 a, V2_F32 b) {
-	V2_F32 c = {0};
-	c.d[0] = a.d[0] * b.d[0];
-	c.d[1] = a.d[1] * b.d[1];
-	return c;
+	return (V2_F32) {.d = {a.d[0] * b.d[0], a.d[1] * b.d[1]}};
 }
 
 void v2F32MultiplyEqual(V2_F32 *pA, V2_F32 b) {
@@ -228,10 +210,7 @@ void v2F32MultiplyEqual(V2_F32 *pA, V2_F32 b) {
 }
 
 V2_F32 v2F32DivideScalar(V2_F32 a, F32 b) {
-	V2_F32 c = {0};
-	c.d[0] = a.d[0] / b;
-	c.d[1] = a.d[1] / b;
-	return c;
+	return (V2_F32) {.d = {a.d[0] / b, a.d[1] / b}};
 }
 
 void v2F32DivideEqualScalar(V2_F32 *pA, F32 b) {
@@ -240,13 +219,11 @@ void v2F32DivideEqualScalar(V2_F32 *pA, F32 b) {
 }
 
 V2_F32 v2F32Subtract(V2_F32 a, V2_F32 b) {
-	V2_F32 c = {a.d[0] - b.d[0], a.d[1] - b.d[1]};
-	return c;
+	return (V2_F32) {a.d[0] - b.d[0], a.d[1] - b.d[1]};
 }
 
 V2_F64 v2F64Subtract(V2_F64 a, V2_F64 b) {
-	V2_F64 c = {a.d[0] - b.d[0], a.d[1] - b.d[1]};
-	return c;
+	return (V2_F64) {a.d[0] - b.d[0], a.d[1] - b.d[1]};
 }
 
 void v2F32SubtractEqual(V2_F32 *pA, V2_F32 b) {
@@ -255,18 +232,15 @@ void v2F32SubtractEqual(V2_F32 *pA, V2_F32 b) {
 }
 
 V2_F32 v2F32SubtractScalar(V2_F32 a, F32 b) {
-	V2_F32 c = {a.d[0] - b, a.d[1] - b};
-	return c;
+	return (V2_F32) {a.d[0] - b, a.d[1] - b};
 }
 
 V2_F32 v2F32Add(V2_F32 a, V2_F32 b) {
-	V2_F32 c = {a.d[0] + b.d[0], a.d[1] + b.d[1]};
-	return c;
+	return (V2_F32) {a.d[0] + b.d[0], a.d[1] + b.d[1]};
 }
 
 V2_F32 v2F32AddScalar(V2_F32 a, F32 b) {
-	V2_F32 c = {a.d[0] + b, a.d[1] + b};
-	return c;
+	return (V2_F32) {a.d[0] + b, a.d[1] + b};
 }
 
 void v2F32AddEqual(V2_F32 *pA, V2_F32 b) {
@@ -285,8 +259,7 @@ void v2F32MultiplyEqualScalar(V2_F32 *pA, F32 b) {
 }
 
 V2_F32 v2F32MultiplyScalar(V2_F32 a, F32 b) {
-	V2_F32 c = {a.d[0] * b, a.d[1] * b};
-	return c;
+	return (V2_F32) {a.d[0] * b, a.d[1] * b};
 }
 
 F32 v2F32Dot(V2_F32 a, V2_F32 b) {
@@ -295,6 +268,14 @@ F32 v2F32Dot(V2_F32 a, V2_F32 b) {
 
 F64 v2F64Dot(V2_F64 a, V2_F64 b) {
 	return a.d[0] * b.d[0] + a.d[1] * b.d[1];
+}
+
+F32 v2F32Cross(V2_F32 a, V2_F32 b) {
+	return a.d[0] * b.d[1] - a.d[1] * b.d[0];
+}
+
+F64 v2F64Cross(V2_F64 a, V2_F64 b) {
+	return a.d[0] * b.d[1] - a.d[1] * b.d[0];
 }
 
 V2_F32 v2F32LineNormal(V2_F32 a) {
@@ -308,8 +289,7 @@ V2_F64 v2F64LineNormal(V2_F64 a) {
 }
 
 V2_F32 v2F32ModScalar(V2_F32 a, F32 b) {
-	V2_F32 c = {fmodf(a.d[0], b), fmodf(a.d[1], b)};
-	return c;
+	return (V2_F32) {fmodf(a.d[0], b), fmodf(a.d[1], b)};
 }
 
 F32 v2F32SquareLen(V2_F32 a) {
@@ -343,45 +323,45 @@ void v2F32ModEqualScalar(V2_F32 *a, F32 b) {
 }
 
 I32 v2F32GreaterThanEqualTo(V2_F32 a, V2_F32 b) {
-	return (a.d[0] >= b.d[0]) && (a.d[1] >= b.d[1]);
+	return _(a.d[0] F32_GREATEQL b.d[0]) && _(a.d[1] F32_GREATEQL b.d[1]);
 }
 
 I32 v2F32GreaterThan(V2_F32 a, V2_F32 b) {
-	return (a.d[0] > b.d[0]) && (a.d[1] > b.d[1]);
+	return _(a.d[0] F32_GREAT b.d[0]) && _(a.d[1] F32_GREAT b.d[1]);
 }
 
 I32 v2F32GreaterThanScalar(V2_F32 a, F32 b) {
-	return (a.d[0] > b) && (a.d[1] > b);
+	return _(a.d[0] F32_GREAT b) && _(a.d[1] F32_GREAT b);
 }
 
 I32 v2F32LessThan(V2_F32 a, V2_F32 b) {
-	return (a.d[0] < b.d[0]) && (a.d[1] < b.d[1]);
+	return _(a.d[0] F32_LESS b.d[0]) && _(a.d[1] F32_LESS b.d[1]);
 }
 
 I32 v2F32LessThanScalar(V2_F32 a, F32 b) {
-	return (a.d[0] < b) && (a.d[1] < b);
+	return _(a.d[0] F32_LESS b) && _(a.d[1] F32_LESS b);
 }
 
 I32 v2F32LessThanEqualTo(V2_F32 a, V2_F32 b) {
-	return (a.d[0] <= b.d[0]) && (a.d[1] <= b.d[1]);
+	return _(a.d[0] F32_LESSEQL b.d[0]) && _(a.d[1] F32_LESSEQL b.d[1]);
 }
 
 I32 v2F32NotEqual(V2_F32 a, V2_F32 b) {
-	return a.d[0] != b.d[0] || a.d[1] != b.d[1];
+	return _(a.d[0] F32_NOTEQL b.d[0]) || _(a.d[1] F32_NOTEQL b.d[1]);
 }
 
 //TODO replace return with bool in comparison funcs like this
 I32 v2F32Equal(V2_F32 a, V2_F32 b) {
-	return a.d[0] == b.d[0] && a.d[1] == b.d[1];
+	return _(a.d[0] F32_EQL b.d[0]) && _(a.d[1] F32_EQL b.d[1]);
 }
 
 I32 v2F64Equal(V2_F64 a, V2_F64 b) {
-	return a.d[0] == b.d[0] && a.d[1] == b.d[1];
+	return _(a.d[0] F64_EQL b.d[0]) && _(a.d[1] F64_EQL b.d[1]);
 }
 
 I32 v2F32AproxEqual(V2_F32 a, V2_F32 b) {
-	V2_F32 bLow = _(b V2SUBS FLOAT_EQUAL_MARGIN);
-	V2_F32 bHigh = _(b V2ADDS FLOAT_EQUAL_MARGIN);
+	V2_F32 bLow = _(b V2SUBS EPSILON);
+	V2_F32 bHigh = _(b V2ADDS EPSILON);
 	return _(a V2LESSEQL bHigh) && _(a V2GREATEQL bLow);
 }
 
@@ -396,7 +376,7 @@ I32 v2F32DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, F32 threshold) {
 	V2_F32 ac = _(a V2SUB c);
 	V2_F32 bc = _(b V2SUB c);
 	F32 cross = ac.d[0] * bc.d[1] - bc.d[0] * ac.d[1];
-	return cross <= threshold && cross >= -threshold;
+	return _(cross F32_LESSEQL threshold) && _(cross F32_GREATEQL -threshold);
 }
 
 F32 v2F32TriHeight(V2_F32 a, V2_F32 b, V2_F32 c) {
@@ -576,7 +556,7 @@ Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b) {
 
 F32 customFloor(F32 a) {
 	I32 aTrunc = (I32)a;
-	aTrunc -= ((F32)aTrunc != a) && (a < .0f);
+	aTrunc -= _((F32)aTrunc F32_NOTEQL a) && _(a F32_LESS .0f);
 	return (F32)aTrunc;
 }
 
@@ -590,11 +570,19 @@ V2_I32 v2F32FloorAssign(V2_F32 *pA) {
 }
 
 bool v4F32Equal(V4_F32 a, V4_F32 b) {
-	return a.d[0] == b.d[0] && a.d[1] == b.d[1] && a.d[2] == b.d[2] && a.d[3] == b.d[3];
+	return
+		_(a.d[0] F32_EQL b.d[0]) &&
+		_(a.d[1] F32_EQL b.d[1]) &&
+		_(a.d[2] F32_EQL b.d[2]) &&
+		_(a.d[3] F32_EQL b.d[3]);
 }
 
 bool v4F64Equal(V4_F64 a, V4_F64 b) {
-	return a.d[0] == b.d[0] && a.d[1] == b.d[1] && a.d[2] == b.d[2] && a.d[3] == b.d[3];
+	return
+		_(a.d[0] F64_EQL b.d[0]) &&
+		_(a.d[1] F64_EQL b.d[1]) &&
+		_(a.d[2] F64_EQL b.d[2]) &&
+		_(a.d[3] F64_EQL b.d[3]);
 }
 
 V3_F32 stucBarycentricToCartesian(const V3_F32 *pTri, V3_F32 point) {

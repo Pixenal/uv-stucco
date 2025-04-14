@@ -101,6 +101,7 @@ typedef struct IntersectCorner {
 	I32 borderEdge;
 	I8 type;
 	I8 travelDir;
+	bool merged;
 } IntersectCorner;
 
 typedef struct ClippedRoot {

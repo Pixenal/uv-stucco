@@ -1533,8 +1533,7 @@ typedef enum IntersectType {
 	STUC_INTERSECT_TYPE_NONE,
 	STUC_INTERSECT_TYPE_INTERSECT,
 	STUC_INTERSECT_TYPE_ON_EDGE,
-	STUC_INTERSECT_TYPE_ON_VERT,
-	STUC_INTERSECT_TYPE_DEGEN
+	STUC_INTERSECT_TYPE_ON_VERT
 } IntersectType;
 
 typedef struct IntersectResult {
@@ -1931,12 +1930,7 @@ void testAgainstInCorner(
 			pInCornerCache->halfPlane,
 			inCorner.pFace->wind
 		);
-		bool degen = false;
 		if (nextStatus == prevStatus) {
-			if (nextStatus == STUC_INSIDE_STATUS_ON_LINE) {
-				degen = true;
-				return;
-			}
 			pResult->type = STUC_INTERSECT_TYPE_NONE;
 			return;
 		}
@@ -1960,15 +1954,42 @@ void testAgainstInCorner(
 		}
 		bool onInVert = tInEdge == .0f || tInEdge == 1.0f;
 		*pResult = (IntersectResult){
-			.type = degen ?
-				STUC_INTERSECT_TYPE_DEGEN :
-				onInVert ? STUC_INTERSECT_TYPE_ON_VERT : STUC_INTERSECT_TYPE_ON_EDGE,
+			.type = onInVert ? STUC_INTERSECT_TYPE_ON_VERT : STUC_INTERSECT_TYPE_ON_EDGE,
 			.mapCorner = mapCorner,
 			.tInEdge = tInEdge,
 			.travelDir = travelDir,
 		};
 		if (onInVert) {
-			goto verifyVertIntersection;
+			I32 adjEdgeIdx = pResult->tInEdge == .0f ?
+				borderEdge ? borderEdge - 1 : pBorder->count - 1 :
+				(borderEdge + 1) % pBorder->count;
+			InFaceCorner adjEdge = pBorder->pArr[adjEdgeIdx];
+			HalfPlane *pAdjCornerCacheArr = getInCornerCache(pBasic, adjEdge.pFace);
+			HalfPlane *pAdjCornerCache = pAdjCornerCacheArr + adjEdge.corner;
+			InsideStatus prevAdjStatus = stucIsPointInHalfPlane(
+				*(V2_F32 *)&mapVertPrev,
+				pAdjCornerCache->uv,
+				pAdjCornerCache->halfPlane,
+				adjEdge.pFace->wind
+			);
+			InsideStatus nextAdjStatus = stucIsPointInHalfPlane(
+				*(V2_F32 *)&mapVertNext,
+				pAdjCornerCache->uv,
+				pAdjCornerCache->halfPlane,
+				adjEdge.pFace->wind
+			);
+			if (prevStatus == nextAdjStatus) {
+				return;
+			}
+			bool prevOutside =
+				prevStatus == STUC_INSIDE_STATUS_OUTSIDE ||
+				prevAdjStatus == STUC_INSIDE_STATUS_OUTSIDE;
+			bool nextOutside =
+				nextStatus == STUC_INSIDE_STATUS_OUTSIDE ||
+				nextAdjStatus == STUC_INSIDE_STATUS_OUTSIDE;
+			if (prevOutside == nextOutside) {
+				pResult->type = STUC_INTERSECT_TYPE_NONE;
+			}
 		}
 		return;
 	}
@@ -2001,7 +2022,6 @@ void testAgainstInCorner(
 	if (pResult->tInEdge != .0f && pResult->tInEdge != 1.0f) {
 		return;
 	}
-verifyVertIntersection:
 	I32 adjEdgeIdx = pResult->tInEdge == .0f ?
 		borderEdge ? borderEdge - 1 : pBorder->count - 1 :
 		(borderEdge + 1) % pBorder->count;
@@ -2020,7 +2040,16 @@ verifyVertIntersection:
 		pAdjCornerCache->halfPlane,
 		adjEdge.pFace->wind
 	);
-	if (adjStatus == nextAdjStatus && adjStatus != STUC_INSIDE_STATUS_ON_LINE) {
+	if (adjStatus == nextAdjStatus && adjStatus == STUC_INSIDE_STATUS_ON_LINE) {
+		return;
+	}
+	bool outside =
+		status == STUC_INSIDE_STATUS_OUTSIDE ||
+		adjStatus == STUC_INSIDE_STATUS_OUTSIDE;
+	bool nextOutside =
+		nextStatus == STUC_INSIDE_STATUS_OUTSIDE ||
+		nextAdjStatus == STUC_INSIDE_STATUS_OUTSIDE;
+	if (outside == nextOutside) {
 		pResult->type = STUC_INTERSECT_TYPE_NONE;
 	}
 }
@@ -2631,31 +2660,117 @@ void intersectArrRemoveCorner(IntersectArr *pArr, I32 corner) {
 }
 
 static
-void intersectArrRemoveDegen(IntersectArr *pArr) {
+bool areIntersectThroughVert(
+	const BorderCache *pBorders,
+	const IntersectCorner *pCorner,
+	const IntersectCorner *pNext
+) {
+	I32 borderIdx = pCorner->borderIdx;
+	I32 borderLen = pBorders->pBorders[borderIdx].count;
+	return
+		pCorner->type == pNext->type &&
+		pCorner->mapCorner == pNext->mapCorner &&
+		borderIdx == pNext->borderIdx &&
+		(
+			pCorner->tInEdge == 1.0f && pNext->tInEdge == .0f &&
+			(pCorner->borderEdge + 1) % borderLen == pNext->borderEdge ||
+			pCorner->tInEdge == .0f && pNext->tInEdge == 1.0f &&
+			pCorner->borderEdge == (pNext->borderEdge + 1) % borderLen
+		);
+}
+
+static
+void validateDegen(IntersectArr *pArr, I32 a, I32 b) {
+	IntersectCorner *pA = pArr->pArr + pArr->pSortedMap[a];
+	IntersectCorner *pB = pArr->pArr + pArr->pSortedMap[b];
+	if (pA->travelDir == pB->travelDir) {
+		//crosses edge, so merge intersections into one
+
+		//we want the map corners between these intersections to
+		// to be added to the list later,
+		//so pick which to remove based on travel direction
+		I32 toRemove = pA->travelDir == INBOUND ? b : a;
+		intersectArrRemoveCorner(pArr, toRemove);
+	}
+	else {
+		//'fake' intersection (doesn't actually cross face boundary)
+		intersectArrRemoveCorner(pArr, a);
+		intersectArrRemoveCorner(pArr, b);
+	}
+}
+
+static
+Result intersectArrRemoveDegen(const BorderCache *pBorders, IntersectArr *pArr) {
+	Result err = STUC_SUCCESS;
+	IntersectTravelDir status = pArr->pArr[pArr->pSortedMap[0]].travelDir;
+	for (I32 i = 1; i <= pArr->count && pArr->count; ++i) {
+		I32 idx = i % pArr->count;
+		IntersectCorner *pCorner = pArr->pArr + pArr->pSortedMap[idx];
+		if (status == pCorner->travelDir) {
+			pArr->pArr[pArr->pSortedMap[status == INBOUND ? idx : i - 1]].merged = true;
+			intersectArrRemoveCorner(pArr, status == INBOUND ? i - 1 : idx);
+			i--;
+		}
+		else {
+			status = pCorner->travelDir;
+		}
+	}
+	//status = pArr->pArr[pArr->pSortedMap[0]].travelDir;
+	for (I32 i = 1; i <= pArr->count && pArr->count; ++i) {
+		I32 idx = i % pArr->count;
+		IntersectCorner *pCorner = pArr->pArr + pArr->pSortedMap[idx];
+		if (pCorner->merged) {
+			continue;
+		}
+		if (pCorner->type != STUC_INTERSECT_TYPE_INTERSECT ||
+			pCorner->tInEdge == .0f || pCorner->tInEdge == 1.0f
+		) {
+			IntersectCorner *pPrev = pArr->pArr + pArr->pSortedMap[i - 1];
+			if (pPrev->type != STUC_INTERSECT_TYPE_INTERSECT ||
+				pPrev->tInEdge == .0f || pPrev->tInEdge == 1.0f
+			) {
+				//'fake' intersection (doesn't actually cross boundary)
+				intersectArrRemoveCorner(pArr, idx);
+				intersectArrRemoveCorner(pArr, i - 1);
+				i -= 2;
+			}
+		}
+	}
+	/*
 	for (I32 i = 0; i < pArr->count; ++i) {
 		IntersectCorner *pCorner = pArr->pArr + pArr->pSortedMap[i];
 		I32 iNext = (i + 1) % pArr->count;
 		IntersectCorner *pNext = pArr->pArr + pArr->pSortedMap[iNext];
 		if (pCorner->type == STUC_INTERSECT_TYPE_INTERSECT) {
-			if (pCorner->tInEdge == pNext->tInEdge) {
+			if (areIntersectThroughVert(pBorders, pCorner, pNext)) {
 				intersectArrRemoveCorner(pArr, iNext);
+				pNext = pArr->pArr + pArr->pSortedMap[iNext];
+				STUC_RETURN_ERR_IFNOT_COND(
+					err,
+					!areIntersectThroughVert(pBorders, pCorner, pNext),
+					"map edge intersects in-edge more than twice"
+				);
 			}
+			continue;
 		}
-		if (pCorner->travelDir == pNext->travelDir) {
-			//crosses edge, so merge intersections into one
-
-			//we want the map corners between these intersections to
-			// to be added to the list later,
-			//so pick which to remove based on travel direction
-			I32 toRemove = pCorner->travelDir == INBOUND ? iNext : i;
-			intersectArrRemoveCorner(pArr, toRemove);
-		}
-		else {
-			//'fake' intersection (doesn't actually cross face boundary)
+		if (pNext->type == STUC_INTERSECT_TYPE_INTERSECT) {
+			if (!i) {
+				I32 iPrev = i ? i - 1 : pArr->count - 1;
+				IntersectCorner *pPrev = pArr->pArr + pArr->pSortedMap[iPrev];
+				if (pPrev->type != STUC_INTERSECT_TYPE_INTERSECT) {
+					validateDegen(pArr, iPrev, i);
+					i--;//rerun to be safe
+					continue;
+				}
+			}
 			intersectArrRemoveCorner(pArr, i);
-			intersectArrRemoveCorner(pArr, iNext);
+			i--;
+			continue;
 		}
+		validateDegen(pArr, i, iNext);
 	}
+	*/
+	return err;
 }
 
 static
@@ -2691,17 +2806,17 @@ Result clipMapEdgeAgainstInPiece(
 		pRoot->noIntersect = true;
 		return err;
 	}
-	STUC_RETURN_ERR_IFNOT_COND(
-		err,
-		pIntersect->count % 2 == 0,
-		"odd num intersections"
-	);
+	//STUC_RETURN_ERR_IFNOT_COND(
+	//	err,
+	//	pIntersect->count % 2 == 0,
+	//	"odd num intersections"
+	//);
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	I32 *pSortedMapMem = pAlloc->fpMalloc((pIntersect->count + 1) * sizeof(I32));
 	pSortedMapMem[0] = -1;
 	pIntersect->pSortedMap = pSortedMapMem + 1;
 	sortAlongMapFace(pSortedMapMem, pIntersect);
-	intersectArrRemoveDegen(pIntersect);
+	intersectArrRemoveDegen(pBorderCache, pIntersect);
 	if (pIntersect->count) {
 		STUC_RETURN_ERR_IFNOT_COND(
 			err,

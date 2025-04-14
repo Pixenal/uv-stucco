@@ -8,7 +8,32 @@ SPDX-License-Identifier: Apache-2.0
 #include <uv_stucco.h>
 #include <types.h>
 
-#define FLOAT_EQUAL_MARGIN .000002f
+#define EPSILON .000001f
+#define F32_EQL_PREFIX(a, b) (fabsf(a - b) <= EPSILON)
+#define F64_EQL_PREFIX(a, b) (fabs(a - b) <= EPSILON)
+#define F32_NOTEQL_PREFIX(a, b) (fabsf(a - b) > EPSILON)
+#define F64_NOTEQL_PREFIX(a, b) (fabs(a - b) > EPSILON)
+#define F32_GREAT_PREFIX(a, b) (a - b > EPSILON)
+#define F64_GREAT_PREFIX(a, b) F32_GREAT_PREFIX(a, b)
+#define F32_LESS_PREFIX(a, b) (a - b < -EPSILON)
+#define F64_LESS_PREFIX(a, b) F32_LESS_PREFIX(a, b)
+#define F32_GREATEQL_PREFIX(a, b) (F32_GREAT_PREFIX(a, b) || F32_EQL_PREFIX(a, b))
+#define F64_GREATEQL_PREFIX(a, b) (F64_GREAT_PREFIX(a, b) || F64_EQL_PREFIX(a, b))
+#define F32_LESSEQL_PREFIX(a, b) (F32_LESS_PREFIX(a, b) || F32_EQL_PREFIX(a, b))
+#define F64_LESSEQL_PREFIX(a, b) (F64_LESS_PREFIX(a, b) || F64_EQL_PREFIX(a, b))
+#define F32_EQL ,F32_EQL_PREFIX,
+#define F64_EQL ,F64_EQL_PREFIX,
+#define F32_NOTEQL ,F32_NOTEQL_PREFIX,
+#define F64_NOTEQL ,F64_NOTEQL_PREFIX,
+#define F32_GREAT ,F32_GREAT_PREFIX,
+#define F64_GREAT ,F64_GREAT_PREFIX,
+#define F32_LESS ,F32_LESS_PREFIX,
+#define F64_LESS ,F64_LESS_PREFIX,
+#define F32_GREATEQL ,F32_GREATEQL_PREFIX,
+#define F64_GREATEQL ,F64_GREATEQL_PREFIX,
+#define F32_LESSEQL ,F32_LESSEQL_PREFIX,
+#define F64_LESSEQL ,F64_LESSEQL_PREFIX,
+
 
 #define STUC_IDENT_MAT4X4 (Stuc_M4x4_F32) {\
 	1.0, .0, .0, .0,\
@@ -85,7 +110,6 @@ bool v3F32Equal(V3_F32 a, V3_F32 b);
 bool v3F64Equal(V3_F64 a, V3_F64 b);
 I32 v3F32GreaterThan(V3_F32 a, V3_F32 b);
 I32 v3F32LessThan(V3_F32 a, V3_F32 b);
-I32 v3F32AproxEqual(V3_F32 a, V3_F32 b);
 V3_F32 v3F32Lerp(V3_F32 a, V3_F32 b, F32 alpha);
 V3_F32 v3F32Cross(V3_F32 a, V3_F32 b);
 V3_F64 v3F64Cross(V3_F64 a, V3_F64 b);
@@ -121,6 +145,8 @@ void v2F32MultiplyEqualScalar(V2_F32 *pA, F32 b);
 V2_F32 v2F32MultiplyScalar(V2_F32 a, F32 b);
 F32 v2F32Dot(V2_F32 a, V2_F32 b);
 F64 v2F64Dot(V2_F64 a, V2_F64 b);
+F32 v2F32Cross(V2_F32 a, V2_F32 b);
+F64 v2F64Cross(V2_F64 a, V2_F64 b);
 V2_F32 v2F32LineNormal(V2_F32 a);
 V2_F64 v2F64LineNormal(V2_F64 a);
 V2_F32 v2F32ModScalar(V2_F32 a, F32 b);
@@ -210,6 +236,7 @@ F32 customFloor(F32 a);
 #define V2MULS ,2F32MultiplyScalar,
 #define V2DOT ,2F32Dot,
 #define V2DET ,2F32Determinate,
+#define V2CROSS ,2F32Cross,
 #define V2MODS ,2F32ModScalar,
 #define V2MODEQLS ,2F32ModEqualScalar,
 #define V2GREAT ,2F32GreaterThan,
