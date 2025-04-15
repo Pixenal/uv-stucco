@@ -9,18 +9,18 @@ SPDX-License-Identifier: Apache-2.0
 #include <types.h>
 
 #define EPSILON .000001f
-#define F32_EQL_PREFIX(a, b) (fabsf(a - b) <= EPSILON)
-#define F64_EQL_PREFIX(a, b) (fabs(a - b) <= EPSILON)
-#define F32_NOTEQL_PREFIX(a, b) (fabsf(a - b) > EPSILON)
-#define F64_NOTEQL_PREFIX(a, b) (fabs(a - b) > EPSILON)
-#define F32_GREAT_PREFIX(a, b) (a - b > EPSILON)
-#define F64_GREAT_PREFIX(a, b) F32_GREAT_PREFIX(a, b)
-#define F32_LESS_PREFIX(a, b) (a - b < -EPSILON)
-#define F64_LESS_PREFIX(a, b) F32_LESS_PREFIX(a, b)
-#define F32_GREATEQL_PREFIX(a, b) (F32_GREAT_PREFIX(a, b) || F32_EQL_PREFIX(a, b))
-#define F64_GREATEQL_PREFIX(a, b) (F64_GREAT_PREFIX(a, b) || F64_EQL_PREFIX(a, b))
-#define F32_LESSEQL_PREFIX(a, b) (F32_LESS_PREFIX(a, b) || F32_EQL_PREFIX(a, b))
-#define F64_LESSEQL_PREFIX(a, b) (F64_LESS_PREFIX(a, b) || F64_EQL_PREFIX(a, b))
+#define vF32_EQL_PREFIX(a, b) (fabsf(a - b) <= EPSILON)
+#define vF64_EQL_PREFIX(a, b) (fabs(a - b) <= EPSILON)
+#define vF32_NOTEQL_PREFIX(a, b) (fabsf(a - b) > EPSILON)
+#define vF64_NOTEQL_PREFIX(a, b) (fabs(a - b) > EPSILON)
+#define vF32_GREAT_PREFIX(a, b) (a - b > EPSILON)
+#define vF64_GREAT_PREFIX(a, b) vF32_GREAT_PREFIX(a, b)
+#define vF32_LESS_PREFIX(a, b) (a - b < -EPSILON)
+#define vF64_LESS_PREFIX(a, b) vF32_LESS_PREFIX(a, b)
+#define vF32_GREATEQL_PREFIX(a, b) (vF32_GREAT_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
+#define vF64_GREATEQL_PREFIX(a, b) (vF64_GREAT_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
+#define vF32_LESSEQL_PREFIX(a, b) (vF32_LESS_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
+#define vF64_LESSEQL_PREFIX(a, b) (vF64_LESS_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
 #define F32_EQL ,F32_EQL_PREFIX,
 #define F64_EQL ,F64_EQL_PREFIX,
 #define F32_NOTEQL ,F32_NOTEQL_PREFIX,
