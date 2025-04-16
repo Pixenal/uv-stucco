@@ -16,7 +16,7 @@ typedef struct {
 StucResult stucPlatformFileOpen(
 	void **file,
 	const char *filePath,
-	I32 action,
+	FileOpenType action,
 	const StucAlloc *pAlloc
 ) {
 	StucResult err = STUC_SUCCESS;
@@ -24,10 +24,10 @@ StucResult stucPlatformFileOpen(
 	STUC_ASSERT("", action == 0 || action == 1);
 	char *mode = "  ";
 	switch (action) {
-		case 0:
+		case STUC_FILE_OPEN_WRITE:
 			mode = "wb";
 			break;
-		case 1:
+		case STUC_FILE_OPEN_READ:
 			mode = "rb";
 			break;
 		default:

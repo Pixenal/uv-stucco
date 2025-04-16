@@ -19,20 +19,20 @@ typedef struct PlatformContext {
 } PlatformContext;
 
 StucResult stucPlatformFileOpen(
-	void **file,
+	void **ppFile,
 	const char *filePath,
-	I32 action,
+	FileOpenType action,
 	const StucAlloc *pAlloc
 ) {
 	StucResult err = STUC_SUCCESS;
 	DWORD access;
 	DWORD disposition;
 	switch (action) {
-		case 0:
+		case STUC_FILE_OPEN_WRITE:
 			access = GENERIC_WRITE;
 			disposition = CREATE_ALWAYS;
 			break;
-		case 1:
+		case STUC_FILE_OPEN_READ:
 			access = GENERIC_READ;
 			disposition = OPEN_EXISTING;
 			break;
@@ -54,20 +54,37 @@ StucResult stucPlatformFileOpen(
 		snprintf(message, ERR_MESSAGE_MAX_LEN, "Win Error: %d\n", GetLastError());
 		STUC_RETURN_ERR(err, message);
 	}
-	*file = pState;
+	*ppFile = pState;
+	return err;
+}
+
+StucResult stucPlatformFileGetSize(void *pFile, I64 *pSize) {
+	StucResult err = STUC_SUCCESS;
+	PlatformContext *pState = pFile;
+	LARGE_INTEGER size = {0};
+	if (!GetFileSizeEx(pState->pHFile, &size)) {
+		char message[ERR_MESSAGE_MAX_LEN] = {0};
+		snprintf(
+			message,
+			ERR_MESSAGE_MAX_LEN,
+			"Win error: %d\n",
+			GetLastError()
+		);
+		STUC_RETURN_ERR(err, message);
+	}
+	*pSize = size.QuadPart;
 	return err;
 }
 
 StucResult stucPlatformFileWrite(
-	void *file,
+	void *pFile,
 	const unsigned char *data,
 	I32 dataSize
 ) {
 	StucResult err = STUC_SUCCESS;
-	PlatformContext *pState = file;
+	PlatformContext *pState = pFile;
 	DWORD bytesWritten;
-	bool success = WriteFile(pState->pHFile, data, dataSize, &bytesWritten, NULL);
-	if (!success) {
+	if (!WriteFile(pState->pHFile, data, dataSize, &bytesWritten, NULL)) {
 		char message[ERR_MESSAGE_MAX_LEN] = {0};
 		snprintf(
 			message,
@@ -86,15 +103,14 @@ StucResult stucPlatformFileWrite(
 }
 
 StucResult stucPlatformFileRead(
-	void *file,
+	void *pFile,
 	unsigned char *data,
 	I32 bytesToRead
 ) {
 	StucResult err = STUC_SUCCESS;
-	PlatformContext *pState = file;
+	PlatformContext *pState = pFile;
 	DWORD bytesRead;
-	bool success = ReadFile(pState->pHFile, data, bytesToRead, &bytesRead, NULL);
-	if (!success) {
+	if (!ReadFile(pState->pHFile, data, bytesToRead, &bytesRead, NULL)) {
 		char message[ERR_MESSAGE_MAX_LEN] = {0};
 		snprintf(
 			message,
@@ -112,9 +128,9 @@ StucResult stucPlatformFileRead(
 	return err;
 }
 
-StucResult stucPlatformFileClose(void *file) {
+StucResult stucPlatformFileClose(void *pFile) {
 	StucResult err = STUC_SUCCESS;
-	PlatformContext *pState = file;
+	PlatformContext *pState = pFile;
 	bool success = CloseHandle(pState->pHFile);
 	pState->alloc.fpFree(pState);
 	if (!success) {
