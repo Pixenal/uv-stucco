@@ -13,15 +13,10 @@ typedef struct {
 	void *file;
 } PlatformFile;
 
-typedef enum FileOpenType {
-	STUC_FILE_OPEN_WRITE,
-	STUC_FILE_OPEN_READ
-} FileOpenType;
-
 StucResult stucPlatformFileOpen(
 	void **ppFile,
 	const char *filePath,
-	FileOpenType action,
+	StucFileOpenType action,
 	const StucAlloc *pAlloc
 );
 StucResult stucPlatformFileGetSize(void *pFile, I64 *pSize);

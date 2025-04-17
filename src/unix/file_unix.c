@@ -16,7 +16,7 @@ typedef struct {
 StucResult stucPlatformFileOpen(
 	void **file,
 	const char *filePath,
-	FileOpenType action,
+	StucFileOpenType action,
 	const StucAlloc *pAlloc
 ) {
 	StucResult err = STUC_SUCCESS;

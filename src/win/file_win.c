@@ -21,7 +21,7 @@ typedef struct PlatformContext {
 StucResult stucPlatformFileOpen(
 	void **ppFile,
 	const char *filePath,
-	FileOpenType action,
+	StucFileOpenType action,
 	const StucAlloc *pAlloc
 ) {
 	StucResult err = STUC_SUCCESS;

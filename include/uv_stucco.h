@@ -382,6 +382,11 @@ typedef struct StucObject {
 	Stuc_M4x4_F32 transform;
 } StucObject;
 
+typedef enum StucFileOpenType {
+	STUC_FILE_OPEN_WRITE,
+	STUC_FILE_OPEN_READ
+} StucFileOpenType;
+
 typedef struct StucAlloc {
 	void *(*fpMalloc)(size_t);
 	void *(*fpCalloc)(size_t, size_t);
@@ -414,7 +419,7 @@ typedef struct StucThreadPool {
 } StucThreadPool;
 
 typedef struct StucIo {
-	StucResult (*fpOpen)(void **, const char *, int32_t, const StucAlloc *);
+	StucResult (*fpOpen)(void **, const char *, StucFileOpenType, const StucAlloc *);
 	StucResult (*fpWrite)(void *, const unsigned char *, int32_t);
 	StucResult (*fpRead)(void *, unsigned char *, int32_t);
 	StucResult (*fpClose)(void *);
