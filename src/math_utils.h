@@ -8,14 +8,14 @@ SPDX-License-Identifier: Apache-2.0
 #include <uv_stucco.h>
 #include <types.h>
 
-#define EPSILON .000001f
-#define vF32_EQL_PREFIX(a, b) (fabsf(a - b) <= EPSILON)
-#define vF64_EQL_PREFIX(a, b) (fabs(a - b) <= EPSILON)
-#define vF32_NOTEQL_PREFIX(a, b) (fabsf(a - b) > EPSILON)
-#define vF64_NOTEQL_PREFIX(a, b) (fabs(a - b) > EPSILON)
-#define vF32_GREAT_PREFIX(a, b) (a - b > EPSILON)
+#define EPSILON .0000001f
+#define vF32_EQL_PREFIX(a, b) (fabsf((a) - (b)) <= EPSILON)
+#define vF64_EQL_PREFIX(a, b) (fabs((a) - (b)) <= EPSILON)
+#define vF32_NOTEQL_PREFIX(a, b) (fabsf((a) - (b)) > EPSILON)
+#define vF64_NOTEQL_PREFIX(a, b) (fabs((a) - (b)) > EPSILON)
+#define vF32_GREAT_PREFIX(a, b) ((a) - (b) > EPSILON)
 #define vF64_GREAT_PREFIX(a, b) vF32_GREAT_PREFIX(a, b)
-#define vF32_LESS_PREFIX(a, b) (a - b < -EPSILON)
+#define vF32_LESS_PREFIX(a, b) ((a) - (b) < -EPSILON)
 #define vF64_LESS_PREFIX(a, b) vF32_LESS_PREFIX(a, b)
 #define vF32_GREATEQL_PREFIX(a, b) (vF32_GREAT_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
 #define vF64_GREATEQL_PREFIX(a, b) (vF64_GREAT_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
