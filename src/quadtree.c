@@ -1173,9 +1173,6 @@ I32 boundsLookupAdd(const StucAlloc *pAlloc, BoundsLookup *pLookup) {
 }
 */
 
-#define STUC_BOUNDS_LOOKUP_ADD() \
-	STUC_DYN_ARR_ADD()
-
 Result stucGetEncasingCells(
 	const StucAlloc *pAlloc,
 	const StucMap pMap,
