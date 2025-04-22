@@ -17,8 +17,6 @@ SPDX-License-Identifier: Apache-2.0
 
 #define STUC_TILE_BIT_LEN 11
 
-#define TEMP_DISABLE
-
 #ifdef WIN32
 #define STUC_FORCE_INLINE __forceinline
 #else

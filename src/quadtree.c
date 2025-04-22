@@ -164,10 +164,6 @@ Result getChildrenFromResult(
 	STUC_ASSERT("", result >= 0 && result <= 2);
 	switch (result) {
 		case 0: {
-			//addCellToEncasingCells(cell, pEncasingCells, 0);
-			//*pCellStackPtr--;
-			//pCellInits[cell->cellIdx] = 1;
-			//continue;
 			pChildren->d[0] = 1;
 			pChildren->d[1] = 1;
 			pChildren->d[2] = 1;
@@ -580,9 +576,6 @@ void stucDestroyFaceCellsEntry(const StucAlloc *pAlloc, FaceCells *pEntry) {
 		pAlloc->fpFree(pEntry->pCellType);
 		pEntry->pCellType = NULL;
 	}
-	//TODO segfault when mapping a single quad larger than the 0-1 uv tile
-	//i've not really tested the code thats supposed to handle this case,
-	//so no surprise it crashes
 	if (pEntry->pRanges) {
 		pAlloc->fpFree(pEntry->pRanges);
 		pEntry->pRanges = NULL;
@@ -1150,28 +1143,6 @@ void stucGetFaceBoundsForTileTest(
 	pFaceBounds->max = v2F32FloorAssign(&pFaceBounds->fBBox.max);
 	_(&pFaceBounds->fBBox.max V2ADDEQLS 1.0f);
 }
-
-/*
-static
-I32 boundsLookupAdd(const StucAlloc *pAlloc, BoundsLookup *pLookup) {
-	STUC_ASSERT("", pLookup->count <= pLookup->size);
-	if (!pLookup->size) {
-		STUC_ASSERT("", !pLookup->pBounds && !pLookup->pFaces);
-		pLookup->size = 4;
-		pLookup->pBounds = pAlloc->fpMalloc(pLookup->size * sizeof(BoundsLookupEntry));
-		pLookup->pFaces = pAlloc->fpMalloc(pLookup->size * sizeof(I32));
-	}
-	else if (pLookup->count == pLookup->size) {
-		pLookup->size *= 2;
-		pLookup->pBounds = pAlloc->fpRealloc(
-			pLookup->pBounds,
-			pLookup->size * sizeof(BoundsLookupEntry)
-		);
-		pLookup->pFaces = pAlloc->fpRealloc(pLookup->pFaces, pLookup->size * sizeof(I32));
-	}
-	return pLookup->count++;
-}
-*/
 
 Result stucGetEncasingCells(
 	const StucAlloc *pAlloc,

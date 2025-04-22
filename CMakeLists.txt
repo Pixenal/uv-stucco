@@ -45,9 +45,8 @@ if (WIN32)
 endif()
 message("BUILD_SHARED_LIBS is " ${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_library(UvStucco STATIC src/alloc.c src/merge_bounds_faces.c src/io.c src/map_to_face.c
-            src/quadtree.c src/uv_stucco.c src/math_utils.c src/utils.c src/attrib_utils.c
-            src/single_bounds_face.c src/combine_job_meshes.c src/map_to_job_mesh.c
+add_library(UvStucco STATIC src/alloc.c src/io.c src/map_to_face.c src/quadtree.c
+            src/uv_stucco.c src/math_utils.c src/utils.c src/attrib_utils.c src/map_to_job_mesh.c
             src/image_utils.c src/mesh.c src/usg.c src/clip.c extern/MikkTSpace/mikktspace.c
 			${PLATFORM_src_FILES})
 target_include_directories(UvStucco PUBLIC include)

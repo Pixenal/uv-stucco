@@ -15,31 +15,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <error.h>
 #include <alloc.h>
 
-#ifndef TEMP_DISABLE
-static
-Result allocBufMeshAndTables(MappingJobState *pState, FaceCellsTable *pFaceCellsTable) {
-	Result err = STUC_SUCCESS;
-	const StucAlloc *pAlloc = &pState->pBasic->pCtx->alloc;
-	pState->rawBufSize = pState->bufSize;
-	pState->bufSize = pState->bufSize / 20 + 2; //Add 2 incase it truncs to 0
-	pState->bufSize += pState->bufSize % 2; //ensure it's even, so realloc is easier
-	I32 cornerBufSize = pState->bufSize * 2;
-	pState->cornerBufSize = cornerBufSize;
-	err = allocBufMesh(pState, cornerBufSize);
-	STUC_THROW_IFNOT(err, "", 0);
-
-	err = stucLinAllocInit(pAlloc, &pState->pCornerBufWrapAlloc, sizeof(MapIsland), 1);
-	STUC_THROW_IFNOT(err, "", 0);
-
-	STUC_CATCH(0, err, 
-		if (pState->pCornerBufWrapAlloc) {
-			stucLinAllocDestroy(pState->pCornerBufWrapAlloc);
-		}
-	;);
-	return err;
-}
-#endif
-
 static
 Result getEncasedFacesPerTile(
 	FindEncasedFacesJobArgs *pArgs,
@@ -84,7 +59,6 @@ Result getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCell
 		inFace.end = pBasic->pInMesh->core.pFaces[i + 1];
 		inFace.size = inFace.end - inFace.start;
 		inFace.idx = i;
-		//FaceTriangulated faceTris = {0};
 		bool skipped = false;
 		if (inFace.size <= 4) {
 			err = getEncasedFacesPerTile(pArgs, &inFace, pFaceCellsTable, i);
@@ -92,12 +66,6 @@ Result getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCell
 		else {
 			skipped = true;
 		}
-		/*
-		if (faceTris.pTris) {
-			pBasic->pCtx->alloc.fpFree(faceTris.pTris);
-			faceTris.pTris = NULL;
-		}
-		*/
 		if (!skipped) {
 			FaceCells *pFaceCellsEntry =
 				stucIdxFaceCells(pFaceCellsTable, i, pArgs->core.range.start);
@@ -116,16 +84,6 @@ StucResult stucFindEncasedFaces(void *pArgsVoid) {
 
 	FaceCellsTable faceCellsTable = {0};
 	I32 averageMapFacesPerFace = 0;
-	/*
-	HTable boundsLookup = {0};
-	stucHTableInit(
-		&pArgs->core.pBasic->pCtx->alloc,
-		&boundsLookup,
-		faceCellsTable.uniqueFaces / 2,
-		(I32Arr) {.pArr = (I32[]) {sizeof(BoundsLookupEntry)}, .count = 1},
-		NULL
-	);
-	*/
 	stucGetEncasingCells(
 		&pCtx->alloc,
 		pArgs->core.pBasic->pMap,

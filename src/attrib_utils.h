@@ -181,23 +181,6 @@ void stucReallocAttribArr(
 	AttribArray *pAttribArr,
 	I32 newLen
 );
-#ifndef TEMP_DISABLE
-void stucReallocAndMoveAttribs(
-	const StucAlloc *pAlloc,
-	const BufMesh *pMesh,
-	AttribArray *pAttribArr,
-	I32 start,
-	I32 offset,
-	I32 lenToCopy,
-	I32 newLen
-);
-StucResult stucSetSpecialBufAttribs(BufMesh *pMesh, UBitField32 flags, bool getInFaces);
-void stucAppendBufOnlySpecialAttribs(
-	const StucAlloc *pAlloc,
-	BufMesh *pBufMesh,
-	bool getInFaces
-);
-#endif
 void stucSetAttribCopyOpt(
 	StucContext pCtx,
 	StucMesh *pMesh,
