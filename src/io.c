@@ -21,10 +21,10 @@ SPDX-License-Identifier: Apache-2.0
 #include <quadtree.h>
 #include <map.h>
 #include <context.h>
-#include <platform_io.h>
-#include <math_utils.h>
+#include <pixenals_io_utils.h>
+#include <pixenals_math_utils.h>
 #include <attrib_utils.h>
-#include <error.h>
+#include <pixenals_error_utils.h>
 
 static
 void reallocByteStringIfNeeded(
@@ -456,7 +456,7 @@ StucErr stucWriteStucFile(
 	//encode header
 	const char *format = "UV Stucco Map File";
 	I32 formatLen = (I32)strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
-	PIX_ERR_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN)
+	PIX_ERR_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN);
 	header.size =
 		8 * ((I64)formatLen + 1) +
 		16 + //version

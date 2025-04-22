@@ -4,9 +4,9 @@ SPDX-License-Identifier: Apache-2.0
 */
 
 #pragma once
-#include <math_utils.h>
+#include <pixenals_math_utils.h>
 #include <types.h>
-#include <alloc.h>
+#include <pixenals_alloc_utils.h>
 
 typedef struct Usg {
 	//allow user to save name of usg meshes if desired?

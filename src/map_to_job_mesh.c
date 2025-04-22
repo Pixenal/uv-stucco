@@ -12,8 +12,8 @@ SPDX-License-Identifier: Apache-2.0
 #include <context.h>
 #include <attrib_utils.h>
 #include <utils.h>
-#include <error.h>
-#include <alloc.h>
+#include <pixenals_error_utils.h>
+#include <pixenals_alloc_utils.h>
 
 static
 StucErr getEncasedFacesPerTile(

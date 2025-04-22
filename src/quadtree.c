@@ -15,9 +15,9 @@ SPDX-License-Identifier: Apache-2.0
 #include <quadtree.h>
 #include <context.h>
 #include <map.h>
-#include <math_utils.h>
+#include <pixenals_math_utils.h>
 #include <utils.h>
-#include <error.h>
+#include <pixenals_error_utils.h>
 
 typedef struct Children {
 	I32 d[4];

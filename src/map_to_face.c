@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <map_to_job_mesh.h>
 #include <map.h>
 #include <attrib_utils.h>
-#include <clip.h>
+#include <poly_cutout.h>
 
 static
 void initInTri(

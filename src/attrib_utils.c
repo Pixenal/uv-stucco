@@ -12,10 +12,10 @@ SPDX-License-Identifier: Apache-2.0
 #include <float.h>
 
 #include <attrib_utils.h>
-#include <math_utils.h>
+#include <pixenals_math_utils.h>
 #include <context.h>
 #include <mesh.h>
-#include <error.h>
+#include <pixenals_error_utils.h>
 
 void stucSetDefaultSpAttribNames(StucContext pCtx) {
 	strcpy(pCtx->spAttribNames[1], "position");

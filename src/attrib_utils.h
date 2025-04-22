@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <uv_stucco.h>
 #include <uv_stucco_intern.h>
-#include <math_utils.h>
+#include <pixenals_math_utils.h>
 #include <mesh.h>
 #include <types.h>
 

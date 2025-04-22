@@ -12,7 +12,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <map.h>
 #include <attrib_utils.h>
 #include <usg.h>
-#include <error.h>
+#include <pixenals_error_utils.h>
 
 
 typedef struct HitEdge {

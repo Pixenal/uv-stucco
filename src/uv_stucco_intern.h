@@ -11,9 +11,9 @@ SPDX-License-Identifier: Apache-2.0
 #include <mesh.h>
 #include <debug_and_perf.h>
 #include <usg.h>
-#include <error.h>
+#include <pixenals_error_utils.h>
 #include <types.h>
-#include <alloc.h>
+#include <pixenals_alloc_utils.h>
 
 #define STUC_TILE_BIT_LEN 11
 

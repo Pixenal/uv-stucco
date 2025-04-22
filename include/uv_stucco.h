@@ -14,9 +14,9 @@ SPDX-License-Identifier: Apache-2.0
 #include <stdbool.h>
 #endif
 
-#include "../src/pixenals_types.h"
-#include "../src/alloc.h"
-#include "../src/platform_io.h"
+#include <pixenals_types.h>
+#include <pixenals_alloc_utils.h>
+#include <pixenals_io_utils.h>
 
 #define STUC_DISABLE_EDGES_IN_BUF
 
