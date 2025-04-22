@@ -37,28 +37,49 @@ if (UNIX)
 endif()
 if (WIN32)
 	message("Building for Windows")
-	message("CMAKE_MSVC_RUNTIME_LIB is " + ${CMAKE_MSVC_RUNTIME_LIBRARY})
+	message("CMAKE_MSVC_RUNTIME_LIB is "${CMAKE_MSVC_RUNTIME_LIBRARY})
 	set(CMAKE_C_FLAGS "/D PLATFORM_WINDOWS /D WIN32 /D WINDOWS /TC")
 	set(CMAKE_C_FLAGS_RELEASE "/O2")
 	set(CMAKE_C_STANDARD 11)
 endif()
-message("BUILD_SHARED_LIBS is " ${BUILD_SHARED_LIBS})
+message("BUILD_SHARED_LIBS is "${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_library(${PROJECT} STATIC src/io.c src/map_to_face.c src/quadtree.c
-            src/uv_stucco.c src/utils.c src/attrib_utils.c src/map_to_job_mesh.c
-            src/image_utils.c src/mesh.c src/usg.c extern/MikkTSpace/mikktspace.c)
+add_library(${PROJECT} STATIC
+	src/io.c src/map_to_face.c src/quadtree.c
+    src/uv_stucco.c src/utils.c src/attrib_utils.c src/map_to_job_mesh.c
+    src/image_utils.c src/mesh.c src/usg.c extern/MikkTSpace/mikktspace.c
+)
 target_include_directories(${PROJECT} PRIVATE include src extern/MikkTSpace)
-message("FIND_ZLIB is " + ${FIND_ZLIB})
+message("FIND_ZLIB is "${FIND_ZLIB})
 if (FIND_ZLIB)
 	message("Attempting to find zlib")
 	find_package(ZLIB REQUIRED)
-	message("--zlib include is " + ${ZLIB_INCLUDE_DIRS})
+	message("--zlib include is "${ZLIB_INCLUDE_DIRS})
 	message("Note that if the above are mismatched, there may be errors at compile time.")
 	message ("Consider disabling FIND_ZLIB and specifying manually using ZLIB_LIB and ZLIB_INCLUDE. Or using Conan.")
 	message("See github docs for more info.")
 	target_include_directories(${PROJECT} PRIVATE ${ZLIB_INCLUDE_DIRS})
-	target_link_libraries(${PROJECT} ${ZLIB_LIBRARIES} ${ZLIB_DEPENDENCIES})
+	target_link_libraries(${PROJECT} PRIVATE ${ZLIB_LIBRARIES} ${ZLIB_DEPENDENCIES})
 else()
 	target_include_directories(${PROJECT} PRIVATE ${ZLIB_INCLUDE})
-	target_link_libraries(${PROJECT} ${ZLIB_LIB})
+	target_link_libraries(${PROJECT} PRIVATE ${ZLIB_LIB})
 endif()
+set(PLYCUT_PIX_PATH "../")
+add_subdirectory(extern/poly-cutout)
+if (NOT TARGET PixenalsAllocUtils)
+	add_subdirectory(extern/pixenals-alloc-utils)
+endif()
+add_subdirectory(extern/pixenals-io-utils)
+if (NOT TARGET PixenalsMathUtils)
+	add_subdirectory(extern/pixenals-math-utils)
+endif()
+add_subdirectory(extern/pixenals-thread-utils)
+target_link_libraries(${PROJECT} PRIVATE
+	PolyCutout PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils PixenalsThreadUtils
+)
+target_include_directories(${PROJECT} PUBLIC
+	extern/poly-cutout/include
+	extern/pixenals-types/include extern/pixenals-error-utils/include
+	extern/pixenals-alloc-utils/include extern/pixenals-io-utils/include
+	extern/pixenals-math-utils/include extern/pixenals-thread-utils/include
+)
