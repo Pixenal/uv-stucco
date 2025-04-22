@@ -14,6 +14,8 @@ SPDX-License-Identifier: Apache-2.0
 #include <stdbool.h>
 #endif
 
+#include <types.h>
+
 #define STUC_DISABLE_EDGES_IN_BUF
 
 #define STUC_DISABLE_TRIANGULATION
@@ -149,92 +151,25 @@ typedef enum StucResult {
 	STUC_ERROR_QUIET
 } StucResult;
 
-typedef struct StucVec2 {
-	float x;
-	float y;
-} StucVec2;
-
-typedef struct StucVec3 {
-	float x;
-	float y;
-	float z;
-} StucVec3;
-
-typedef struct Stuc_V2_I8 {
-	int8_t d[2];
-} Stuc_V2_I8;
-
-typedef struct Stuc_V2_I16 {
-	int16_t d[2];
-} Stuc_V2_I16;
-
-typedef struct Stuc_V2_I32 {
-	int32_t d[2];
-} Stuc_V2_I32;
-
-typedef struct Stuc_V2_I64 {
-	int64_t d[2];
-} Stuc_V2_I64;
-
-typedef struct Stuc_V2_F32 {
-	float d[2];
-} Stuc_V2_F32;
-
-typedef struct Stuc_V2_F64 {
-	double d[2];
-} Stuc_V2_F64;
-
-typedef struct Stuc_V3_I8 {
-	int8_t d[3];
-} Stuc_V3_I8;
-
-typedef struct Stuc_V3_I16 {
-	int16_t d[3];
-} Stuc_V3_I16;
-
-typedef struct Stuc_V3_I32 {
-	int32_t d[3];
-} Stuc_V3_I32;
-
-typedef struct Stuc_V3_I64 {
-	int64_t d[3];
-} Stuc_V3_I64;
-
-typedef struct Stuc_V3_F32 {
-	float d[3];
-} Stuc_V3_F32;
-
-typedef struct Stuc_V3_F64 {
-	double d[3];
-} Stuc_V3_F64;
-
-typedef struct Stuc_V4_I8 {
-	int8_t d[4];
-} Stuc_V4_I8;
-
-typedef struct Stuc_V4_I16 {
-	int16_t d[4];
-} Stuc_V4_I16;
-
-typedef struct Stuc_V4_I32 {
-	int32_t d[4];
-} Stuc_V4_I32;
-
-typedef struct Stuc_V4_I64 {
-	int64_t d[4];
-} Stuc_V4_I64;
-
-typedef struct Stuc_V4_F32 {
-	float d[4];
-} Stuc_V4_F32;
-
-typedef struct Stuc_V4_F64 {
-	double d[4];
-} Stuc_V4_F64;
-
-typedef struct Stuc_M4x4_F32 {
-	float d[4][4];
-} Stuc_M4x4_F32;
+typedef Pixtype_V2_I8 Stuc_V2_I8;
+typedef Pixtype_V2_I16 Stuc_V2_I16;
+typedef Pixtype_V2_I32 Stuc_V2_I32;
+typedef Pixtype_V2_I64 Stuc_V2_I64;
+typedef Pixtype_V2_F32 Stuc_V2_F32;
+typedef Pixtype_V2_F64 Stuc_V2_F64;
+typedef Pixtype_V3_I8 Stuc_V3_I8;
+typedef Pixtype_V3_I16 Stuc_V3_I16;
+typedef Pixtype_V3_I32 Stuc_V3_I32;
+typedef Pixtype_V3_I64 Stuc_V3_I64;
+typedef Pixtype_V3_F32 Stuc_V3_F32;
+typedef Pixtype_V3_F64 Stuc_V3_F64;
+typedef Pixtype_V4_I8 Stuc_V4_I8;
+typedef Pixtype_V4_I16 Stuc_V4_I16;
+typedef Pixtype_V4_I32 Stuc_V4_I32;
+typedef Pixtype_V4_I64 Stuc_V4_I64;
+typedef Pixtype_V4_F32 Stuc_V4_F32;
+typedef Pixtype_V4_F64 Stuc_V4_F64;
+typedef Pixtype_M4x4_F32 Stuc_M4x4_F32;
 
 typedef struct Stuc_String {
 	char d[STUC_ATTRIB_STRING_MAX_LEN];
