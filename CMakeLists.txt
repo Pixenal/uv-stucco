@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Caleb Dawson
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.5)
 cmake_policy(SET CMP0063 NEW)
 cmake_policy(SET CMP0091 NEW)
 project(UvStucco)
@@ -27,11 +27,11 @@ if (UNIX)
 	set(CMAKE_C_FLAGS "")
 	if (CMAKE_BUILD_TYPE MATCHES DEBUG)
 		message("Debug build")
-		set(CMAKE_C_FLAGS  "-g -O0 -DEBUG -pthread -Wshadow -Wunused -Wunused-parameter -fPIC -D PLATFORM_LINUX")
+		set(CMAKE_C_FLAGS  "-g -O0 -DEBUG -pthread -Wshadow -Wunused -Wno-unused-label -fPIC -D PLATFORM_LINUX")
 	endif()
 	if (CMAKE_BUILD_TYPE MATCHES RELEASE)
 		message("Release build")
-		set(CMAKE_C_FLAGS  "-ftree-vectorize -mavx2 -finline-functions -flto -O2 -pthread -fPIC -D PLATFORM_LINUX")
+		set(CMAKE_C_FLAGS  "-ftree-vectorize -mavx2 -finline-functions -O2 -pthread -fPIC -D PLATFORM_LINUX")
 	endif()
 	set(PLATFORM_src_FILES src/unix/file_unix.c src/unix/thread_pool_unix.c)
 endif()
@@ -45,10 +45,9 @@ if (WIN32)
 endif()
 message("BUILD_SHARED_LIBS is " ${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_library(UvStucco STATIC src/alloc.c src/merge_bounds_faces.c src/io.c src/map_to_face.c
-            src/quadtree.c src/uv_stucco.c src/math_utils.c src/utils.c src/attrib_utils.c
-            src/single_bounds_face.c src/combine_job_meshes.c src/map_to_job_mesh.c
-            src/image_utils.c src/mesh.c src/usg.c extern/MikkTSpace/mikktspace.c
+add_library(UvStucco STATIC src/alloc.c src/io.c src/map_to_face.c src/quadtree.c
+            src/uv_stucco.c src/math_utils.c src/utils.c src/attrib_utils.c src/map_to_job_mesh.c
+            src/image_utils.c src/mesh.c src/usg.c src/clip.c extern/MikkTSpace/mikktspace.c
 			${PLATFORM_src_FILES})
 target_include_directories(UvStucco PUBLIC include)
 target_include_directories(UvStucco PRIVATE src extern/MikkTSpace)

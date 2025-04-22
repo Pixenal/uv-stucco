@@ -24,7 +24,7 @@ typedef StucResult Result;
 	assert(condition);
 #endif
 
-static
+static inline
 void printError(
 	Result err,
 	int32_t idx,
@@ -71,6 +71,15 @@ void printError(
 	if (err != STUC_SUCCESS || isNotCondition) { \
 		printError(err, -1, isNotCondition, #condition, #message, __func__);\
 		err = STUC_ERROR;\
+		return err;\
+	}\
+}
+
+#define STUC_RETURN_QUIET_ERR_IFNOT_COND(err, condition, message)\
+{\
+	bool isNotCondition = !(condition);\
+	if (err != STUC_SUCCESS || isNotCondition) { \
+		err = STUC_ERROR_QUIET;\
 		return err;\
 	}\
 }

@@ -14,11 +14,12 @@ typedef struct {
 } PlatformFile;
 
 StucResult stucPlatformFileOpen(
-	void **file,
+	void **ppFile,
 	const char *filePath,
-	I32 action,
+	StucFileOpenType action,
 	const StucAlloc *pAlloc
 );
-StucResult stucPlatformFileWrite(void *file, const unsigned char *data, I32 dataSize);
-StucResult stucPlatformFileRead(void *file, unsigned char *data, I32 bytesToRead);
-StucResult stucPlatformFileClose(void *file);
+StucResult stucPlatformFileGetSize(void *pFile, I64 *pSize);
+StucResult stucPlatformFileWrite(void *pFile, const unsigned char *data, I32 dataSize);
+StucResult stucPlatformFileRead(void *pFile, unsigned char *data, I32 bytesToRead);
+StucResult stucPlatformFileClose(void *pFile);

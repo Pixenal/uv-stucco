@@ -6,8 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <math_utils.h>
 #include <types.h>
+#include <alloc.h>
 
-typedef struct {
+typedef struct Usg {
 	//allow user to save name of usg meshes if desired?
 	//Obviously wouldn't include it in the map file by default,
 	//due to potential size increase. But if one wants to go
@@ -28,9 +29,9 @@ typedef struct InFaceArr {
 	F32 offset;
 } InFaceArr;
 
-typedef struct {
+typedef struct InFaceTable {
 	InFaceArr *pArr;
-	void *pAlloc;
+	LinAlloc alloc;
 } InFaceTable;
 
 typedef struct UsgInFace {
@@ -39,7 +40,7 @@ typedef struct UsgInFace {
 	I32 face;
 } UsgInFace;
 
-typedef struct {
+typedef struct UsgArr {
 	const Mesh *pSquares;
 	Usg *pArr;
 	StucUsg *pMemArr;
@@ -72,18 +73,17 @@ StucResult stucSampleInAttribsAtUsgOrigins(
 );
 UsgInFace *stucGetUsgForCorner(
 	I32 stucCorner,
-	StucMap pMap,
-	FaceRange *pMapFace,
+	const StucMap pMap,
+	const FaceRange *pMapFace,
 	I32 inFace,
 	bool *pAboveCutoff
 );
 void stucUsgVertTransform(
 	UsgInFace *pEntry,
-	V3_F32 uvw,
+	V2_F32 uv,
 	V3_F32 *pPos,
 	const Mesh *pInMesh,
 	V2_F32 tileMin,
 	Mat3x3 *pTbn
 );
-void stucUsgVertSetNormal(UsgInFace *pEntry, V3_F32 *pNormal);
 bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh);

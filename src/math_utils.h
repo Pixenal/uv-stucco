@@ -8,16 +8,42 @@ SPDX-License-Identifier: Apache-2.0
 #include <uv_stucco.h>
 #include <types.h>
 
-#define FLOAT_EQUAL_MARGIN .000002f
+#define EPSILON .0000001f
+#define vF32_EQL_PREFIX(a, b) (fabsf((a) - (b)) <= EPSILON)
+#define vF64_EQL_PREFIX(a, b) (fabs((a) - (b)) <= EPSILON)
+#define vF32_NOTEQL_PREFIX(a, b) (fabsf((a) - (b)) > EPSILON)
+#define vF64_NOTEQL_PREFIX(a, b) (fabs((a) - (b)) > EPSILON)
+#define vF32_GREAT_PREFIX(a, b) ((a) - (b) > EPSILON)
+#define vF64_GREAT_PREFIX(a, b) vF32_GREAT_PREFIX(a, b)
+#define vF32_LESS_PREFIX(a, b) ((a) - (b) < -EPSILON)
+#define vF64_LESS_PREFIX(a, b) vF32_LESS_PREFIX(a, b)
+#define vF32_GREATEQL_PREFIX(a, b) (vF32_GREAT_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
+#define vF64_GREATEQL_PREFIX(a, b) (vF64_GREAT_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
+#define vF32_LESSEQL_PREFIX(a, b) (vF32_LESS_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
+#define vF64_LESSEQL_PREFIX(a, b) (vF64_LESS_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
+#define F32_EQL ,F32_EQL_PREFIX,
+#define F64_EQL ,F64_EQL_PREFIX,
+#define F32_NOTEQL ,F32_NOTEQL_PREFIX,
+#define F64_NOTEQL ,F64_NOTEQL_PREFIX,
+#define F32_GREAT ,F32_GREAT_PREFIX,
+#define F64_GREAT ,F64_GREAT_PREFIX,
+#define F32_LESS ,F32_LESS_PREFIX,
+#define F64_LESS ,F64_LESS_PREFIX,
+#define F32_GREATEQL ,F32_GREATEQL_PREFIX,
+#define F64_GREATEQL ,F64_GREATEQL_PREFIX,
+#define F32_LESSEQL ,F32_LESSEQL_PREFIX,
+#define F64_LESSEQL ,F64_LESSEQL_PREFIX,
 
-#define STUC_IDENT_MAT4X4 {\
+
+#define STUC_IDENT_MAT4X4 (Stuc_M4x4_F32) {\
 	1.0, .0, .0, .0,\
 	.0, 1.0, .0, .0,\
 	.0, .0, 1.0, .0,\
 	.0, .0, .0, 1.0\
 }
 
-static Stuc_M4x4_F32 identM4x4 = STUC_IDENT_MAT4X4;
+#define STUC_MIN(a, b) (a < b ? a : b)
+#define STUC_MAX(a, b) (a > b ? a : b)
 
 typedef Stuc_V2_I8 V2_I8;
 typedef Stuc_V2_I16 V2_I16;
@@ -39,19 +65,29 @@ typedef Stuc_V4_F32 V4_F32;
 typedef Stuc_V4_F64 V4_F64;
 typedef Stuc_String String;
 
-typedef struct {
+typedef struct Mat2x3 {
 	F32 d[2][3];
 } Mat2x3;
 
-typedef struct {
+typedef struct Mat2x2 {
 	F32 d[2][2];
 } Mat2x2;
 
-typedef struct {
+typedef struct Mat3x3 {
 	F32 d[3][3];
 } Mat3x3;
 
 typedef Stuc_M4x4_F32 Mat4x4;
+
+static inline
+F32 stucF32Lerp(F32 a, F32 b, F32 alpha) {
+	return b * alpha + (1.0 - alpha) * a;
+}
+
+static inline
+F64 stucF64Lerp(F64 a, F64 b, F64 alpha) {
+	return b * alpha + (1.0 - alpha) * a;
+}
 
 V2_I32 v2F32FloorAssign(V2_F32 *pA);
 
@@ -74,7 +110,6 @@ bool v3F32Equal(V3_F32 a, V3_F32 b);
 bool v3F64Equal(V3_F64 a, V3_F64 b);
 I32 v3F32GreaterThan(V3_F32 a, V3_F32 b);
 I32 v3F32LessThan(V3_F32 a, V3_F32 b);
-I32 v3F32AproxEqual(V3_F32 a, V3_F32 b);
 V3_F32 v3F32Lerp(V3_F32 a, V3_F32 b, F32 alpha);
 V3_F32 v3F32Cross(V3_F32 a, V3_F32 b);
 V3_F64 v3F64Cross(V3_F64 a, V3_F64 b);
@@ -90,8 +125,8 @@ F32 v3F32TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
 F32 v3F32SquareLen(V3_F32);
 F32 v3F32Len(V3_F32 a);
 F32 v3F32TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
-V3_F32 cartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
-V3_F32 barycentricToCartesian(const V3_F32 *pTri, const V3_F32 *pPoint);
+V3_F32 stucCartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
+V3_F32 stucBarycentricToCartesian(const V3_F32 *pTri, V3_F32 point);
 
 V2_F32 v2F32Abs(V2_F32 a);
 V2_F32 v2F32Multiply(V2_F32 a, V2_F32 b);
@@ -110,8 +145,10 @@ void v2F32MultiplyEqualScalar(V2_F32 *pA, F32 b);
 V2_F32 v2F32MultiplyScalar(V2_F32 a, F32 b);
 F32 v2F32Dot(V2_F32 a, V2_F32 b);
 F64 v2F64Dot(V2_F64 a, V2_F64 b);
-V2_F32 v2F32Cross(V2_F32 a);
-V2_F64 v2F64Cross(V2_F64 a);
+F32 v2F32Cross(V2_F32 a, V2_F32 b);
+F64 v2F64Cross(V2_F64 a, V2_F64 b);
+V2_F32 v2F32LineNormal(V2_F32 a);
+V2_F64 v2F64LineNormal(V2_F64 a);
 V2_F32 v2F32ModScalar(V2_F32 a, F32 b);
 void v2F32ModEqualScalar(V2_F32 *pA, F32 b);
 F32 v2F32SquareLen(V2_F32 a);
@@ -199,6 +236,7 @@ F32 customFloor(F32 a);
 #define V2MULS ,2F32MultiplyScalar,
 #define V2DOT ,2F32Dot,
 #define V2DET ,2F32Determinate,
+#define V2CROSS ,2F32Cross,
 #define V2MODS ,2F32ModScalar,
 #define V2MODEQLS ,2F32ModEqualScalar,
 #define V2GREAT ,2F32GreaterThan,

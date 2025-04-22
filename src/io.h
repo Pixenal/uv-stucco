@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <uv_stucco.h>
 #include <types.h>
 
-typedef struct {
+typedef struct ByteString {
 	unsigned char *pString;
 	I64 size;
 	I64 nextBitIdx;
