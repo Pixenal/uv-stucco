@@ -84,7 +84,7 @@ void stucDestroyFaceCellsTable(
 );
 void stucDestroyFaceCellsEntry(const StucAlloc *pAlloc, FaceCells *pEntry);
 void stucInitQuadTreeSearch(QuadTreeSearch *pState);
-Result stucGetCellsForSingleFace(
+StucErr stucGetCellsForSingleFace(
 	QuadTreeSearch *pState,
 	I32 vertCount,
 	V2_F32 *pVerts,
@@ -95,14 +95,14 @@ Result stucGetCellsForSingleFace(
 );
 void stucDestroyQuadTreeSearch(QuadTreeSearch *pState);
 Cell *stucFindEncasingCell(Cell *rootCell, V2_F32 pos);
-Result stucCreateQuadTree(
+StucErr stucCreateQuadTree(
 	StucContext pCtx,
 	QuadTree *pTree,
 	const Mesh *pMesh,
 	const BBox *pFaceBBoxes
 );
 void stucDestroyQuadTree(StucContext pCtx, QuadTree *pTree);
-Result stucGetEncasingCells(
+StucErr stucGetEncasingCells(
 	const StucAlloc *pAlloc,
 	const StucMap pMap,
 	const Mesh *pInMesh,

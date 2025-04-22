@@ -5,266 +5,231 @@ SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
-#include <uv_stucco.h>
-#include <types.h>
+#include <pixenals_types.h>
 
-#define EPSILON .0000001f
-#define vF32_EQL_PREFIX(a, b) (fabsf((a) - (b)) <= EPSILON)
-#define vF64_EQL_PREFIX(a, b) (fabs((a) - (b)) <= EPSILON)
-#define vF32_NOTEQL_PREFIX(a, b) (fabsf((a) - (b)) > EPSILON)
-#define vF64_NOTEQL_PREFIX(a, b) (fabs((a) - (b)) > EPSILON)
-#define vF32_GREAT_PREFIX(a, b) ((a) - (b) > EPSILON)
-#define vF64_GREAT_PREFIX(a, b) vF32_GREAT_PREFIX(a, b)
-#define vF32_LESS_PREFIX(a, b) ((a) - (b) < -EPSILON)
-#define vF64_LESS_PREFIX(a, b) vF32_LESS_PREFIX(a, b)
-#define vF32_GREATEQL_PREFIX(a, b) (vF32_GREAT_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
-#define vF64_GREATEQL_PREFIX(a, b) (vF64_GREAT_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
-#define vF32_LESSEQL_PREFIX(a, b) (vF32_LESS_PREFIX(a, b) || vF32_EQL_PREFIX(a, b))
-#define vF64_LESSEQL_PREFIX(a, b) (vF64_LESS_PREFIX(a, b) || vF64_EQL_PREFIX(a, b))
-#define F32_EQL ,F32_EQL_PREFIX,
-#define F64_EQL ,F64_EQL_PREFIX,
-#define F32_NOTEQL ,F32_NOTEQL_PREFIX,
-#define F64_NOTEQL ,F64_NOTEQL_PREFIX,
-#define F32_GREAT ,F32_GREAT_PREFIX,
-#define F64_GREAT ,F64_GREAT_PREFIX,
-#define F32_LESS ,F32_LESS_PREFIX,
-#define F64_LESS ,F64_LESS_PREFIX,
-#define F32_GREATEQL ,F32_GREATEQL_PREFIX,
-#define F64_GREATEQL ,F64_GREATEQL_PREFIX,
-#define F32_LESSEQL ,F32_LESSEQL_PREFIX,
-#define F64_LESSEQL ,F64_LESSEQL_PREFIX,
+#define PIX_MATH_EPSILON .0000001f
+#define pixmF32_EQL_INTERN(a, b) (fabsf((a) - (b)) <= PIX_MATH_EPSILON)
+#define pixmF64_EQL_INTERN(a, b) (fabs((a) - (b)) <= PIX_MATH_EPSILON)
+#define pixmF32_NOTEQL_INTERN(a, b) (fabsf((a) - (b)) > PIX_MATH_EPSILON)
+#define pixmF64_NOTEQL_INTERN(a, b) (fabs((a) - (b)) > PIX_MATH_EPSILON)
+#define pixmF32_GREAT_INTERN(a, b) ((a) - (b) > PIX_MATH_EPSILON)
+#define pixmF64_GREAT_INTERN(a, b) pixmF32_GREAT_INTERN(a, b)
+#define pixmF32_LESS_INTERN(a, b) ((a) - (b) < -PIX_MATH_EPSILON)
+#define pixmF64_LESS_INTERN(a, b) pixmF32_LESS_INTERN(a, b)
+#define pixmF32_GREATEQL_INTERN(a, b) (pixmF32_GREAT_INTERN(a, b) || pixmF32_EQL_INTERN(a, b))
+#define pixmF64_GREATEQL_INTERN(a, b) (pixmF64_GREAT_INTERN(a, b) || pixmF64_EQL_INTERN(a, b))
+#define pixmF32_LESSEQL_INTERN(a, b) (pixmF32_LESS_INTERN(a, b) || pixmF32_EQL_INTERN(a, b))
+#define pixmF64_LESSEQL_INTERN(a, b) (pixmF64_LESS_INTERN(a, b) || pixmF64_EQL_INTERN(a, b))
+#define F32_EQL ,F32_EQL_INTERN,
+#define F64_EQL ,F64_EQL_INTERN,
+#define F32_NOTEQL ,F32_NOTEQL_INTERN,
+#define F64_NOTEQL ,F64_NOTEQL_INTERN,
+#define F32_GREAT ,F32_GREAT_INTERN,
+#define F64_GREAT ,F64_GREAT_INTERN,
+#define F32_LESS ,F32_LESS_INTERN,
+#define F64_LESS ,F64_LESS_INTERN,
+#define F32_GREATEQL ,F32_GREATEQL_INTERN,
+#define F64_GREATEQL ,F64_GREATEQL_INTERN,
+#define F32_LESSEQL ,F32_LESSEQL_INTERN,
+#define F64_LESSEQL ,F64_LESSEQL_INTERN,
 
 
-#define STUC_IDENT_MAT4X4 (Stuc_M4x4_F32) {\
+#define PIX_MATH_IDENT_MAT4X4 (Stuc_M4x4) {\
 	1.0, .0, .0, .0,\
 	.0, 1.0, .0, .0,\
 	.0, .0, 1.0, .0,\
 	.0, .0, .0, 1.0\
 }
 
-#define STUC_MIN(a, b) (a < b ? a : b)
-#define STUC_MAX(a, b) (a > b ? a : b)
-
-typedef Stuc_V2_I8 V2_I8;
-typedef Stuc_V2_I16 V2_I16;
-typedef Stuc_V2_I32 V2_I32;
-typedef Stuc_V2_I64 V2_I64;
-typedef Stuc_V2_F32 V2_F32;
-typedef Stuc_V2_F64 V2_F64;
-typedef Stuc_V3_I8 V3_I8;
-typedef Stuc_V3_I16 V3_I16;
-typedef Stuc_V3_I32 V3_I32;
-typedef Stuc_V3_I64 V3_I64;
-typedef Stuc_V3_F32 V3_F32;
-typedef Stuc_V3_F64 V3_F64;
-typedef Stuc_V4_I8 V4_I8;
-typedef Stuc_V4_I16 V4_I16;
-typedef Stuc_V4_I32 V4_I32;
-typedef Stuc_V4_I64 V4_I64;
-typedef Stuc_V4_F32 V4_F32;
-typedef Stuc_V4_F64 V4_F64;
-typedef Stuc_String String;
-
-typedef struct Mat2x3 {
-	F32 d[2][3];
-} Mat2x3;
-
-typedef struct Mat2x2 {
-	F32 d[2][2];
-} Mat2x2;
-
-typedef struct Mat3x3 {
-	F32 d[3][3];
-} Mat3x3;
-
-typedef Stuc_M4x4_F32 Mat4x4;
+#define PIXM_MIN(a, b) (a < b ? a : b)
+#define PIXM_MAX(a, b) (a > b ? a : b)
 
 static inline
-F32 stucF32Lerp(F32 a, F32 b, F32 alpha) {
+float pixmF32Lerp(float a, float b, float alpha) {
 	return b * alpha + (1.0 - alpha) * a;
 }
 
 static inline
-F64 stucF64Lerp(F64 a, F64 b, F64 alpha) {
+double pixmF64Lerp(double a, double b, double alpha) {
 	return b * alpha + (1.0 - alpha) * a;
 }
 
-V2_I32 v2F32FloorAssign(V2_F32 *pA);
+PixtyV2_I32 pixmV2F32FloorAssign(PixtyV2_F32 *pA);
 
-V4_F32 v4F32MultiplyMat4x4(V4_F32 a, const Mat4x4 *pB);
-void v4F32MultiplyEqualMat4x4(V4_F32 *pA, const Mat4x4 *pB);
-V3_F32 divideByW(const V4_F32 *pA);
+PixtyV4_F32 pixmV4F32MultiplyM4x4(PixtyV4_F32 a, const PixtyM4x4 *pB);
+void pixmV4F32MultiplyEqualM4x4(PixtyV4_F32 *pA, const PixtyM4x4 *pB);
+PixtyV3_F32 pixmDivideByW(const PixtyV4_F32 *pA);
 
-V3_F32 v3F32MultiplyScalar(V3_F32 a, F32 b);
-V3_F64 v3F64MultiplyScalar(V3_F64 a, F64 b);
-void v3F32DivideEqualScalar(V3_F32 *pA, F32 b);
-V3_F32 v3F32DivideScalar(V3_F32 a, F32 b);
-V3_F32 v3F32SubtractScalar(V3_F32 a, F32 b);
-V3_F32 v3F32AddScalar(V3_F32 a, F32 b);
-V3_F32 v3F32Add(V3_F32 a, V3_F32 b);
-V3_F64 v3F64Add(V3_F64 a, V3_F64 b);
-V3_F32 v3F32Subtract(V3_F32 a, V3_F32 b);
-V3_F64 v3F64Subtract(V3_F64 a, V3_F64 b);
-void v3F32AddEqual(V3_F32 *pA, V3_F32 b);
-bool v3F32Equal(V3_F32 a, V3_F32 b);
-bool v3F64Equal(V3_F64 a, V3_F64 b);
-I32 v3F32GreaterThan(V3_F32 a, V3_F32 b);
-I32 v3F32LessThan(V3_F32 a, V3_F32 b);
-V3_F32 v3F32Lerp(V3_F32 a, V3_F32 b, F32 alpha);
-V3_F32 v3F32Cross(V3_F32 a, V3_F32 b);
-V3_F64 v3F64Cross(V3_F64 a, V3_F64 b);
-V3_F32 v3F32UnitFromPoints(V3_F32 a, V3_F32 b);
-V3_F32 v3F32MultiplyMat3x3(V3_F32 a, const Mat3x3 *pB);
-void v3F32MultiplyEqualMat3x3(V3_F32 *pA, const Mat3x3 *pB);
-V3_F32 v3F32Normalize(V3_F32 a);
-F32 v3F32Dot(V3_F32 a, V3_F32 b);
-F64 v3F64Dot(V3_F64 a, V3_F64 b);
-I32 v3F32IsFinite(V3_F32);
-bool v3F32DegenerateTri(V3_F32 a, V3_F32 b, V3_F32 c, F32 threshold);
-F32 v3F32TriHeight(V3_F32 a, V3_F32 b, V3_F32 c);
-F32 v3F32SquareLen(V3_F32);
-F32 v3F32Len(V3_F32 a);
-F32 v3F32TriArea(V3_F32 a, V3_F32 b, V3_F32 c);
-V3_F32 stucCartesianToBarycentric(const V2_F32 *pTri, const V2_F32 *pPoint);
-V3_F32 stucBarycentricToCartesian(const V3_F32 *pTri, V3_F32 point);
+PixtyV3_F32 pixmV3F32MultiplyScalar(PixtyV3_F32 a, float b);
+PixtyV3_F64 pixmV3F64MultiplyScalar(PixtyV3_F64 a, double b);
+void pixmV3F32DivideEqualScalar(PixtyV3_F32 *pA, float b);
+PixtyV3_F32 pixmV3F32DivideScalar(PixtyV3_F32 a, float b);
+PixtyV3_F32 pixmV3F32SubtractScalar(PixtyV3_F32 a, float b);
+PixtyV3_F32 pixmV3F32AddScalar(PixtyV3_F32 a, float b);
+PixtyV3_F32 pixmV3F32Add(PixtyV3_F32 a, PixtyV3_F32 b);
+PixtyV3_F64 pixmV3F64Add(PixtyV3_F64 a, PixtyV3_F64 b);
+PixtyV3_F32 pixmV3F32Subtract(PixtyV3_F32 a, PixtyV3_F32 b);
+PixtyV3_F64 pixmV3F64Subtract(PixtyV3_F64 a, PixtyV3_F64 b);
+void pixmV3F32AddEqual(PixtyV3_F32 *pA, PixtyV3_F32 b);
+bool pixmV3F32Equal(PixtyV3_F32 a, PixtyV3_F32 b);
+bool pixmV3F64Equal(PixtyV3_F64 a, PixtyV3_F64 b);
+bool pixmV3F32GreaterThan(PixtyV3_F32 a, PixtyV3_F32 b);
+bool pixmV3F32LessThan(PixtyV3_F32 a, PixtyV3_F32 b);
+PixtyV3_F32 pixmV3F32Lerp(PixtyV3_F32 a, PixtyV3_F32 b, float alpha);
+PixtyV3_F32 pixmV3F32Cross(PixtyV3_F32 a, PixtyV3_F32 b);
+PixtyV3_F64 pixmV3F64Cross(PixtyV3_F64 a, PixtyV3_F64 b);
+PixtyV3_F32 pixmV3F32UnitFromPoints(PixtyV3_F32 a, PixtyV3_F32 b);
+PixtyV3_F32 pixmV3F32MultiplyM3x3(PixtyV3_F32 a, const PixtyM3x3 *pB);
+void pixmV3F32MultiplyEqualM3x3(PixtyV3_F32 *pA, const PixtyM3x3 *pB);
+PixtyV3_F32 pixmV3F32Normalize(PixtyV3_F32 a);
+float pixmV3F32Dot(PixtyV3_F32 a, PixtyV3_F32 b);
+double pixmV3F64Dot(PixtyV3_F64 a, PixtyV3_F64 b);
+bool pixmV3F32IsFinite(PixtyV3_F32);
+bool pixmV3F32DegenerateTri(PixtyV3_F32 a, PixtyV3_F32 b, PixtyV3_F32 c, float threshold);
+float pixmV3F32TriHeight(PixtyV3_F32 a, PixtyV3_F32 b, PixtyV3_F32 c);
+float pixmV3F32SquareLen(PixtyV3_F32);
+float pixmV3F32Len(PixtyV3_F32 a);
+float pixmV3F32TriArea(PixtyV3_F32 a, PixtyV3_F32 b, PixtyV3_F32 c);
+PixtyV3_F32 pixmCartesianToBarycentric(const PixtyV2_F32 *pTri, const PixtyV2_F32 *pPoint);
+PixtyV3_F32 pixmBarycentricToCartesian(const PixtyV3_F32 *pTri, PixtyV3_F32 point);
 
-V2_F32 v2F32Abs(V2_F32 a);
-V2_F32 v2F32Multiply(V2_F32 a, V2_F32 b);
-void v2F32MultiplyEqual(V2_F32 *pA, V2_F32 b);
-V2_F32 v2F32DivideScalar(V2_F32 a, F32 b);
-void v2F32DivideEqualScalar(V2_F32 *pA, F32 b);
-V2_F32 v2F32Subtract(V2_F32 a, V2_F32 b);
-V2_F64 v2F64Subtract(V2_F64 a, V2_F64 b);
-void v2F32SubtractEqual(V2_F32 *pA, V2_F32 b);
-V2_F32 v2F32SubtractScalar(V2_F32 a, F32 b);
-V2_F32 v2F32Add(V2_F32 a, V2_F32 b);
-V2_F32 v2F32AddScalar(V2_F32 a, F32 b);
-void v2F32AddEqual(V2_F32 *pA, V2_F32 b);
-void v2F32AddEqualScalar(V2_F32 *pA, F32 b);
-void v2F32MultiplyEqualScalar(V2_F32 *pA, F32 b);
-V2_F32 v2F32MultiplyScalar(V2_F32 a, F32 b);
-F32 v2F32Dot(V2_F32 a, V2_F32 b);
-F64 v2F64Dot(V2_F64 a, V2_F64 b);
-F32 v2F32Cross(V2_F32 a, V2_F32 b);
-F64 v2F64Cross(V2_F64 a, V2_F64 b);
-V2_F32 v2F32LineNormal(V2_F32 a);
-V2_F64 v2F64LineNormal(V2_F64 a);
-V2_F32 v2F32ModScalar(V2_F32 a, F32 b);
-void v2F32ModEqualScalar(V2_F32 *pA, F32 b);
-F32 v2F32SquareLen(V2_F32 a);
-F32 v2F32Len(V2_F32 a);
-F32 v2F32TriArea(V2_F32 a, V2_F32 b, V2_F32 c);
-F32 v2F32Determinate(V2_F32 a, V2_F32 b);
-F64 v2F64Determinate(V2_F64 a, V2_F64 b);
-I32 v2F32GreaterThan(V2_F32 a, V2_F32 b);
-I32 v2F32GreaterThanScalar(V2_F32 a, F32 b);
-I32 v2F32GreaterThanEqualTo(V2_F32 a, V2_F32 b);
-I32 v2F32LessThan(V2_F32 a, V2_F32 b);
-I32 v2F32LessThanScalar(V2_F32 a, F32 b);
-I32 v2F32LessThanEqualTo(V2_F32 a, V2_F32 b);
-I32 v2F32NotEqual(V2_F32 a, V2_F32 b);
-I32 v2F32Equal(V2_F32 a, V2_F32 b);
-I32 v2F64Equal(V2_F64 a, V2_F64 b);
-I32 v2F32AproxEqual(V2_F32 a, V2_F32 b);
-I32 v2F32AproxEqualThres(V2_F32 a, V2_F32 b, F32 threshold);
-I32 v2F32DegenerateTri(V2_F32 a, V2_F32 b, V2_F32 c, F32 threshold);
-F32 v2F32TriHeight(V2_F32 a, V2_F32 b, V2_F32 c);
-I32 v2F32IsFinite(V2_F32);
+PixtyV2_F32 pixmV2F32Abs(PixtyV2_F32 a);
+PixtyV2_F32 pixmV2F32Multiply(PixtyV2_F32 a, PixtyV2_F32 b);
+void pixmV2F32MultiplyEqual(PixtyV2_F32 *pA, PixtyV2_F32 b);
+PixtyV2_F32 pixmV2F32DivideScalar(PixtyV2_F32 a, float b);
+void pixmV2F32DivideEqualScalar(PixtyV2_F32 *pA, float b);
+PixtyV2_F32 pixmV2F32Subtract(PixtyV2_F32 a, PixtyV2_F32 b);
+PixtyV2_F64 pixmV2F64Subtract(PixtyV2_F64 a, PixtyV2_F64 b);
+void pixmV2F32SubtractEqual(PixtyV2_F32 *pA, PixtyV2_F32 b);
+PixtyV2_F32 pixmV2F32SubtractScalar(PixtyV2_F32 a, float b);
+PixtyV2_F32 pixmV2F32Add(PixtyV2_F32 a, PixtyV2_F32 b);
+PixtyV2_F32 pixmV2F32AddScalar(PixtyV2_F32 a, float b);
+void pixmV2F32AddEqual(PixtyV2_F32 *pA, PixtyV2_F32 b);
+void pixmV2F32AddEqualScalar(PixtyV2_F32 *pA, float b);
+void pixmV2F32MultiplyEqualScalar(PixtyV2_F32 *pA, float b);
+PixtyV2_F32 pixmV2F32MultiplyScalar(PixtyV2_F32 a, float b);
+float pixmV2F32Dot(PixtyV2_F32 a, PixtyV2_F32 b);
+double pixmV2F64Dot(PixtyV2_F64 a, PixtyV2_F64 b);
+float pixmV2F32Cross(PixtyV2_F32 a, PixtyV2_F32 b);
+double pixmV2F64Cross(PixtyV2_F64 a, PixtyV2_F64 b);
+PixtyV2_F32 pixmV2F32LineNormal(PixtyV2_F32 a);
+PixtyV2_F64 pixmV2F64LineNormal(PixtyV2_F64 a);
+PixtyV2_F32 pixmV2F32ModScalar(PixtyV2_F32 a, float b);
+void pixmV2F32ModEqualScalar(PixtyV2_F32 *pA, float b);
+float pixmV2F32SquareLen(PixtyV2_F32 a);
+float pixmV2F32Len(PixtyV2_F32 a);
+float pixmV2F32TriArea(PixtyV2_F32 a, PixtyV2_F32 b, PixtyV2_F32 c);
+float pixmV2F32Determinate(PixtyV2_F32 a, PixtyV2_F32 b);
+double pixmV2F64Determinate(PixtyV2_F64 a, PixtyV2_F64 b);
+bool pixmV2F32GreaterThan(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F32GreaterThanScalar(PixtyV2_F32 a, float b);
+bool pixmV2F32GreaterThanEqualTo(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F32LessThan(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F32LessThanScalar(PixtyV2_F32 a, float b);
+bool pixmV2F32LessThanEqualTo(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F32NotEqual(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F32Equal(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F64Equal(PixtyV2_F64 a, PixtyV2_F64 b);
+bool pixmV2F32AproxEqual(PixtyV2_F32 a, PixtyV2_F32 b);
+bool pixmV2F32AproxEqualThres(PixtyV2_F32 a, PixtyV2_F32 b, float threshold);
+bool pixmV2F32DegenerateTri(PixtyV2_F32 a, PixtyV2_F32 b, PixtyV2_F32 c, float threshold);
+float pixmV2F32TriHeight(PixtyV2_F32 a, PixtyV2_F32 b, PixtyV2_F32 c);
+bool pixmV2F32IsFinite(PixtyV2_F32);
 
-bool v2I8Equal(V2_I8 a, V2_I8 b);
-bool v2I16Equal(V2_I16 a, V2_I16 b);
-bool v2I32Equal(V2_I32 a, V2_I32 b);
-bool v2I64Equal(V2_I64 a, V2_I64 b);
-bool v3I8Equal(V3_I8 a, V3_I8 b);
-bool v3I16Equal(V3_I16 a, V3_I16 b);
-bool v3I32Equal(V3_I32 a, V3_I32 b);
-bool v3I64Equal(V3_I64 a, V3_I64 b);
-bool v4I8Equal(V4_I8 a, V4_I8 b);
-bool v4I16Equal(V4_I16 a, V4_I16 b);
-bool v4I32Equal(V4_I32 a, V4_I32 b);
-bool v4I64Equal(V4_I64 a, V4_I64 b);
+bool pixmV2I8Equal(PixtyV2_I8 a, PixtyV2_I8 b);
+bool pixmV2I16Equal(PixtyV2_I16 a, PixtyV2_I16 b);
+bool pixmV2I32Equal(PixtyV2_I32 a, PixtyV2_I32 b);
+bool pixmV2I64Equal(PixtyV2_I64 a, PixtyV2_I64 b);
+bool pixmV3I8Equal(PixtyV3_I8 a, PixtyV3_I8 b);
+bool pixmV3I16Equal(PixtyV3_I16 a, PixtyV3_I16 b);
+bool pixmV3I32Equal(PixtyV3_I32 a, PixtyV3_I32 b);
+bool pixmV3I64Equal(PixtyV3_I64 a, PixtyV3_I64 b);
+bool pixmV4I8Equal(PixtyV4_I8 a, PixtyV4_I8 b);
+bool pixmV4I16Equal(PixtyV4_I16 a, PixtyV4_I16 b);
+bool pixmV4I32Equal(PixtyV4_I32 a, PixtyV4_I32 b);
+bool pixmV4I64Equal(PixtyV4_I64 a, PixtyV4_I64 b);
 
-Mat2x2 mat2x2Adjugate(Mat2x2 a);
-F32 mat2x2Determinate(Mat2x2 a);
-void mat2x2MultiplyEqualScalar(Mat2x2 *pA, F32 b);
-Mat2x2 mat2x2Invert(Mat2x2 a);
-Mat2x3 mat2x2MultiplyMat2x3(Mat2x2 a, Mat2x3 b);
-I32 mat2x2IsFinite(const Mat2x2 *pA);
-Mat3x3 mat3x3FromV3_F32(V3_F32 a, V3_F32 b, V3_F32 c);
-Mat3x3 Mat3x3FromMat4x4(const Mat4x4 *pA);
-Mat3x3 mat3x3Invert(const Mat3x3 *pA);
-I32 mat3x3IsFinite(const Mat3x3 *pA);
+PixtyM2x2 pixmM2x2Adjugate(PixtyM2x2 a);
+float pixmM2x2Determinate(PixtyM2x2 a);
+void pixmM2x2MultiplyEqualScalar(PixtyM2x2 *pA, float b);
+PixtyM2x2 pixmM2x2Invert(PixtyM2x2 a);
+PixtyM2x3 pixmM2x2MultiplyM2x3(PixtyM2x2 a, PixtyM2x3 b);
+bool pixmM2x2IsFinite(const PixtyM2x2 *pA);
+PixtyM3x3 pixmM3x3FromPxtyp_V3_F32(PixtyV3_F32 a, PixtyV3_F32 b, PixtyV3_F32 c);
+PixtyM3x3 pixmM3x3FromM4x4(const PixtyM4x4 *pA);
+PixtyM3x3 pixmM3x3Invert(const PixtyM3x3 *pA);
+bool pixmM3x3IsFinite(const PixtyM3x3 *pA);
 
-bool v4F32Equal(V4_F32 a, V4_F32 b);
-bool v4F64Equal(V4_F64 a, V4_F64 b);
+bool pixmV4F32Equal(PixtyV4_F32 a, PixtyV4_F32 b);
+bool pixmV4F64Equal(PixtyV4_F64 a, PixtyV4_F64 b);
 
-F32 customFloor(F32 a);
+float pixmFloor(float a);
 
-#define V4MULM4X4 ,4F32MultiplyMat4x4,
-#define V4MULEQLM4X4 ,4F32MultiplyEqualMat4x4,
+#define V4MULM4X4 ,V4F32MultiplyM4x4,
+#define V4MULEQLM4X4 ,V4F32MultiplyEqualM4x4,
 
-#define V3MULS ,3F32MultiplyScalar,
-#define V3DIVEQLS ,3F32DivideEqualScalar,
-#define V3DIVS ,3F32DivideScalar,
-#define V3SUB ,3F32Subtract,
-#define V3SUBS ,3F32SubtractScalar,
-#define V3ADDS ,3F32AddScalar,
-#define V3ADD ,3F32Add,
-#define V3ADDEQL ,3F32AddEqual,
-#define V3EQL ,3F32Equal,
-#define V364EQL ,3F64Equal,
-#define V3GREAT ,3F32GreaterThan,
-#define V3LESS ,3F32LessThan,
-#define V3CROSS ,3F32Cross,
-#define V3APROXEQL ,3F32AproxEqual,
-#define V3DOT ,3F32Dot,
-#define V3MULM3X3 ,3F32MultiplyMat3x3,
-#define V3MULEQLM3X3 ,3F32MultiplyEqualMat3x3,
+#define V3MULS ,V3F32MultiplyScalar,
+#define V3DIVEQLS ,V3F32DivideEqualScalar,
+#define V3DIVS ,V3F32DivideScalar,
+#define V3SUB ,V3F32Subtract,
+#define V3SUBS ,V3F32SubtractScalar,
+#define V3ADDS ,V3F32AddScalar,
+#define V3ADD ,V3F32Add,
+#define V3ADDEQL ,V3F32AddEqual,
+#define V3EQL ,V3F32Equal,
+#define V364EQL ,V3F64Equal,
+#define V3GREAT ,V3F32GreaterThan,
+#define V3LESS ,V3F32LessThan,
+#define V3CROSS ,V3F32Cross,
+#define V3APROXEQL ,V3F32AproxEqual,
+#define V3DOT ,V3F32Dot,
+#define V3MULM3X3 ,V3F32MultiplyM3x3,
+#define V3MULEQLM3X3 ,V3F32MultiplyEqualM3x3,
 
-#define V2MUL ,2F32Multiply,
-#define V2MULEQL ,2F32MultiplyEqual,
-#define V2DIVS ,2F32DivideScalar,
-#define V2DIVSEQL ,2F32DivideEqualScalar,
-#define V2SUB ,2F32Subtract,
-#define V2SUBEQL ,2F32SubtractEqual,
-#define V2SUBS ,2F32SubtractScalar,
-#define V2ADD ,2F32Add,
-#define V2ADDS ,2F32AddScalar,
-#define V2ADDEQL ,2F32AddEqual,
-#define V2ADDEQLS ,2F32AddEqualScalar,
-#define V2MULSEQL ,2F32MultiplyEqualScalar,
-#define V2MULS ,2F32MultiplyScalar,
-#define V2DOT ,2F32Dot,
-#define V2DET ,2F32Determinate,
-#define V2CROSS ,2F32Cross,
-#define V2MODS ,2F32ModScalar,
-#define V2MODEQLS ,2F32ModEqualScalar,
-#define V2GREAT ,2F32GreaterThan,
-#define V2GREATS ,2F32GreaterThanScalar,
-#define V2GREATEQL ,2F32GreaterThanEqualTo,
-#define V2LESS ,2F32LessThan,
-#define V2LESSS ,2F32LessThanScalar,
-#define V2LESSEQL ,2F32LessThanEqualTo,
-#define V2NOTEQL ,2F32NotEqual,
-#define V2EQL ,2F32Equal,
-#define V264EQL ,2F64Equal,
-#define V2APROXEQL ,2F32AproxEqual,
+#define V2MUL ,V2F32Multiply,
+#define V2MULEQL ,V2F32MultiplyEqual,
+#define V2DIVS ,V2F32DivideScalar,
+#define V2DIVSEQL ,V2F32DivideEqualScalar,
+#define V2SUB ,V2F32Subtract,
+#define V2SUBEQL ,V2F32SubtractEqual,
+#define V2SUBS ,V2F32SubtractScalar,
+#define V2ADD ,V2F32Add,
+#define V2ADDS ,V2F32AddScalar,
+#define V2ADDEQL ,V2F32AddEqual,
+#define V2ADDEQLS ,V2F32AddEqualScalar,
+#define V2MULSEQL ,V2F32MultiplyEqualScalar,
+#define V2MULS ,V2F32MultiplyScalar,
+#define V2DOT ,V2F32Dot,
+#define V2DET ,V2F32Determinate,
+#define V2CROSS ,V2F32Cross,
+#define V2MODS ,V2F32ModScalar,
+#define V2MODEQLS ,V2F32ModEqualScalar,
+#define V2GREAT ,V2F32GreaterThan,
+#define V2GREATS ,V2F32GreaterThanScalar,
+#define V2GREATEQL ,V2F32GreaterThanEqualTo,
+#define V2LESS ,V2F32LessThan,
+#define V2LESSS ,V2F32LessThanScalar,
+#define V2LESSEQL ,V2F32LessThanEqualTo,
+#define V2NOTEQL ,V2F32NotEqual,
+#define V2EQL ,V2F32Equal,
+#define V264EQL ,V2F64Equal,
+#define V2APROXEQL ,V2F32AproxEqual,
 
-#define V4EQL ,4F32Equal,
-#define V464EQL ,4F64Equal,
+#define V4EQL ,V4F32Equal,
+#define V464EQL ,V4F64Equal,
 
-#define V2I8EQL ,2I8Equal,
-#define V2I16EQL ,2I16Equal,
-#define V2IEQL ,2IEqual,
-#define V2I64EQL ,2I64Equal,
-#define V3I8EQL ,3I8Equal,
-#define V3I16EQL ,3I16Equal,
-#define V3IEQL ,3IEqual,
-#define V3I64EQL ,3I64Equal,
-#define V4I8EQL ,4I8Equal,
-#define V4I16EQL ,4I16Equal,
-#define V4IEQL ,4IEqual,
-#define V4I64EQL ,4I64Equal,
+#define V2I8EQL ,V2I8Equal,
+#define V2I16EQL ,V2I16Equal,
+#define V2IEQL ,V2IEqual,
+#define V2I64EQL ,V2I64Equal,
+#define V3I8EQL ,V3I8Equal,
+#define V3I16EQL ,V3I16Equal,
+#define V3IEQL ,V3IEqual,
+#define V3I64EQL ,V3I64Equal,
+#define V4I8EQL ,V4I8Equal,
+#define V4I16EQL ,V4I16Equal,
+#define V4IEQL ,V4IEqual,
+#define V4I64EQL ,V4I64Equal,
 
-#define INFIX(a,o,b) v##o((a),(b))
-#define _(a) INFIX(a)
+#define PIXM_INFIX(a,o,b) pixm##o((a),(b))
+#define _(a) PIXM_INFIX(a)

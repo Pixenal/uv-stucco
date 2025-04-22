@@ -110,9 +110,9 @@ typedef struct ClippedRoot {
 } ClippedRoot;
 
 typedef struct ClippedArr {
-	LinAlloc inAlloc;
-	LinAlloc mapAlloc;
-	LinAlloc rootAlloc;
+	PixalcLinAlloc inAlloc;
+	PixalcLinAlloc mapAlloc;
+	PixalcLinAlloc rootAlloc;
 } ClippedArr;
 
 /*
@@ -169,7 +169,7 @@ typedef struct xformAndInterpVertsJobArgs {
 	Mesh *pOutMesh;// outmesh in core.pBasic is const
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
-	LinAlloc *pVertAlloc;
+	PixalcLinAlloc *pVertAlloc;
 	bool intersect;
 } xformAndInterpVertsJobArgs;
 
@@ -181,8 +181,8 @@ typedef struct InterpAttribsJobArgs {
 	const HTable *pMergeTable;
 } InterpAttribsJobArgs;
 
-Result stucFindEncasedFaces(void *pArgsVoid);
-Result stucGetEncasedFacesPerFace(
+StucErr stucFindEncasedFaces(void *pArgsVoid);
+StucErr stucGetEncasedFacesPerFace(
 	FindEncasedFacesJobArgs *pArgs,
 	FaceCellsTable *pFaceCellsTable,
 	V2_I16 tile,
@@ -221,7 +221,7 @@ typedef struct BorderCache {
 
 typedef struct BufMeshInitJobArgs {
 	JobArgs core;
-	Result (* fpAddPiece)(
+	StucErr (* fpAddPiece)(
 		const MapToMeshBasic *,
 		I32,
 		const InPiece *,
@@ -232,21 +232,21 @@ typedef struct BufMeshInitJobArgs {
 	BufMesh bufMesh;
 } BufMeshInitJobArgs;
 
-Result stucClipMapFace(
+StucErr stucClipMapFace(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache
 );
-Result stucAddMapFaceToBufMesh(
+StucErr stucAddMapFaceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache
 );
-Result stucBufMeshInit(void *pArgsVoid);
-Result stucXformAndInterpVertsInRange(void *pArgsVoid);
-Result stucInterpCornerAttribs(void *pArgsVoid);
-Result stucInterpFaceAttribs(void *pArgsVoid);
+StucErr stucBufMeshInit(void *pArgsVoid);
+StucErr stucXformAndInterpVertsInRange(void *pArgsVoid);
+StucErr stucInterpCornerAttribs(void *pArgsVoid);
+StucErr stucInterpFaceAttribs(void *pArgsVoid);

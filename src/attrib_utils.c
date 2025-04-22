@@ -140,20 +140,20 @@ void fBlendAddSub(F64 *pDest, F64 a, F64 b) {
 
 static
 void fBlendLighten(F64 *pDest, F64 a, F64 b) {
-	*pDest = STUC_MAX(a, b);
+	*pDest = PIXM_MAX(a, b);
 }
 static
 void iBlendLighten(I64 *pDest, I64 a, I64 b) {
-	*pDest = STUC_MAX(a, b);
+	*pDest = PIXM_MAX(a, b);
 }
 
 static
 void fBlendDarken(F64 *pDest, F64 a, F64 b) {
-	*pDest = STUC_MIN(a, b);
+	*pDest = PIXM_MIN(a, b);
 }
 static
 void iBlendDarken(I64 *pDest, I64 a, I64 b) {
-	*pDest = STUC_MIN(a, b);
+	*pDest = PIXM_MIN(a, b);
 }
 	
 static
@@ -309,19 +309,19 @@ I32 stucGetAttribSizeIntern(AttribType type) {
 		case STUC_ATTRIB_STRING:
 			return STUC_ATTRIB_STRING_MAX_LEN;
 		default:
-			STUC_ASSERT("", false);
+			PIX_ERR_ASSERT("", false);
 			return 0;
 	}
 }
 
-Result stucAssignActiveAliases(
+StucErr stucAssignActiveAliases(
 	StucContext pCtx,
 	Mesh *pMesh,
 	UBitField32 flags,
 	StucDomain domain
 ) {
-	Result err = STUC_SUCCESS;
-	STUC_RETURN_ERR_IFNOT_COND(err, pCtx && pMesh, "");
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMesh, "");
 	for (I32 i = 1; i < STUC_ATTRIB_USE_SP_ENUM_COUNT; ++i) {
 		if (!(flags >> i & 0x1) ||
 			(domain != STUC_DOMAIN_NONE && domain != pCtx->spAttribDomains[i])) {
@@ -384,14 +384,14 @@ Result stucAssignActiveAliases(
 				pMesh->pEdgeCorners = pAttrib->core.pData;
 				break;
 			default:
-				STUC_ASSERT("outside use special range", false);
+				PIX_ERR_ASSERT("outside use special range", false);
 		}
 	}
 	return err;
 }
 
 Attrib *stucGetActiveAttrib(StucContext pCtx, StucMesh *pMesh, StucAttribUse use) {
-	STUC_ASSERT("", use >= 0);
+	PIX_ERR_ASSERT("", use >= 0);
 	if (use == STUC_ATTRIB_USE_NONE ||
 		use == STUC_ATTRIB_USE_SP_ENUM_COUNT ||
 		use >= STUC_ATTRIB_USE_ENUM_COUNT
@@ -403,7 +403,7 @@ Attrib *stucGetActiveAttrib(StucContext pCtx, StucMesh *pMesh, StucAttribUse use
 		return NULL;
 	}
 	AttribArray *pArr = stucGetAttribArrFromDomain(pMesh, idx.domain);
-	STUC_ASSERT("", idx.idx < pArr->count);
+	PIX_ERR_ASSERT("", idx.idx < pArr->count);
 	return pArr->pArr + idx.idx;
 }
 
@@ -443,7 +443,7 @@ Attrib *stucGetAttribIntern(
 	const StucMesh *pMesh
 ) {
 	for (I32 i = 0; i < pAttribs->count; ++i) {
-		STUC_ASSERT(
+		PIX_ERR_ASSERT(
 			"if excludeActive is true, pCtx and pMesh must not be NULL",
 			((excludeActive << 1) | (pCtx && pMesh)) != 0x2
 		);
@@ -478,7 +478,7 @@ void stucSetAttribIdxActive(
 	StucAttribUse use,
 	StucDomain domain
 ) {
-	STUC_ASSERT("", use >= 0);
+	PIX_ERR_ASSERT("", use >= 0);
 	if (use != STUC_ATTRIB_USE_NONE &&
 		use != STUC_ATTRIB_USE_SP_ENUM_COUNT &&
 		use < STUC_ATTRIB_USE_ENUM_COUNT
@@ -566,7 +566,7 @@ void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx) {
 		case STUC_ATTRIB_STRING:
 			return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
 		default:
-			STUC_ASSERT("", false);
+			PIX_ERR_ASSERT("", false);
 			return NULL;
 	}
 }
@@ -676,13 +676,13 @@ I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32
 			       sizeof(F64[STUC_ATTRIB_STRING_MAX_LEN]));
 			break;
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
 	return 0;
 }
 
 I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc) {
-	STUC_ASSERT("", pSrc->copyOpt == STUC_ATTRIB_COPY);
+	PIX_ERR_ASSERT("", pSrc->copyOpt == STUC_ATTRIB_COPY);
 	return stucCopyAttribCore(&pDest->core, iDest, &pSrc->core, iSrc);
 }
 
@@ -786,7 +786,7 @@ StucTypeDefault *stucGetTypeDefaultConfig(
 		case STUC_ATTRIB_STRING:
 			return &pConfig->string;
 		default:
-			STUC_ASSERT("", false);
+			PIX_ERR_ASSERT("", false);
 			return 0;
 	}
 }
@@ -818,9 +818,9 @@ const StucCommonAttrib *stucGetCommonAttribFromDomain(
 		case STUC_DOMAIN_VERT:
 			return stucGetCommonAttrib(&pList->vert, pName);
 		default:
-			STUC_ASSERT("invalid domain", false);
+			PIX_ERR_ASSERT("invalid domain", false);
 	}
-	STUC_ASSERT("invalid domain", false);
+	PIX_ERR_ASSERT("invalid domain", false);
 	return NULL;
 }
 
@@ -852,7 +852,7 @@ void stucLerpAttrib(
 	F32 alpha
 ) {
 	//TODO remove all uses of abort()
-	STUC_ASSERT(
+	PIX_ERR_ASSERT(
 		"type mismatch in interpolateAttrib",
 		pDest->type == pSrcA->type &&
 		pDest->type == pSrcB->type
@@ -936,7 +936,7 @@ void stucLerpAttrib(
 		case STUC_ATTRIB_STRING:
 			break;
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
 }
 
@@ -1030,13 +1030,13 @@ void stucTriInterpolateAttrib(
 		case STUC_ATTRIB_STRING:
 			break;
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
 }
 
 I32 stucAttribTypeGetVecSizeIntern(AttribType type) {
-	STUC_ASSERT("invalid type", type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT);
-	STUC_ASSERT("this func shouldn't be called on a string", type != STUC_ATTRIB_STRING);
+	PIX_ERR_ASSERT("invalid type", type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT);
+	PIX_ERR_ASSERT("this func shouldn't be called on a string", type != STUC_ATTRIB_STRING);
 	if (type == STUC_ATTRIB_NONE) {
 		return 0;
 	}
@@ -1054,7 +1054,7 @@ I32 stucAttribTypeGetVecSizeIntern(AttribType type) {
 
 static
 F64 makeFloatWide(const void *ptr, AttribType type) {
-	STUC_ASSERT("invalid type", type == STUC_ATTRIB_F32 || type == STUC_ATTRIB_F64);
+	PIX_ERR_ASSERT("invalid type", type == STUC_ATTRIB_F32 || type == STUC_ATTRIB_F64);
 	return type == STUC_ATTRIB_F32 ? (F64)*(F32 *)ptr : *(F64 *)ptr; 
 }
 
@@ -1070,9 +1070,9 @@ I64 makeIntWide(const void *ptr, AttribType type, bool isSigned) {
 		case STUC_ATTRIB_I64:
 			return (I64)(isSigned ? *(I64 *)ptr : *(U64 *)ptr);
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
-	STUC_ASSERT("invalid type", false);
+	PIX_ERR_ASSERT("invalid type", false);
 	return 0;
 }
 
@@ -1099,9 +1099,9 @@ I32 getAttribCompTypeSize(AttribType type) {
 		case STUC_ATTRIB_F64:
 			return 8;
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
-	STUC_ASSERT("invalid type", false);
+	PIX_ERR_ASSERT("invalid type", false);
 	return 0;
 }
 
@@ -1129,14 +1129,14 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 		case STUC_ATTRIB_I64:
 			return getSigned ? INT64_MAX : UINT64_MAX;
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
-	STUC_ASSERT("invalid type", false);
+	PIX_ERR_ASSERT("invalid type", false);
 	return 0;
 }
 
 #define SET_VOID_COMP(tDest ,pDestComp, src)\
-	STUC_ASSERT("invalid type", tDest != STUC_ATTRIB_NONE && tDest < STUC_ATTRIB_V2_I8);\
+	PIX_ERR_ASSERT("invalid type", tDest != STUC_ATTRIB_NONE && tDest < STUC_ATTRIB_V2_I8);\
 	switch (tDest) {\
 		case STUC_ATTRIB_I8:\
 			*(I8 *)pDestComp = (I8)src;\
@@ -1157,7 +1157,7 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 			*(F64 *)pDestComp = (F64)src;\
 			break;\
 		default:\
-			STUC_ASSERT("invalid type", false);\
+			PIX_ERR_ASSERT("invalid type", false);\
 	}
 
 #define CALL_BLEND_FUNC(\
@@ -1175,15 +1175,15 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 	t bComp = (t)(bIsFloat ?\
 		makeFloatWide(pBComp, bCompType) : makeIntWide(pBComp, bCompType, isSigned));\
 	if (normalizeA) {\
-		STUC_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
+		PIX_ERR_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
 		aComp /= (t)aMax;\
 	}\
 	if (normalizeB) {\
-		STUC_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
+		PIX_ERR_ASSERT("type must be floating point if normalizing", #t[0] == 'F');\
 		bComp /= (t)bMax;\
 	}\
 \
-	STUC_ASSERT("", pBlendFunc);\
+	PIX_ERR_ASSERT("", pBlendFunc);\
 	pBlendFunc(&destBuf, aComp, bComp);\
 \
 	if (blendConfig.clamp) {\
@@ -1191,7 +1191,7 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 	}\
 	if (blendConfig.opacity != .0 && blendConfig.opacity != 1.0) {\
 		/* lerp is done in F64 regardless of t */\
-		destBuf = (t)stucF64Lerp((F64)aComp, (F64)destBuf, (F64)blendConfig.opacity);\
+		destBuf = (t)pixmF64Lerp((F64)aComp, (F64)destBuf, (F64)blendConfig.opacity);\
 	}\
 	SET_VOID_COMP(destCompType, pDestComp, destBuf);\
 }
@@ -1208,7 +1208,7 @@ void blendComponents(
 ) {
 	bool aIsFloat = isAttribTypeFloat(aCompType);
 	bool bIsFloat = isAttribTypeFloat(bCompType);
-	I32 size = STUC_MIN(STUC_MIN(aVecSize, bVecSize), destVecSize);
+	I32 size = PIXM_MIN(PIXM_MIN(aVecSize, bVecSize), destVecSize);
 	for (I32 i = 0; i < size; ++i) {
 		void *pDestComp = (int8_t *)pDest + getAttribCompTypeSize(destCompType) * i;
 		const void *pAComp =
@@ -1428,7 +1428,7 @@ void blendUseIdx(
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB
 ) {
-	STUC_ASSERT(
+	PIX_ERR_ASSERT(
 		"this should have been picked up in mesh validation",
 		pDest->type == STUC_ATTRIB_I8
 	);
@@ -1651,10 +1651,10 @@ void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar) {
 			DIVIDE_BY_SCALAR(F64, pAttrib, idx, 4, 3, scalar);
 			break;
 		case STUC_ATTRIB_STRING:
-			STUC_ASSERT("Can't divide a string by 1", false);
+			PIX_ERR_ASSERT("Can't divide a string by 1", false);
 			break;
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
 }
 
@@ -1671,7 +1671,7 @@ AttribArray *stucGetAttribArrFromDomain(StucMesh *pMesh, StucDomain domain) {
 		case STUC_DOMAIN_MESH:
 			return &pMesh->meshAttribs;
 		default:
-			STUC_ASSERT("invalid domain", false);
+			PIX_ERR_ASSERT("invalid domain", false);
 			return NULL;
 	}
 }
@@ -1680,7 +1680,7 @@ const AttribArray *stucGetAttribArrFromDomainConst(const StucMesh *pMesh, StucDo
 	return stucGetAttribArrFromDomain((StucMesh *)pMesh, domain);
 }
 
-Result stucGetMatchingAttrib(
+StucErr stucGetMatchingAttrib(
 	StucContext pCtx,
 	StucMesh *pDest, AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
@@ -1688,7 +1688,7 @@ Result stucGetMatchingAttrib(
 	bool excludeActive,
 	Attrib **ppOut
 ) {
-	Result err = STUC_SUCCESS;
+	StucErr err = PIX_ERR_SUCCESS;
 	bool srcIsActive = stucIsAttribActive(pCtx, pSrc, pSrcAttrib);
 	*ppOut = NULL;
 	if (!srcIsActive) {
@@ -1707,7 +1707,7 @@ Result stucGetMatchingAttrib(
 		*ppOut = stucGetActiveAttrib(pCtx, pDest, pSrcAttrib->core.use);
 	}
 	if (*ppOut) {
-		STUC_RETURN_ERR_IFNOT_COND(
+		PIX_ERR_RETURN_IFNOT_COND(
 			err,
 			stucCheckAttribsAreCompatible(*ppOut, pSrcAttrib),
 			"mismatch between common attribs"
@@ -1716,7 +1716,7 @@ Result stucGetMatchingAttrib(
 	return err;
 }
 
-Result stucGetMatchingAttribConst(
+StucErr stucGetMatchingAttribConst(
 	StucContext pCtx,
 	const StucMesh *pDest, const AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
@@ -1735,7 +1735,7 @@ Result stucGetMatchingAttribConst(
 }
 
 static
-Result allocAttribsFromArr(
+StucErr allocAttribsFromArr(
 	StucContext pCtx,
 	StucMesh *pDest,
 	AttribArray *pDestAttribs,
@@ -1748,7 +1748,7 @@ Result allocAttribsFromArr(
 	bool aliasData,
 	bool keepActive
 ) {
-	Result err = STUC_SUCCESS;
+	StucErr err = PIX_ERR_SUCCESS;
 	for (I32 j = 0; j < pSrcAttribs->count; ++j) {
 		Attrib *pSrcAttrib = pSrcAttribs->pArr + j;
 		if (pSrcAttrib->copyOpt == STUC_ATTRIB_DONT_COPY) {
@@ -1763,7 +1763,7 @@ Result allocAttribsFromArr(
 			true,
 			&pDestAttrib
 		);
-		STUC_RETURN_ERR_IFNOT(err, "");
+		PIX_ERR_RETURN_IFNOT(err, "");
 		if (pDestAttrib) {
 			//if attribute already exists in destination,
 			//set origin to common and set if active, then skip
@@ -1781,7 +1781,7 @@ Result allocAttribsFromArr(
 			}
 			continue;
 		}
-		STUC_ASSERT("", pDestAttribs->count <= pDestAttribs->size);
+		PIX_ERR_ASSERT("", pDestAttribs->count <= pDestAttribs->size);
 		if (pDestAttribs->count == pDestAttribs->size) {
 			pDestAttribs->size *= 2;
 			pDestAttribs->pArr = pCtx->alloc.fpRealloc(
@@ -1809,7 +1809,7 @@ Result allocAttribsFromArr(
 			pSrcAttrib->core.use
 		);
 		if (aliasData) {
-			STUC_ASSERT("", !allocData);
+			PIX_ERR_ASSERT("", !allocData);
 			pDestAttrib->core.pData = pSrcAttrib->core.pData;
 		}
 		pDestAttribs->count++;
@@ -1817,7 +1817,7 @@ Result allocAttribsFromArr(
 	return err;
 }
 
-Result stucAllocAttribs(
+StucErr stucAllocAttribs(
 	StucContext pCtx,
 	StucDomain domain,
 	Mesh *pDest,
@@ -1828,7 +1828,7 @@ Result stucAllocAttribs(
 	bool allocData,
 	bool aliasData
 ) {
-	Result err = STUC_SUCCESS;
+	StucErr err = PIX_ERR_SUCCESS;
 	AttribArray *pDestAttribArr = stucGetAttribArrFromDomain(&pDest->core, domain);
 	pDestAttribArr->size = 2;
 	pDestAttribArr->pArr = pCtx->alloc.fpCalloc(pDestAttribArr->size, sizeof(Attrib));
@@ -1849,10 +1849,10 @@ Result stucAllocAttribs(
 				aliasData,
 				activeSrc < 0 ? true : i == activeSrc
 			);
-			STUC_THROW_IFNOT(err, "", 0);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 	}
-	STUC_CATCH(0, err, ;);
+	PIX_ERR_CATCH(0, err, ;);
 	if (!pDestAttribArr->count) {
 		pCtx->alloc.fpFree(pDestAttribArr->pArr);
 		pDestAttribArr->pArr = NULL;
@@ -1871,7 +1871,7 @@ void stucReallocAttrib(
 	I32 attribSize = stucGetAttribSizeIntern(pAttrib->type);
 	pAttrib->pData = pAlloc->fpRealloc(pAttrib->pData, attribSize * newLen);
 	I8 newFirstElement = *(I8 *)stucAttribAsVoid(pAttrib, 0);
-	STUC_ASSERT("", newFirstElement == oldFirstElement);
+	PIX_ERR_ASSERT("", newFirstElement == oldFirstElement);
 }
 
 
@@ -1882,11 +1882,11 @@ void stucReallocAttribArr(
 	AttribArray *pAttribArr,
 	const I32 newLen
 ) {
-	STUC_ASSERT("", newLen >= 0 && newLen < 100000000);
+	PIX_ERR_ASSERT("", newLen >= 0 && newLen < 100000000);
 	for (I32 i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
 		//Check entry is valid
-		STUC_ASSERT("corrupt attrib", pAttrib->interpolate % 2 == pAttrib->interpolate);
+		PIX_ERR_ASSERT("corrupt attrib", pAttrib->interpolate % 2 == pAttrib->interpolate);
 		stucReallocAttrib(&pCtx->alloc, pMesh, &pAttrib->core, newLen);
 	}
 	stucAssignActiveAliases(pCtx, pMesh, 0xffffffff, domain); //set all
@@ -1918,7 +1918,7 @@ void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin) {
 	}
 }
 
-Result stucAllocAttribsFromMeshArr(
+StucErr stucAllocAttribsFromMeshArr(
 	StucContext pCtx,
 	Mesh *pDest,
 	I32 srcCount,
@@ -1928,7 +1928,7 @@ Result stucAllocAttribsFromMeshArr(
 	bool allocData,
 	bool aliasData
 ) {
-	Result err = STUC_SUCCESS;
+	StucErr err = PIX_ERR_SUCCESS;
 	bool skipEdge = false;
 #ifdef STUC_DISABLE_EDGES_IN_BUF
 	skipEdge = pDest->core.type.type == STUC_OBJECT_DATA_MESH_BUF;
@@ -1948,7 +1948,7 @@ Result stucAllocAttribsFromMeshArr(
 			allocData,
 			aliasData
 		);
-		STUC_RETURN_ERR_IFNOT(err, "");
+		PIX_ERR_RETURN_IFNOT(err, "");
 	}
 	return err;
 }
@@ -1998,7 +1998,7 @@ void stucAppendAttrib(
 	AttribType type,
 	StucAttribUse use
 ) {
-	STUC_ASSERT("", pArr->count <= pArr->size);
+	PIX_ERR_ASSERT("", pArr->count <= pArr->size);
 	if (pArr->size == 0) {
 		pArr->size = 1;
 		pArr->pArr = pAlloc->fpMalloc(sizeof(Attrib) * pArr->size);
@@ -2023,7 +2023,7 @@ void stucAppendAttrib(
 }
 
 #define CMP_VEC_ATTRIBS(t, size, a, b)\
-	v##size##t##Equal(*(const V##size##_##t *)a, *(const V##size##_##t *)b)
+	pixmV##size##t##Equal(*(const V##size##_##t *)a, *(const V##size##_##t *)b)
 
 bool stucCmpAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB) {
 	const void *pAData = stucAttribAsVoidConst(pA, iA);
@@ -2084,9 +2084,9 @@ bool stucCmpAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB) 
 				STUC_ATTRIB_STRING_MAX_LEN
 			);
 		default:
-			STUC_ASSERT("invalid attrib type", false);
+			PIX_ERR_ASSERT("invalid attrib type", false);
 	}
-	STUC_ASSERT("invalid attrib type", false);
+	PIX_ERR_ASSERT("invalid attrib type", false);
 	return false;
 }
 
@@ -2116,7 +2116,7 @@ void stucAppendSpAttribsToMesh(
 		StucDomain domain = pCtx->spAttribDomains[i];
 		AttribArray *pArr = stucGetAttribArrFromDomain(&pMesh->core, domain);
 		I32 dataLen = stucDomainCountGetIntern(&pMesh->core, domain);
-		STUC_ASSERT("", pArr);
+		PIX_ERR_ASSERT("", pArr);
 		Attrib *pAttrib = NULL;
 		stucAppendAttrib(
 			&pCtx->alloc,
@@ -2171,7 +2171,7 @@ AttribIndexed *stucAppendIndexedAttrib(
 	StucAttribType type,
 	StucAttribUse use
 ) {
-	STUC_ASSERT("", pIndexedAttribArr->count <= pIndexedAttribArr->size);
+	PIX_ERR_ASSERT("", pIndexedAttribArr->count <= pIndexedAttribArr->size);
 	if (pIndexedAttribArr->count == pIndexedAttribArr->size) {
 		pIndexedAttribArr->size *= 2;
 		pCtx->alloc.fpRealloc(pIndexedAttribArr->pArr, pIndexedAttribArr->size);
@@ -2185,15 +2185,15 @@ AttribIndexed *stucAppendIndexedAttrib(
 	return pIndexedAttrib;
 }
 
-Result stucAppendAndCopyIndexedAttrib(
+StucErr stucAppendAndCopyIndexedAttrib(
 	StucContext pCtx,
 	const char *pName,
 	AttribIndexedArr *pDestArr,
 	const AttribIndexedArr *pSrcArr
 ) {
-	Result err = STUC_SUCCESS;
+	StucErr err = PIX_ERR_SUCCESS;
 	AttribIndexed *pSrc = stucGetAttribIndexedInternConst(pSrcArr, pName);
-	STUC_RETURN_ERR_IFNOT_COND(err, pSrc, "");
+	PIX_ERR_RETURN_IFNOT_COND(err, pSrc, "");
 	AttribIndexed *pIndexedAttrib = stucAppendIndexedAttrib(
 		pCtx,
 		pDestArr,
@@ -2217,10 +2217,10 @@ void stucAppendToIndexedAttrib(
 	const AttribCore *pSrc,
 	I32 srcIdx
 ) {
-	STUC_ASSERT("", pDest->core.type == pSrc->type);
-	STUC_ASSERT("", pDest->count <= pDest->size);
+	PIX_ERR_ASSERT("", pDest->core.type == pSrc->type);
+	PIX_ERR_ASSERT("", pDest->count <= pDest->size);
 	if (!pDest->size) {
-		STUC_ASSERT("", !pDest->count);
+		PIX_ERR_ASSERT("", !pDest->count);
 		pDest->size = 1;
 		pDest->core.pData =
 			pCtx->alloc.fpCalloc(pDest->size, stucGetAttribSizeIntern(pDest->core.type));
@@ -2246,7 +2246,7 @@ bool stucIsAttribUseRequired(StucAttribUse use) {
 }
 
 UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count) {
-	STUC_ASSERT("", count <= STUC_ATTRIB_USE_ENUM_COUNT);
+	PIX_ERR_ASSERT("", count <= STUC_ATTRIB_USE_ENUM_COUNT);
 	UBitField32 field = 0;
 	for (I32 i = 0; i < count; ++i) {
 		field |= 0x1 << pArr[i];

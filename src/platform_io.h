@@ -6,20 +6,24 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <stdint.h>
 
-#include <alloc.h>
-#include <types.h>
+#include "../src/alloc.h"
 
 typedef struct {
 	void *file;
-} PlatformFile;
+} PixioFile;
 
-StucResult stucPlatformFileOpen(
+typedef enum PixioFileOpenType {
+	PIX_IO_FILE_OPEN_WRITE,
+	PIX_IO_FILE_OPEN_READ
+} PixioFileOpenType;
+
+PixErr pixioFileOpen(
 	void **ppFile,
 	const char *filePath,
-	StucFileOpenType action,
-	const StucAlloc *pAlloc
+	PixioFileOpenType action,
+	const PixalcFPtrs *pAlloc
 );
-StucResult stucPlatformFileGetSize(void *pFile, I64 *pSize);
-StucResult stucPlatformFileWrite(void *pFile, const unsigned char *data, I32 dataSize);
-StucResult stucPlatformFileRead(void *pFile, unsigned char *data, I32 bytesToRead);
-StucResult stucPlatformFileClose(void *pFile);
+PixErr pixioFileGetSize(void *pFile, int64_t *pSize);
+PixErr pixioFileWrite(void *pFile, const unsigned char *data, int32_t dataSize);
+PixErr pixioFileRead(void *pFile, unsigned char *data, int32_t bytesToRead);
+PixErr pixioFileClose(void *pFile);

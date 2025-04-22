@@ -16,13 +16,13 @@ SPDX-License-Identifier: Apache-2.0
 #include <alloc.h>
 
 static
-Result getEncasedFacesPerTile(
+StucErr getEncasedFacesPerTile(
 	FindEncasedFacesJobArgs *pArgs,
 	FaceRange *pInFace,
 	FaceCellsTable *pFaceCellsTable,
 	I32 faceIdx
 ) {
-	Result err = STUC_SUCCESS;
+	StucErr err = PIX_ERR_SUCCESS;
 	FaceBounds *pFaceBounds = 
 		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pArgs->core.range.start)->faceBounds;
 	for (I32 j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
@@ -37,16 +37,16 @@ Result getEncasedFacesPerTile(
 				tile,
 				pInFace
 			);
-			STUC_RETURN_ERR_IFNOT(err, "");
+			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 	}
 	return err;
 }
 
 static
-Result getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCellsTable) {
-	Result err = STUC_SUCCESS;
-	STUC_ASSERT("record stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
+StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCellsTable) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_ASSERT("record stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
 	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
 		if (pBasic->maskIdx != -1 && pBasic->pInMesh->pMatIdx &&
@@ -71,15 +71,15 @@ Result getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCell
 				stucIdxFaceCells(pFaceCellsTable, i, pArgs->core.range.start);
 			stucDestroyFaceCellsEntry(&pBasic->pCtx->alloc, pFaceCellsEntry);
 		}
-		STUC_RETURN_ERR_IFNOT(err, "");
+		PIX_ERR_RETURN_IFNOT(err, "");
 	}
 	return err;
 }
 
-StucResult stucFindEncasedFaces(void *pArgsVoid) {
-	Result err = STUC_SUCCESS;
+StucErr stucFindEncasedFaces(void *pArgsVoid) {
+	StucErr err = PIX_ERR_SUCCESS;
 	FindEncasedFacesJobArgs *pArgs = pArgsVoid;
-	STUC_ASSERT("", pArgs);
+	PIX_ERR_ASSERT("", pArgs);
 	StucContext pCtx = pArgs->core.pBasic->pCtx;
 
 	FaceCellsTable faceCellsTable = {0};
@@ -93,7 +93,7 @@ StucResult stucFindEncasedFaces(void *pArgsVoid) {
 		&faceCellsTable,
 		&averageMapFacesPerFace
 	);
-	STUC_THROW_IFNOT(err, "", 0);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	EncasedMapFaceTableState tableState =  {.pBasic = pArgs->core.pBasic};
 	stucHTableInit(
 		&pArgs->core.pBasic->pCtx->alloc,
@@ -103,8 +103,8 @@ StucResult stucFindEncasedFaces(void *pArgsVoid) {
 		&tableState
 	);
 	err = getEncasedFaces(pArgs, &faceCellsTable);
-	STUC_THROW_IFNOT(err, "", 0);
-	STUC_CATCH(0, err, ;);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_CATCH(0, err, ;);
 	stucDestroyFaceCellsTable(&pCtx->alloc, &faceCellsTable, pArgs->core.range);
 	return err;
 }

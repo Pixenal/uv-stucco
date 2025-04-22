@@ -21,7 +21,7 @@ typedef struct Usg {
 typedef struct InFaceArr {
 	struct InFaceArr *pNext;
 	I32 *pArr;
-	Mat3x3 tbn;
+	M3x3 tbn;
 	V3_F32 normal;
 	I32 tri[3];
 	I32 count;
@@ -31,7 +31,7 @@ typedef struct InFaceArr {
 
 typedef struct InFaceTable {
 	InFaceArr *pArr;
-	LinAlloc alloc;
+	PixalcLinAlloc alloc;
 } InFaceTable;
 
 typedef struct UsgInFace {
@@ -49,22 +49,22 @@ typedef struct UsgArr {
 	I32 count;
 } UsgArr;
 
-StucResult stucAllocUsgSquaresMesh(
+StucErr stucAllocUsgSquaresMesh(
 	StucContext pCtx,
 	const StucMap pMap,
 	Mesh *pMesh
 );
-StucResult stucFillUsgSquaresMesh(
+StucErr stucFillUsgSquaresMesh(
 	const StucMap pMap,
 	const StucUsg *pUsgArr,
 	Mesh *pMesh
 );
-StucResult stucAssignUsgsToVerts(
+StucErr stucAssignUsgsToVerts(
 	const StucAlloc *pAlloc,
 	StucMap pMap,
 	StucUsg *pUsgArr
 );
-StucResult stucSampleInAttribsAtUsgOrigins(
+StucErr stucSampleInAttribsAtUsgOrigins(
 	StucContext pCtx,
 	const StucMap pMap,
 	const Mesh *pInMesh,
@@ -84,6 +84,6 @@ void stucUsgVertTransform(
 	V3_F32 *pPos,
 	const Mesh *pInMesh,
 	V2_F32 tileMin,
-	Mat3x3 *pTbn
+	M3x3 *pTbn
 );
 bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh);

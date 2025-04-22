@@ -8,36 +8,34 @@ SPDX-License-Identifier: Apache-2.0
 #include <stdio.h>
 
 #include <platform_io.h>
-#include <types.h>
-#include <error.h>
 
 #define ERR_MESSAGE_MAX_LEN 128
 
 typedef struct PlatformContext {
 	HANDLE *pHFile;
-	StucAlloc alloc;
+	PixalcFPtrs alloc;
 } PlatformContext;
 
-StucResult stucPlatformFileOpen(
+PixErr pixioFileOpen(
 	void **ppFile,
 	const char *filePath,
-	StucFileOpenType action,
-	const StucAlloc *pAlloc
+	PixioFileOpenType action,
+	const PixalcFPtrs *pAlloc
 ) {
-	StucResult err = STUC_SUCCESS;
+	PixErr err = PIX_ERR_SUCCESS;
 	DWORD access;
 	DWORD disposition;
 	switch (action) {
-		case STUC_FILE_OPEN_WRITE:
+		case PIX_IO_FILE_OPEN_WRITE:
 			access = GENERIC_WRITE;
 			disposition = CREATE_ALWAYS;
 			break;
-		case STUC_FILE_OPEN_READ:
+		case PIX_IO_FILE_OPEN_READ:
 			access = GENERIC_READ;
 			disposition = OPEN_EXISTING;
 			break;
 		default:
-			STUC_RETURN_ERR(err, "Invalid action passed to function\n");
+			PIX_ERR_RETURN(err, "Invalid action passed to function\n");
 	}
 	PlatformContext *pState = pAlloc->fpMalloc(sizeof(PlatformContext));
 	pState->alloc = *pAlloc;
@@ -52,14 +50,14 @@ StucResult stucPlatformFileOpen(
 	if (pState->pHFile == INVALID_HANDLE_VALUE) {
 		char message[ERR_MESSAGE_MAX_LEN] = {0};
 		snprintf(message, ERR_MESSAGE_MAX_LEN, "Win Error: %d\n", GetLastError());
-		STUC_RETURN_ERR(err, message);
+		PIX_ERR_RETURN(err, message);
 	}
 	*ppFile = pState;
 	return err;
 }
 
-StucResult stucPlatformFileGetSize(void *pFile, I64 *pSize) {
-	StucResult err = STUC_SUCCESS;
+PixErr pixioFileGetSize(void *pFile, int64_t *pSize) {
+	PixErr err = PIX_ERR_SUCCESS;
 	PlatformContext *pState = pFile;
 	LARGE_INTEGER size = {0};
 	if (!GetFileSizeEx(pState->pHFile, &size)) {
@@ -70,18 +68,18 @@ StucResult stucPlatformFileGetSize(void *pFile, I64 *pSize) {
 			"Win error: %d\n",
 			GetLastError()
 		);
-		STUC_RETURN_ERR(err, message);
+		PIX_ERR_RETURN(err, message);
 	}
 	*pSize = size.QuadPart;
 	return err;
 }
 
-StucResult stucPlatformFileWrite(
+PixErr pixioFileWrite(
 	void *pFile,
 	const unsigned char *data,
-	I32 dataSize
+	int32_t dataSize
 ) {
-	StucResult err = STUC_SUCCESS;
+	PixErr err = PIX_ERR_SUCCESS;
 	PlatformContext *pState = pFile;
 	DWORD bytesWritten;
 	if (!WriteFile(pState->pHFile, data, dataSize, &bytesWritten, NULL)) {
@@ -92,22 +90,22 @@ StucResult stucPlatformFileWrite(
 			"Win error: %d\n",
 			GetLastError()
 		);
-		STUC_RETURN_ERR(err, message);
+		PIX_ERR_RETURN(err, message);
 	}
-	STUC_RETURN_ERR_IFNOT_COND(
+	PIX_ERR_RETURN_IFNOT_COND(
 		err,
-		(I32)bytesWritten == dataSize,
+		(int32_t)bytesWritten == dataSize,
 		"Number of bytes written does not match data len"
 	);
 	return err;
 }
 
-StucResult stucPlatformFileRead(
+PixErr pixioFileRead(
 	void *pFile,
 	unsigned char *data,
-	I32 bytesToRead
+	int32_t bytesToRead
 ) {
-	StucResult err = STUC_SUCCESS;
+	PixErr err = PIX_ERR_SUCCESS;
 	PlatformContext *pState = pFile;
 	DWORD bytesRead;
 	if (!ReadFile(pState->pHFile, data, bytesToRead, &bytesRead, NULL)) {
@@ -118,25 +116,25 @@ StucResult stucPlatformFileRead(
 			"Win error: %d\n",
 			GetLastError()
 		);
-		STUC_RETURN_ERR(err, message);
+		PIX_ERR_RETURN(err, message);
 	}
-	STUC_RETURN_ERR_IFNOT_COND(
+	PIX_ERR_RETURN_IFNOT_COND(
 		err,
-		(I32)bytesRead == bytesToRead,
+		(int32_t)bytesRead == bytesToRead,
 		"Number of bytes read does not match specififed amount\n"
 	);
 	return err;
 }
 
-StucResult stucPlatformFileClose(void *pFile) {
-	StucResult err = STUC_SUCCESS;
+PixErr pixioFileClose(void *pFile) {
+	PixErr err = PIX_ERR_SUCCESS;
 	PlatformContext *pState = pFile;
 	bool success = CloseHandle(pState->pHFile);
 	pState->alloc.fpFree(pState);
 	if (!success) {
 		char message[ERR_MESSAGE_MAX_LEN] = {0};
 		snprintf(message, ERR_MESSAGE_MAX_LEN, "Win error: %d\n", GetLastError());
-		STUC_RETURN_ERR(err, message);
+		PIX_ERR_RETURN(err, message);
 	}
 	return err;
 }

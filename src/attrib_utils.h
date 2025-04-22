@@ -42,7 +42,7 @@ void stucSetDefaultSpAttribNames(StucContext pCtx);
 void stucSetDefaultSpAttribDomains(StucContext pCtx);
 void stucSetDefaultSpAttribTypes(StucContext pCtx);
 I32 stucGetAttribSizeIntern(AttribType type);
-Result stucAssignActiveAliases(
+StucErr stucAssignActiveAliases(
 	StucContext pCtx,
 	Mesh *pMesh,
 	UBitField32 flags,
@@ -109,7 +109,7 @@ const StucCommonAttrib *stucGetCommonAttrib(
 	const StucCommonAttribArr *pArr,
 	char *pName
 );
-Result stucGetMatchingAttrib(
+StucErr stucGetMatchingAttrib(
 	StucContext pCtx,
 	StucMesh *pDest, AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
@@ -117,7 +117,7 @@ Result stucGetMatchingAttrib(
 	bool excludeActive,
 	Attrib **ppOut
 );
-Result stucGetMatchingAttribConst(
+StucErr stucGetMatchingAttribConst(
 	StucContext pCtx,
 	const StucMesh *pDest, const AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
@@ -157,7 +157,7 @@ void stucBlendAttribs(
 	StucBlendConfig blendConfig
 );
 void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar);
-Result stucAllocAttribs(
+StucErr stucAllocAttribs(
 	StucContext pCtx,
 	StucDomain domain,
 	Mesh *pDest,
@@ -188,7 +188,7 @@ void stucSetAttribCopyOpt(
 	UBitField32 flags
 );
 void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin);
-Result stucAllocAttribsFromMeshArr(
+StucErr stucAllocAttribsFromMeshArr(
 	StucContext pCtx,
 	Mesh *pDest,
 	I32 srcCount,
@@ -256,7 +256,7 @@ AttribIndexed *stucAppendIndexedAttrib(
 	StucAttribType type,
 	StucAttribUse use
 );
-Result stucAppendAndCopyIndexedAttrib(
+StucErr stucAppendAndCopyIndexedAttrib(
 	StucContext pCtx,
 	const char *pName,
 	AttribIndexedArr *pDestArr,

@@ -14,7 +14,9 @@ SPDX-License-Identifier: Apache-2.0
 #include <stdbool.h>
 #endif
 
-#include <types.h>
+#include "../src/pixenals_types.h"
+#include "../src/alloc.h"
+#include "../src/platform_io.h"
 
 #define STUC_DISABLE_EDGES_IN_BUF
 
@@ -144,32 +146,27 @@ typedef enum StucDomain {
 	STUC_DOMAIN_MESH
 } StucDomain;
 
-typedef enum StucResult {
-	STUC_NOT_SET,
-	STUC_SUCCESS,
-	STUC_ERROR,
-	STUC_ERROR_QUIET
-} StucResult;
+typedef PixErr StucErr;
 
-typedef Pixtype_V2_I8 Stuc_V2_I8;
-typedef Pixtype_V2_I16 Stuc_V2_I16;
-typedef Pixtype_V2_I32 Stuc_V2_I32;
-typedef Pixtype_V2_I64 Stuc_V2_I64;
-typedef Pixtype_V2_F32 Stuc_V2_F32;
-typedef Pixtype_V2_F64 Stuc_V2_F64;
-typedef Pixtype_V3_I8 Stuc_V3_I8;
-typedef Pixtype_V3_I16 Stuc_V3_I16;
-typedef Pixtype_V3_I32 Stuc_V3_I32;
-typedef Pixtype_V3_I64 Stuc_V3_I64;
-typedef Pixtype_V3_F32 Stuc_V3_F32;
-typedef Pixtype_V3_F64 Stuc_V3_F64;
-typedef Pixtype_V4_I8 Stuc_V4_I8;
-typedef Pixtype_V4_I16 Stuc_V4_I16;
-typedef Pixtype_V4_I32 Stuc_V4_I32;
-typedef Pixtype_V4_I64 Stuc_V4_I64;
-typedef Pixtype_V4_F32 Stuc_V4_F32;
-typedef Pixtype_V4_F64 Stuc_V4_F64;
-typedef Pixtype_M4x4_F32 Stuc_M4x4_F32;
+typedef PixtyV2_I8 Stuc_V2_I8;
+typedef PixtyV2_I16 Stuc_V2_I16;
+typedef PixtyV2_I32 Stuc_V2_I32;
+typedef PixtyV2_I64 Stuc_V2_I64;
+typedef PixtyV2_F32 Stuc_V2_F32;
+typedef PixtyV2_F64 Stuc_V2_F64;
+typedef PixtyV3_I8 Stuc_V3_I8;
+typedef PixtyV3_I16 Stuc_V3_I16;
+typedef PixtyV3_I32 Stuc_V3_I32;
+typedef PixtyV3_I64 Stuc_V3_I64;
+typedef PixtyV3_F32 Stuc_V3_F32;
+typedef PixtyV3_F64 Stuc_V3_F64;
+typedef PixtyV4_I8 Stuc_V4_I8;
+typedef PixtyV4_I16 Stuc_V4_I16;
+typedef PixtyV4_I32 Stuc_V4_I32;
+typedef PixtyV4_I64 Stuc_V4_I64;
+typedef PixtyV4_F32 Stuc_V4_F32;
+typedef PixtyV4_F64 Stuc_V4_F64;
+typedef PixtyM4x4 Stuc_M4x4;
 
 typedef struct Stuc_String {
 	char d[STUC_ATTRIB_STRING_MAX_LEN];
@@ -314,34 +311,24 @@ typedef struct StucMesh {
 
 typedef struct StucObject {
 	StucObjectData *pData;
-	Stuc_M4x4_F32 transform;
+	Stuc_M4x4 transform;
 } StucObject;
 
-typedef enum StucFileOpenType {
-	STUC_FILE_OPEN_WRITE,
-	STUC_FILE_OPEN_READ
-} StucFileOpenType;
-
-typedef struct StucAlloc {
-	void *(*fpMalloc)(size_t);
-	void *(*fpCalloc)(size_t, size_t);
-	void (*fpFree)(void *);
-	void *(*fpRealloc)(void *, size_t);
-} StucAlloc;
+typedef PixalcFPtrs StucAlloc;
 
 typedef struct StucThreadPool {
 	void (*fpInit)(void **, int32_t *, const StucAlloc *);
 	void (*fpJobStackGetJob)(void *, void **);
-	StucResult (*pJobStackPushJobs)(
+	StucErr (*pJobStackPushJobs)(
 		void *,
 		int32_t,
 		void **,
-		StucResult (*)(void *),
+		StucErr (*)(void *),
 		void **
 	);
-	StucResult (*fpWaitForJobs)(void *, int32_t, void **, bool, bool *);
-	StucResult (*fpJobHandleDestroy)(void *, void **);
-	StucResult (*fpGetJobErr)(void *, void *, StucResult *);
+	StucErr (*fpWaitForJobs)(void *, int32_t, void **, bool, bool *);
+	StucErr (*fpJobHandleDestroy)(void *, void **);
+	StucErr (*fpGetJobErr)(void *, void *, StucErr *);
 	bool (*fpGetAndDoJob)(void *);
 	void (*fpMutexGet)(void *, void **);
 	void (*fpMutexLock)(void *, void *);
@@ -353,11 +340,13 @@ typedef struct StucThreadPool {
 	void (*fpDestroy)(void *);
 } StucThreadPool;
 
+typedef PixioFileOpenType StucFileOpenType;
+
 typedef struct StucIo {
-	StucResult (*fpOpen)(void **, const char *, StucFileOpenType, const StucAlloc *);
-	StucResult (*fpWrite)(void *, const unsigned char *, int32_t);
-	StucResult (*fpRead)(void *, unsigned char *, int32_t);
-	StucResult (*fpClose)(void *);
+	StucErr (*fpOpen)(void **, const char *, StucFileOpenType, const StucAlloc *);
+	StucErr (*fpWrite)(void *, const unsigned char *, int32_t);
+	StucErr (*fpRead)(void *, unsigned char *, int32_t);
+	StucErr (*fpClose)(void *);
 } StucIo;
 
 typedef struct StucImage {
@@ -385,9 +374,9 @@ typedef struct StucStageReport {
 extern "C" {
 #endif
 STUC_EXPORT
-StucResult stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
+StucErr stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
-StucResult stucContextInit(
+StucErr stucContextInit(
 	StucContext *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pTheadPool,
@@ -396,7 +385,7 @@ StucResult stucContextInit(
 	StucStageReport *pStageReport
 );
 STUC_EXPORT
-StucResult stucMapFileExport(
+StucErr stucMapFileExport(
 	StucContext context,
 	const char *pPath,
 	int32_t objCount,
@@ -406,7 +395,7 @@ StucResult stucMapFileExport(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucResult stucMapFileLoadForEdit(
+StucErr stucMapFileLoadForEdit(
 	StucContext pCtx,
 	const char *filePath,
 	int32_t *pObjCount,
@@ -418,35 +407,35 @@ StucResult stucMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucResult stucMapFileLoad(StucContext pCtx, StucMap *pMapHandle, const char *filePath);
+StucErr stucMapFileLoad(StucContext pCtx, StucMap *pMapHandle, const char *filePath);
 STUC_EXPORT
-StucResult stucMapFileUnload(StucContext pCtx, StucMap pMap);
+StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
 //Use this to access the mesh contaned within a StucMap handle.
 //Objects are collapsed in map handles, so if you want the original geometry
 //call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
 STUC_EXPORT
-StucResult stucMapFileMeshGet(StucContext pCtx, StucMap pMap, const StucMesh **ppMesh);
+StucErr stucMapFileMeshGet(StucContext pCtx, StucMap pMap, const StucMesh **ppMesh);
 STUC_EXPORT
-StucResult stucQueryCommonAttribs(
+StucErr stucQueryCommonAttribs(
 	StucContext pCtx,
 	const StucMap pMap,
 	const StucMesh *pMesh,
 	StucCommonAttribList *pCommonAttribs
 );
 STUC_EXPORT
-StucResult stucCommonAttribArrGetFromDomain(
+StucErr stucCommonAttribArrGetFromDomain(
 	StucContext pCtx,
 	StucCommonAttribList *pList,
 	StucDomain domain,
 	StucCommonAttribArr **ppArr
 );
 STUC_EXPORT
-StucResult stucDestroyCommonAttribs(
+StucErr stucDestroyCommonAttribs(
 	StucContext pCtx,
 	StucCommonAttribList *pCommonAttribs
 );
 STUC_EXPORT
-StucResult stucQueueMapToMesh(
+StucErr stucQueueMapToMesh(
 	StucContext pCtx,
 	void **ppJobHandle,
 	StucMapArr *pMapArr,
@@ -458,7 +447,7 @@ StucResult stucQueueMapToMesh(
 	float receiveLen
 );
 STUC_EXPORT
-StucResult stucMapToMesh(
+StucErr stucMapToMesh(
 	StucContext pCtx,
 	const StucMapArr *pMapArr,
 	const StucMesh *pMeshIn,
@@ -469,31 +458,31 @@ StucResult stucMapToMesh(
 	float receiveLen
 );
 STUC_EXPORT
-StucResult stucObjArrDestroy(
+StucErr stucObjArrDestroy(
 	StucContext pCtx,
 	int32_t objCount,
 	StucObject *pObjArr
 );
 STUC_EXPORT
-StucResult stucUsgArrDestroy(StucContext pCtx, int32_t count, StucUsg *pUsgArr);
+StucErr stucUsgArrDestroy(StucContext pCtx, int32_t count, StucUsg *pUsgArr);
 STUC_EXPORT
-StucResult stucMeshDestroy(StucContext pCtx, StucMesh *pMesh);
+StucErr stucMeshDestroy(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucResult stucContextDestroy(StucContext pCtx);
+StucErr stucContextDestroy(StucContext pCtx);
 STUC_EXPORT
-StucResult stucGetAttribSize(StucAttribCore *pAttrib, int32_t *pSize);
+StucErr stucGetAttribSize(StucAttribCore *pAttrib, int32_t *pSize);
 STUC_EXPORT
-StucResult stucGetAttrib(const char *pName, StucAttribArray *pAttribs, StucAttrib **ppAttrib);
+StucErr stucGetAttrib(const char *pName, StucAttribArray *pAttribs, StucAttrib **ppAttrib);
 STUC_EXPORT
-StucResult stucAttribGetAsVoid(StucAttribCore *pAttrib, int32_t idx, void **ppOut);
+StucErr stucAttribGetAsVoid(StucAttribCore *pAttrib, int32_t idx, void **ppOut);
 STUC_EXPORT
-StucResult stucGetAttribIndexed(
+StucErr stucGetAttribIndexed(
 	const char *pName,
 	StucAttribIndexedArr *pAttribs,
 	StucAttribIndexed **ppAttrib
 );
 STUC_EXPORT
-StucResult stucMapFileGenPreviewImage(
+StucErr stucMapFileGenPreviewImage(
 	StucContext pCtx,
 	StucMap pMap,
 	StucImage *pImage
@@ -505,7 +494,7 @@ void stucMapIndexedAttribsGet(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucResult stucWaitForJobs(
+StucErr stucWaitForJobs(
 	StucContext pCtx,
 	int32_t count,
 	void **ppHandles,
@@ -513,7 +502,7 @@ StucResult stucWaitForJobs(
 	bool *pDone
 );
 STUC_EXPORT
-StucResult stucJobGetErrs(
+StucErr stucJobGetErrs(
 	StucContext pCtx,
 	int32_t jobCount,
 	void ***pppJobHandles
@@ -525,17 +514,17 @@ void stucJobDestroyHandles(
 	void **ppJobHandles
 );
 STUC_EXPORT
-StucResult stucAttribSpTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
+StucErr stucAttribSpTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
 STUC_EXPORT
-StucResult stucAttribSpDomainsGet(StucContext pCtx, const StucDomain **ppDomains);
+StucErr stucAttribSpDomainsGet(StucContext pCtx, const StucDomain **ppDomains);
 STUC_EXPORT
-StucResult stucAttribSpIsValid(
+StucErr stucAttribSpIsValid(
 	StucContext pCtx,
 	const StucAttribCore *pCore,
 	StucDomain domain
 );
 STUC_EXPORT
-StucResult stucAttribGetAllDomains(
+StucErr stucAttribGetAllDomains(
 	StucContext pCtx,
 	StucMesh *pMesh,
 	const char *pName,
@@ -543,7 +532,7 @@ StucResult stucAttribGetAllDomains(
 	StucDomain *pDomain
 );
 STUC_EXPORT
-StucResult stucAttribGetAllDomainsConst(
+StucErr stucAttribGetAllDomainsConst(
 	StucContext pCtx,
 	const StucMesh *pMesh,
 	const char *pName,
@@ -551,48 +540,48 @@ StucResult stucAttribGetAllDomainsConst(
 	StucDomain *pDomain
 );
 STUC_EXPORT
-StucResult stucAttribArrGet(
+StucErr stucAttribArrGet(
 	StucContext pCtx,
 	StucMesh *pMesh,
 	StucDomain domain,
 	StucAttribArray **ppArr
 );
 STUC_EXPORT
-StucResult stucAttribArrGetConst(
+StucErr stucAttribArrGetConst(
 	StucContext pCtx,
 	const StucMesh *pMesh,
 	StucDomain domain,
 	const StucAttribArray **ppArr
 );
 STUC_EXPORT
-StucResult stucAttribGetCompType(
+StucErr stucAttribGetCompType(
 	StucContext pCtx,
 	StucAttribType type,
 	StucAttribType *pCompType
 );
 STUC_EXPORT
-StucResult stucAttribTypeGetVecSize(
+StucErr stucAttribTypeGetVecSize(
 	StucContext pCtx,
 	StucAttribType type,
 	int32_t *pSize
 );
 STUC_EXPORT
-StucResult stucDomainCountGet(
+StucErr stucDomainCountGet(
 	StucContext pCtx,
 	const StucMesh *pMesh,
 	StucDomain domain,
 	int32_t *pCount
 );
 STUC_EXPORT
-StucResult stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr);
+StucErr stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr);
 STUC_EXPORT
-StucResult stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr);
+StucErr stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr);
 STUC_EXPORT
-StucResult stucObjectInit(
+StucErr stucObjectInit(
 	StucContext pCtx,
 	StucObject *pObj,
 	StucMesh *pMesh,
-	const Stuc_M4x4_F32 *pTransform
+	const Stuc_M4x4 *pTransform
 );
 #ifdef __cplusplus
 }

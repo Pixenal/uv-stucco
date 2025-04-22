@@ -23,11 +23,6 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_FORCE_INLINE __attribute__((always_inline)) static inline
 #endif
 
-typedef U64 UBitField64;
-typedef U32 UBitField32;
-typedef U16 UBitField16;
-typedef U8 UBitField8;
-
 typedef struct Color {
 	F32 d[4];
 } Color;

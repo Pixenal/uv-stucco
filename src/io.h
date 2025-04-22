@@ -19,7 +19,7 @@ typedef struct ByteString {
 } ByteString;
 
 //void stucWriteDebugImage(Cell *pRootCell);
-StucResult stucWriteStucFile(
+StucErr stucWriteStucFile(
 	StucContext pCtx,
 	const char *pPath,
 	I32 objCount,
@@ -28,7 +28,7 @@ StucResult stucWriteStucFile(
 	StucUsg *pUsgArr,
 	StucAttribIndexedArr *pIndexedAttribs
 );
-StucResult stucLoadStucFile(
+StucErr stucLoadStucFile(
 	StucContext pCtx,
 	const char *filePath,
 	I32 *pObjCount,

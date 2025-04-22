@@ -55,7 +55,7 @@ I32 getPixelSize(StucImageType type) {
 		case STUC_IMAGE_F32:
 			return 16;
 		default:
-			STUC_ASSERT("", false);
+			PIX_ERR_ASSERT("", false);
 			return 0;
 	}
 }
@@ -71,7 +71,7 @@ void *offsetImagePtr(const StucImage *pImage, I32 offset) {
 		case STUC_IMAGE_F32:
 			return (Color *)pImage->pData + offset;
 		default:
-			STUC_ASSERT("", false);
+			PIX_ERR_ASSERT("", false);
 			return NULL;
 	}
 }
