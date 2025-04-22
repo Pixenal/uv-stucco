@@ -7,15 +7,18 @@
 
 ## A library for mapping geometry to meshes
 
-# Build Instructions
+# Notes
+- Normal transform uses the [Mikk](http://www.mikktspace.com) tangent space.
+
+# Building
 ```
 git clone https://github.com/Pixenal/uv-stucco.git uv-stucco && cd uv-stucco
 ```
 ```
 mkdir -p build && cd build
 ```
-UV Stucco uses zlib and [MikkTSpace](https://github.com/mmikk/MikkTSpace), with the latter included as a submodule.  
-CMake will try to find zlib on it's own, though this may fail depending on the environment.  
+UV Stucco uses zlib,  
+CMake will try to find it on it's own, though this may fail depending on the environment.  
 To build with search on just run:
 ```
 cmake ../..
