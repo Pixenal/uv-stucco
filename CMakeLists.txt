@@ -45,9 +45,9 @@ endif()
 message("BUILD_SHARED_LIBS is "${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(${PROJECT} STATIC
-	src/io.c src/map_to_face.c src/quadtree.c
-    src/uv_stucco.c src/utils.c src/attrib_utils.c src/map_to_job_mesh.c
-    src/image_utils.c src/mesh.c src/usg.c extern/MikkTSpace/mikktspace.c
+	src/io.c src/map_to_face.c src/quadtree.c src/uv_stucco.c src/utils.c
+	src/attrib_utils.c src/map_to_job_mesh.c src/mesh.c src/usg.c
+	extern/MikkTSpace/mikktspace.c
 )
 target_include_directories(${PROJECT} PRIVATE include src extern/MikkTSpace)
 message("FIND_ZLIB is "${FIND_ZLIB})

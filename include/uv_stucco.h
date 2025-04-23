@@ -482,12 +482,6 @@ StucErr stucGetAttribIndexed(
 	StucAttribIndexed **ppAttrib
 );
 STUC_EXPORT
-StucErr stucMapFileGenPreviewImage(
-	StucContext pCtx,
-	StucMap pMap,
-	StucImage *pImage
-);
-STUC_EXPORT
 void stucMapIndexedAttribsGet(
 	StucContext pCtx,
 	StucMap pMap,
