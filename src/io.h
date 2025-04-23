@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 
 #define MAP_FORMAT_NAME_MAX_LEN 19
 
-#include <quadtree.h>
 #include <uv_stucco.h>
 #include <types.h>
 

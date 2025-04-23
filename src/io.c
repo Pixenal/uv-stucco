@@ -17,14 +17,14 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <zlib.h>
 
-#include <io.h>
-#include <quadtree.h>
-#include <map.h>
-#include <context.h>
 #include <pixenals_io_utils.h>
 #include <pixenals_math_utils.h>
-#include <attrib_utils.h>
 #include <pixenals_error_utils.h>
+
+#include <io.h>
+#include <map.h>
+#include <context.h>
+#include <attrib_utils.h>
 
 static
 void reallocByteStringIfNeeded(

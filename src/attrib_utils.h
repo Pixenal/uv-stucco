@@ -5,11 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
-#include <uv_stucco.h>
-#include <uv_stucco_intern.h>
 #include <pixenals_math_utils.h>
-#include <mesh.h>
-#include <types.h>
+
+#include <uv_stucco_intern.h>
 
 typedef StucAttribCore AttribCore;
 typedef StucAttrib Attrib;

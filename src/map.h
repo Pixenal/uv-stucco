@@ -8,10 +8,8 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <io.h>
 #include <quadtree.h>
-#include <uv_stucco.h>
 #include <mesh.h>
 #include <usg.h>
-#include <types.h>
 
 typedef struct AttributeDesc {
 	char name[64];

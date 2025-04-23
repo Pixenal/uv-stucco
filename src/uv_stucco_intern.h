@@ -8,12 +8,16 @@ SPDX-License-Identifier: Apache-2.0
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <mesh.h>
-#include <debug_and_perf.h>
-#include <usg.h>
-#include <pixenals_error_utils.h>
-#include <types.h>
 #include <pixenals_alloc_utils.h>
+#include <pixenals_error_utils.h>
+
+#include <mesh.h>
+#include <usg.h>
+#include <types.h>
+#include <context.h>
+#include <map.h>
+#include <hash_table.h>
+#include <in_piece.h>
 
 #define STUC_TILE_BIT_LEN 11
 
@@ -22,14 +26,6 @@ SPDX-License-Identifier: Apache-2.0
 #else
 #define STUC_FORCE_INLINE __attribute__((always_inline)) static inline
 #endif
-
-typedef struct Color {
-	F32 d[4];
-} Color;
-
-typedef struct EdgeVerts {
-	I32 verts[2];
-} EdgeVerts;
 
 typedef struct MapToMeshBasic {
 	Mesh outMesh;
@@ -44,14 +40,22 @@ typedef struct MapToMeshBasic {
 	const I8 maskIdx;
 } MapToMeshBasic;
 
-typedef struct BorderTableAlloc {
-	void *pSmall;
-	void *pMid;
-	void *pLarge;
-} BorderTableAlloc;
+StucErr stucBuildTangentsForInPieces(
+	MapToMeshBasic *pBasic,
+	Mesh *pInMesh, //in-mesh is const in MapToMeshBasic
+	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
+	HTable *pMergeTable
+);
+StucErr stucBuildTangents(void *pArgsVoid);
 
-typedef struct JobArgs {
-	const MapToMeshBasic *pBasic;
-	Range range;
-	I32 id;
-} JobArgs;
+StucErr stucInitOutMesh(MapToMeshBasic *pBasic, HTable *pMergeTable, I32 snappedVerts);
+void stucAddVertsToOutMesh(
+	MapToMeshBasic *pBasic,
+	HTable *pMergeTable,
+	I32 vertAllocIdx
+);
+void stucAddFacesAndCornersToOutMesh(
+	MapToMeshBasic *pBasic,
+	const InPieceArr *pInPieces,
+	HTable *pMergeTable
+);

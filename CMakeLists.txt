@@ -45,8 +45,10 @@ endif()
 message("BUILD_SHARED_LIBS is "${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(${PROJECT} STATIC
-	src/io.c src/map_to_face.c src/quadtree.c src/uv_stucco.c src/utils.c
-	src/attrib_utils.c src/map_to_job_mesh.c src/mesh.c src/usg.c
+	src/uv_stucco.c src/io.c src/quadtree.c src/utils.c src/attrib_utils.c src/mesh.c
+	src/usg.c src/interp_and_xform.c src/interp_for_buf.c src/in_pieces_init.c
+	src/in_piece_split.c src/merge_and_snap.c src/buf_mesh.c src/tangents.c src/job.c
+	src/out_mesh.c src/hash_table.c
 	extern/MikkTSpace/mikktspace.c
 )
 target_include_directories(${PROJECT} PRIVATE include src extern/MikkTSpace)
