@@ -85,6 +85,17 @@ SearchResult pieceFaceIdxTableGet(HTable *pTable, I32 face, void **ppEntry) {
 }
 
 static
+bool isEdgeInternal(
+	const MapToMeshBasic *pBasic,
+	const PieceFaceIdx *pAdj,
+	I32 edge
+) {
+	I32 canIntersect = stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge);
+	//if edge is preserve, and adj is pending remove, edge is internal, so ignore
+	return canIntersect == 1 || canIntersect == 2 && !pAdj->pendingRemove;
+}
+
+static
 PieceFaceIdx *getAdjFaceInPiece(
 	const MapToMeshBasic *pBasic,
 	HTable *pIdxTable,
@@ -106,10 +117,7 @@ PieceFaceIdx *getAdjFaceInPiece(
 		return NULL;
 	}
 	I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, corner);
-	if (pAdjIdxEntry->removed ||
-		//if pending remove, preserve edge is internal, so ignore
-		stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge) && !pAdjIdxEntry->pendingRemove
-	) {
+	if (pAdjIdxEntry->removed || isEdgeInternal(pBasic, pAdjIdxEntry, edge)) {
 		if (pAdjCorner) {
 			*pAdjCorner = -1;
 		}
@@ -202,11 +210,10 @@ void addBorderToArr(const MapToMeshBasic *pBasic, BorderArr *pArr, Border border
 	pArr->count++;
 }
 
-bool stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge) {
-	return
-		stucGetIfSeamEdge(pInMesh, edge) ||
-		stucGetIfPreserveEdge(pInMesh, edge) ||
-		stucGetIfMatBorderEdge(pInMesh, edge);
+I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge) {
+	bool preserve = stucGetIfPreserveEdge(pInMesh, edge);
+	bool ret = stucGetIfSeamEdge(pInMesh, edge) || stucGetIfMatBorderEdge(pInMesh, edge);
+	return preserve && !ret ? 2 : preserve || ret;
 }
 
 typedef struct BorderBuf {

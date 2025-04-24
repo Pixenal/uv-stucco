@@ -92,11 +92,6 @@ InFaceCorner getAdjFaceInPiece(
 			.corner = corner.corner
 		}
 	);
-	/*
-	if (stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
-		return (InFaceCorner) {.pFace = NULL, .corner = -1};
-	}
-	*/
 	FaceCorner adjCorner = {0};
 	stucGetAdjCorner(
 		pBasic->pInMesh,
@@ -114,7 +109,10 @@ InFaceCorner getAdjFaceInPiece(
 		&(InFaceCacheInitInfo) {.wind = 0},
 		&pAdjEntry
 	);
-	if (!pAdjEntry) {
+	if (!pAdjEntry ||
+		//if returns 0 or 2 (2 indicating unsplit preserve), then edge is internal
+		stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge) == 1
+	) {
 		return (InFaceCorner) {.pFace = NULL, .corner = -1};
 	}
 	adjCorner.corner = stucGetCornerNext(adjCorner.corner, &pAdjEntry->face);
@@ -802,6 +800,7 @@ void borderCacheInit(
 			pInPiece->borderArr.pArr[i].start,
 			borderCacheAdd, pBorder 
 		);
+		PIX_ERR_ASSERT("", pBorder->count == pInPiece->borderArr.pArr[i].len);
 	}
 }
 
