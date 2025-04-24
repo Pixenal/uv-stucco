@@ -93,7 +93,7 @@ InFaceCorner getAdjFaceInPiece(
 		}
 	);
 	/*
-	if (couldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
+	if (stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
 		return (InFaceCorner) {.pFace = NULL, .corner = -1};
 	}
 	*/
@@ -297,8 +297,11 @@ I32 bufMeshAddIntersectVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 }
 
 static
-I32 getInFaceFromClipCorner(const BorderCache *pBorderCache, PlycutCornerIdx idx) {
-	return pBorderCache->pBorders[idx.boundary].pArr[idx.corner].pFace->face.idx;
+InFaceCorner getInCornerFromPlycut(
+	const BorderCache *pBorderCache,
+	PlycutCornerIdx idx
+) {
+	return pBorderCache->pBorders[idx.boundary].pArr[idx.corner];
 }
 
 static
@@ -320,10 +323,12 @@ void setIntersectBufVertInfo(
 			*pType = STUC_BUF_VERT_INTERSECT;
 			*pVert = bufMeshAddIntersectVert(pBasic, pBufMesh);
 			const PlycutInfoIntersect *pInfo = &pCorner->info.intersect;
+			InFaceCorner inCorner =
+				getInCornerFromPlycut(pBorderCache, pInfo->clipCorner);
 			pBufMesh->intersectVerts.pArr[*pVert] = (IntersectVert){
 				.pos = *(V2_F32 *)&pCorner->pos,
-				.inFace = getInFaceFromClipCorner(pBorderCache, pInfo->clipCorner),
-				.inCorner = pInfo->clipCorner.corner,
+				.inFace = inCorner.pFace->face.idx,
+				.inCorner = inCorner.corner,
 				.mapCorner = pInfo->subjCorner.corner,
 				.tInEdge = pInfo->clipAlpha,
 				.tMapEdge = pInfo->subjAlpha,
@@ -334,12 +339,14 @@ void setIntersectBufVertInfo(
 			*pType = STUC_BUF_VERT_ON_EDGE;
 			*pVert = bufMeshAddOnEdgeVert(pBasic, pBufMesh);
 			const PlycutInfoOnEdge *pInfo = &pCorner->info.onEdge;
-			pBufMesh->onEdgeVerts.pArr[*pVert].in = (EdgeInVert) {
-				.type = STUC_BUF_VERT_SUB_TYPE_EDGE_IN,
+			InFaceCorner inCorner =
+				getInCornerFromPlycut(pBorderCache, pInfo->edgeCorner);
+			pBufMesh->onEdgeVerts.pArr[*pVert].map = (EdgeMapVert) {
+				.type = STUC_BUF_VERT_SUB_TYPE_EDGE_MAP,
 				.mapCorner = pInfo->vertCorner.corner,
-				.inCorner = pInfo->edgeCorner.corner,
-				.inFace = getInFaceFromClipCorner(pBorderCache, pInfo->edgeCorner),
-				.tMapEdge = pInfo->alpha
+				.inCorner = inCorner.corner,
+				.inFace = inCorner.pFace->face.idx,
+				.tInEdge = pInfo->alpha
 			};
 			break;
 		}
@@ -347,12 +354,14 @@ void setIntersectBufVertInfo(
 			*pType = STUC_BUF_VERT_ON_EDGE;
 			*pVert = bufMeshAddOnEdgeVert(pBasic, pBufMesh);
 			const PlycutInfoOnEdge *pInfo = &pCorner->info.onEdge;
-			pBufMesh->onEdgeVerts.pArr[*pVert].map = (EdgeMapVert) {
-				.type = STUC_BUF_VERT_SUB_TYPE_EDGE_MAP,
+			InFaceCorner inCorner =
+				getInCornerFromPlycut(pBorderCache, pInfo->vertCorner);
+			pBufMesh->onEdgeVerts.pArr[*pVert].in = (EdgeInVert) {
+				.type = STUC_BUF_VERT_SUB_TYPE_EDGE_IN,
 				.mapCorner = pInfo->edgeCorner.corner,
-				.inCorner = pInfo->vertCorner.corner,
-				.inFace = getInFaceFromClipCorner(pBorderCache, pInfo->vertCorner),
-				.tInEdge = pInfo->alpha
+				.inCorner = inCorner.corner,
+				.inFace = inCorner.pFace->face.idx,
+				.tMapEdge = pInfo->alpha
 			};
 			break;
 		}
@@ -360,9 +369,11 @@ void setIntersectBufVertInfo(
 			*pType = STUC_BUF_VERT_OVERLAP;
 			*pVert = bufMeshAddOverlapVert(pBasic, pBufMesh);
 			const PlycutInfoOnVert *pInfo = &pCorner->info.onVert;
+			InFaceCorner inCorner =
+				getInCornerFromPlycut(pBorderCache, pInfo->clipCorner);
 			pBufMesh->overlapVerts.pArr[*pVert] = (OverlapVert) {
-				.inFace = getInFaceFromClipCorner(pBorderCache, pInfo->clipCorner),
-				.inCorner = pInfo->clipCorner.corner,
+				.inFace = inCorner.pFace->face.idx,
+				.inCorner = inCorner.corner, 
 				.mapCorner = pInfo->subjCorner.corner
 			};
 			break;
@@ -449,16 +460,18 @@ StucErr bufMeshAddVert(
 			};
 			break;
 		}
-		case PLYCUT_ORIGIN_CLIP:
+		case PLYCUT_ORIGIN_CLIP: {
 			type = STUC_BUF_VERT_IN_OR_MAP;
 			vert = bufMeshAddInOrMapVert(pBasic, pBufMesh);
+			InFaceCorner inCorner =
+				getInCornerFromPlycut(pBorderCache, pCorner->info.origin.corner);
 			pBufMesh->inOrMapVerts.pArr[vert].in = (InVert){
 				.type = STUC_BUF_VERT_SUB_TYPE_IN,
-				.inCorner = pCorner->info.origin.corner.corner,
-				.inFace =
-					getInFaceFromClipCorner(pBorderCache, pCorner->info.origin.corner)
+				.inCorner = inCorner.corner,
+				.inFace = inCorner.pFace->face.idx
 			};
 			break;
+		}
 		default:
 			setIntersectBufVertInfo(
 				pBasic,
@@ -548,6 +561,9 @@ void addFacesToBufMesh(
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("", pFaces->count);
 	for (I32 i = 0; i < pFaces->count; ++i) {
+		if (pFaces->pArr[i].isHole) {
+			continue; //not adding holes
+		}
 		err =
 			addFaceToBufMesh(
 				pBasic,
@@ -810,12 +826,15 @@ V2_F32 getBorderCornerPos(
 	const void *pMesh,
 	PlycutInput input,
 	I32 boundary,
-	I32 corner
+	I32 corner,
+	bool *pCantIntersect
 ) {
 	const MapToMeshBasic *pBasic = pUserData;
 	const BorderCache *pBorderCache = pMesh;
-	InFaceCorner *pInCorner = pBorderCache->pBorders[boundary].pArr + corner;
-	return stucGetUvPos(pBasic->pInMesh, &pInCorner->pFace->face, pInCorner->corner);
+	InFaceCorner inCorner = pBorderCache->pBorders[boundary].pArr[corner];
+	I32 edge = pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
+	*pCantIntersect = !stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge);
+	return stucGetUvPos(pBasic->pInMesh, &inCorner.pFace->face, inCorner.corner);
 }
 
 static
@@ -824,7 +843,8 @@ V3_F32 getMapCornerPos(
 	const void *pMeshVoid,
 	PlycutInput input,
 	I32 boundary,
-	I32 corner
+	I32 corner,
+	bool *pCantIntersect
 ) {
 	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pMap->pMesh;
 	const FaceRange *pMapFace = input.pUserData;

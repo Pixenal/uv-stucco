@@ -291,6 +291,7 @@ StucErr stucInPieceArrInitBufMeshes(
 	)
 );
 void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
+bool stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
 
 static inline
 void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {

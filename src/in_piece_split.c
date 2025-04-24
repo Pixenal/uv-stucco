@@ -108,7 +108,7 @@ PieceFaceIdx *getAdjFaceInPiece(
 	I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, corner);
 	if (pAdjIdxEntry->removed ||
 		//if pending remove, preserve edge is internal, so ignore
-		couldInEdgeIntersectMapFace(pBasic->pInMesh, edge) && !pAdjIdxEntry->pendingRemove
+		stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge) && !pAdjIdxEntry->pendingRemove
 	) {
 		if (pAdjCorner) {
 			*pAdjCorner = -1;
@@ -202,7 +202,7 @@ void addBorderToArr(const MapToMeshBasic *pBasic, BorderArr *pArr, Border border
 	pArr->count++;
 }
 
-bool couldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge) {
+bool stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge) {
 	return
 		stucGetIfSeamEdge(pInMesh, edge) ||
 		stucGetIfPreserveEdge(pInMesh, edge) ||
@@ -445,7 +445,7 @@ void fillBorderBuf(
 			continue;
 		}
 		I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, pEntry->corner);
-		if (couldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
+		if (stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
 			findAndAddBorder(
 				pBasic,
 				pBorderBuf,
