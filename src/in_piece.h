@@ -295,7 +295,7 @@ void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
 I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
 //destroys in-piece arr after splitting
 StucErr stucInPieceArrSplit(
-	MapToMeshBasic *pBasic,
+	struct MapToMeshBasic *pBasic,
 	InPieceArr *pInPieces,
 	InPieceArr *pInPiecesSplit,
 	InPieceArr *pInPiecesSplitClip,
