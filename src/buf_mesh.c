@@ -394,6 +394,23 @@ I32 addOnVertVert(
 }
 
 static
+bool inCornerPredicate(
+	const MapToMeshBasic *pBasic,
+	const BorderCache *pBorderCache,
+	PlycutCornerIdx idx
+) {
+	const InFaceCornerArr *pBorder = pBorderCache->pBorders + idx.boundary;
+	I32 iPrev = idx.corner ? idx.corner - 1 : pBorder->count - 1;
+	const InFaceCorner corner = pBorder->pArr[idx.corner];
+	const InFaceCorner cornerPrev = pBorder->pArr[iPrev];
+	bool single = corner.pFace == cornerPrev.pFace;
+	I32 vert = pBasic->pInMesh->core.pCorners[
+		corner.pFace->face.start + corner.corner
+	];
+	return single || stucCheckIfVertIsPreserve(pBasic->pInMesh, vert);
+}
+
+static
 void setIntersectBufVertInfo(
 	const MapToMeshBasic *pBasic,
 	const BorderCache *pBorderCache,
@@ -417,6 +434,10 @@ void setIntersectBufVertInfo(
 		}
 		case PLYCUT_ON_SUBJECT_EDGE: {
 			*pType = STUC_BUF_VERT_ON_EDGE;
+			PlycutCornerIdx vertCorner = pCorner->info.onEdge.vertCorner;
+			if (!pCorner->cross && !inCornerPredicate(pBasic, pBorderCache, vertCorner)) {
+				break;
+			}
 			InFaceCorner inCorner =
 				getInCornerFromPlycut(pBorderCache, pCorner->info.onEdge.vertCorner);
 			*pVert = addOnMapEdgeVert(pBasic, pBufMesh, pCorner, inCorner);
@@ -611,6 +632,9 @@ StucErr bufMeshAddVert(
 			break;
 		case PLYCUT_ORIGIN_CLIP: {
 			type = STUC_BUF_VERT_IN_OR_MAP;
+			if (!inCornerPredicate(pBasic, pBorderCache, pCorner->info.origin.corner)) {
+				break;
+			}
 			InFaceCorner inCorner =
 				getInCornerFromPlycut(pBorderCache, pCorner->info.origin.corner);
 			vert = addInVert(pBasic, pBufMesh, inCorner);
@@ -626,8 +650,9 @@ StucErr bufMeshAddVert(
 				&type, &vert
 			);
 	}
-	PIX_ERR_ASSERT("", vert != -1);
-	bufMeshAddCorner(pBasic, pBufMesh, type, vert);
+	if (vert != -1) {
+		bufMeshAddCorner(pBasic, pBufMesh, type, vert);
+	}
 	return err;
 }
 
@@ -643,12 +668,11 @@ StucErr addFaceToBufMesh(
 	const PlycutFaceRoot *pFace
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	I32 faceCountPrior = pBufMesh->faces.count;
-	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, pBufMesh->corners.count, pFace->size);
+	I32 faceStart = pBufMesh->corners.count;
 	const PlycutCorner *pCorner = pFace->pRoot;
 	I32 i = 0;
 	do {
-		PIX_ERR_THROW_IFNOT_COND(err, i < pFace->size, "infinite or astray loop", 0);
+		PIX_ERR_RETURN_IFNOT_COND(err, i < pFace->size, "infinite or astray loop");
 		err = bufMeshAddVert(
 			pBasic,
 			pInPiece,
@@ -659,30 +683,11 @@ StucErr addFaceToBufMesh(
 			pCorner,
 			pBufMesh
 		);
-		PIX_ERR_THROW_IFNOT(err, "", 0);
+		PIX_ERR_RETURN_IFNOT(err, "");
 	} while(++i, pCorner = pCorner->pNext, pCorner);
-	PIX_ERR_CATCH(0, err,
-		--pBufMesh->faces.count;
-	);
+	I32 faceSize = pBufMesh->corners.count - faceStart;
+	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, faceStart, faceSize);
 	return err;
-}
-
-static
-bool inCornerPredicate(
-	const MapToMeshBasic *pBasic,
-	InFaceCorner inCorner,
-	InFaceCorner adjInCorner,
-	I32 walkIdx,
-	bool adj
-) {
-	if (walkIdx && adj) {//adj isn't set on first walk iteration
-		return false;
-	}
-	bool single = !adjInCorner.pFace;
-	I32 vert = pBasic->pInMesh->core.pCorners[
-		inCorner.pFace->face.start + inCorner.corner
-	];
-	return single || stucCheckIfVertIsPreserve(pBasic->pInMesh, vert);
 }
 
 static
@@ -770,6 +775,7 @@ I32 getExteriorBorder(
 	return args.lowestBorder;
 }
 
+/*
 static
 bool addInCornerIfValid(
 	const MapToMeshBasic *pBasic,
@@ -787,6 +793,7 @@ bool addInCornerIfValid(
 	}
 	return false;
 }
+*/
 
 static
 StucErr addNonClipInPieceToBufMesh(
@@ -946,8 +953,8 @@ V2_F32 getBorderCornerPos(
 	const MapToMeshBasic *pBasic = pUserData;
 	const BorderCache *pBorderCache = pMesh;
 	InFaceCorner inCorner = pBorderCache->pBorders[boundary].pArr[corner];
-	I32 edge = pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
-	*pCantIntersect = !stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge);
+	//I32 edge = pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
+	//*pCantIntersect = !stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge);
 	return stucGetUvPos(pBasic->pInMesh, &inCorner.pFace->face, inCorner.corner);
 }
 
