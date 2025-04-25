@@ -466,7 +466,7 @@ void fillBorderBuf(
 }
 
 static
-void splitAdjFacesIntoPiece(
+void splitadjfacesintopiece(
 	SplitInPiecesJobArgs *pArgs,
 	const FaceRange *pMapFace,
 	MapCornerLookup *pMapCorners,
@@ -719,7 +719,6 @@ I32 inPiecesJobsGetRange(const MapToMeshBasic *pBasic, void *pInitEntry) {
 	return ((InPieceArr *)pInitEntry)->count;
 }
 
-//destroys in-piece arr after splitting
 StucErr stucInPieceArrSplit(
 	MapToMeshBasic *pBasic,
 	InPieceArr *pInPieces,

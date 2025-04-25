@@ -293,6 +293,14 @@ StucErr stucInPieceArrInitBufMeshes(
 void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
 //returns 1 if yes, and 2 if only due to preserve
 I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
+//destroys in-piece arr after splitting
+StucErr stucInPieceArrSplit(
+	MapToMeshBasic *pBasic,
+	InPieceArr *pInPieces,
+	InPieceArr *pInPiecesSplit,
+	InPieceArr *pInPiecesSplitClip,
+	SplitInPiecesAllocArr *pSplitAlloc
+);
 
 static inline
 void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
