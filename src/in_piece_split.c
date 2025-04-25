@@ -466,7 +466,7 @@ void fillBorderBuf(
 }
 
 static
-void splitadjfacesintopiece(
+void splitAdjFacesIntoPiece(
 	SplitInPiecesJobArgs *pArgs,
 	const FaceRange *pMapFace,
 	MapCornerLookup *pMapCorners,
