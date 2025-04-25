@@ -1010,7 +1010,8 @@ StucErr stucClipMapFace(
 		pBasic,
 		pBorderCache, inInput, getBorderCornerPos,
 		NULL, mapInput, getMapCornerPos,
-		&out
+		&out,
+		NULL
 	);
 	if (out.count) {
 		addFacesToBufMesh(
@@ -1027,6 +1028,7 @@ StucErr stucClipMapFace(
 	PIX_ERR_CATCH(0, err, 
 		err = PIX_ERR_SUCCESS; //skipping this face, reset err
 	);
+	plycutFaceArrDestroy(&pBasic->pCtx->alloc, &out);
 	inFaceCacheDestroy(pBasic, &inFaceCache);
 	return err;
 }

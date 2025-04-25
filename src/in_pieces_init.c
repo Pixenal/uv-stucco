@@ -3,6 +3,8 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: Apache-2.0
 */
 
+#include <poly_cutout.h>
+
 #include <in_piece.h>
 #include <quadtree.h>
 #include <context.h>
@@ -165,7 +167,6 @@ EncasedMapFace *addToEncasedFaces(
 	return pEntry;
 }
 
-//TODO merge this with stucCalcIntersection, & add quick exit to clipping
 static
 bool intersectTest(V2_F32 a, V2_F32 ab, V2_F32 c, V2_F32 cd) {
 	V2_F32 ac = _(c V2SUB a);
@@ -194,11 +195,59 @@ typedef enum OverlapType {
 } OverlapType;
 
 static
-OverlapType doInAndMapFacesOverlap(
-	const Mesh *pInMesh, const FaceRange *pInFace, HalfPlane *pInCorners,
-	const Mesh *pMapMesh, const FaceRange *pMapFace,
-	bool inFaceWind
+V2_F32 getInCornerPos(
+	const void *pUserData,
+	const void *pMeshVoid,
+	PlycutInput input,
+	I32 boundary,
+	I32 corner,
+	bool *pCantIntersect
 ) {
+	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pInMesh;
+	const FaceRange *pInFace = input.pUserData;
+	return stucGetUvPos(pMesh, pInFace, corner);
+}
+
+static
+V3_F32 getMapCornerPos(
+	const void *pUserData,
+	const void *pMeshVoid,
+	PlycutInput input,
+	I32 boundary,
+	I32 corner,
+	bool *pCantIntersect
+) {
+	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pMap->pMesh;
+	const FaceRange *pMapFace = input.pUserData;
+	return stucGetVertPos(pMesh, pMapFace, corner);
+}
+
+static
+OverlapType doInAndMapFacesOverlap(
+	const MapToMeshBasic *pBasic,
+	const Mesh *pInMesh, FaceRange *pInFace,
+	const Mesh *pMapMesh, FaceRange *pMapFace
+) {
+	PlycutInput inInput =
+		{.pSizes = &pInFace->size, .boundaries = 1, .pUserData = pInFace};
+	PlycutInput mapInput =
+		{.pSizes = &pMapFace->size, .boundaries = 1, .pUserData = pMapFace};
+	bool overlaps = false;
+	PixErr err = plycutClip(
+		&pBasic->pCtx->alloc,
+		pBasic,
+		NULL, inInput, getInCornerPos,
+		NULL, mapInput, getMapCornerPos,
+		NULL,
+		&overlaps
+	);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	if (overlaps) {
+		return STUC_FACE_OVERLAP_INTERSECT;
+	}
+	PIX_ERR_CATCH(0, err, ;);
+	return STUC_FACE_OVERLAP_NONE;
+	/*
 	V2_F32 windLine = { .d = {.0f, 2.0f - pInCorners[0].uv.d[1]}};
 	I32 windNum = 0;
 	bool halfPlaneOnly = false;
@@ -253,6 +302,7 @@ OverlapType doInAndMapFacesOverlap(
 		return STUC_FACE_OVERLAP_MAP_INSIDE_IN;
 	}
 	return windNum % 2 ? STUC_FACE_OVERLAP_IN_INSIDE_MAP : STUC_FACE_OVERLAP_NONE;
+	*/
 }
 
 static
@@ -300,10 +350,11 @@ StucErr getEncasedFacesPerFace(
 				continue;
 			}
 			FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
-			OverlapType overlap = doInAndMapFacesOverlap(
-				pInMesh, pInFace, inCorners,
-				pMap->pMesh, &mapFace,
-				inFaceWind
+			OverlapType overlap =
+				doInAndMapFacesOverlap(
+				pArgs->core.pBasic,
+				pInMesh, pInFace,
+				pMap->pMesh, &mapFace
 			);
 			if (overlap != STUC_FACE_OVERLAP_NONE) {
 				addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
