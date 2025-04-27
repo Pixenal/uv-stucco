@@ -75,6 +75,8 @@ StucErr stucInterpAttribs(
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	HTable *pMergeTable,
+	const BufOutRangeTable *pBufOutTable,
+	const OutBufIdxArr *pOutBufIdxArr,
 	StucDomain domain,
 	StucErr (* job)(void *)
 );

@@ -24,6 +24,8 @@ typedef struct InterpAttribsJobArgs {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
 	const HTable *pMergeTable;
+	const BufOutRangeTable *pBufOutTable;
+	const OutBufIdxArr *pOutBufIdxArr;
 } InterpAttribsJobArgs;
 
 static
@@ -368,7 +370,7 @@ void interpAndBlendAttribs(
 	StucDomain domain,
 	const InPiece *pInPiece,//corners or verts
 	const BufMesh *pBufMesh,//corners or verts
-	const VertMerge *pVertEntry,//corners or verts
+	const FaceCorner *pBufCorner,//corners or verts
 	InterpCaches *pInterpCaches,//corners or verts
 	const SrcFaces *pSrcFaces//faces
 ) {
@@ -377,7 +379,7 @@ void interpAndBlendAttribs(
 		PIX_ERR_ASSERT("", pSrcFaces);
 	}
 	else if (domain == STUC_DOMAIN_CORNER || domain == STUC_DOMAIN_VERT) {
-		PIX_ERR_ASSERT("", pInPiece && pBufMesh && pVertEntry && pInterpCaches);
+		PIX_ERR_ASSERT("", pInPiece && pBufMesh && pBufCorner && pInterpCaches);
 	}
 	else {
 		PIX_ERR_ASSERT("invalid domain for this func", false);
@@ -460,7 +462,7 @@ void interpAndBlendAttribs(
 					pBasic,
 					pInPiece,
 					pBufMesh,
-					pVertEntry->bufCorner.corner,
+					*pBufCorner,
 					&inAttribWrap.core, 0,
 					&pInAttrib->core,
 					&pInterpCaches->in
@@ -480,7 +482,7 @@ void interpAndBlendAttribs(
 					pBasic,
 					pInPiece,
 					pBufMesh,
-					pVertEntry->bufCorner.corner,
+					*pBufCorner,
 					&mapAttribWrap.core, 0,
 					&pMapAttrib->core,
 					&pInterpCaches->map
@@ -577,7 +579,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			STUC_DOMAIN_VERT,
 			pInPiece,
 			pBufMesh,
-			pEntry,
+			&pEntry->bufCorner.corner,
 			&interpCaches,
 			NULL
 		);
@@ -592,58 +594,132 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 }
 
 static
-const VertMerge *getVertMergeFromIdx(const InterpAttribsJobArgs *pArgs, I32 corner) {
-	I32 vertLinIdx = pArgs->pOutMesh->core.pCorners[corner];
-	bool intersect = vertLinIdx & -0x80000000;
-	if (intersect) {
-		vertLinIdx ^= -0x80000000;
-	}
-	const PixalcLinAlloc *pLinAlloc = stucHTableAllocGetConst(pArgs->pMergeTable, intersect);
+const VertMerge *getVertMergeFromBufCorner(
+	const InterpAttribsJobArgs *pArgs,
+	BufVertType type,
+	I32 mergedVert
+) {
+	const PixalcLinAlloc *pLinAlloc = stucHTableAllocGetConst(
+		pArgs->pMergeTable,
+		type == STUC_BUF_VERT_INTERSECT
+	);
 	PIX_ERR_ASSERT("", pLinAlloc);
-	const VertMerge *pEntry = pixalcLinAllocIdxConst(pLinAlloc, vertLinIdx);
+	const VertMerge *pEntry = pixalcLinAllocIdxConst(pLinAlloc, mergedVert);
 	PIX_ERR_ASSERT("", pEntry);
 	return pEntry;
+}
+
+static
+I32 bufOutTableGetStart(InterpAttribsJobArgs *pArgs, I32 start) {
+	const BufOutRangeTable *pTable = pArgs->pBufOutTable;
+	I32 idx = -1;
+	for (I32 i = 0; i < pTable->count; ++i) {
+		if (pTable->pArr[i].empty) {
+			continue;
+		}
+		if (pTable->pArr[i].outCorners.start > start) {
+			break;
+		}
+		idx = i;
+	}
+	PIX_ERR_ASSERT("unable to find bufmesh", idx != -1);
+	return idx;
+}
+
+static
+I32 bufOutTableGetNext(const InterpAttribsJobArgs *pArgs, I32 idx) {
+	I32 next = -1;
+	for (I32 i = idx + 1; i < pArgs->pBufOutTable->count; ++i) {
+		if (!pArgs->pBufOutTable->pArr[i].empty) {
+			next = i;
+			break;
+		}
+	}
+	return next;
+}
+
+static
+bool bufOutTableAtEnd(const InterpAttribsJobArgs *pArgs, I32 idx) {
+	return
+		idx == -1 ||
+		pArgs->pBufOutTable->pArr[idx].outCorners.start >= pArgs->core.range.end;
+}
+
+static
+const VertMerge *getVertMergeEntry(
+	const InterpAttribsJobArgs *pArgs,
+	I32 rangeIdx,
+	I32 corner,
+	const InPiece **ppInPiece,
+	const BufMesh **ppBufMesh,
+	FaceCorner *pBufCorner
+) {
+	BufOutRange *pRange = pArgs->pBufOutTable->pArr + rangeIdx;
+	*ppBufMesh = pRange->clip ?
+		pArgs->pInPiecesClip->pBufMeshes->arr + pRange->bufMesh :
+		pArgs->pInPieces->pBufMeshes->arr + pRange->bufMesh;
+
+	//out-corner currently holds out-buf-idx-arr idx
+	OutBufIdx outBufIdx = pArgs->pOutBufIdxArr->pArr[
+		pArgs->pOutMesh->core.pCorners[corner]
+	];
+	BufFace bufFace = (*ppBufMesh)->faces.pArr[outBufIdx.corner.face];
+	BufCorner bufCorner =
+		(*ppBufMesh)->corners.pArr[bufFace.start + outBufIdx.corner.corner];
+	const VertMerge *pVertEntry =
+		getVertMergeFromBufCorner(pArgs, bufCorner.type, outBufIdx.mergedVert);
+
+	*ppInPiece = pRange->clip ?
+		pArgs->pInPiecesClip->pArr + bufFace.inPiece :
+		pArgs->pInPieces->pArr + bufFace.inPiece;
+	if (pBufCorner) {
+		*pBufCorner = outBufIdx.corner;
+	}
+	return pVertEntry;
 }
 
 StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	InterpAttribsJobArgs *pArgs = pArgsVoid;
-	I32 rangeSize = pArgs->core.range.end - pArgs->core.range.start;
-	for (I32 i = 0; i < rangeSize; ++i) {
-		I32 corner = pArgs->core.range.start + i;
-		const VertMerge *pVertEntry = getVertMergeFromIdx(pArgs, corner);
-
-		const InPiece *pInPiece = NULL;
-		const BufMesh *pBufMesh = NULL;
-		getBufMeshForVertMergeEntry(
-			pArgs->pInPieces, pArgs->pInPiecesClip,
-			pVertEntry,
-			&pInPiece,
-			&pBufMesh
-		);
-		
-		InterpCaches interpCaches = {
-			.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
-			.map = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MAP}
-		};
-		interpAndBlendAttribs(
-			pArgs->core.pBasic,
-			pArgs->pOutMesh,
-			corner,
-			STUC_DOMAIN_CORNER,
-			pInPiece,
-			pBufMesh,
-			pVertEntry,
-			&interpCaches,
-			NULL
-		);
-		xformNormals(
-			&pArgs->pOutMesh->core,
-			corner,
-			&pVertEntry->transform.tbn,
-			STUC_DOMAIN_CORNER
-		);
-		pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
+	I32 corner = pArgs->core.range.start;
+	for (
+		I32 i = bufOutTableGetStart(pArgs, corner);
+		!bufOutTableAtEnd(pArgs, i);
+		i = bufOutTableGetNext(pArgs, i)
+	) {
+		BufOutRange *pRange = pArgs->pBufOutTable->pArr + i;
+		for (;
+			corner < pRange->outCorners.end && corner < pArgs->core.range.end;
+			++corner
+		) {
+			const InPiece *pInPiece = NULL;
+			const BufMesh *pBufMesh = NULL;
+			FaceCorner bufCorner = {0};
+			const VertMerge *pVertEntry =
+				getVertMergeEntry(pArgs, i, corner, &pInPiece, &pBufMesh, &bufCorner);
+			InterpCaches interpCaches = {
+				.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
+				.map = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MAP}
+			};
+			interpAndBlendAttribs(
+				pArgs->core.pBasic,
+				pArgs->pOutMesh,
+				corner,
+				STUC_DOMAIN_CORNER,
+				pInPiece,
+				pBufMesh,
+				&bufCorner,
+				&interpCaches,
+				NULL
+			);
+			xformNormals(
+				&pArgs->pOutMesh->core,
+				corner,
+				&pVertEntry->transform.tbn,
+				STUC_DOMAIN_CORNER
+			);
+			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
+		}
 	}
 	return err;
 }
@@ -655,22 +731,24 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 	for (I32 i = 0; i < rangeSize; ++i) {
 		I32 face = pArgs->core.range.start + i;
 		I32 corner = pArgs->pOutMesh->core.pFaces[face];
-		const VertMerge *pVertEntry = getVertMergeFromIdx(pArgs, corner);
-
+		I32 bufOutRange = bufOutTableGetStart(pArgs, corner);
+		
 		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
-		getBufMeshForVertMergeEntry(
-			pArgs->pInPieces, pArgs->pInPiecesClip,
-			pVertEntry,
-			&pInPiece,
-			&pBufMesh
+		FaceCorner bufCorner = {0};
+		const VertMerge *pVertEntry = getVertMergeEntry(
+			pArgs,
+			bufOutRange,
+			corner,
+			&pInPiece, &pBufMesh, &bufCorner
 		);
+
 		SrcFaces srcFaces = {0};
 		stucGetSrcFacesForBufCorner(
 			pArgs->core.pBasic,
 			pInPiece,
 			pBufMesh,
-			pVertEntry->bufCorner.corner
+			bufCorner
 		);
 		//not actually interpolating faces,
 		//just copying
@@ -682,13 +760,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 			NULL, NULL, NULL, NULL,
 			&srcFaces
 		);
-		//crude normal transform, not interpolating tbn's across face atm
-		xformNormals(
-			&pArgs->pOutMesh->core,
-			face,
-			&pVertEntry->transform.tbn,
-			STUC_DOMAIN_FACE
-		);
+		//TODO transforming face normals not supported atm
 	}
 	return err;
 }
@@ -756,6 +828,8 @@ typedef struct InterpAttribsJobInitInfo {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
 	const HTable *pMergeTable;
+	const BufOutRangeTable *pBufOutTable;
+	const OutBufIdxArr *pOutBufIdxArr;
 	StucDomain domain;
 } InterpAttribsJobInitInfo;
 
@@ -775,6 +849,8 @@ void interpAttribsJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEn
 	pEntry->pInPieces = pInitInfo->pInPieces;
 	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
 	pEntry->pMergeTable = pInitInfo->pMergeTable;
+	pEntry->pBufOutTable = pInitInfo->pBufOutTable;
+	pEntry->pOutBufIdxArr = pInitInfo->pOutBufIdxArr;
 }
 
 StucErr stucInterpAttribs(
@@ -782,6 +858,8 @@ StucErr stucInterpAttribs(
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	HTable *pMergeTable,
+	const BufOutRangeTable *pBufOutTable,
+	const OutBufIdxArr *pOutBufIdxArr,
 	StucDomain domain,
 	StucErr (* job)(void *)
 ) {
@@ -795,6 +873,8 @@ StucErr stucInterpAttribs(
 			.pInPieces = pInPieces,
 			.pInPiecesClip = pInPiecesClip,
 			.pMergeTable = pMergeTable,
+			.pBufOutTable = pBufOutTable,
+			.pOutBufIdxArr = pOutBufIdxArr,
 			.domain = domain
 		},
 		interpAttribsJobsGetRange, interpAttribsJobInit

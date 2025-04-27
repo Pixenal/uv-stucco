@@ -40,6 +40,30 @@ typedef struct MapToMeshBasic {
 	const I8 maskIdx;
 } MapToMeshBasic;
 
+typedef struct OutBufIdx {
+	FaceCorner corner;
+	I32 mergedVert;
+} OutBufIdx;
+
+typedef struct OutBufIdxArr {
+	OutBufIdx *pArr;
+	I32 size;
+	I32 count;
+} OutBufIdxArr;
+
+typedef struct BufOutRange {
+	Range outCorners;
+	I32 bufMesh;
+	bool clip;
+	bool empty;
+} BufOutRange;
+
+typedef struct BufOutRangeTable {
+	BufOutRange *pArr;
+	I32 size;
+	I32 count;
+} BufOutRangeTable;
+
 StucErr stucBuildTangentsForInPieces(
 	MapToMeshBasic *pBasic,
 	Mesh *pInMesh, //in-mesh is const in MapToMeshBasic
@@ -57,5 +81,8 @@ void stucAddVertsToOutMesh(
 void stucAddFacesAndCornersToOutMesh(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
-	HTable *pMergeTable
+	HTable *pMergeTable,
+	OutBufIdxArr *pOutBufIdxArr,
+	BufOutRangeTable *pBufOutTable,
+	bool clip
 );

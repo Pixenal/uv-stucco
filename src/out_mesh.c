@@ -75,9 +75,21 @@ void stucAddVertsToOutMesh(
 	}
 }
 
+typedef struct OutCornerBufCorner {
+	I32 mergedVert;
+	FaceCorner bufCorner;
+	bool intersect;
+} OutCornerBufCorner;
+
+typedef struct OutCornerBufArr {
+	OutCornerBufCorner *pArr;
+	I32 size;
+	I32 count;
+} OutCornerBufArr;
+
 typedef struct OutCornerBuf {
-	I32Arr buf;
-	I32Arr final;
+	OutCornerBufArr buf;
+	OutCornerBufArr final;
 } OutCornerBuf;
 
 static
@@ -86,7 +98,10 @@ void addBufFaceToOutMesh(
 	OutCornerBuf *pOutBuf,
 	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
+	I32 bufMeshIdx,
+	bool clip,
 	HTable *pMergeTable,
+	OutBufIdxArr *pOutBufIdxArr,
 	I32 faceIdx
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
@@ -94,7 +109,7 @@ void addBufFaceToOutMesh(
 	BufFace bufFace = pBufMesh->faces.pArr[faceIdx];
 	for (I32 i = 0; i < bufFace.size; ++i) {
 		FaceCorner bufCorner = {.face = faceIdx, .corner = i};
-		MergeTableKey key = { 0 };
+		MergeTableKey key = {0};
 		stucMergeTableGetVertKey(pBasic, pInPiece, pBufMesh, bufCorner, &key);
 		VertMerge *pEntry = NULL;
 		SearchResult result = stucHTableGet(
@@ -124,21 +139,19 @@ void addBufFaceToOutMesh(
 			pOutBuf->buf.pArr =
 				pAlloc->fpRealloc(pOutBuf->buf.pArr, pOutBuf->buf.size * sizeof(I32));
 		}
-		//using lin-idx (vert merge table) for now,
-		//this is to allow easy access during fac eand corner attrib interp.
-		//Will be set to out-vert later on.
-		I32 linIdx = pEntry->linIdx;
-		if (pEntry->key.type == STUC_BUF_VERT_INTERSECT) {
-			linIdx |= -0x80000000;
-		}
-		pOutBuf->buf.pArr[pOutBuf->buf.count] = linIdx;
+		OutCornerBufCorner *pBufEntry = pOutBuf->buf.pArr + pOutBuf->buf.count;
+		pBufEntry->mergedVert = pEntry->linIdx;
+		pBufEntry->intersect = pEntry->key.type == STUC_BUF_VERT_INTERSECT;
+		pBufEntry->bufCorner = bufCorner;
 		pOutBuf->buf.count++;
 	}
 	pOutBuf->final.count = 0;
 	for (I32 i = 0; i < pOutBuf->buf.count; ++i) {
-		I32 vert = pOutBuf->buf.pArr[i];
+		OutCornerBufCorner vert = pOutBuf->buf.pArr[i];
 		I32 iPrev = i ? i - 1 : pOutBuf->buf.count - 1;
-		if (vert == pOutBuf->buf.pArr[iPrev]) {
+		if (vert.intersect == pOutBuf->buf.pArr[iPrev].intersect &&
+			vert.mergedVert == pOutBuf->buf.pArr[iPrev].mergedVert
+		) {
 			continue;
 		}
 		//not a dup, add
@@ -160,19 +173,34 @@ void addBufFaceToOutMesh(
 	pBasic->outMesh.core.pFaces[outFace] = pBasic->outMesh.core.cornerCount;
 	for (I32 i = 0; i < pOutBuf->final.count; ++i) {
 		I32 outCorner = stucMeshAddCorner(pBasic->pCtx, &pBasic->outMesh, NULL);
-		pBasic->outMesh.core.pCorners[outCorner] = pOutBuf->final.pArr[i];
+		I32 newIdx = -1;
+		PIXALC_DYN_ARR_ADD(OutBufIdx, pAlloc, pOutBufIdxArr, newIdx);
+		PIX_ERR_ASSERT("", newIdx != -1);
+		pOutBufIdxArr->pArr[newIdx] = (OutBufIdx){
+			.corner = pOutBuf->final.pArr[i].bufCorner,
+			.mergedVert = pOutBuf->final.pArr[i].mergedVert,
+		};
+		pBasic->outMesh.core.pCorners[outCorner] = newIdx;
 	}
 }
 
 void stucAddFacesAndCornersToOutMesh(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
-	HTable *pMergeTable
+	HTable *pMergeTable,
+	OutBufIdxArr *pOutBufIdxArr,
+	BufOutRangeTable *pBufOutTable,
+	bool clip
 ) {
 	OutCornerBuf outBuf = {.buf.size = 16, .final.size = 16};
-	outBuf.buf.pArr = pBasic->pCtx->alloc.fpMalloc(outBuf.buf.size * sizeof(I32));
-	outBuf.final.pArr = pBasic->pCtx->alloc.fpMalloc(outBuf.final.size * sizeof(I32));
+	outBuf.buf.pArr =
+		pBasic->pCtx->alloc.fpMalloc(outBuf.buf.size * sizeof(OutCornerBufCorner));
+	outBuf.final.pArr =
+		pBasic->pCtx->alloc.fpMalloc(outBuf.final.size * sizeof(OutCornerBufCorner));
 	for (I32 i = 0; i < pInPieces->pBufMeshes->count; ++i) {
+		BufOutRange *pRange = pBufOutTable->pArr + pBufOutTable->count;
+		pRange->bufMesh = i;
+		I32 cornerStart = pBasic->outMesh.core.cornerCount;
 		const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + i;
 		for (I32 j = 0; j < pBufMesh->faces.count; ++j) {
 			addBufFaceToOutMesh(
@@ -180,10 +208,21 @@ void stucAddFacesAndCornersToOutMesh(
 				&outBuf,
 				pInPieces->pArr + pBufMesh->faces.pArr[j].inPiece,
 				pBufMesh,
+				i,
+				clip,
 				pMergeTable,
+				pOutBufIdxArr,
 				j
 			);
 		}
+		if (cornerStart == pBasic->outMesh.core.cornerCount) {
+			pRange->empty = true;
+			continue;
+		}
+		pRange->outCorners.start = cornerStart;
+		pRange->outCorners.end = pBasic->outMesh.core.cornerCount;
+		pRange->clip = clip;
+		++pBufOutTable->count;
 	}
 	if (outBuf.buf.pArr) {
 		pBasic->pCtx->alloc.fpFree(outBuf.buf.pArr);

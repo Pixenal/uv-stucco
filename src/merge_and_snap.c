@@ -54,11 +54,11 @@ void mergeTableEntryInit(
 ) {
 	VertMerge *pEntry = (VertMerge *)pEntryCore;
 	const MergeTableKey *pKey = pKeyData;
-	VertMergeCorner *pBufCorner = pInitInfo;
 	pEntry->key = *pKey;
-	pEntry->bufCorner = *pBufCorner;
 	pEntry->linIdx = linIdx;
 	pEntry->cornerCount = 1;
+	VertMergeCorner *pBufCorner = pInitInfo;
+	pEntry->bufCorner = *pBufCorner;
 }
 
 static
@@ -244,7 +244,9 @@ void mergeTableAddVerts(
 ) {
 	const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + bufMeshIdx;
 	const InPiece *pInPiece = bufFaceGetInPiece(pBufMesh, bufCorner.face, pInPieces);
+	I32 bufCornerIdx = pBufMesh->faces.pArr[bufCorner.face].start + bufCorner.corner;
 	VertMergeCorner initInfo = {
+		.pBufCorner = pBufMesh->corners.pArr + bufCornerIdx,
 		.corner = bufCorner,
 		.bufMesh = bufMeshIdx,
 		.clipped = clipped
