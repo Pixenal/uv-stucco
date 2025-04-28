@@ -203,9 +203,7 @@ V2_F32 getInCornerPos(
 	I32 corner,
 	bool *pCantIntersect
 ) {
-	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pInMesh;
-	const FaceRange *pInFace = input.pUserData;
-	return stucGetUvPos(pMesh, pInFace, corner);
+	return ((HalfPlane *)pMeshVoid)[corner].uv;
 }
 
 static
@@ -225,7 +223,7 @@ V3_F32 getMapCornerPos(
 static
 OverlapType doInAndMapFacesOverlap(
 	const MapToMeshBasic *pBasic,
-	const Mesh *pInMesh, FaceRange *pInFace,
+	const HalfPlane *pInCorners, FaceRange *pInFace,
 	const Mesh *pMapMesh, FaceRange *pMapFace
 ) {
 	PlycutInput inInput =
@@ -236,7 +234,7 @@ OverlapType doInAndMapFacesOverlap(
 	PixErr err = plycutClip(
 		&pBasic->pCtx->alloc,
 		pBasic,
-		NULL, inInput, getInCornerPos,
+		pInCorners, inInput, getInCornerPos,
 		NULL, mapInput, getMapCornerPos,
 		NULL,
 		&overlaps
@@ -247,62 +245,6 @@ OverlapType doInAndMapFacesOverlap(
 	}
 	PIX_ERR_CATCH(0, err, ;);
 	return STUC_FACE_OVERLAP_NONE;
-	/*
-	V2_F32 windLine = { .d = {.0f, 2.0f - pInCorners[0].uv.d[1]}};
-	I32 windNum = 0;
-	bool halfPlaneOnly = false;
-	bool allInside = true;
-	for (I32 i = 0; i < pMapFace->size; ++i) {
-		I32 iNext = stucGetCornerNext(i, pMapFace);
-		V2_F32 a = stucGetVertPosAsV2(pMapMesh, pMapFace, i);
-		V2_F32 b = stucGetVertPosAsV2(pMapMesh, pMapFace, iNext);
-		V2_F32 ab = _(b V2SUB a);
-		bool inside = true;
-		for (I32 j = 0; j < pInFace->size; ++j) {
-			InsideStatus status = stucIsPointInHalfPlane(
-				a,
-				pInCorners[j].uv,
-				pInCorners[j].halfPlane,
-				inFaceWind
-			);
-			if (status == STUC_INSIDE_STATUS_OUTSIDE){
-				if (halfPlaneOnly) {
-					//a previous map vert was inside
-					return STUC_FACE_OVERLAP_INTERSECT;
-				}
-				inside = false;
-				allInside = false;
-			}
-			if (!halfPlaneOnly &&
-				intersectTest(a, ab, pInCorners[j].uv, pInCorners[j].dir)
-			) {
-				return STUC_FACE_OVERLAP_INTERSECT;
-			}
-		}
-		if (inside) {
-			if (!allInside) {
-				//a previous map corner was outside
-				return STUC_FACE_OVERLAP_INTERSECT;
-			}
-			halfPlaneOnly = true;//continue, but only perform halfplane tests
-			continue;
-		}
-		if (!halfPlaneOnly) {
-			if (!ab.d[0] || a.d[0] == pInCorners[0].uv.d[0]) {
-				//colinear (if b is on windLine, it will be counted as 1 intersection)
-				continue;
-			}
-			if (intersectTest(a, ab, pInCorners[0].uv, windLine)) {
-				windNum++;
-			}
-		}
-	}
-	if (halfPlaneOnly) {
-		PIX_ERR_ASSERT("should have returned earlier if not", allInside);
-		return STUC_FACE_OVERLAP_MAP_INSIDE_IN;
-	}
-	return windNum % 2 ? STUC_FACE_OVERLAP_IN_INSIDE_MAP : STUC_FACE_OVERLAP_NONE;
-	*/
 }
 
 static
@@ -323,7 +265,7 @@ StucErr getEncasedFacesPerFace(
 	_(&bounds.fBBox.max V2SUBEQL fTileMin);
 
 	HalfPlane inCorners[4] = {0};
-	initHalfPlaneLookup(pInMesh, pInFace, inCorners);
+	initHalfPlaneLookup(pInMesh, pInFace, tile, inCorners);
 
 	BaseTriVerts inTri = {0};
 	//const qualifier is cast away from in-mesh here, to init inTri
@@ -350,26 +292,14 @@ StucErr getEncasedFacesPerFace(
 				continue;
 			}
 			FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
-			OverlapType overlap =
-				doInAndMapFacesOverlap(
+			OverlapType overlap = doInAndMapFacesOverlap(
 				pArgs->core.pBasic,
-				pInMesh, pInFace,
+				inCorners, pInFace,
 				pMap->pMesh, &mapFace
 			);
 			if (overlap != STUC_FACE_OVERLAP_NONE) {
 				addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
 			}
-			/*
-			recordEncasedMapCorners(
-				pArgs->core.pBasic,
-				pInFace,
-				inFaceWind,
-				pEntry,
-				pMap->pMesh,
-				&mapFace,
-				&bounds
-			);
-			*/
 		}
 	}
 	PIX_ERR_CATCH(0, err, ;);
@@ -407,7 +337,7 @@ StucErr getEncasedFacesPerTile(
 static
 StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCellsTable) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_ASSERT("record stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
+	PIX_ERR_ASSERT("stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
 	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
 		if (pBasic->maskIdx != -1 && pBasic->pInMesh->pMatIdx &&

@@ -457,8 +457,9 @@ StucErr isFaceClosestToOrigin(
 	bool *pRet
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	V2_F32 fTileMin = {(F32)tileMin.d[0], (F32)tileMin.d[1]};
 	I8 triCorners[4] = {0};
+	/*
+	V2_F32 fTileMin = {(F32)tileMin.d[0], (F32)tileMin.d[1]};
 	V2_F32 triStuc[4] = {0};
 	for (I32 k = 0; k < pInFace->size; ++k) {
 		triStuc[k] = pInMesh->pUvs[pInFace->start + k];
@@ -472,9 +473,11 @@ StucErr isFaceClosestToOrigin(
 	for (I32 k = 0; k < pInFace->size; ++k) {
 		_(triStuc + k V2SUBEQL fTileMin);
 	}
+	*/
 	V3_F32 bc = stucGetBarycentricInFaceFromUvs(
 		pInMesh,
 		pInFace,
+		(V2_I16) {.d = {(I16)tileMin.d[0], (I16)tileMin.d[1]}},
 		triCorners,
 		pUsg->origin
 	);

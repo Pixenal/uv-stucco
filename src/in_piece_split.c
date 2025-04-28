@@ -610,7 +610,12 @@ void splitInPieceEntry(
 		.pHalfPlanes = pAlloc->fpCalloc(mapFace.size, sizeof(HalfPlane)),
 		.receive = getMapFaceReceiveStatus(pBasic, &mapFace)
 	};
-	initHalfPlaneLookup(pBasic->pMap->pMesh, &mapFace, mapCorners.pHalfPlanes);
+	initHalfPlaneLookup(
+		pBasic->pMap->pMesh,
+		&mapFace,
+		(V2_I16) {0},
+		mapCorners.pHalfPlanes
+	);
 
 	I32 facesRemaining = pInPiece->faceCount;
 	do {

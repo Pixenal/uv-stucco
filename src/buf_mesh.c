@@ -24,7 +24,7 @@ typedef enum IntersectType {
 } IntersectType;
 
 typedef struct InFaceCacheInitInfo {
-	bool wind;
+	V2_I16 tile;
 } InFaceCacheInitInfo;
 
 typedef struct InFaceCacheState {
@@ -47,10 +47,10 @@ void inFaceCacheEntryInit(
 	if (pState->initBounds) {
 		FaceBounds bounds = { 0 };
 		stucGetInFaceBounds(&bounds, pState->pBasic->pInMesh->pUvs, pEntry->face);
-		pEntry->fMin = bounds.fBBox.min;
-		pEntry->fMax = bounds.fBBox.max;
+		V2_F32 fTile = {.d = {(F32)pInitInfo->tile.d[0], (F32)pInitInfo->tile.d[1]}};
+		pEntry->fMin = _(bounds.fBBox.min V2SUB fTile);
+		pEntry->fMax = _(bounds.fBBox.max V2SUB fTile);
 	}
-	pEntry->wind = pInitInfo->wind;
 }
 
 static
@@ -65,9 +65,9 @@ bool inFaceCacheEntryCmp(
 static
 SearchResult inFaceCacheGet(
 	HTable *pCache,
+	const InPiece *pInPiece,
 	I32 face,
 	bool addEntry,
-	bool wind,
 	InFaceCacheEntry **ppEntry
 ) {
 	return stucHTableGet(
@@ -75,7 +75,7 @@ SearchResult inFaceCacheGet(
 		0,
 		&face,
 		(void**)ppEntry,
-		addEntry, &(InFaceCacheInitInfo) {.wind = wind},
+		addEntry, &(InFaceCacheInitInfo) {.tile = pInPiece->pList->tile},
 		stucKeyFromI32, NULL, inFaceCacheEntryInit, inFaceCacheEntryCmp
 	);
 }
@@ -83,6 +83,7 @@ SearchResult inFaceCacheGet(
 static
 InFaceCorner getAdjFaceInPiece(
 	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
 	HTable *pInFaceCache,
 	InFaceCorner corner
 ) {
@@ -104,9 +105,9 @@ InFaceCorner getAdjFaceInPiece(
 	InFaceCacheEntry *pAdjEntry = NULL;
 	inFaceCacheGet(
 		pInFaceCache,
+		pInPiece,
 		adjCorner.face,
 		false,
-		&(InFaceCacheInitInfo) {.wind = 0},
 		&pAdjEntry
 	);
 	if (!pAdjEntry ||
@@ -122,6 +123,7 @@ InFaceCorner getAdjFaceInPiece(
 static
 HalfPlane *getInCornerCache(
 	const MapToMeshBasic *pBasic,
+	const InPiece *pInPiece,
 	InFaceCacheEntry *pInFaceCacheEntry
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
@@ -132,13 +134,13 @@ HalfPlane *getInCornerCache(
 		initHalfPlaneLookup(
 			pBasic->pInMesh,
 			&pFaceEntry->faceEntry.face,
+			pInPiece->pList->tile,
 			pFaceEntry->pCorners
 		);
 	}
 	return pFaceEntry->pCorners;
 }
 
-//TODO remove and replace references with bordercache loop (add adj info to bordercache?)
 static
 StucErr walkInPieceBorder(
 	const MapToMeshBasic *pBasic,
@@ -154,9 +156,9 @@ StucErr walkInPieceBorder(
 	InFaceCorner inCorner = {.corner = startCorner.corner};
 	inFaceCacheGet(
 		pInFaceCache,
+		pInPiece,
 		startCorner.face,
 		false,
-		&(InFaceCacheInitInfo) {.wind = 0},
 		&inCorner.pFace
 	);
 	PIX_ERR_ASSERT("", inCorner.pFace);
@@ -177,6 +179,7 @@ StucErr walkInPieceBorder(
 		);
 		InFaceCorner adjInCorner = getAdjFaceInPiece(
 			pBasic,
+			pInPiece,
 			pInFaceCache,
 			inCorner
 		);
@@ -208,9 +211,9 @@ void getInPieceBounds(
 		InFaceCacheEntry *pCacheEntry = NULL;
 		inFaceCacheGet(
 			pInFaceCache,
+			pInPiece,
 			pInFaces->pArr[i].idx,
 			true,
-			&(InFaceCacheInitInfo) {.wind = pInFaces->pArr[i].wind},
 			&pCacheEntry
 		);
 		PIX_ERR_ASSERT("", pCacheEntry);
@@ -230,15 +233,15 @@ InsideStatus getFaceEncasingVert(
 		InFaceCacheEntry *pInFaceEntry = NULL;
 		inFaceCacheGet(
 			pInFaceCache,
+			pInPiece,
 			pInFaces->pArr[i].idx,
 			true,
-			&(InFaceCacheInitInfo) {.wind = pInFaces->pArr[i].wind},
 			&pInFaceEntry
 		);
 		if (!_(vert V2GREATEQL pInFaceEntry->fMin) || !_(vert V2LESSEQL pInFaceEntry->fMax)) {
 			continue;
 		}
-		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInFaceEntry);
+		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInPiece, pInFaceEntry);
 		bool inside = true;
 		I32 onEdge[2] = {-1, -1};
 		for (I32 j = 0; j < pInFaceEntry->face.size; ++j) {
@@ -331,7 +334,7 @@ I32 addIntersectVert(
 	InFaceCorner inCorner =
 		getInCornerFromPlycut(pBorderCache, pInfo->clipCorner);
 	pBufMesh->intersectVerts.pArr[vert] = (IntersectVert){
-		.pos = *(V2_F32 *)&pCorner->pos,
+		//.pos = *(V2_F32 *)&pCorner->pos,
 		.inFace = inCorner.pFace->face.idx,
 		.inCorner = inCorner.corner,
 		.mapCorner = pInfo->subjCorner.corner,
@@ -519,7 +522,7 @@ InsideStatus findEncasingInPieceFace(
 	InsideStatus status =
 		getFaceEncasingVert(pBasic, pos, pInPiece, pInFaceCache, pInCorner);
 	if (status == STUC_INSIDE_STATUS_ON_LINE) {
-		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInCorner->pFace);
+		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInPiece, pInCorner->pFace);
 		*pAlpha = stucGetT(
 			pos,
 			pInCornerCache[pInCorner->corner].uv,
@@ -756,46 +759,6 @@ bool getLowestBorder(
 }
 
 static
-I32 getExteriorBorder(
-	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
-	HTable *pInFaceCache
-) {
-	GetExteriorBorderArgs args = {.lowestPos = {.d = {FLT_MAX, FLT_MAX}}};
-	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
-		args.border = i;
-		walkInPieceBorder(
-			pBasic,
-			pInPiece,
-			pInFaceCache,
-			pInPiece->borderArr.pArr[i].start,
-			getLowestBorder, &args
-		);
-	}
-	return args.lowestBorder;
-}
-
-/*
-static
-bool addInCornerIfValid(
-	const MapToMeshBasic *pBasic,
-	void *pArgsVoid,
-	InFaceCorner inCorner,
-	InFaceCorner adjInCorner,
-	I32 borderEdge,
-	I32 walkIdx,
-	bool adj
-) {
-	BufMesh *pBufMesh = pArgsVoid;
-	if (inCornerPredicate(pBasic, inCorner, adjInCorner, walkIdx, adj)) {
-		I32 vert = addInVert(pBasic, pBufMesh, inCorner);
-		bufMeshAddCorner(pBasic, pBufMesh, STUC_BUF_VERT_IN_OR_MAP, vert);
-	}
-	return false;
-}
-*/
-
-static
 StucErr addNonClipInPieceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	const BorderCache *pBorderCache,
@@ -828,18 +791,6 @@ StucErr addNonClipInPieceToBufMesh(
 			!i,
 			"non-clipped map faces must be fully in or out"
 		);
-		//map-face encloses in-faces
-		//TODO is this actually possible?
-		/*
-		I32 border = getExteriorBorder(pBasic, pInPiece, pInFaceCache);
-		walkInPieceBorder(
-			pBasic,
-			pInPiece,
-			pInFaceCache,
-			pInPiece->borderArr.pArr[border].start,
-			addInCornerIfValid, pBufMesh
-		);
-		*/
 		break;
 	}
 	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size);
@@ -911,6 +862,7 @@ void borderCacheInit(
 	HTable *pInFaceCache,
 	BorderCache *pBorderCache
 ) {
+	pBorderCache->pInPiece = pInPiece;
 	borderCacheAlloc(&pBasic->pCtx->alloc, &pInPiece->borderArr, pBorderCache);
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
 		InFaceCornerArr *pBorder = pBorderCache->pBorders + i;
@@ -953,9 +905,10 @@ V2_F32 getBorderCornerPos(
 	const MapToMeshBasic *pBasic = pUserData;
 	const BorderCache *pBorderCache = pMesh;
 	InFaceCorner inCorner = pBorderCache->pBorders[boundary].pArr[corner];
-	//I32 edge = pBasic->pInMesh->core.pEdges[inCorner.pFace->face.start + inCorner.corner];
-	//*pCantIntersect = !stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge);
-	return stucGetUvPos(pBasic->pInMesh, &inCorner.pFace->face, inCorner.corner);
+	V2_F32 pos = stucGetUvPos(pBasic->pInMesh, &inCorner.pFace->face, inCorner.corner);
+	V2_I16 tile = pBorderCache->pInPiece->pList->tile;
+	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
+	return _(pos V2SUB fTile);
 }
 
 static

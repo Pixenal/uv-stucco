@@ -82,6 +82,7 @@ void interpCacheUpdateLerpMap(
 static
 void interpCacheUpdateTriIn(
 	const MapToMeshBasic *pBasic,
+	V2_I16 tile,
 	StucDomain domain,
 	I32 mapFaceIdx, I32 mapCorner,
 	I32 inFaceIdx,
@@ -93,9 +94,14 @@ void interpCacheUpdateTriIn(
 	V2_F32 mapVertPos = *(V2_F32 *)&pBasic->pMap->pMesh->pPos[
 		pBasic->pMap->pMesh->core.pCorners[mapFace.start + mapCorner]
 	];
-	I8 tri[3] = { 0 };
-	pCache->triIn.bc =
-		stucGetBarycentricInFaceFromUvs(pBasic->pInMesh, &inFace, tri, mapVertPos);
+	I8 tri[3] = {0};
+	pCache->triIn.bc = stucGetBarycentricInFaceFromUvs(
+		pBasic->pInMesh,
+		&inFace,
+		tile,
+		tri,
+		mapVertPos
+	);
 	for (I32 i = 0; i < 3; ++i) {
 		pCache->triIn.triReal[i] = inFace.start + tri[i];
 		if (domain == STUC_DOMAIN_VERT) {
@@ -108,6 +114,7 @@ void interpCacheUpdateTriIn(
 static
 void interpCacheUpdateTriMap(
 	const MapToMeshBasic *pBasic,
+	V2_I16 tile,
 	StucDomain domain,
 	I32 inFaceIdx, I32 inCorner,
 	I32 mapFaceIdx, I8 mapTri,
@@ -117,7 +124,9 @@ void interpCacheUpdateTriMap(
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
 	const U8 *pTri = stucGetTri(pBasic->pMap->triCache.pArr, mapFace.idx, mapTri);
+	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
 	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.start + inCorner];
+	_(&inUv V2SUBEQL fTile);
 	I8 triBuf[3] = {0};
 	if (pTri) {
 		pCache->triMap.bc =
@@ -163,6 +172,7 @@ void interpBufVertIn(
 			if (pInterpCache->cache.active != STUC_INTERP_CACHE_TRI_MAP) {
 				interpCacheUpdateTriMap(
 					pBasic,
+					pInPiece->pList->tile,
 					pInterpCache->domain,
 					pVert->in.inFace, pVert->in.inCorner,
 					pInPiece->pList->mapFace, pVert->in.tri,
@@ -198,6 +208,7 @@ void interpBufVertMap(
 			if (pInterpCache->cache.active != STUC_INTERP_CACHE_TRI_IN) {
 				interpCacheUpdateTriIn(
 					pBasic,
+					pInPiece->pList->tile,
 					pInterpCache->domain,
 					pInPiece->pList->mapFace, pVert->map.mapCorner,
 					pVert->map.inFace,

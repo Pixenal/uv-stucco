@@ -125,7 +125,7 @@ typedef struct BufVertOverlapArr {
 } BufVertOverlapArr;
 
 typedef struct IntersectVert {
-	V2_F32 pos;
+	//V2_F32 pos;
 	F32 tInEdge;
 	F32 tMapEdge;
 	I32 inFace;
@@ -207,7 +207,6 @@ typedef struct InFaceCacheEntry {
 	FaceRange face;
 	V2_F32 fMin;
 	V2_F32 fMax;
-	bool wind;
 } InFaceCacheEntry;
 
 struct HalfPlane;
@@ -229,6 +228,7 @@ typedef struct InFaceCornerArr {
 } InFaceCornerArr;
 
 typedef struct BorderCache {
+	const InPiece *pInPiece;
 	InFaceCornerArr *pBorders;
 	I32 size;
 	I32 count;
