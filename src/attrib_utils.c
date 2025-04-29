@@ -36,6 +36,7 @@ void stucSetDefaultSpAttribNames(StucContext pCtx) {
 	strcpy(pCtx->spAttribNames[15], "StucNumAdjPreserve");
 	strcpy(pCtx->spAttribNames[16], "StucEdgeFaces");
 	strcpy(pCtx->spAttribNames[17], "StucEdgeCorners");
+	strcpy(pCtx->spAttribNames[18], "StucVertNormals");
 }
 
 void stucSetDefaultSpAttribDomains(StucContext pCtx) {
@@ -56,6 +57,7 @@ void stucSetDefaultSpAttribDomains(StucContext pCtx) {
 	pCtx->spAttribDomains[15] = STUC_DOMAIN_VERT;
 	pCtx->spAttribDomains[16] = STUC_DOMAIN_EDGE;
 	pCtx->spAttribDomains[17] = STUC_DOMAIN_EDGE;
+	pCtx->spAttribDomains[18] = STUC_DOMAIN_VERT;
 }
 
 void stucSetDefaultSpAttribTypes(StucContext pCtx) {
@@ -76,6 +78,7 @@ void stucSetDefaultSpAttribTypes(StucContext pCtx) {
 	pCtx->spAttribTypes[15] = STUC_ATTRIB_I8;
 	pCtx->spAttribTypes[16] = STUC_ATTRIB_V2_I32;
 	pCtx->spAttribTypes[17] = STUC_ATTRIB_V2_I8;
+	pCtx->spAttribTypes[18] = STUC_ATTRIB_V3_F32;
 }
 
 #define CLAMP(a, min, max) (a <= min ? min : (a > max ? max : a))
@@ -383,6 +386,9 @@ StucErr stucAssignActiveAliases(
 				break;
 			case STUC_ATTRIB_USE_EDGE_CORNERS:
 				pMesh->pEdgeCorners = pAttrib->core.pData;
+				break;
+			case STUC_ATTRIB_USE_NORMALS_VERT:
+				pMesh->pVertNormals = pAttrib->core.pData;
 				break;
 			default:
 				PIX_ERR_ASSERT("outside use special range", false);

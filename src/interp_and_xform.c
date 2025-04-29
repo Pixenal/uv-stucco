@@ -205,26 +205,6 @@ StucErr mapUvwToXyzFlat(
 	M3x3 *pTbn
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	F32 inVertWScale = 1.0;
-	if (pBasic->pInMesh->pWScale) {
-		InterpCacheLimited inVertInterpCache = {
-			.domain = STUC_DOMAIN_VERT,
-			.origin = STUC_ATTRIB_ORIGIN_MESH_IN
-		};
-		err = interpActiveAttrib(
-			pBasic,
-			pInPiece,
-			pBufMesh,
-			bufCorner,
-			&inVertInterpCache,
-			&inVertWScale,
-			STUC_ATTRIB_F32,
-			STUC_ATTRIB_USE_WSCALE
-		);
-		PIX_ERR_RETURN_IFNOT(err, "");
-		mapUvw.d[2] *= inVertWScale;
-	}
-
 	err = getInterpolatedTbn(
 		pBasic,
 		pInPiece,
@@ -294,6 +274,25 @@ StucErr xformVertFromUvwToXyz(
 		STUC_ATTRIB_V3_F32,
 		STUC_ATTRIB_USE_POS
 	);
+	InterpCacheLimited inVertInterpCache = {
+		.domain = STUC_DOMAIN_VERT,
+		.origin = STUC_ATTRIB_ORIGIN_MESH_IN
+	};
+	if (pBasic->pInMesh->pWScale) {
+		F32 inVertWScale = 1.0;
+		err = interpActiveAttrib(
+			pBasic,
+			pInPiece,
+			pBufMesh,
+			bufCorner,
+			&inVertInterpCache,
+			&inVertWScale,
+			STUC_ATTRIB_F32,
+			STUC_ATTRIB_USE_WSCALE
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		mapUvw.d[2] *= inVertWScale;
+	}
 	PIX_ERR_RETURN_IFNOT(err, "");
 	V2_F32 fTileMin = {.d = {pInPiece->pList->tile.d[0], pInPiece->pList->tile.d[1]}};
 	_((V2_F32 *)&mapUvw V2SUBEQL fTileMin);
@@ -318,6 +317,17 @@ StucErr xformVertFromUvwToXyz(
 			&pInterpCaches->in,
 			&xyzFlat,
 			&tbn
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = interpActiveAttrib(
+			pBasic,
+			pInPiece,
+			pBufMesh,
+			bufCorner,
+			&inVertInterpCache,
+			tbn.d + 2,
+			STUC_ATTRIB_V3_F32,
+			STUC_ATTRIB_USE_NORMALS_VERT
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
 	}
@@ -712,10 +722,19 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				&interpCaches,
 				NULL
 			);
+			M3x3 tbn = {0};
+			getInterpolatedTbn(
+				pArgs->core.pBasic,
+				pInPiece,
+				pBufMesh,
+				bufCorner,
+				&interpCaches.in,
+				&tbn
+			);
 			xformNormals(
 				&pArgs->pOutMesh->core,
 				corner,
-				&pVertEntry->transform.tbn,
+				&tbn,
 				STUC_DOMAIN_CORNER
 			);
 			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
