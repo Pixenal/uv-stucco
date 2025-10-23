@@ -136,8 +136,10 @@ void addBufFaceToOutMesh(
 		PIX_ERR_ASSERT("", pOutBuf->buf.count <= pOutBuf->buf.size);
 		if (pOutBuf->buf.count == pOutBuf->buf.size) {
 			pOutBuf->buf.size *= 2;
-			pOutBuf->buf.pArr =
-				pAlloc->fpRealloc(pOutBuf->buf.pArr, pOutBuf->buf.size * sizeof(I32));
+			pOutBuf->buf.pArr = pAlloc->fpRealloc(
+				pOutBuf->buf.pArr,
+				pOutBuf->buf.size * sizeof(OutCornerBufCorner)
+			);
 		}
 		OutCornerBufCorner *pBufEntry = pOutBuf->buf.pArr + pOutBuf->buf.count;
 		pBufEntry->mergedVert = pEntry->linIdx;
@@ -160,7 +162,7 @@ void addBufFaceToOutMesh(
 			pOutBuf->final.size *= 2;
 			pOutBuf->final.pArr = pAlloc->fpRealloc(
 				pOutBuf->final.pArr,
-				pOutBuf->final.size * sizeof(I32)
+				pOutBuf->final.size * sizeof(OutCornerBufCorner)
 			);
 		}
 		pOutBuf->final.pArr[pOutBuf->final.count] = vert;
@@ -172,13 +174,14 @@ void addBufFaceToOutMesh(
 	I32 outFace = stucMeshAddFace(pBasic->pCtx, &pBasic->outMesh, NULL);
 	pBasic->outMesh.core.pFaces[outFace] = pBasic->outMesh.core.cornerCount;
 	for (I32 i = 0; i < pOutBuf->final.count; ++i) {
+		I32 idx = bufFace.flipWind ? pOutBuf->final.count - i - 1 : i;
 		I32 outCorner = stucMeshAddCorner(pBasic->pCtx, &pBasic->outMesh, NULL);
 		I32 newIdx = -1;
 		PIXALC_DYN_ARR_ADD(OutBufIdx, pAlloc, pOutBufIdxArr, newIdx);
 		PIX_ERR_ASSERT("", newIdx != -1);
 		pOutBufIdxArr->pArr[newIdx] = (OutBufIdx){
-			.corner = pOutBuf->final.pArr[i].bufCorner,
-			.mergedVert = pOutBuf->final.pArr[i].mergedVert,
+			.corner = pOutBuf->final.pArr[idx].bufCorner,
+			.mergedVert = pOutBuf->final.pArr[idx].mergedVert,
 		};
 		pBasic->outMesh.core.pCorners[outCorner] = newIdx;
 	}

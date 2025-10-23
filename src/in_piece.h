@@ -53,7 +53,8 @@ typedef struct BorderArr {
 typedef struct BufFace {
 	I32 start;
 	I32 size;
-	I32 inPiece;
+	U32 flipWind : 1;
+	U32 inPiece : 31;
 } BufFace;
 
 typedef struct InPiece {
