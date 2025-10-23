@@ -226,8 +226,7 @@ InsideStatus getFaceEncasingVert(
 	V2_F32 vert,
 	const InPiece *pInPiece,
 	HTable *pInFaceCache,
-	InFaceCorner *pCorner,
-	bool *pFlipWind
+	InFaceCorner *pCorner
 ) {
 	EncasingInFaceArr *pInFaces = &pInPiece->pList->inFaces;
 	for (I32 i = 0; i < pInFaces->count; ++i) {
@@ -264,7 +263,6 @@ InsideStatus getFaceEncasingVert(
 		if (!inside) {
 			continue;
 		}
-		*pFlipWind = !pInFaces->pArr[i].wind;
 		pCorner->pFace = pInFaceEntry;
 		if (onEdge[1] != -1) {
 			pCorner->corner =
@@ -466,8 +464,7 @@ void bufMeshAddFace(
 	I32 inPieceOffset,
 	BufMesh *pBufMesh,
 	I32 start,
-	I32 faceSize,
-	bool flipWind
+	I32 faceSize
 ) {
 	I32 newIdx = -1;
 	PIXALC_DYN_ARR_ADD(BufFace, &pBasic->pCtx->alloc, (&pBufMesh->faces), newIdx);
@@ -475,7 +472,6 @@ void bufMeshAddFace(
 	pBufMesh->faces.pArr[newIdx].start = start;
 	pBufMesh->faces.pArr[newIdx].size = faceSize;
 	pBufMesh->faces.pArr[newIdx].inPiece = inPieceOffset;
-	pBufMesh->faces.pArr[newIdx].flipWind = flipWind;
 }
 
 static
@@ -517,15 +513,14 @@ InsideStatus findEncasingInPieceFace(
 	const FaceRange *pMapFace,
 	I32 mapCorner,
 	InFaceCorner *pInCorner,
-	F32 *pAlpha,
-	bool *pFlipWind
+	F32 *pAlpha
 ) {
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
 	V2_F32 pos = *(V2_F32 *)&pMapMesh->pPos[
 		pMapMesh->core.pCorners[pMapFace->start + mapCorner]
 	];
 	InsideStatus status =
-		getFaceEncasingVert(pBasic, pos, pInPiece, pInFaceCache, pInCorner, pFlipWind);
+		getFaceEncasingVert(pBasic, pos, pInPiece, pInFaceCache, pInCorner);
 	if (status == STUC_INSIDE_STATUS_ON_LINE) {
 		HalfPlane *pInCornerCache = getInCornerCache(pBasic, pInPiece, pInCorner->pFace);
 		*pAlpha = stucGetT(
@@ -545,8 +540,7 @@ I32 addMapVert(
 	const InPiece *pInPiece, HTable *pInPieceCache,
 	BufMesh *pBufMesh,
 	const FaceRange *pMapFace, I32 mapCorner,
-	BufVertType *pType,
-	bool *pFlipWind
+	BufVertType *pType
 ) {
 	InFaceCorner inCorner = {0};
 	F32 alpha = .0f;
@@ -555,8 +549,7 @@ I32 addMapVert(
 		pInPiece, pInPieceCache,
 		pMapFace, mapCorner,
 		&inCorner,
-		&alpha,
-		pFlipWind
+		&alpha
 	);
 	if (status == STUC_INSIDE_STATUS_OUTSIDE) {
 		return -1;
@@ -619,8 +612,7 @@ StucErr bufMeshAddVert(
 	I32 inPieceOffset,
 	const FaceRange *pMapFace,
 	const PlycutCorner *pCorner,
-	BufMesh *pBufMesh,
-	bool *pFlipWind
+	BufMesh *pBufMesh
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	BufVertType type = 0;
@@ -633,8 +625,7 @@ StucErr bufMeshAddVert(
 				pInPiece, pInFaceCache,
 				pBufMesh,
 				pMapFace, pCorner->info.origin.corner.corner,
-				&type,
-				pFlipWind
+				&type
 			);
 			PIX_ERR_RETURN_IFNOT_COND(
 				err,
@@ -682,7 +673,6 @@ StucErr addFaceToBufMesh(
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 faceStart = pBufMesh->corners.count;
 	const PlycutCorner *pCorner = pFace->pRoot;
-	bool flipWind = false;
 	I32 i = 0;
 	do {
 		PIX_ERR_RETURN_IFNOT_COND(err, i < pFace->size, "infinite or astray loop");
@@ -694,13 +684,12 @@ StucErr addFaceToBufMesh(
 			inPieceOffset,
 			pMapFace,
 			pCorner,
-			pBufMesh,
-			&flipWind
+			pBufMesh
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
 	} while(++i, pCorner = pCorner->pNext, pCorner);
 	I32 faceSize = pBufMesh->corners.count - faceStart;
-	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, faceStart, faceSize, flipWind);
+	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, faceStart, faceSize);
 	return err;
 }
 
@@ -782,7 +771,6 @@ StucErr addNonClipInPieceToBufMesh(
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
 	FaceRange mapFace = stucGetFaceRange(&pMapMesh->core, pInPiece->pList->mapFace);
 	I32 bufFaceStart = pBufMesh->corners.count;
-	bool flipWind = false;
 	for (I32 i = 0; i < mapFace.size; ++i) {	
 		BufVertType type = 0;
 		I32 vert = 0;
@@ -792,8 +780,7 @@ StucErr addNonClipInPieceToBufMesh(
 			pInPiece, pInFaceCache,
 			pBufMesh,
 			&mapFace, i,
-			&type,
-			&flipWind
+			&type
 		);
 		if (vert != -1) {
 			bufMeshAddCorner(pBasic, pBufMesh, type, vert);
@@ -806,7 +793,7 @@ StucErr addNonClipInPieceToBufMesh(
 		);
 		break;
 	}
-	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size, flipWind);
+	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size);
 	return err;
 }
 

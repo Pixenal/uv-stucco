@@ -107,6 +107,7 @@ void addBufFaceToOutMesh(
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	pOutBuf->buf.count = 0;
 	BufFace bufFace = pBufMesh->faces.pArr[faceIdx];
+	bool inFaceOnly = true;
 	for (I32 i = 0; i < bufFace.size; ++i) {
 		FaceCorner bufCorner = {.face = faceIdx, .corner = i};
 		MergeTableKey key = {0};
@@ -141,6 +142,9 @@ void addBufFaceToOutMesh(
 				pOutBuf->buf.size * sizeof(OutCornerBufCorner)
 			);
 		}
+		inFaceOnly &=
+			key.type == STUC_BUF_VERT_SUB_TYPE_IN ||
+			key.type == STUC_BUF_VERT_SUB_TYPE_EDGE_IN;
 		OutCornerBufCorner *pBufEntry = pOutBuf->buf.pArr + pOutBuf->buf.count;
 		pBufEntry->mergedVert = pEntry->linIdx;
 		pBufEntry->intersect = pEntry->key.type == STUC_BUF_VERT_INTERSECT;
@@ -171,10 +175,11 @@ void addBufFaceToOutMesh(
 	if (pOutBuf->final.count < 3) {
 		return; //skip face
 	}
+	bool reverseWind = !pInPiece->pList->inFaces.pArr[0].wind && !inFaceOnly;
 	I32 outFace = stucMeshAddFace(pBasic->pCtx, &pBasic->outMesh, NULL);
 	pBasic->outMesh.core.pFaces[outFace] = pBasic->outMesh.core.cornerCount;
 	for (I32 i = 0; i < pOutBuf->final.count; ++i) {
-		I32 idx = bufFace.flipWind ? pOutBuf->final.count - i - 1 : i;
+		I32 idx = reverseWind ? pOutBuf->final.count - i - 1 : i;
 		I32 outCorner = stucMeshAddCorner(pBasic->pCtx, &pBasic->outMesh, NULL);
 		I32 newIdx = -1;
 		PIXALC_DYN_ARR_ADD(OutBufIdx, pAlloc, pOutBufIdxArr, newIdx);
