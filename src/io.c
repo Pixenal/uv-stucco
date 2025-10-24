@@ -9,6 +9,7 @@ SPDX-License-Identifier: Apache-2.0
 #define ENCODE_DECODE_BUFFER_LENGTH 34
 #define STUC_MAP_VERSION 100
 #define STUC_FLAT_CUTOFF_HEADER_SIZE 56
+#define STUC_WINDOW_BITS 31 //15 (+16 as using gzip)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -25,6 +26,37 @@ SPDX-License-Identifier: Apache-2.0
 #include <map.h>
 #include <context.h>
 #include <attrib_utils.h>
+
+PixErr checkZlibErr(I32 success, I32 zErr) {
+	PixErr err = PIX_ERR_SUCCESS;
+	if (zErr == success) {
+		return err;
+	}
+	switch (zErr) {
+		case Z_OK:
+			PIX_ERR_RETURN(err, "zlib did not complete");
+		case Z_MEM_ERROR:
+			PIX_ERR_RETURN(err, "zlib err, Z_MEM_ERROR");
+		case Z_BUF_ERROR:
+			PIX_ERR_RETURN(err, "zlib err, Z_BUF_ERROR");
+		case Z_DATA_ERROR:
+			PIX_ERR_RETURN(err, "zlib err, Z_DATA_ERROR");
+		case Z_STREAM_ERROR:
+			PIX_ERR_RETURN(err, "zlib err, Z_STREAM_ERROR");
+		default:
+			PIX_ERR_RETURN(err, "zlib err");
+	}
+}
+
+static
+void *mallocZlibWrap(void *pOpaque, U32 count, U32 typeSize) {
+	return ((StucAlloc *)pOpaque)->fpMalloc((I32)(count * typeSize));
+}
+
+static
+void freeZlibWrap(void *pOpaque, void *pPtr) {
+	((StucAlloc *)pOpaque)->fpFree(pPtr);
+}
 
 static
 void reallocByteStringIfNeeded(
@@ -223,7 +255,7 @@ StucErr encodeObj(
 	//encode obj header
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
 	encodeDataName(pAlloc, pByteString, "OS"); //object start
-	encodeDataName(pAlloc, pByteString, "XF"); //transform/ xform
+	encodeDataName(pAlloc, pByteString, "XF"); //transform
 	for (I32 i = 0; i < 16; ++i) {
 		I32 x = i % 4;
 		I32 y = i / 4;
@@ -284,16 +316,6 @@ StucErr encodeObj(
 	encodeDataName(pAlloc, pByteString, "OE"); //object end
 	return PIX_ERR_SUCCESS;
 }
-
-/*
-static
-void addSpacing(ByteString *pByteString, I32 lenInBits, I64 *pSize) {
-	I32 lenInBytes = lenInBits / 8;
-	pByteString->byteIdx += lenInBytes;
-	pByteString->nextBitIdx = lenInBits - lenInBytes * 8;
-	*pSize -= lenInBits;
-}
-*/
 
 static
 I32 addUniqToPtrArr(void *pPtr, I32 *pCount, void **ppArr) {
@@ -387,6 +409,7 @@ StucErr stucWriteStucFile(
 	const StucAlloc *pAlloc = &pCtx->alloc;
 	ByteString header = {0};
 	ByteString data = {0};
+	U8 *pCompressed = NULL;
 	void *pFile = NULL;
 
 	I32 *pCutoffIndices = NULL;
@@ -428,30 +451,37 @@ StucErr stucWriteStucFile(
 			stucEncodeValue(pAlloc, &data, (U8 *)&pCutoffIndices[i], 32);
 		}
 	}
+
 	//compress data
-	//TODO convert to use proper zlib inflate and deflate calls
-	//compress and decompress are not context independent iirc
 	I64 dataSize = data.byteIdx + (data.nextBitIdx > 0);
-	//zlib needs some padding
-	uLongf uCompressedDataSize = (uLong)((I32)((F32)dataSize * 1.01f) + 12);
-	U8 *compressedData = pCtx->alloc.fpMalloc(uCompressedDataSize);
-	I32 zResult = compress(
-		compressedData,
-		&uCompressedDataSize,
-		data.pString,
-		(uLong)dataSize
+	z_stream zStream = {
+		.zalloc = mallocZlibWrap,
+		.zfree = freeZlibWrap,
+		.opaque = (void *)pAlloc 
+	};
+	//using gzip with crc32
+	err = checkZlibErr(
+		Z_OK,
+		deflateInit2(
+			&zStream,
+			Z_DEFAULT_COMPRESSION,
+			Z_DEFLATED,
+			STUC_WINDOW_BITS,
+			8,
+			Z_DEFAULT_STRATEGY
+		)
 	);
-	switch(zResult) {
-		case Z_OK:
-			printf("Successfully compressed STUC data\n");
-			break;
-		case Z_MEM_ERROR:
-			PIX_ERR_THROW(err, "Failed to compress STUC data, memory error\n", 0);
-		case Z_BUF_ERROR:
-			PIX_ERR_THROW(err, "Failed to compress STUC data, output buffer too small\n", 0);
-	}
-	I64 compressedDataSize = (I64)uCompressedDataSize;
-	printf("Compressed data is %lld long\n", compressedDataSize);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	zStream.avail_out = deflateBound(&zStream, dataSize);
+	pCompressed = pAlloc->fpMalloc(zStream.avail_out);
+	zStream.next_out = pCompressed;
+	zStream.avail_in = dataSize;
+	zStream.next_in = data.pString;
+	err = checkZlibErr(Z_STREAM_END, deflate(&zStream, Z_FINISH));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = checkZlibErr(Z_OK, deflateEnd(&zStream));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	printf("Compressed data is %ld long\n", zStream.total_out);
 
 	//encode header
 	const char *format = "UV Stucco Map File";
@@ -471,15 +501,13 @@ StucErr stucWriteStucFile(
 	stucEncodeString(pAlloc, &header, (U8 *)format);
 	I32 version = STUC_MAP_VERSION;
 	stucEncodeValue(pAlloc, &header, (U8 *)&version, 16);
-	stucEncodeValue(pAlloc, &header, (U8 *)&compressedDataSize, 64);
+	stucEncodeValue(pAlloc, &header, (U8 *)&zStream.total_out, 64);
 	stucEncodeValue(pAlloc, &header, (U8 *)&dataSize, 64);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pIndexedAttribs->count, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&objCount, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&usgCount, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&cutoffCount, 32);
 
-	//TODO CRC for uncompressed data
-	
 	err = pCtx->io.fpOpen(&pFile, pPath, 0, &pCtx->alloc);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	I64 finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
@@ -487,7 +515,7 @@ StucErr stucWriteStucFile(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = pCtx->io.fpWrite(pFile, header.pString, (I32)finalHeaderLen);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pCtx->io.fpWrite(pFile, compressedData, (I32)compressedDataSize);
+	err = pCtx->io.fpWrite(pFile, pCompressed, (I32)zStream.total_out);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	PIX_ERR_CATCH(0, err, ;);
@@ -499,6 +527,9 @@ StucErr stucWriteStucFile(
 	}
 	if (data.pString) {
 		pCtx->alloc.fpFree(data.pString);
+	}
+	if (pCompressed) {
+		pAlloc->fpFree(pCompressed);
 	}
 	printf("Finished STUC export\n");
 	return err;
@@ -767,9 +798,7 @@ StucErr loadObj(
 	if (usesUsg) {
 		pMesh->vertAttribs.count++;
 	}
-	//TODO add PIX_ERR_ERROR and PIX_ERR_CATCH to all functions that return StucErr
 	PIX_ERR_CATCH(0, err,
-		//if error:
 		stucMeshDestroy(pCtx, pMesh);
 		pCtx->alloc.fpFree(pMesh);
 	);
@@ -865,7 +894,7 @@ StucErr stucLoadStucFile(
 	ByteString headerByteString = {0};
 	ByteString dataByteString = {0};
 	void *pFile = NULL;
-	U8 *dataByteStringRaw = NULL;
+	U8 *pDataRaw = NULL;
 	printf("Loading STUC file: %s\n", filePath);
 	err = pCtx->io.fpOpen(&pFile, filePath, 1, &pCtx->alloc);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -892,34 +921,36 @@ StucErr stucLoadStucFile(
 		"map file version not supported",
 		0
 	);
-	dataByteStringRaw = pCtx->alloc.fpMalloc(header.dataSize);
-	uLong dataSizeUncompressed = (uLong)header.dataSize;
+
+	//decompress data
+	z_stream zStream = {
+		.zalloc = mallocZlibWrap,
+		.zfree = freeZlibWrap,
+		.opaque = (void *)&pCtx->alloc
+	};
 	printf("Reading data\n");
-	err = pCtx->io.fpRead(pFile, dataByteStringRaw, (I32)header.dataSizeCompressed);
+	pDataRaw = pCtx->alloc.fpMalloc((I32)header.dataSizeCompressed);
+	err = pCtx->io.fpRead(pFile, pDataRaw, (I32)header.dataSizeCompressed);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
+	zStream.next_in = pDataRaw;
+	err = checkZlibErr(Z_OK, inflateInit2(&zStream, STUC_WINDOW_BITS));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	zStream.avail_in = header.dataSizeCompressed;
 	dataByteString.pString = pCtx->alloc.fpMalloc(header.dataSize);
+	zStream.next_out = dataByteString.pString;
+	zStream.avail_out = header.dataSize;
 	printf("Decompressing data\n");
-	I32 zResult = uncompress(
-		dataByteString.pString,
-		&dataSizeUncompressed,
-		dataByteStringRaw,
-		(uLong)header.dataSizeCompressed
+	err = checkZlibErr(Z_STREAM_END, inflate(&zStream, Z_FINISH));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = checkZlibErr(Z_OK, inflateEnd(&zStream));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		zStream.total_out == header.dataSize,
+		"Failed to load STUC file. decompressed data len is wrong\n",
+		0
 	);
-	switch(zResult) {
-		case Z_OK:
-			printf("Successfully decompressed STUC file data\n");
-			break;
-		case Z_MEM_ERROR:
-			printf("Failed to decompress STUC file data. Memory error\n");
-			break;
-		case Z_BUF_ERROR:
-			printf("Failed to decompress STUC file data. Buffer was too small\n");
-			break;
-	}
-	if (dataSizeUncompressed != header.dataSize) {
-		printf("Failed to load STUC file. Decompressed data size doesn't match header description\n");
-		return PIX_ERR_ERROR;
-	}
+
 	printf("Decoding data\n");
 	err = decodeStucData(
 		pCtx,
@@ -940,8 +971,8 @@ StucErr stucLoadStucFile(
 	if (pFile) {
 		err = pCtx->io.fpClose(pFile);
 	}
-	if (dataByteStringRaw) {
-		pCtx->alloc.fpFree(dataByteStringRaw);
+	if (pDataRaw) {
+		pCtx->alloc.fpFree(pDataRaw);
 	}
 	if (headerByteString.pString) {
 		pCtx->alloc.fpFree(headerByteString.pString);
