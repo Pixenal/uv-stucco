@@ -483,6 +483,13 @@ StucErr stucGetAttribIndexed(
 	StucAttribIndexed **ppAttrib
 );
 STUC_EXPORT
+StucErr stucAttribActiveGet(
+	StucContext pCtx,
+	StucMesh *pMesh,
+	StucAttribUse use,
+	StucAttrib **ppAttrib
+);
+STUC_EXPORT
 void stucMapIndexedAttribsGet(
 	StucContext pCtx,
 	StucMap pMap,

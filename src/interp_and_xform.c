@@ -762,8 +762,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 			&pInPiece, &pBufMesh, &bufCorner
 		);
 
-		SrcFaces srcFaces = {0};
-		stucGetSrcFacesForBufCorner(
+		SrcFaces srcFaces = stucGetSrcFacesForBufCorner(
 			pArgs->core.pBasic,
 			pInPiece,
 			pBufMesh,
