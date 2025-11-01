@@ -34,6 +34,7 @@ SPDX-License-Identifier: Apache-2.0
 
 typedef struct StucContextInternal *StucContext;
 typedef struct StucMapInternal *StucMap;
+typedef struct StucMapExportIntern StucMapExport;
 
 //TODO add array wrapper structs, so that you don't need to pass
 //separate "count" variables to functions. IntArray, AttribArray,
@@ -278,9 +279,13 @@ typedef struct StucObjectData {
 	StucObjectType type;
 } StucObjectData;
 
+typedef struct StucMapArrEntry {
+	StucMap pMap;
+	int8_t matIdx;
+} StucMapArrEntry;
+
 typedef struct StucMapArr {
-	StucMap *ppArr;
-	int8_t *pMatArr;
+	StucMapArrEntry *pArr;
 	//TODO maybe rename CommonAttrib to Blend or such? It's shorter
 	StucCommonAttribList *pCommonAttribArr;
 	int32_t size;
@@ -356,9 +361,14 @@ typedef struct StucImage {
 	int32_t res;
 } StucImage;
 
+typedef struct StucFlatCutoffIdx {
+	int32_t idx;
+	bool enabled;
+} StucFlatCutoffIdx;
+
 typedef struct StucUsg {
 	StucObject obj;
-	StucObject *pFlatCutoff;
+	StucFlatCutoffIdx flatCutoff;
 } StucUsg;
 
 #define STUC_STAGE_NAME_LEN 64
@@ -378,7 +388,7 @@ STUC_EXPORT
 StucErr stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
 StucErr stucContextInit(
-	StucContext *pCtx,
+	StucContext *ppCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pTheadPool,
 	StucIo *pIo,
@@ -386,15 +396,32 @@ StucErr stucContextInit(
 	StucStageReport *pStageReport
 );
 STUC_EXPORT
-StucErr stucMapFileExport(
-	StucContext context,
-	const char *pPath,
-	int32_t objCount,
-	StucObject *pObjArr,
-	int32_t usgCount,
-	StucUsg *pUsgArr,
-	StucAttribIndexedArr *pIndexedAttribs
+StucErr stucMapExportInit(
+	StucContext pCtx,
+	StucMapExport **ppHandle,
+	const char *pPath
 );
+STUC_EXPORT
+StucErr stucMapExportEnd(StucMapExport **ppHandle);
+STUC_EXPORT
+StucErr stucMapExportTargetAdd(
+	StucMapExport *pHandle,
+	const StucMapArr *pMapArr,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs,
+	float wScale,
+	float receiveLen
+);
+STUC_EXPORT
+StucErr stucMapExportObjAdd(
+	void *pHandle,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs
+);
+STUC_EXPORT
+StucErr stucMapExportUsgAdd(StucMapExport *pHandle, StucUsg *pUsg);
+STUC_EXPORT
+StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutoff);
 STUC_EXPORT
 StucErr stucMapFileLoadForEdit(
 	StucContext pCtx,

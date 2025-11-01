@@ -2178,17 +2178,13 @@ AttribIndexed *stucAppendIndexedAttrib(
 	StucAttribType type,
 	StucAttribUse use
 ) {
-	PIX_ERR_ASSERT("", pIndexedAttribArr->count <= pIndexedAttribArr->size);
-	if (pIndexedAttribArr->count == pIndexedAttribArr->size) {
-		pIndexedAttribArr->size *= 2;
-		pCtx->alloc.fpRealloc(pIndexedAttribArr->pArr, pIndexedAttribArr->size);
-	}
-	AttribIndexed *pIndexedAttrib = pIndexedAttribArr->pArr + pIndexedAttribArr->count;
+	I32 newIdx;
+	PIXALC_DYN_ARR_ADD(StucAttribIndexed, &pCtx->alloc, pIndexedAttribArr, newIdx);
+	AttribIndexed *pIndexedAttrib = pIndexedAttribArr->pArr + newIdx;
 	stucInitAttribCore(&pCtx->alloc, &pIndexedAttrib->core, pName, dataLen, type, use);
 	if (dataLen) {
-		pIndexedAttrib->size = dataLen;
+		*pIndexedAttrib = (AttribIndexed){.core = pIndexedAttrib->core, .size = dataLen};
 	}
-	pIndexedAttribArr->count++;
 	return pIndexedAttrib;
 }
 

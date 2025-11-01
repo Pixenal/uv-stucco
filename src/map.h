@@ -17,16 +17,6 @@ typedef struct AttributeDesc {
 	I32 sizeInBits;
 } AttributeDesc;
 
-typedef struct StucHeader {
-	char format[MAP_FORMAT_NAME_MAX_LEN];
-	I64 dataSize;
-	I64 dataSizeCompressed;
-	I32 version;
-	I32 objCount;
-	I32 usgCount;
-	I32 flatCutoffCount;
-} StucHeader;
-
 typedef struct StucMapInternal {
 	UsgArr usgArr;
 	const Mesh *pMesh;
@@ -35,4 +25,5 @@ typedef struct StucMapInternal {
 	QuadTree quadTree;
 	StucAttribIndexedArr indexedAttribs;
 	V2_F32 zBounds;
+	char *pName;
 } MapFile;

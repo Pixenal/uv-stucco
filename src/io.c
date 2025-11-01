@@ -271,21 +271,279 @@ PixErr encodeActiveAttribs(
 	return err;
 }
 
+typedef struct IdxTableArr {
+	PixtyI8Arr *pArr;
+	I32 size;
+	I32 count;
+} IdxTableArr;
+
 static
-StucErr encodeObj(
+void destroyIdxTableArr(StucAlloc *pAlloc, IdxTableArr *pArr) {
+	if (pArr->pArr) {
+		for (I32 i = 0; i < pArr->count; ++i) {
+			if (pArr->pArr[i].pArr) {
+				pAlloc->fpFree(pArr->pArr[i].pArr);
+			}
+		}
+		pAlloc->fpFree(pArr->pArr);
+	}
+}
+
+static
+void encodeRedirectTable(
 	const StucAlloc *pAlloc,
 	ByteString *pData,
-	StucObject *pObj
+	const IdxTableArr *pIdxTable
+) {
+	encodeDataName(pAlloc, pData, "IR"); //Index Redirects
+	stucEncodeValue(pAlloc, pData, (U8 *)&pIdxTable->count, 16);
+	for (I32 i = 0; i < pIdxTable->count; ++i) {
+		PixtyI8Arr *pTable = pIdxTable->pArr + i;
+		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->count, 8);
+		for (I32 j = 0; j < pTable->count; ++j) {
+			if (pTable->pArr[j] >= 0) {
+				stucEncodeValue(pAlloc, pData, (U8 *)&j, 8);//local
+				stucEncodeValue(pAlloc, pData, (U8 *)&pTable->pArr[j], 8);//global
+			}
+		}
+	}
+}
+
+typedef struct MappingOpt {
+	F32 wScale;
+	F32 receiveLen;
+} MappingOpt;
+
+typedef struct MatMapEntry {
+	HTableEntryCore core;
+	I32 linIdx;
+	I32 mat;//global idx
+	StucMap pMap;
+	MappingOpt opt;
+} MatMapEntry;
+
+typedef struct MatMapEntryInit {
+	StucMap pMap;
+	MappingOpt opt;
+} MatMapEntryInit;
+
+static
+void matMapEntryInit(
+	void *pUserData,
+	HTableEntryCore *pCore,
+	const void *pKeyData,
+	void *pInitInfo,
+	I32 linIdx
+) {
+	StucMapExport *pHandle = (StucMapExport *)pUserData;
+	MatMapEntryInit *pInit = (MatMapEntryInit *)pInitInfo;
+	MatMapEntry *pEntry = (MatMapEntry *)pCore;
+	pEntry->linIdx = linIdx;
+	pEntry->mat = *(I32 *)pKeyData;
+	pEntry->pMap = pInit->pMap;
+	pEntry->opt = pInit->opt;
+}
+
+bool matMapEntryCmp(
+	const HTableEntryCore *pEntry,
+	const void *pKeyData,
+	const void *pInitInfo
+) {
+	return ((MatMapEntry *)pEntry)->mat == *(I32 *)pKeyData;
+}
+
+static
+void encodeBlendConfigOverride(
+	const StucAlloc *pAlloc,
+	ByteString *pCommonBuf,
+	const StucTypeDefault *pDefault,
+	const StucBlendConfig *pBlendConfig
+) {
+	UBitField8 flags =
+		(pBlendConfig->blend != pDefault->blendConfig.blend) |
+		(pBlendConfig->fMax != pDefault->blendConfig.fMax) << 1 |
+		(pBlendConfig->fMin != pDefault->blendConfig.fMin) << 2 |
+		(pBlendConfig->iMax != pDefault->blendConfig.iMax) << 3 |
+		(pBlendConfig->iMin != pDefault->blendConfig.iMin) << 4 |
+		(pBlendConfig->opacity != pDefault->blendConfig.opacity) << 5 |
+		(pBlendConfig->clamp != pDefault->blendConfig.clamp) << 6 |
+		(pBlendConfig->order != pDefault->blendConfig.order) << 7;
+	stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&flags, 8);
+	if (flags & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->blend, 8);
+	}
+	if (flags >> 1 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->fMax, 64);
+	}
+	if (flags >> 2 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->fMin, 64);
+	}
+	if (flags >> 3 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->iMax, 64);
+	}
+	if (flags >> 4 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->iMin, 64);
+	}
+	if (flags >> 5 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->opacity, 32);
+	}
+	if (flags >> 6 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->clamp, 1);
+	}
+	if (flags >> 7 & 0x1) {
+		stucEncodeValue(pAlloc, pCommonBuf, (U8 *)&pBlendConfig->order, 1);
+	}
+}
+
+static
+void encodeMappingOpt(
+	StucMapExport *pHandle,
+	const StucMesh *pMesh,
+	const StucMapArr *pMapArr,
+	const AttribIndexedArr *pIdxAttribArr,
+	const IdxTableArr *pIdxTable,
+	F32 wScale,
+	F32 receiveLen
+) {
+	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	ByteString *pData = &pHandle->data;
+	bool wroteDataName = false;
+	const Attrib *pAttrib =
+		stucGetActiveAttribConst(pHandle->pCtx, pMesh, STUC_ATTRIB_USE_IDX);
+	const AttribIndexed *pMats =
+		stucGetAttribIndexedInternConst(pIdxAttribArr, pAttrib->core.name);
+	intptr_t attribIdx = (intptr_t)(pMats) - (intptr_t)(pAttrib->core.pData);
+	attribIdx /= (intptr_t)stucGetAttribSizeIntern(pAttrib->core.type);
+	for (I32 i = 0; i < pMats->count; ++i) {
+		I32 globMatIdx = pIdxTable->pArr[attribIdx].pArr[i];
+		if (globMatIdx == -2) {
+			continue;//mat is not use in mesh
+		}
+		MappingOpt mappingOpt = {
+			.wScale = wScale,
+			.receiveLen = receiveLen
+		};
+		const char *pMatName = stucAttribAsVoidConst(&pMats->core, i);
+		MatMapEntry *pEntry = NULL;
+		stucHTableGet(
+			&pHandle->matMapTable,
+			0,
+			&globMatIdx,
+			&pEntry,
+			true,
+			&(MatMapEntryInit) {.pMap = pMapArr->pArr[i].pMap, .opt = mappingOpt},
+			stucKeyFromI32, NULL, matMapEntryInit, matMapEntryCmp
+		);
+		bool mapOverride = pEntry->pMap != pMapArr->pArr[i].pMap;
+		bool wScaleOverride = pEntry->opt.wScale = wScale;
+		bool receiveOverride = pEntry->opt.receiveLen == receiveLen;
+		UBitField8 commonOverride = 0x0;
+		I32 domainOverrides[STUC_DOMAIN_MESH] = {0};
+		ByteString commonBuf = {0};
+		for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+			StucCommonAttribArr *pArr = NULL;
+			stucCommonAttribArrGetFromDomain(
+				pHandle->pCtx,
+				pMapArr->pCommonAttribArr + i,
+				domain,
+				&pArr
+			);
+			const AttribArray *pAttribArr = stucGetAttribArrFromDomainConst(pMesh, domain);
+			PIX_ERR_ASSERT(
+				"common attrib arr len differs from mesh attrib arr",
+				pArr->count == pAttribArr->count
+			);
+			for (I32 j = 0; j < pArr->count; ++j) {
+				const StucTypeDefault *pDefault = stucGetTypeDefaultConfig(
+					&pHandle->pCtx->typeDefaults,
+					pAttribArr->pArr[j].core.type
+				);
+				BlendConfig *pBlendConfig = &pArr->pArr[j].blendConfig;
+				if (memcmp(
+					pBlendConfig,
+					&pDefault->blendConfig,
+					sizeof(BlendConfig))
+				) {
+					PIX_ERR_ASSERT("num attribs exceeds limit", pEntry->linIdx <= INT16_MAX);
+					stucEncodeValue(pAlloc, &commonBuf, (U8 *)&pEntry->linIdx, 16);
+					encodeBlendConfigOverride(pAlloc, &commonBuf, pDefault, pBlendConfig);
+					++domainOverrides[domain];
+				}
+			}
+		}
+		UBitField8 header =
+			mapOverride |
+			!!commonOverride << 1 |
+			wScaleOverride << 2 |
+			receiveOverride << 3;
+		if (header) {
+			if (!wroteDataName) {
+				encodeDataName(&pHandle->pCtx->alloc, pData, "MO");
+			}
+			stucEncodeValue(pAlloc, pData, (U8 *)&header, 8);
+			if (mapOverride) {
+				stucEncodeValue(pAlloc, pData, (U8 *)&pEntry->linIdx, 1);
+			}
+			if (commonOverride) {
+				for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+					stucEncodeValue(pAlloc, pData, (U8 *)&domainOverrides[domain], 16);
+				}
+				reallocByteStringIfNeeded(pAlloc, pData, (I64)commonBuf.byteIdx * 8);
+				memcpy(pData->pString, commonBuf.pString, commonBuf.byteIdx);
+				pData->byteIdx += commonBuf.byteIdx;
+			}
+			if (commonBuf.pString) {
+				pAlloc->fpFree(commonBuf.pString);
+			}
+			if (wScaleOverride) {
+				stucEncodeValue(pAlloc, pData, (U8 *)&pEntry->opt.wScale, 32);
+			}
+			if (receiveOverride) {
+				stucEncodeValue(pAlloc, pData, (U8 *)&pEntry->opt.receiveLen, 32);
+			}
+		}
+	}
+}
+
+static
+StucErr encodeObj(
+	StucMapExport *pHandle,
+	const StucObject *pObj,
+	const IdxTableArr *pIdxTable,
+	bool mappingOpt,
+	const StucMapArr *pMapArr,
+	const AttribIndexedArr *pIdxAttribArr,
+	F32 wScale,
+	F32 receiveLen,
+	bool checkPosOnly
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	const StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	ByteString *pData = &pHandle->data;
 	PIX_ERR_RETURN_IFNOT_COND(
 		err,
 		pObj->pData && pObj->pData->type == STUC_OBJECT_DATA_MESH,
 		"invalid mesh"
 	);
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
+	err = stucValidateMesh(pMesh, false, checkPosOnly);
+	PIX_ERR_RETURN_IFNOT(err, "mesh validation failed");
 	//encode obj header
 	encodeDataName(pAlloc, pData, "OS"); //object start
+	if (pIdxTable && pIdxTable->count) {
+		encodeRedirectTable(pAlloc, pData, pIdxTable);
+	}
+	if (mappingOpt) {
+		encodeMappingOpt(
+			pHandle,
+			pMesh,
+			pMapArr,
+			pIdxAttribArr,
+			pIdxTable,
+			wScale,
+			receiveLen
+		);
+	}
 	err = encodeActiveAttribs(pAlloc, pData, pMesh);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	encodeDataName(pAlloc, pData, "XF"); //transform
@@ -350,6 +608,7 @@ StucErr encodeObj(
 	return err;
 }
 
+/*
 static
 I32 addUniqToPtrArr(void *pPtr, I32 *pCount, void **ppArr) {
 	for (I32 i = 0; i < *pCount; ++i) {
@@ -427,7 +686,345 @@ I64 estimateObjArrSize(I32 count, StucObject *pObjArr) {
 	}
 	return total;
 }
+*/
 
+static
+void destroyMapExport(StucMapExport *pHandle) {
+	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	pAlloc->fpFree(pHandle->pPath);
+	pAlloc->fpFree(pHandle->data.pString);
+	stucHTableDestroy(&pHandle->matMapTable);
+	stucAttribIndexedArrDestroy(pHandle->pCtx, &pHandle->idxAttribs);
+	*pHandle = (StucMapExport){0};
+}
+
+StucErr stucMapExportInit(
+	StucContext pCtx,
+	StucMapExport **ppHandle,
+	const char *pPath
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	StucAlloc *pAlloc = &pCtx->alloc;
+	PIX_ERR_RETURN_IFNOT_COND(err, pPath[0], "path is empty");
+	I32 pathLen = strnlen(pPath, pixioPathMaxGet());
+	PIX_ERR_RETURN_IFNOT_COND(err, pathLen != pixioPathMaxGet(), "path is too long");
+	++pathLen;
+	StucMapExport *pHandle = pAlloc->fpCalloc(1, sizeof(StucMapExport));
+	pHandle->pCtx = pCtx;
+	pHandle->pPath = pAlloc->fpCalloc(pathLen, 1);
+	memcpy(pHandle->pPath, pPath, pathLen);
+	ByteString *pData = &pHandle->data;
+	pData->size = 1024;
+	pData->pString = pAlloc->fpCalloc(pData->size, 1);
+	pHandle->cutoffIdxMax = -1;
+	*ppHandle = pHandle;
+	return err;
+}
+
+StucErr stucMapExportEnd(StucMapExport **ppHandle) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		ppHandle && *ppHandle,
+		"invalid handle"
+	);
+	PIX_ERR_ASSERT(
+		"invalid handle",
+		(*ppHandle)->pPath && (*ppHandle)->data.pString
+	);
+	StucMapExport *pHandle = *ppHandle;
+	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+
+	ByteString header = {0};
+	U8 *pCompressed = NULL;
+	void *pFile = NULL;
+
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		pHandle->header.objCount > 0,
+		"no objects were supplied",
+		0
+	);
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		pHandle->cutoffIdxMax <= pHandle->header.cutoffCount,
+		"one or more USG's reference an invalid flat-cutoff index",
+		0
+	);
+	PIX_ERR_WARN_IFNOT_COND(
+		pHandle->header.cutoffCount && pHandle->cutoffIdxMax >= 0 ||
+		!pHandle->header.cutoffCount,
+		"no supplied flat-cutoffs are referenced by a USG"
+	);
+
+	//compress data
+	I64 dataSize = pHandle->data.byteIdx + (pHandle->data.nextBitIdx > 0);
+	z_stream zStream = {
+		.zalloc = mallocZlibWrap,
+		.zfree = freeZlibWrap,
+		.opaque = (void *)pAlloc 
+	};
+	//using gzip with crc32
+	err = checkZlibErr(
+		Z_OK,
+		deflateInit2(
+			&zStream,
+			Z_DEFAULT_COMPRESSION,
+			Z_DEFLATED,
+			STUC_WINDOW_BITS,
+			8,
+			Z_DEFAULT_STRATEGY
+		)
+	);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	zStream.avail_out = deflateBound(&zStream, dataSize);
+	pCompressed = pAlloc->fpMalloc(zStream.avail_out);
+	zStream.next_out = pCompressed;
+	zStream.avail_in = dataSize;
+	zStream.next_in = pHandle->data.pString;
+	err = checkZlibErr(Z_STREAM_END, deflate(&zStream, Z_FINISH));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = checkZlibErr(Z_OK, deflateEnd(&zStream));
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	printf("Compressed data is %ld long\n", zStream.total_out);
+
+	//encode header
+	const char *format = "UV Stucco Map File";
+	I32 formatLen = (I32)strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
+	PIX_ERR_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN);
+	header.size =
+		8 * ((I64)formatLen + 1) +
+		16 + //version
+		64 + //compressed data size
+		64 + //uncompressed data size
+		32 + //indexed attrib count
+		32 + //obj count
+		32 + //usg count
+		32;  //flatten cutoff count
+	header.size = header.size / 8 + (header.size % 8 != 0);
+	header.pString = pAlloc->fpCalloc(header.size, 1);
+	stucEncodeString(pAlloc, &header, (U8 *)format);
+	I32 version = STUC_MAP_VERSION;
+	stucEncodeValue(pAlloc, &header, (U8 *)&version, 16);
+	stucEncodeValue(pAlloc, &header, (U8 *)&zStream.total_out, 64);
+	stucEncodeValue(pAlloc, &header, (U8 *)&dataSize, 64);
+	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.inAttribCount, 32);
+	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.objCount, 32);
+	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.usgCount, 32);
+	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.cutoffCount, 32);
+
+	err = pHandle->pCtx->io.fpOpen(&pFile, pHandle->pPath, 0, pAlloc);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	I64 finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
+	err = pHandle->pCtx->io.fpWrite(pFile, (U8 *)&finalHeaderLen, 2);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = pHandle->pCtx->io.fpWrite(pFile, header.pString, (I32)finalHeaderLen);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = pHandle->pCtx->io.fpWrite(pFile, pCompressed, (I32)zStream.total_out);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+
+	PIX_ERR_CATCH(0, err, ;);
+	if (pFile) {
+		err = pHandle->pCtx->io.fpClose(pFile);
+	}
+	if (header.pString) {
+		pAlloc->fpFree(header.pString);
+	}
+	if (pCompressed) {
+		pAlloc->fpFree(pCompressed);
+	}
+	destroyMapExport(pHandle);
+	printf("Finished STUC export\n");
+	return err;
+}
+
+static
+StucErr makeIdxAttribRedirects(
+	StucMapExport *pHandle,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs,
+	IdxTableArr *pIdxTable
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		pObj->pData && pObj->pData->type == STUC_OBJECT_DATA_MESH,
+		"invalid mesh"
+	);
+	const StucMesh *pMesh = (StucMesh *)pObj->pData;
+
+	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	I8 *pIdxIsUsed = pAlloc->fpMalloc(INT8_MAX);
+	pIdxTable->size = pIdxTable->count = pIndexedAttribs->count;
+	pIdxTable->pArr = pAlloc->fpCalloc(pIdxTable->size, sizeof(PixtyI8Arr));
+	for (I32 i = 0; i < pIndexedAttribs->count; ++i) {
+		const AttribIndexed *pRef = pIndexedAttribs->pArr + i;
+		memset(pIdxIsUsed, 0, INT8_MAX);
+		const Attrib *pCompRef = NULL;
+		I32 compCount = 0;
+		for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+			pCompRef = stucGetAttribInternConst(
+				pRef->core.name,
+				stucGetAttribArrFromDomainConst(pMesh, domain),
+				false,
+				pHandle->pCtx,
+				pMesh
+			);
+			if (pCompRef) {
+				compCount = stucDomainCountGetIntern(pMesh, domain);
+				break;
+			}
+		}
+		PIX_ERR_THROW_IFNOT_COND(
+			err,
+			pCompRef->core.use == STUC_ATTRIB_USE_IDX &&
+				pCompRef->core.type == STUC_ATTRIB_I8,
+			"indexed attrib must be indexed with an attrib \
+of use STUC_ATTRIB_USE_IDX & type STUC_ATTRIB_I8",
+			0);
+		for (I32 j = 0; j < compCount; ++j) {
+			I8 idx = *(const I8 *)stucAttribAsVoidConst(&pCompRef->core, j);
+			PIX_ERR_THROW_IFNOT_COND(err, idx >= 0, "negative STUC_ATTRIB_USE_IDX idx", 0);
+			pIdxIsUsed[idx] = true;
+		}
+
+		AttribIndexed *pAttrib = stucGetAttribIndexedInternConst(
+			&pHandle->idxAttribs,
+			pRef->core.name
+		);
+		if (!pAttrib) {
+			pAttrib = stucAppendIndexedAttrib(
+				pHandle->pCtx,
+				&pHandle->idxAttribs,
+				pRef->core.name,
+				pRef->count,
+				pRef->core.type,
+				pRef->core.use
+			);
+		}
+		pIdxTable->pArr[i].pArr = pAlloc->fpCalloc(pRef->count, 1);
+		for (I32 j = 0; j < pRef->count; ++j) {
+			if (!pIdxIsUsed[j]) {
+				pIdxTable->pArr[i].pArr[j] = -2;
+				continue;
+			}
+			I32 idx = stucGetIdxInIndexedAttrib(pAttrib, pRef, j);
+			if (idx == -1) {
+				PIX_ERR_THROW_IFNOT_COND(err, pAttrib->count <= pAttrib->size, "", 0);
+				if (pAttrib->count == pAttrib->size) {
+					pAttrib->size *= 2;
+					stucReallocAttrib(pAlloc, NULL, &pAttrib->core, pAttrib->size);
+				}
+				idx = pAttrib->count;
+				++pAttrib->count;
+				memcpy(
+					stucAttribAsVoid(&pAttrib->core, idx),
+					stucAttribAsVoidConst(&pRef->core, j),
+					stucGetAttribSizeIntern(pRef->core.type)
+				);
+			}
+			pIdxTable->pArr[i].pArr[j] = j == idx ? -1 : idx;
+		}
+	}
+	PIX_ERR_CATCH(0, err, destroyIdxTableArr(pAlloc, pIdxTable););
+	if (pIdxIsUsed) {
+		pAlloc->fpFree(pIdxIsUsed);
+	}
+	return err;
+}
+
+static
+StucErr mapExportObjAdd(
+	StucMapExport *pHandle,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs,
+	bool isTarget,
+	const StucMapArr *pMapArr,
+	F32 wScale,
+	F32 receiveLen
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	IdxTableArr idxTable = {0};
+	err = makeIdxAttribRedirects(pHandle, pObj, pIndexedAttribs, &idxTable);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	encodeDataName(&pHandle->pCtx->alloc, &pHandle->data, "OB");
+	err = encodeObj(
+		pHandle,
+		pObj,
+		&idxTable,
+		isTarget,
+		pMapArr,
+		pIndexedAttribs,
+		wScale,
+		receiveLen,
+		false
+	);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	++pHandle->header.objCount;
+	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
+	destroyIdxTableArr(&pHandle->pCtx->alloc, &idxTable);
+	return err;
+}
+
+StucErr stucMapExportTargetAdd(
+	StucMapExport *pHandle,
+	const StucMapArr *pMapArr,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs,
+	F32 wScale,
+	F32 receiveLen
+) {
+	return
+		mapExportObjAdd(pHandle, pObj, pIndexedAttribs, true, pMapArr, wScale, receiveLen);
+}
+
+StucErr stucMapExportObjAdd(
+	void *pHandle,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs
+) {
+	return mapExportObjAdd(pHandle, pObj, pIndexedAttribs, false, NULL, .0f, .0f);
+}
+
+StucErr stucMapExportUsgAdd(
+	StucMapExport *pHandle,
+	StucUsg *pUsg
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	encodeDataName(pAlloc, &pHandle->data, "UG");
+	err = encodeObj(pHandle, &pUsg->obj, NULL, false, NULL, NULL, .0f, .0f, true);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	stucEncodeValue(pAlloc, &pHandle->data, (U8 *)pUsg->flatCutoff.enabled, 1);
+	if (pUsg->flatCutoff.enabled) {
+		PIX_ERR_THROW_IFNOT_COND(
+			err,
+			pUsg->flatCutoff.idx >= 0,
+			"invalid flat-cutoff index",
+			0
+		);
+		if (pUsg->flatCutoff.idx > pHandle->cutoffIdxMax) {
+			pHandle->cutoffIdxMax = pUsg->flatCutoff.idx;
+		}
+		stucEncodeValue(pAlloc, &pHandle->data, (U8 *)&pUsg->flatCutoff.idx, 32);
+	}
+	++pHandle->header.usgCount;
+	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
+	return err;
+}
+
+StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutoff) {
+	StucErr err = PIX_ERR_SUCCESS;
+	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	encodeDataName(pAlloc, &pHandle->data, "FC");
+	err = encodeObj(pHandle, pFlatCutoff, NULL, false, NULL, NULL, .0f, .0f, true);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	++pHandle->header.cutoffCount;
+	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
+	return err;
+}
+
+/*
 StucErr stucWriteStucFile(
 	StucContext pCtx,
 	const char *pPath,
@@ -467,16 +1064,16 @@ StucErr stucWriteStucFile(
 		encodeIndexedAttribs(pAlloc, &data, pIndexedAttribs);
 	}
 	for (I32 i = 0; i < objCount; ++i) {
-		err = encodeObj(pAlloc, &data, pObjArr + i);
+		err = encodeObj(pAlloc, &data, pObjArr + i, NULL);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	if (usgCount) {
 		for (I32 i = 0; i < cutoffCount; ++i) {
-			err = encodeObj(pAlloc, &data, ppCutoffs[i]);
+			err = encodeObj(pAlloc, &data, ppCutoffs[i], NULL);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 		for (I32 i = 0; i < usgCount; ++i) {
-			err = encodeObj(pAlloc, &data, &pUsgArr[i].obj);
+			err = encodeObj(pAlloc, &data, &pUsgArr[i].obj, NULL);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 			bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
 			encodeDataName(pAlloc, &data, "FC"); //flatten cut-off
@@ -569,6 +1166,7 @@ StucErr stucWriteStucFile(
 	printf("Finished STUC export\n");
 	return err;
 }
+*/
 
 static
 StucErr decodeAttribMeta(ByteString *pData, AttribArray *pAttribs) {
@@ -676,7 +1274,7 @@ StucHeader decodeStucHeader(
 	stucDecodeValue(headerByteString, (U8 *)&pIndexedAttribs->count, 32);
 	stucDecodeValue(headerByteString, (U8 *)&header.objCount, 32);
 	stucDecodeValue(headerByteString, (U8 *)&header.usgCount, 32);
-	stucDecodeValue(headerByteString, (U8 *)&header.flatCutoffCount, 32);
+	stucDecodeValue(headerByteString, (U8 *)&header.cutoffCount, 32);
 
 	return header;
 }
@@ -880,8 +1478,8 @@ StucErr decodeStucData(
 	if (pHeader->usgCount) {
 		*ppUsgArr = pCtx->alloc.fpCalloc(pHeader->usgCount, sizeof(StucUsg));
 		*ppFlatCutoffArr =
-			pCtx->alloc.fpCalloc(pHeader->flatCutoffCount, sizeof(StucObject));
-		for (I32 i = 0; i < pHeader->flatCutoffCount; ++i) {
+			pCtx->alloc.fpCalloc(pHeader->cutoffCount, sizeof(StucObject));
+		for (I32 i = 0; i < pHeader->cutoffCount; ++i) {
 			err = loadObj(pCtx, *ppFlatCutoffArr + i, pData, false);
 			PIX_ERR_RETURN_IFNOT(err, "");
 		}
@@ -898,9 +1496,9 @@ StucErr decodeStucData(
 				stucDecodeValue(pData, (U8 *)&cutoffIdx, 32);
 				PIX_ERR_ASSERT("",
 					cutoffIdx >= 0 &&
-					cutoffIdx < pHeader->flatCutoffCount
+					cutoffIdx < pHeader->cutoffCount
 				);
-				(*ppUsgArr)[i].pFlatCutoff = *ppFlatCutoffArr + cutoffIdx;
+				(*ppUsgArr)[i].flatCutoff.idx = cutoffIdx;
 			}
 		}
 	}
@@ -994,7 +1592,7 @@ StucErr stucLoadStucFile(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	*pObjCount = header.objCount;
 	*pUsgCount = header.usgCount;
-	*pFlatCutoffCount = header.flatCutoffCount;
+	*pFlatCutoffCount = header.cutoffCount;
 
 	PIX_ERR_CATCH(0, err, ;);
 	if (pFile) {

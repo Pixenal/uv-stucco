@@ -9,6 +9,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <uv_stucco.h>
 #include <types.h>
+#include <hash_table.h>
 
 typedef struct ByteString {
 	unsigned char *pString;
@@ -17,8 +18,29 @@ typedef struct ByteString {
 	I64 byteIdx;
 } ByteString;
 
+typedef struct StucHeader {
+	char format[MAP_FORMAT_NAME_MAX_LEN];
+	I64 dataSize;
+	I64 dataSizeCompressed;
+	I32 version;
+	I32 inAttribCount;
+	I32 objCount;
+	I32 usgCount;
+	I32 cutoffCount;
+} StucHeader;
+
+typedef struct StucMapExportIntern {
+	StucContext pCtx;
+	char *pPath;
+	StucHeader header;
+	ByteString data;
+	I32 cutoffIdxMax;
+	HTable matMapTable;
+	StucAttribIndexedArr idxAttribs;
+} StucMapExportIntern;
+
 //void stucWriteDebugImage(Cell *pRootCell);
-StucErr stucWriteStucFile(
+/*StucErr stucWriteStucFile(
 	StucContext pCtx,
 	const char *pPath,
 	I32 objCount,
@@ -26,7 +48,7 @@ StucErr stucWriteStucFile(
 	I32 usgCount,
 	StucUsg *pUsgArr,
 	StucAttribIndexedArr *pIndexedAttribs
-);
+);*/
 StucErr stucLoadStucFile(
 	StucContext pCtx,
 	const char *filePath,
