@@ -320,6 +320,12 @@ typedef struct StucObject {
 	Stuc_M4x4 transform;
 } StucObject;
 
+typedef struct StucObjArr {
+	StucObject *pArr;
+	int32_t size;
+	int32_t count;
+} StucObjArr;
+
 typedef PixalcFPtrs StucAlloc;
 
 typedef struct StucThreadPool {
@@ -371,6 +377,12 @@ typedef struct StucUsg {
 	StucFlatCutoffIdx flatCutoff;
 } StucUsg;
 
+typedef struct StucUsgArr {
+	StucUsg *pArr;
+	int32_t size;
+	int32_t count;
+} StucUsgArr;
+
 #define STUC_STAGE_NAME_LEN 64
 typedef struct StucStageReport {
 	char stage[STUC_STAGE_NAME_LEN];
@@ -414,7 +426,7 @@ StucErr stucMapExportTargetAdd(
 );
 STUC_EXPORT
 StucErr stucMapExportObjAdd(
-	void *pHandle,
+	StucMapExport *pHandle,
 	const StucObject *pObj,
 	const StucAttribIndexedArr *pIndexedAttribs
 );
@@ -486,11 +498,7 @@ StucErr stucMapToMesh(
 	float receiveLen
 );
 STUC_EXPORT
-StucErr stucObjArrDestroy(
-	StucContext pCtx,
-	int32_t objCount,
-	StucObject *pObjArr
-);
+StucErr stucObjArrDestroy(const StucContext pCtx, StucObjArr *pArr);
 STUC_EXPORT
 StucErr stucUsgArrDestroy(StucContext pCtx, int32_t count, StucUsg *pUsgArr);
 STUC_EXPORT

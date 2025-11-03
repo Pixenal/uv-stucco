@@ -27,6 +27,33 @@ SPDX-License-Identifier: Apache-2.0
 #include <context.h>
 #include <attrib_utils.h>
 
+typedef enum DataTag {
+	TAG_NONE,
+	TAG_OBJECT_START,
+	TAG_ACTIVE_ATTRIBS,
+	TAG_IDX_REDIRECTS,
+	TAG_MAP_OVERRIDES,
+	TAG_XFORM,
+	TAG_OBJECT_TYPE,
+	TAG_MESH_HEADER,
+	TAG_MESH_ATTRIBS,
+	TAG_FACE_LIST,
+	TAG_FACE_ATTRIBS,
+	TAG_CORNER_AND_EDGE_LISTS,
+	TAG_CORNER_ATTRIBS,
+	TAG_EDGE_ATTRIBS,
+	TAG_VERT_ATTRIBS,
+	TAG_IDX_ATTRIBS,
+	TAG_TYPE_OBJECT,
+	TAG_TYPE_TARGET,
+	TAG_TYPE_USG,
+	TAG_TYPE_USG_FLAT_CUTOFF
+} DataTag;
+
+#define DATA_TAG_INT(charA, charB) (I16)charA | (I16)charB << 8
+#define DATA_TAG_STR(pStr, charA, charB) pStr[0] = charA, pStr[1] = charB
+
+
 PixErr checkZlibErr(I32 success, I32 zErr) {
 	PixErr err = PIX_ERR_SUCCESS;
 	if (zErr == success) {
@@ -228,7 +255,150 @@ void encodeIndexedAttribMeta(
 }
 
 static
-void encodeDataName(const StucAlloc *pAlloc, ByteString *pByteString, char *pName) {
+DataTag dataTagFromStr(char *pStr) {
+	switch(*(I16 *)pStr) {
+		case DATA_TAG_INT('O', 'S'):
+			return TAG_OBJECT_START;
+		case DATA_TAG_INT('A', 'A'):
+			return TAG_ACTIVE_ATTRIBS;
+		case DATA_TAG_INT('I', 'R'):
+			return TAG_IDX_REDIRECTS;
+		case DATA_TAG_INT('M', 'O'):
+			return TAG_MAP_OVERRIDES;
+		case DATA_TAG_INT('X', 'F'):
+			return TAG_XFORM;
+		case DATA_TAG_INT('O', 'T'):
+			return TAG_OBJECT_TYPE;
+		case DATA_TAG_INT('M', 'H'):
+			return TAG_MESH_HEADER;
+		case DATA_TAG_INT('M', 'A'):
+			return TAG_MESH_ATTRIBS;
+		case DATA_TAG_INT('F', 'L'):
+			return TAG_FACE_LIST;
+		case DATA_TAG_INT('F', 'A'):
+			return TAG_FACE_ATTRIBS;
+		case DATA_TAG_INT('C', 'L'):
+			return TAG_CORNER_AND_EDGE_LISTS;
+		case DATA_TAG_INT('C', 'A'):
+			return TAG_CORNER_ATTRIBS;
+		case DATA_TAG_INT('E', 'A'):
+			return TAG_EDGE_ATTRIBS;
+		case DATA_TAG_INT('V', 'A'):
+			return TAG_VERT_ATTRIBS;
+		case DATA_TAG_INT('I', 'A'):
+			return TAG_IDX_ATTRIBS;
+		case DATA_TAG_INT('T', 'O'):
+			return TAG_TYPE_OBJECT;
+		case DATA_TAG_INT('T', 'A'):
+			return TAG_TYPE_TARGET;
+		case DATA_TAG_INT('T', 'U'):
+			return TAG_TYPE_USG;
+		case DATA_TAG_INT('T', 'F'):
+			return TAG_TYPE_USG_FLAT_CUTOFF;
+		default:
+			return TAG_NONE;
+	}
+}
+
+static
+DataTag decodeDataTag(ByteString *pByteString, char *pTagOut) {
+	//ensure string is aligned with byte (we need to do this manually,
+	//as stucDecodeValue is being used instead of stucDecodeString, given there's
+	//only 2 characters)
+	pByteString->byteIdx += pByteString->nextBitIdx > 0;
+	pByteString->nextBitIdx = 0;
+	char tag[2] = {0};
+	stucDecodeValue(pByteString, (U8 *)tag, 16);
+	if (pTagOut) {
+		DATA_TAG_STR(pTagOut, tag[0], tag[1]);
+	}
+	return dataTagFromStr(tag);
+}
+
+static
+void strFromDataTag(DataTag tag, char *pStr) {
+	switch(tag) {
+		case TAG_OBJECT_START:
+			DATA_TAG_STR(pStr, 'O', 'S');
+			break;
+		case TAG_ACTIVE_ATTRIBS:
+			DATA_TAG_STR(pStr, 'A', 'A');
+			break;
+		case TAG_IDX_REDIRECTS:
+			DATA_TAG_STR(pStr, 'I', 'R');
+			break;
+		case TAG_MAP_OVERRIDES:
+			DATA_TAG_STR(pStr, 'M', 'O');
+			break;
+		case TAG_XFORM:
+			DATA_TAG_STR(pStr, 'X', 'F');
+			break;
+		case TAG_OBJECT_TYPE:
+			DATA_TAG_STR(pStr, 'O', 'T');
+			break;
+		case TAG_MESH_HEADER:
+			DATA_TAG_STR(pStr, 'M', 'H');
+			break;
+		case TAG_MESH_ATTRIBS:
+			DATA_TAG_STR(pStr, 'M', 'A');
+			break;
+		case TAG_FACE_LIST:
+			DATA_TAG_STR(pStr, 'F', 'L');
+			break;
+		case TAG_FACE_ATTRIBS:
+			DATA_TAG_STR(pStr, 'F', 'A');
+			break;
+		case TAG_CORNER_AND_EDGE_LISTS:
+			DATA_TAG_STR(pStr, 'C', 'L');
+			break;
+		case TAG_CORNER_ATTRIBS:
+			DATA_TAG_STR(pStr, 'C', 'A');
+			break;
+		case TAG_EDGE_ATTRIBS:
+			DATA_TAG_STR(pStr, 'E', 'A');
+			break;
+		case TAG_VERT_ATTRIBS:
+			DATA_TAG_STR(pStr, 'V', 'A');
+			break;
+		case TAG_IDX_ATTRIBS:
+			DATA_TAG_STR(pStr, 'I', 'A');
+			break;
+		case TAG_TYPE_OBJECT:
+			DATA_TAG_STR(pStr, 'T', 'O');
+			break;
+		case TAG_TYPE_TARGET:
+			DATA_TAG_STR(pStr, 'T', 'A');
+			break;
+		case TAG_TYPE_USG:
+			DATA_TAG_STR(pStr, 'T', 'U');
+			break;
+		case TAG_TYPE_USG_FLAT_CUTOFF:
+			DATA_TAG_STR(pStr, 'T', 'F');
+			break;
+		case TAG_NONE:
+		default:
+			DATA_TAG_STR(pStr, 0, 0);
+	}
+}
+
+static
+StucErr isDataTagInvalid(ByteString *pByteString, DataTag tag) {
+	StucErr err = PIX_ERR_SUCCESS;
+	char str[2] = {0};
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		decodeDataTag(pByteString, str) == tag,
+		"tag doesn't match",
+		0
+	);
+	char refStr[2] = {0};
+	strFromDataTag(tag, refStr);
+	PIX_ERR_CATCH(0, err, printf("should be %s, is %s", refStr, str););
+	return err;
+}
+
+static
+void encodeDataTag(const StucAlloc *pAlloc, ByteString *pByteString, DataTag tag) {
 	//not using stucEncodeString, as there's not need for a null terminator.
 	//Only using 2 characters
 	
@@ -238,7 +408,9 @@ void encodeDataName(const StucAlloc *pAlloc, ByteString *pByteString, char *pNam
 		pByteString->nextBitIdx = 0;
 		pByteString->byteIdx++;
 	}
-	stucEncodeValue(pAlloc, pByteString, (U8 *)pName, 16);
+	char str[2] = {0};
+	strFromDataTag(tag, str);
+	stucEncodeValue(pAlloc, pByteString, (U8 *)str, 16);
 }
 
 static
@@ -249,7 +421,7 @@ PixErr encodeActiveAttribs(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	
-	encodeDataName(pAlloc, pData, "AA");
+	encodeDataTag(pAlloc, pData, TAG_ACTIVE_ATTRIBS);
 	I32 count = 0;
 	for (I32 i = 0; i < STUC_ATTRIB_USE_ENUM_COUNT; ++i) {
 		count += pMesh->activeAttribs[i].active;
@@ -271,39 +443,44 @@ PixErr encodeActiveAttribs(
 	return err;
 }
 
-typedef struct IdxTableArr {
-	PixtyI8Arr *pArr;
-	I32 size;
-	I32 count;
-} IdxTableArr;
-
 static
-void destroyIdxTableArr(StucAlloc *pAlloc, IdxTableArr *pArr) {
+void destroyIdxTableArr(StucAlloc *pAlloc, StucIdxTableArr *pArr) {
 	if (pArr->pArr) {
 		for (I32 i = 0; i < pArr->count; ++i) {
-			if (pArr->pArr[i].pArr) {
-				pAlloc->fpFree(pArr->pArr[i].pArr);
+			if (pArr->pArr[i].table.pArr) {
+				pAlloc->fpFree(pArr->pArr[i].table.pArr);
 			}
 		}
 		pAlloc->fpFree(pArr->pArr);
 	}
+	*pArr = (StucIdxTableArr){0};
+}
+
+static
+void destroyIdxTableArrs(StucAlloc *pAlloc, StucIdxTableArr **ppArr, I32 count) {
+	for (I32 i = 0; i < count; ++i) {
+		destroyIdxTableArr(pAlloc, (*ppArr) + i);
+	}
+	pAlloc->fpFree(*ppArr);
+	*ppArr = NULL;
 }
 
 static
 void encodeRedirectTable(
 	const StucAlloc *pAlloc,
 	ByteString *pData,
-	const IdxTableArr *pIdxTable
+	const StucIdxTableArr *pIdxTable
 ) {
-	encodeDataName(pAlloc, pData, "IR"); //Index Redirects
+	encodeDataTag(pAlloc, pData, TAG_IDX_REDIRECTS);
 	stucEncodeValue(pAlloc, pData, (U8 *)&pIdxTable->count, 16);
 	for (I32 i = 0; i < pIdxTable->count; ++i) {
-		PixtyI8Arr *pTable = pIdxTable->pArr + i;
-		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->count, 8);
-		for (I32 j = 0; j < pTable->count; ++j) {
-			if (pTable->pArr[j] >= 0) {
+		StucIdxTable *pTable = pIdxTable->pArr + i;
+		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->idx, 16);
+		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->table.count, 8);
+		for (I32 j = 0; j < pTable->table.count; ++j) {
+			if (pTable->table.pArr[j] >= 0) {
 				stucEncodeValue(pAlloc, pData, (U8 *)&j, 8);//local
-				stucEncodeValue(pAlloc, pData, (U8 *)&pTable->pArr[j], 8);//global
+				stucEncodeValue(pAlloc, pData, (U8 *)&pTable->table.pArr[j], 8);//global
 			}
 		}
 	}
@@ -344,6 +521,7 @@ void matMapEntryInit(
 	pEntry->opt = pInit->opt;
 }
 
+static
 bool matMapEntryCmp(
 	const HTableEntryCore *pEntry,
 	const void *pKeyData,
@@ -401,13 +579,13 @@ void encodeMappingOpt(
 	const StucMesh *pMesh,
 	const StucMapArr *pMapArr,
 	const AttribIndexedArr *pIdxAttribArr,
-	const IdxTableArr *pIdxTable,
+	const StucIdxTableArr *pIdxTable,
 	F32 wScale,
 	F32 receiveLen
 ) {
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	ByteString *pData = &pHandle->data;
-	bool wroteDataName = false;
+	bool wroteDataTag = false;
 	const Attrib *pAttrib =
 		stucGetActiveAttribConst(pHandle->pCtx, pMesh, STUC_ATTRIB_USE_IDX);
 	const AttribIndexed *pMats =
@@ -415,7 +593,7 @@ void encodeMappingOpt(
 	intptr_t attribIdx = (intptr_t)(pMats) - (intptr_t)(pAttrib->core.pData);
 	attribIdx /= (intptr_t)stucGetAttribSizeIntern(pAttrib->core.type);
 	for (I32 i = 0; i < pMats->count; ++i) {
-		I32 globMatIdx = pIdxTable->pArr[attribIdx].pArr[i];
+		I32 globMatIdx = pIdxTable->pArr[attribIdx].table.pArr[i];
 		if (globMatIdx == -2) {
 			continue;//mat is not use in mesh
 		}
@@ -477,8 +655,8 @@ void encodeMappingOpt(
 			wScaleOverride << 2 |
 			receiveOverride << 3;
 		if (header) {
-			if (!wroteDataName) {
-				encodeDataName(&pHandle->pCtx->alloc, pData, "MO");
+			if (!wroteDataTag) {
+				encodeDataTag(&pHandle->pCtx->alloc, pData, TAG_MAP_OVERRIDES);
 			}
 			stucEncodeValue(pAlloc, pData, (U8 *)&header, 8);
 			if (mapOverride) {
@@ -509,7 +687,7 @@ static
 StucErr encodeObj(
 	StucMapExport *pHandle,
 	const StucObject *pObj,
-	const IdxTableArr *pIdxTable,
+	const StucIdxTableArr *pIdxTable,
 	bool mappingOpt,
 	const StucMapArr *pMapArr,
 	const AttribIndexedArr *pIdxAttribArr,
@@ -529,35 +707,24 @@ StucErr encodeObj(
 	err = stucValidateMesh(pMesh, false, checkPosOnly);
 	PIX_ERR_RETURN_IFNOT(err, "mesh validation failed");
 	//encode obj header
-	encodeDataName(pAlloc, pData, "OS"); //object start
+	encodeDataTag(pAlloc, pData, TAG_OBJECT_START);
 	if (pIdxTable && pIdxTable->count) {
 		encodeRedirectTable(pAlloc, pData, pIdxTable);
 	}
-	if (mappingOpt) {
-		encodeMappingOpt(
-			pHandle,
-			pMesh,
-			pMapArr,
-			pIdxAttribArr,
-			pIdxTable,
-			wScale,
-			receiveLen
-		);
-	}
 	err = encodeActiveAttribs(pAlloc, pData, pMesh);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	encodeDataName(pAlloc, pData, "XF"); //transform
+	encodeDataTag(pAlloc, pData, TAG_XFORM);
 	for (I32 i = 0; i < 16; ++i) {
 		I32 x = i % 4;
 		I32 y = i / 4;
 		stucEncodeValue(pAlloc, pData, (U8 *)&pObj->transform.d[y][x], 32);
 	}
-	encodeDataName(pAlloc, pData, "OT"); //object type
+	encodeDataTag(pAlloc, pData, TAG_OBJECT_TYPE);
 	stucEncodeValue(pAlloc, pData, (U8 *)&pObj->pData->type, 8);
 	if (!stucCheckIfMesh(*pObj->pData)) {
 		return err;
 	}
-	encodeDataName(pAlloc, pData, "HD"); //header
+	encodeDataTag(pAlloc, pData, TAG_MESH_HEADER);
 	stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->meshAttribs.count, 32);
 	encodeAttribMeta(pAlloc, pData, &pMesh->meshAttribs);
 	stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->faceAttribs.count, 32);
@@ -573,9 +740,9 @@ StucErr encodeObj(
 	stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->edgeCount, 32);
 	stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->vertCount, 32);
 	//encode data
-	encodeDataName(pAlloc, pData, "MA"); //mesh attribs
+	encodeDataTag(pAlloc, pData, TAG_MESH_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->meshAttribs, 1);
-	encodeDataName(pAlloc, pData, "FL"); //face list
+	encodeDataTag(pAlloc, pData, TAG_FACE_LIST);
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		PIX_ERR_ASSERT("",
 			pMesh->pFaces[i] >= 0 &&
@@ -583,9 +750,9 @@ StucErr encodeObj(
 		);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->pFaces[i], 32);
 	}
-	encodeDataName(pAlloc, pData, "FA"); //face attribs
+	encodeDataTag(pAlloc, pData, TAG_FACE_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->faceAttribs, pMesh->faceCount);
-	encodeDataName(pAlloc, pData, "LL"); //corner and edge lists
+	encodeDataTag(pAlloc, pData, TAG_CORNER_AND_EDGE_LISTS);
 	for (I32 i = 0; i < pMesh->cornerCount; ++i) {
 		PIX_ERR_ASSERT("",
 			pMesh->pCorners[i] >= 0 &&
@@ -598,13 +765,12 @@ StucErr encodeObj(
 		);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->pEdges[i], 32);
 	}
-	encodeDataName(pAlloc, pData, "LA"); //corner attribs
+	encodeDataTag(pAlloc, pData, TAG_CORNER_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->cornerAttribs, pMesh->cornerCount);
-	encodeDataName(pAlloc, pData, "EA"); //edge attribs
+	encodeDataTag(pAlloc, pData, TAG_EDGE_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->edgeAttribs, pMesh->edgeCount);
-	encodeDataName(pAlloc, pData, "VA"); //vert attribs
+	encodeDataTag(pAlloc, pData, TAG_VERT_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->vertAttribs, pMesh->vertCount);
-	encodeDataName(pAlloc, pData, "OE"); //object end
 	return err;
 }
 
@@ -717,6 +883,13 @@ StucErr stucMapExportInit(
 	pData->size = 1024;
 	pData->pString = pAlloc->fpCalloc(pData->size, 1);
 	pHandle->cutoffIdxMax = -1;
+	stucHTableInit(
+		pAlloc,
+		&pHandle->matMapTable,
+		16,
+		(I32Arr){.pArr = (I32[1]){sizeof(MatMapEntry)}, .count = 1},
+		pHandle
+	);
 	*ppHandle = pHandle;
 	return err;
 }
@@ -756,6 +929,10 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 		!pHandle->header.cutoffCount,
 		"no supplied flat-cutoffs are referenced by a USG"
 	);
+
+	encodeDataTag(&pHandle->pCtx->alloc, &pHandle->data, TAG_IDX_ATTRIBS);
+	encodeIndexedAttribMeta(pAlloc, &pHandle->data, &pHandle->idxAttribs);
+	encodeIndexedAttribs(pAlloc, &pHandle->data, &pHandle->idxAttribs);
 
 	//compress data
 	I64 dataSize = pHandle->data.byteIdx + (pHandle->data.nextBitIdx > 0);
@@ -839,11 +1016,127 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 }
 
 static
+StucErr markUsedIndices(
+	StucMapExport *pHandle,
+	I8 *pIdxIsUsed,
+	const StucMesh *pMesh,
+	const AttribIndexed *pRef
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	memset(pIdxIsUsed, 0, INT8_MAX);
+	const Attrib *pCompRef = NULL;
+	I32 compCount = 0;
+	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+		pCompRef = stucGetAttribInternConst(
+			pRef->core.name,
+			stucGetAttribArrFromDomainConst(pMesh, domain),
+			false,
+			pHandle->pCtx,
+			pMesh
+		);
+		if (pCompRef) {
+			compCount = stucDomainCountGetIntern(pMesh, domain);
+			break;
+		}
+	}
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		pCompRef->core.use == STUC_ATTRIB_USE_IDX &&
+			pCompRef->core.type == STUC_ATTRIB_I8,
+		"indexed attrib must be indexed with an attrib \
+of use STUC_ATTRIB_USE_IDX & type STUC_ATTRIB_I8"
+		);
+	for (I32 j = 0; j < compCount; ++j) {
+		I8 idx = *(const I8 *)stucAttribAsVoidConst(&pCompRef->core, j);
+		PIX_ERR_RETURN_IFNOT_COND(err, idx >= 0, "negative STUC_ATTRIB_USE_IDX idx");
+		pIdxIsUsed[idx] = true;
+	}
+	return err;
+}
+
+static
+AttribIndexed *getGlobIdxAttrib(StucMapExport *pHandle, const AttribIndexed *pRef) {
+	AttribIndexed *pAttrib =
+		stucGetAttribIndexedInternConst(&pHandle->idxAttribs, pRef->core.name);
+	if (!pAttrib) {
+		pAttrib = stucAppendIndexedAttrib(
+			pHandle->pCtx,
+			&pHandle->idxAttribs,
+			pRef->core.name,
+			pRef->count,
+			pRef->core.type,
+			pRef->core.use
+		);
+	}
+	return pAttrib;
+}
+
+static
+StucErr getGlobIdx(
+	const StucAlloc *pAlloc,
+	AttribIndexed *pAttrib,
+	const AttribIndexed *pRef, I32 refIdx,
+	I32 *pIdx
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	*pIdx = stucGetIdxInIndexedAttrib(pAttrib, pRef, refIdx);
+	if (*pIdx == -1) {
+		PIX_ERR_RETURN_IFNOT_COND(err, pAttrib->count <= pAttrib->size, "");
+		if (pAttrib->count == pAttrib->size) {
+			pAttrib->size *= 2;
+			stucReallocAttrib(pAlloc, NULL, &pAttrib->core, pAttrib->size);
+		}
+		*pIdx = pAttrib->count;
+		++pAttrib->count;
+		memcpy(
+			stucAttribAsVoid(&pAttrib->core, *pIdx),
+			stucAttribAsVoidConst(&pRef->core, refIdx),
+			stucGetAttribSizeIntern(pRef->core.type)
+		);
+	}
+	return err;
+}
+
+static
+StucErr setRedirects(
+	StucMapExport *pHandle,
+	StucIdxTable *pIdxTable,
+	const I8 *pIdxIsUsed,
+	const AttribIndexed *pRef,
+	bool *pHasRedirect
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	AttribIndexed *pAttrib = getGlobIdxAttrib(pHandle, pRef);
+	pIdxTable->idx = 
+		((intptr_t)pAttrib - (intptr_t)pHandle->idxAttribs.pArr) / sizeof(AttribIndexed);
+	PIX_ERR_ASSERT("", pIdxTable->idx >= 0 && pIdxTable->idx < pHandle->idxAttribs.count);
+	pIdxTable->table.pArr = pHandle->pCtx->alloc.fpCalloc(pRef->count, 1);
+	for (I32 i = 0; i < pRef->count; ++i) {
+		if (!pIdxIsUsed[i]) {
+			pIdxTable->table.pArr[i] = -2;
+			continue;
+		}
+		I32 idx = 0;
+		err = getGlobIdx(&pHandle->pCtx->alloc, pAttrib, pRef, i, &idx);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		if (i == idx) {
+			pIdxTable->table.pArr[i] = -1;
+		}
+		else {
+			pIdxTable->table.pArr[i] = idx;
+			*pHasRedirect = true;
+		}
+		++pIdxTable->table.count;
+	}
+	return err;
+}
+
+static
 StucErr makeIdxAttribRedirects(
 	StucMapExport *pHandle,
 	const StucObject *pObj,
 	const StucAttribIndexedArr *pIndexedAttribs,
-	IdxTableArr *pIdxTable
+	StucIdxTableArr *pIdxTable
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(
@@ -856,75 +1149,17 @@ StucErr makeIdxAttribRedirects(
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	I8 *pIdxIsUsed = pAlloc->fpMalloc(INT8_MAX);
 	pIdxTable->size = pIdxTable->count = pIndexedAttribs->count;
-	pIdxTable->pArr = pAlloc->fpCalloc(pIdxTable->size, sizeof(PixtyI8Arr));
+	pIdxTable->pArr = pAlloc->fpCalloc(pIdxTable->size, sizeof(StucIdxTable));
+	bool hasRedirect = false;
 	for (I32 i = 0; i < pIndexedAttribs->count; ++i) {
 		const AttribIndexed *pRef = pIndexedAttribs->pArr + i;
-		memset(pIdxIsUsed, 0, INT8_MAX);
-		const Attrib *pCompRef = NULL;
-		I32 compCount = 0;
-		for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
-			pCompRef = stucGetAttribInternConst(
-				pRef->core.name,
-				stucGetAttribArrFromDomainConst(pMesh, domain),
-				false,
-				pHandle->pCtx,
-				pMesh
-			);
-			if (pCompRef) {
-				compCount = stucDomainCountGetIntern(pMesh, domain);
-				break;
-			}
-		}
-		PIX_ERR_THROW_IFNOT_COND(
-			err,
-			pCompRef->core.use == STUC_ATTRIB_USE_IDX &&
-				pCompRef->core.type == STUC_ATTRIB_I8,
-			"indexed attrib must be indexed with an attrib \
-of use STUC_ATTRIB_USE_IDX & type STUC_ATTRIB_I8",
-			0);
-		for (I32 j = 0; j < compCount; ++j) {
-			I8 idx = *(const I8 *)stucAttribAsVoidConst(&pCompRef->core, j);
-			PIX_ERR_THROW_IFNOT_COND(err, idx >= 0, "negative STUC_ATTRIB_USE_IDX idx", 0);
-			pIdxIsUsed[idx] = true;
-		}
-
-		AttribIndexed *pAttrib = stucGetAttribIndexedInternConst(
-			&pHandle->idxAttribs,
-			pRef->core.name
-		);
-		if (!pAttrib) {
-			pAttrib = stucAppendIndexedAttrib(
-				pHandle->pCtx,
-				&pHandle->idxAttribs,
-				pRef->core.name,
-				pRef->count,
-				pRef->core.type,
-				pRef->core.use
-			);
-		}
-		pIdxTable->pArr[i].pArr = pAlloc->fpCalloc(pRef->count, 1);
-		for (I32 j = 0; j < pRef->count; ++j) {
-			if (!pIdxIsUsed[j]) {
-				pIdxTable->pArr[i].pArr[j] = -2;
-				continue;
-			}
-			I32 idx = stucGetIdxInIndexedAttrib(pAttrib, pRef, j);
-			if (idx == -1) {
-				PIX_ERR_THROW_IFNOT_COND(err, pAttrib->count <= pAttrib->size, "", 0);
-				if (pAttrib->count == pAttrib->size) {
-					pAttrib->size *= 2;
-					stucReallocAttrib(pAlloc, NULL, &pAttrib->core, pAttrib->size);
-				}
-				idx = pAttrib->count;
-				++pAttrib->count;
-				memcpy(
-					stucAttribAsVoid(&pAttrib->core, idx),
-					stucAttribAsVoidConst(&pRef->core, j),
-					stucGetAttribSizeIntern(pRef->core.type)
-				);
-			}
-			pIdxTable->pArr[i].pArr[j] = j == idx ? -1 : idx;
-		}
+		err = markUsedIndices(pHandle, pIdxIsUsed, pMesh, pRef);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+		err = setRedirects(pHandle, pIdxTable->pArr + i, pIdxIsUsed, pRef, &hasRedirect);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	if (!hasRedirect) {
+		destroyIdxTableArr(pAlloc, pIdxTable);
 	}
 	PIX_ERR_CATCH(0, err, destroyIdxTableArr(pAlloc, pIdxTable););
 	if (pIdxIsUsed) {
@@ -944,10 +1179,20 @@ StucErr mapExportObjAdd(
 	F32 receiveLen
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	IdxTableArr idxTable = {0};
+	StucIdxTableArr idxTable = {0};
 	err = makeIdxAttribRedirects(pHandle, pObj, pIndexedAttribs, &idxTable);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	encodeDataName(&pHandle->pCtx->alloc, &pHandle->data, "OB");
+	if (isTarget) {
+		encodeMappingOpt(
+			pHandle,
+			(StucMesh *)pObj->pData,
+			pMapArr,
+			pIndexedAttribs,
+			&idxTable,
+			wScale,
+			receiveLen
+		);
+	}
 	err = encodeObj(
 		pHandle,
 		pObj,
@@ -974,15 +1219,17 @@ StucErr stucMapExportTargetAdd(
 	F32 wScale,
 	F32 receiveLen
 ) {
+	encodeDataTag(&pHandle->pCtx->alloc, &pHandle->data, TAG_TYPE_TARGET);
 	return
 		mapExportObjAdd(pHandle, pObj, pIndexedAttribs, true, pMapArr, wScale, receiveLen);
 }
 
 StucErr stucMapExportObjAdd(
-	void *pHandle,
+	StucMapExport *pHandle,
 	const StucObject *pObj,
 	const StucAttribIndexedArr *pIndexedAttribs
 ) {
+	encodeDataTag(&pHandle->pCtx->alloc, &pHandle->data, TAG_TYPE_OBJECT);
 	return mapExportObjAdd(pHandle, pObj, pIndexedAttribs, false, NULL, .0f, .0f);
 }
 
@@ -992,10 +1239,10 @@ StucErr stucMapExportUsgAdd(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
-	encodeDataName(pAlloc, &pHandle->data, "UG");
+	encodeDataTag(pAlloc, &pHandle->data, TAG_TYPE_USG);
 	err = encodeObj(pHandle, &pUsg->obj, NULL, false, NULL, NULL, .0f, .0f, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	stucEncodeValue(pAlloc, &pHandle->data, (U8 *)pUsg->flatCutoff.enabled, 1);
+	stucEncodeValue(pAlloc, &pHandle->data, (U8 *)&pUsg->flatCutoff.enabled, 1);
 	if (pUsg->flatCutoff.enabled) {
 		PIX_ERR_THROW_IFNOT_COND(
 			err,
@@ -1016,7 +1263,7 @@ StucErr stucMapExportUsgAdd(
 StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutoff) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
-	encodeDataName(pAlloc, &pHandle->data, "FC");
+	encodeDataTag(pAlloc, &pHandle->data, TAG_TYPE_USG_FLAT_CUTOFF);
 	err = encodeObj(pHandle, pFlatCutoff, NULL, false, NULL, NULL, .0f, .0f, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	++pHandle->header.cutoffCount;
@@ -1076,7 +1323,7 @@ StucErr stucWriteStucFile(
 			err = encodeObj(pAlloc, &data, &pUsgArr[i].obj, NULL);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 			bool hasFlatCutoff = pUsgArr[i].pFlatCutoff != NULL;
-			encodeDataName(pAlloc, &data, "FC"); //flatten cut-off
+			encodeDataTag(pAlloc, &data, "FC"); //flatten cut-off
 			stucEncodeValue(pAlloc, &data, (U8 *)&hasFlatCutoff, 8);
 			if (hasFlatCutoff) {
 				stucEncodeValue(pAlloc, &data, (U8 *)&pCutoffIndices[i], 32);
@@ -1280,31 +1527,12 @@ StucHeader decodeStucHeader(
 }
 
 static
-StucErr isDataNameInvalid(ByteString *pByteString, char *pName) {
-	//ensure string is aligned with byte (we need to do this manually,
-	//as stucDecodeValue is being used instead of stucDecodeString, given there's
-	//only 2 characters)
-	pByteString->byteIdx += pByteString->nextBitIdx > 0;
-	pByteString->nextBitIdx = 0;
-	char dataName[2] = {0};
-	stucDecodeValue(pByteString, (U8 *)&dataName, 16);
-	if (dataName[0] != pName[0] || dataName[1] != pName[1]) {
-		return PIX_ERR_ERROR;
-	}
-	else {
-		return PIX_ERR_SUCCESS;
-	}
-}
-
-static
 PixErr loadActiveAttribs(
 	const StucContext pCtx,
 	AttribActive *pActiveAttribs,
 	ByteString *pData
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	err = isDataNameInvalid(pData, "AA");
-	PIX_ERR_RETURN_IFNOT(err, "");
 	I32 count = 0;
 	stucDecodeValue(pData, (U8 *)&count, 8);
 	for (I32 i = 0; i < count; ++i) {
@@ -1318,35 +1546,71 @@ PixErr loadActiveAttribs(
 }
 
 static
+StucErr loadIdxRedirects(
+	const StucAlloc *pAlloc,
+	ByteString *pData,
+	StucIdxTableArr *pIdxTableArr
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_ASSERT("", pIdxTableArr);
+	stucDecodeValue(pData, (U8 *)&pIdxTableArr->count, 16);
+	pIdxTableArr->size = pIdxTableArr->count;
+	pIdxTableArr->pArr = pAlloc->fpCalloc(pIdxTableArr->size, sizeof(StucIdxTable));
+	for (I32 i = 0; i < pIdxTableArr->count; ++i) {
+		StucIdxTable *pTable = pIdxTableArr->pArr + i;
+		stucDecodeValue(pData, (U8 *)&pTable->idx, 16);
+		stucDecodeValue(pData, (U8 *)&pTable->table.count, 8);
+		pTable->table.size = pTable->table.count;
+		pTable->table.pArr = pAlloc->fpCalloc(pTable->table.size, 1);
+		for (I32 j = 0; j < pTable->table.count; ++j) {
+			I32 idx = 0;
+			stucDecodeValue(pData, (U8 *)&idx, 8);
+			PIX_ERR_RETURN_IFNOT_COND(err, idx < pTable->table.count, "");
+			stucDecodeValue(pData, (U8 *)&pTable->table.pArr[idx], 8);
+		}
+	}
+	return err;
+}
+
+static
 StucErr loadObj(
 	StucContext pCtx,
 	StucObject *pObj,
 	ByteString *pData,
-	bool usesUsg
+	bool checkIdxRedirects,
+	StucIdxTableArr *pIdxTableArr
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	stucCreateMesh(pCtx, pObj, STUC_OBJECT_DATA_MESH_INTERN);
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
 
-	err = isDataNameInvalid(pData, "OS"); //transform/ xform and type
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'OS'", 0);
+	err = isDataTagInvalid(pData, TAG_OBJECT_START);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	DataTag tag = decodeDataTag(pData, NULL);
+	if (tag == TAG_IDX_REDIRECTS) {
+		PIX_ERR_THROW_IFNOT_COND(err, checkIdxRedirects, "unexpected data tag", 0);
+		err = loadIdxRedirects(&pCtx->alloc, pData, pIdxTableArr);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+		tag = decodeDataTag(pData, NULL);
+	}
+	PIX_ERR_THROW_IFNOT_COND(err, tag == TAG_ACTIVE_ATTRIBS, "", 0);
 	err = loadActiveAttribs(pCtx, pMesh->activeAttribs, pData);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = isDataNameInvalid(pData, "XF"); //transform/ xform and type
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'XF'", 0);
+	err = isDataTagInvalid(pData, TAG_XFORM);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	for (I32 i = 0; i < 16; ++i) {
 		I32 x = i % 4;
 		I32 y = i / 4;
 		stucDecodeValue(pData, (U8 *)&pObj->transform.d[y][x], 32);
 	}
-	err = isDataNameInvalid(pData, "OT"); //object type
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'OT'", 0);
+	err = isDataTagInvalid(pData, TAG_OBJECT_TYPE);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	stucDecodeValue(pData, (U8 *)&pObj->pData->type, 8);
 	if (!stucCheckIfMesh(*pObj->pData)) {
 		PIX_ERR_THROW(err, "Object is not a mesh", 0);
 	}
-	err = isDataNameInvalid(pData, "HD"); //header
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'HD'", 0);
+	err = isDataTagInvalid(pData, TAG_MESH_HEADER);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	stucDecodeValue(pData, (U8 *)&pMesh->meshAttribs.count, 32);
 	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
 		pCtx->alloc.fpCalloc(pMesh->meshAttribs.count, sizeof(StucAttrib)) : NULL;
@@ -1382,12 +1646,12 @@ StucErr loadObj(
 	stucDecodeValue(pData, (U8 *)&pMesh->edgeCount, 32);
 	stucDecodeValue(pData, (U8 *)&pMesh->vertCount, 32);
 
-	err = isDataNameInvalid(pData, "MA"); //mesh attribs
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'MA'", 0);
+	err = isDataTagInvalid(pData, TAG_MESH_ATTRIBS);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	decodeAttribs(pCtx, pData, &pMesh->meshAttribs, 1);
 	stucStageEndWrap(pCtx);
-	err = isDataNameInvalid(pData, "FL"); //face list
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'FL'", 0);
+	err = isDataTagInvalid(pData, TAG_FACE_LIST);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pFaces = pCtx->alloc.fpCalloc(pMesh->faceCount + 1, sizeof(I32));
 	stucStageBeginWrap(pCtx, "Decoding faces", pMesh->faceCount);
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
@@ -1399,13 +1663,13 @@ StucErr loadObj(
 		stucStageProgressWrap(pCtx, i);
 	}
 	stucStageEndWrap(pCtx);
-	err = isDataNameInvalid(pData, "FA"); //face attribs
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'FA'", 0);
+	err = isDataTagInvalid(pData, TAG_FACE_ATTRIBS);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->cornerCount;
 	decodeAttribs(pCtx, pData, &pMesh->faceAttribs, pMesh->faceCount);
 
-	err = isDataNameInvalid(pData, "LL"); //corner and edge lists
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'LL'", 0);
+	err = isDataTagInvalid(pData, TAG_CORNER_AND_EDGE_LISTS);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pCorners = pCtx->alloc.fpCalloc(pMesh->cornerCount, sizeof(I32));
 	pMesh->pEdges = pCtx->alloc.fpCalloc(pMesh->cornerCount, sizeof(I32));
 	stucStageBeginWrap(pCtx, "Decoding corners", pMesh->cornerCount);
@@ -1424,22 +1688,144 @@ StucErr loadObj(
 	}
 	stucStageEndWrap(pCtx);
 
-	err = isDataNameInvalid(pData, "LA"); //corner attribs
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'LA'", 0);
+	err = isDataTagInvalid(pData, TAG_CORNER_ATTRIBS);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	decodeAttribs(pCtx, pData, &pMesh->cornerAttribs, pMesh->cornerCount);
-	err = isDataNameInvalid(pData, "EA"); //edge attribs
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'EA'", 0);
+	err = isDataTagInvalid(pData, TAG_EDGE_ATTRIBS);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	decodeAttribs(pCtx, pData, &pMesh->edgeAttribs, pMesh->edgeCount);
-	err = isDataNameInvalid(pData, "VA"); //vert attribs
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'VA'", 0);
+	err = isDataTagInvalid(pData, TAG_VERT_ATTRIBS);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	decodeAttribs(pCtx, pData, &pMesh->vertAttribs, pMesh->vertCount);
 
-	err = isDataNameInvalid(pData, "OE"); //obj end
-	PIX_ERR_THROW_IFNOT(err, "Data name did not match 'OE'", 0);
 	PIX_ERR_CATCH(0, err,
+		destroyIdxTableArr(&pCtx->alloc, pIdxTableArr);
 		stucMeshDestroy(pCtx, pMesh);
 		pCtx->alloc.fpFree(pMesh);
 	);
+	return err;
+}
+
+static
+StucErr loadMapOverrides(ByteString *pData) {
+	StucErr err = PIX_ERR_SUCCESS;
+	return err;
+}
+
+static
+void destroyUsgArrTemp(const StucContext pCtx, StucUsgArr *pArr) {
+	for (I32 i = 0; i < pArr->count; ++i) {
+		if (pArr->pArr[i].obj.pData) {
+			StucMesh *pMesh = (StucMesh *)pArr->pArr[i].obj.pData->type;
+			stucMeshDestroy(pCtx, pMesh);
+			pCtx->alloc.fpFree(pMesh);
+		}
+	}
+	pCtx->alloc.fpFree(pArr->pArr);
+	*pArr = (StucUsgArr){0};
+}
+
+static
+StucErr loadDataByTag(
+	StucContext pCtx,
+	StucHeader *pHeader,
+	ByteString *pData,
+	StucObjArr *pObjArr,
+	StucUsgArr *pUsgArr,
+	StucObjArr *pCutoffArr,
+	StucIdxTableArr *pIdxTableArrs,
+	AttribIndexedArr *pIndexedAttribs
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	switch (decodeDataTag(pData, NULL)) {
+		case TAG_TYPE_TARGET:
+			err = loadMapOverrides(pData);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			//v fallthrough v
+		case TAG_TYPE_OBJECT: {
+			PIX_ERR_RETURN_IFNOT_COND(err, pObjArr->count < pHeader->objCount, "");
+			StucObject *pObj = pObjArr->pArr + pObjArr->count;
+			++pObjArr->count;
+			err = loadObj(pCtx, pObj, pData, true, pIdxTableArrs + pObjArr->count);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			break;
+		}
+		case TAG_TYPE_USG: {
+			PIX_ERR_RETURN_IFNOT_COND(err, pUsgArr->count < pHeader->usgCount, "");
+			StucUsg *pUsg = pUsgArr->pArr + pUsgArr->count;
+			++pUsgArr->count;
+			err = loadObj(pCtx, &pUsg->obj, pData, false, NULL);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			break;
+		}
+		case TAG_TYPE_USG_FLAT_CUTOFF: {
+			PIX_ERR_RETURN_IFNOT_COND(err, pCutoffArr->count < pHeader->cutoffCount, "");
+			StucObject *pObj = pCutoffArr->pArr + pCutoffArr->count;
+			++pCutoffArr->count;
+			err = loadObj(pCtx, pObj, pData, false, NULL);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			break;
+		}
+		case TAG_IDX_ATTRIBS:
+			if (pIndexedAttribs && pIndexedAttribs->count) {
+				PIX_ERR_ASSERT("", pIndexedAttribs->count > 0);
+				pIndexedAttribs->pArr =
+					pCtx->alloc.fpCalloc(pIndexedAttribs->count, sizeof(AttribIndexed));
+				pIndexedAttribs->size = pIndexedAttribs->count;
+				decodeIndexedAttribMeta(pData, pIndexedAttribs);
+				decodeIndexedAttribs(pCtx, pData, pIndexedAttribs);
+			}
+			break;
+		default:
+			PIX_ERR_RETURN(err, "unexpected data tag");
+	}
+	return err;
+}
+
+static
+StucErr correctIdxAttribsOnLoad(
+	StucContext pCtx,
+	const AttribIndexedArr *pIdxAttribs,
+	const StucIdxTableArr *pIdxTableArr,
+	StucMesh *pMesh
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	for (I32 i = 0; i < pIdxTableArr->count; ++i) {
+		if (!pIdxTableArr->pArr[i].table.count) {
+			continue;
+		}
+		Attrib *pAttrib = NULL;
+		StucDomain domain = STUC_DOMAIN_NONE;
+		err = stucAttribGetAllDomains(
+			pCtx,
+			pMesh,
+			pIdxAttribs->pArr[pIdxTableArr->pArr[i].idx].core.name,
+			&pAttrib,
+			&domain
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			pAttrib,
+			"indexed attrib has no matching attrib in mesh"
+		);
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			pAttrib->core.type == STUC_ATTRIB_I8,
+			"indexed attribs must be referenced with an attrib of type I8"
+		);
+		I32 compCount = stucDomainCountGetIntern(pMesh, domain);
+		for (I32 j = 0; j < compCount; ++j) {
+			I8 idx = *stucAttribAsI8(&pAttrib->core, j);
+			PIX_ERR_RETURN_IFNOT_COND(
+				err,
+				idx >= 0 &&
+				idx < pIdxTableArr->pArr[i].table.count,
+				"idx out of bounds"
+			);
+			idx = pIdxTableArr->pArr[i].table.pArr[idx];
+		}
+	}
 	return err;
 }
 
@@ -1448,74 +1834,80 @@ StucErr decodeStucData(
 	StucContext pCtx,
 	StucHeader *pHeader,
 	ByteString *pData,
-	StucObject **ppObjArr,
-	StucUsg **ppUsgArr,
-	StucObject **ppFlatCutoffArr,
-	bool forEdit,
-	AttribIndexedArr *pIndexedAttribs
+	StucObjArr *pObjArr,
+	StucUsgArr *pUsgArr,
+	StucObjArr *pCutoffArr,
+	StucIdxTableArr **ppIdxTableArrs,
+	AttribIndexedArr *pIndexedAttribs,
+	bool correctIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	if (pIndexedAttribs && pIndexedAttribs->count) {
-		PIX_ERR_ASSERT("", pIndexedAttribs->count > 0);
-		pIndexedAttribs->pArr =
-			pCtx->alloc.fpCalloc(pIndexedAttribs->count, sizeof(AttribIndexed));
-		pIndexedAttribs->size = pIndexedAttribs->count;
-		decodeIndexedAttribMeta(pData, pIndexedAttribs);
-		decodeIndexedAttribs(pCtx, pData, pIndexedAttribs);
-	}
 	PIX_ERR_RETURN_IFNOT_COND(err, pHeader->objCount, "no objects in stuc file");
-	*ppObjArr = pCtx->alloc.fpCalloc(pHeader->objCount, sizeof(StucObject));
 	PIX_ERR_ASSERT("", pHeader->usgCount >= 0);
-	bool usesUsg = pHeader->usgCount > 0 && !forEdit;
-	for (I32 i = 0; i < pHeader->objCount; ++i) {
-		//usgUsg is passed here to indicate that an extra vert
-		//attrib should be created. This would be used later to mark a verts
-		//respective usg.
-		err = loadObj(pCtx, *ppObjArr + i, pData, usesUsg);
-		PIX_ERR_RETURN_IFNOT(err, "");
+	if (pHeader->objCount) {
+		pObjArr->pArr = pCtx->alloc.fpCalloc(pHeader->objCount, sizeof(StucObject));
 	}
-
 	if (pHeader->usgCount) {
-		*ppUsgArr = pCtx->alloc.fpCalloc(pHeader->usgCount, sizeof(StucUsg));
-		*ppFlatCutoffArr =
-			pCtx->alloc.fpCalloc(pHeader->cutoffCount, sizeof(StucObject));
-		for (I32 i = 0; i < pHeader->cutoffCount; ++i) {
-			err = loadObj(pCtx, *ppFlatCutoffArr + i, pData, false);
-			PIX_ERR_RETURN_IFNOT(err, "");
-		}
-		for (I32 i = 0; i < pHeader->usgCount; ++i) {
-			//usgs themselves don't need a usg attrib, so false is passed
-			err = loadObj(pCtx, &(*ppUsgArr)[i].obj, pData, false);
-			PIX_ERR_RETURN_IFNOT(err, "");
-			err = isDataNameInvalid(pData, "FC");
-			PIX_ERR_RETURN_IFNOT(err, "");
-			bool hasFlatCutoff = false;
-			stucDecodeValue(pData, (U8 *)&hasFlatCutoff, 8);
-			if (hasFlatCutoff) {
-				I32 cutoffIdx = 0;
-				stucDecodeValue(pData, (U8 *)&cutoffIdx, 32);
-				PIX_ERR_ASSERT("",
-					cutoffIdx >= 0 &&
-					cutoffIdx < pHeader->cutoffCount
-				);
-				(*ppUsgArr)[i].flatCutoff.idx = cutoffIdx;
-			}
-		}
+		pUsgArr->pArr = pCtx->alloc.fpCalloc(pHeader->usgCount, sizeof(Usg));
 	}
+	if (pHeader->cutoffCount) {
+		pCutoffArr->pArr = pCtx->alloc.fpCalloc(pHeader->cutoffCount, sizeof(StucObject));
+	}
+	StucIdxTableArr *pIdxTableArrs =
+		pCtx->alloc.fpCalloc(pHeader->objCount, sizeof(StucIdxTableArr));
+	do {
+		err = loadDataByTag(
+			pCtx,
+			pHeader,
+			pData,
+			pObjArr,
+			pUsgArr,
+			pCutoffArr,
+			pIdxTableArrs,
+			pIndexedAttribs
+		);
+		PIX_ERR_THROW_IFNOT_COND(err, pData->byteIdx < pData->size, "", 0);
+	} while(true);
+	if (correctIdxAttribs) {
+		for (I32 i = 0; i < pObjArr->count; ++i) {
+			StucMesh *pMesh = (StucMesh *)pObjArr->pArr[i].pData;
+			err = correctIdxAttribsOnLoad(
+				pCtx,
+				pIndexedAttribs,
+				pIdxTableArrs + i,
+				pMesh
+			);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+		}
+		destroyIdxTableArrs(&pCtx->alloc, &pIdxTableArrs, pObjArr->count);
+	}
+	else {
+		PIX_ERR_THROW_IFNOT_COND(
+			err,
+			ppIdxTableArrs,
+			"ppIdxTableArrs arg must not be NULL if correctIdxAttribs is false",
+			0
+		);
+		*ppIdxTableArrs = pIdxTableArrs;
+	}
+	PIX_ERR_CATCH(0, err,
+		destroyIdxTableArrs(&pCtx->alloc, &pIdxTableArrs, pObjArr->count);
+		stucObjArrDestroy(pCtx, pObjArr);
+		destroyUsgArrTemp(pCtx, pUsgArr);
+		stucObjArrDestroy(pCtx, pCutoffArr);
+	);
 	return err;
 }
 
 StucErr stucLoadStucFile(
 	StucContext pCtx,
 	const char *filePath,
-	I32 *pObjCount,
-	StucObject **ppObjArr,
-	I32 *pUsgCount,
-	StucUsg **ppUsgArr,
-	I32 *pFlatCutoffCount,
-	StucObject **ppFlatCutoffArr,
-	bool forEdit,
-	StucAttribIndexedArr *pIndexedAttribs
+	StucObjArr *pObjArr,
+	StucUsgArr *pUsgArr,
+	StucObjArr *pCutoffArr,
+	StucIdxTableArr **ppIdxTableArrs,
+	StucAttribIndexedArr *pIndexedAttribs,
+	bool correctIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	ByteString headerByteString = {0};
@@ -1577,23 +1969,21 @@ StucErr stucLoadStucFile(
 		"Failed to load STUC file. decompressed data len is wrong\n",
 		0
 	);
+	dataByteString.size = header.dataSize;
 
 	printf("Decoding data\n");
 	err = decodeStucData(
 		pCtx,
 		&header,
 		&dataByteString,
-		ppObjArr,
-		ppUsgArr,
-		ppFlatCutoffArr,
-		forEdit,
-		pIndexedAttribs
+		pObjArr,
+		pUsgArr,
+		pCutoffArr,
+		ppIdxTableArrs,
+		pIndexedAttribs,
+		correctIdxAttribs
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	*pObjCount = header.objCount;
-	*pUsgCount = header.usgCount;
-	*pFlatCutoffCount = header.cutoffCount;
-
 	PIX_ERR_CATCH(0, err, ;);
 	if (pFile) {
 		pCtx->io.fpClose(pFile);

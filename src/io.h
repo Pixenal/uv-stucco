@@ -39,6 +39,17 @@ typedef struct StucMapExportIntern {
 	StucAttribIndexedArr idxAttribs;
 } StucMapExportIntern;
 
+typedef struct StucIdxTable {
+	PixtyI8Arr table;
+	I32 idx;
+} StucIdxTable;
+
+typedef struct StucIdxTableArr {
+	StucIdxTable *pArr;
+	I32 size;
+	I32 count;
+} StucIdxTableArr;
+
 //void stucWriteDebugImage(Cell *pRootCell);
 /*StucErr stucWriteStucFile(
 	StucContext pCtx,
@@ -49,17 +60,16 @@ typedef struct StucMapExportIntern {
 	StucUsg *pUsgArr,
 	StucAttribIndexedArr *pIndexedAttribs
 );*/
+
 StucErr stucLoadStucFile(
 	StucContext pCtx,
 	const char *filePath,
-	I32 *pObjCount,
-	StucObject **ppObjArr,
-	I32 *pUsgCount,
-	StucUsg **ppUsgArr,
-	I32 *pFlatCutoffCount,
-	StucObject **ppFlatCutoffArr,
-	bool forEdit,
-	StucAttribIndexedArr *pIndexedAttribs
+	StucObjArr *pObjArr,
+	StucUsgArr *pUsgArr,
+	StucObjArr *pCutoffArr,
+	StucIdxTableArr **ppIdxTableArrs,
+	StucAttribIndexedArr *pIndexedAttribs,
+	bool correctIdxAttribs
 );
 
 void stucIoSetCustom(StucContext pCtx, StucIo *pIo);
