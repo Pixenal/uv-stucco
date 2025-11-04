@@ -121,7 +121,7 @@ void stucEncodeValue(
 
 	I32 byteLen = getByteLen(bitLen);
 	I32 strByteLen = getByteLen(bitLen + pByteString->nextBitIdx);
-	pStart[0] = pValue[0] << pByteString->nextBitIdx;
+	pStart[0] |= pValue[0] << pByteString->nextBitIdx;
 	for (I32 i = 1; i < strByteLen; ++i) {
 		pStart[i] = i == byteLen ? 0x0 : pValue[i] << pByteString->nextBitIdx;
 		U8 nextByte = pValue[i - 1];
@@ -458,11 +458,13 @@ void destroyIdxTableArr(StucAlloc *pAlloc, StucIdxTableArr *pArr) {
 
 static
 void destroyIdxTableArrs(StucAlloc *pAlloc, StucIdxTableArr **ppArr, I32 count) {
-	for (I32 i = 0; i < count; ++i) {
-		destroyIdxTableArr(pAlloc, (*ppArr) + i);
+	if (*ppArr) {
+		for (I32 i = 0; i < count; ++i) {
+			destroyIdxTableArr(pAlloc, (*ppArr) + i);
+		}
+		pAlloc->fpFree(*ppArr);
+		*ppArr = NULL;
 	}
-	pAlloc->fpFree(*ppArr);
-	*ppArr = NULL;
 }
 
 static
@@ -985,7 +987,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	stucEncodeValue(pAlloc, &header, (U8 *)&version, 16);
 	stucEncodeValue(pAlloc, &header, (U8 *)&zStream.total_out, 64);
 	stucEncodeValue(pAlloc, &header, (U8 *)&dataSize, 64);
-	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.inAttribCount, 32);
+	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->idxAttribs.count, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.objCount, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.usgCount, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.cutoffCount, 32);
@@ -1699,7 +1701,6 @@ StucErr loadObj(
 	decodeAttribs(pCtx, pData, &pMesh->vertAttribs, pMesh->vertCount);
 
 	PIX_ERR_CATCH(0, err,
-		destroyIdxTableArr(&pCtx->alloc, pIdxTableArr);
 		stucMeshDestroy(pCtx, pMesh);
 		pCtx->alloc.fpFree(pMesh);
 	);
@@ -1716,7 +1717,7 @@ static
 void destroyUsgArrTemp(const StucContext pCtx, StucUsgArr *pArr) {
 	for (I32 i = 0; i < pArr->count; ++i) {
 		if (pArr->pArr[i].obj.pData) {
-			StucMesh *pMesh = (StucMesh *)pArr->pArr[i].obj.pData->type;
+			StucMesh *pMesh = (StucMesh *)pArr->pArr[i].obj.pData;
 			stucMeshDestroy(pCtx, pMesh);
 			pCtx->alloc.fpFree(pMesh);
 		}
@@ -1745,8 +1746,8 @@ StucErr loadDataByTag(
 		case TAG_TYPE_OBJECT: {
 			PIX_ERR_RETURN_IFNOT_COND(err, pObjArr->count < pHeader->objCount, "");
 			StucObject *pObj = pObjArr->pArr + pObjArr->count;
-			++pObjArr->count;
 			err = loadObj(pCtx, pObj, pData, true, pIdxTableArrs + pObjArr->count);
+			++pObjArr->count;
 			PIX_ERR_RETURN_IFNOT(err, "");
 			break;
 		}
@@ -1756,22 +1757,32 @@ StucErr loadDataByTag(
 			++pUsgArr->count;
 			err = loadObj(pCtx, &pUsg->obj, pData, false, NULL);
 			PIX_ERR_RETURN_IFNOT(err, "");
+			stucDecodeValue(pData, (U8 *)&pUsg->flatCutoff.enabled, 1);
+			if (pUsg->flatCutoff.enabled) {
+				stucDecodeValue(pData, (U8 *)&pUsg->flatCutoff.idx, 32);
+				PIX_ERR_RETURN_IFNOT_COND(
+					err,
+					pUsg->flatCutoff.idx >= 0 &&
+					pUsg->flatCutoff.idx < pHeader->cutoffCount,
+					"usg flat-cutoff idx is out of bounds"
+				);
+			}
 			break;
 		}
 		case TAG_TYPE_USG_FLAT_CUTOFF: {
 			PIX_ERR_RETURN_IFNOT_COND(err, pCutoffArr->count < pHeader->cutoffCount, "");
 			StucObject *pObj = pCutoffArr->pArr + pCutoffArr->count;
-			++pCutoffArr->count;
 			err = loadObj(pCtx, pObj, pData, false, NULL);
+			++pCutoffArr->count;
 			PIX_ERR_RETURN_IFNOT(err, "");
 			break;
 		}
 		case TAG_IDX_ATTRIBS:
-			if (pIndexedAttribs && pIndexedAttribs->count) {
+			if (pIndexedAttribs->count) {
 				PIX_ERR_ASSERT("", pIndexedAttribs->count > 0);
-				pIndexedAttribs->pArr =
-					pCtx->alloc.fpCalloc(pIndexedAttribs->count, sizeof(AttribIndexed));
 				pIndexedAttribs->size = pIndexedAttribs->count;
+				pIndexedAttribs->pArr =
+					pCtx->alloc.fpCalloc(pIndexedAttribs->size, sizeof(AttribIndexed));
 				decodeIndexedAttribMeta(pData, pIndexedAttribs);
 				decodeIndexedAttribs(pCtx, pData, pIndexedAttribs);
 			}
@@ -1816,14 +1827,14 @@ StucErr correctIdxAttribsOnLoad(
 		);
 		I32 compCount = stucDomainCountGetIntern(pMesh, domain);
 		for (I32 j = 0; j < compCount; ++j) {
-			I8 idx = *stucAttribAsI8(&pAttrib->core, j);
+			I8 *pIdx = stucAttribAsI8(&pAttrib->core, j);
 			PIX_ERR_RETURN_IFNOT_COND(
 				err,
-				idx >= 0 &&
-				idx < pIdxTableArr->pArr[i].table.count,
+				*pIdx >= 0 &&
+				*pIdx < pIdxTableArr->pArr[i].table.count,
 				"idx out of bounds"
 			);
-			idx = pIdxTableArr->pArr[i].table.pArr[idx];
+			*pIdx = pIdxTableArr->pArr[i].table.pArr[*pIdx];
 		}
 	}
 	return err;
@@ -1856,6 +1867,7 @@ StucErr decodeStucData(
 	StucIdxTableArr *pIdxTableArrs =
 		pCtx->alloc.fpCalloc(pHeader->objCount, sizeof(StucIdxTableArr));
 	do {
+		PIX_ERR_THROW_IFNOT_COND(err, pData->byteIdx < pData->size, "", 0);
 		err = loadDataByTag(
 			pCtx,
 			pHeader,
@@ -1866,8 +1878,7 @@ StucErr decodeStucData(
 			pIdxTableArrs,
 			pIndexedAttribs
 		);
-		PIX_ERR_THROW_IFNOT_COND(err, pData->byteIdx < pData->size, "", 0);
-	} while(true);
+	} while(pData->byteIdx != pData->size);
 	if (correctIdxAttribs) {
 		for (I32 i = 0; i < pObjArr->count; ++i) {
 			StucMesh *pMesh = (StucMesh *)pObjArr->pArr[i].pData;
