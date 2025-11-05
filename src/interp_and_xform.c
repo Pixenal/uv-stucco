@@ -755,7 +755,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
 		FaceCorner bufCorner = {0};
-		const VertMerge *pVertEntry = getVertMergeEntry(
+		getVertMergeEntry(
 			pArgs,
 			bufOutRange,
 			corner,

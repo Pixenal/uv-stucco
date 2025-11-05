@@ -431,11 +431,6 @@ PixErr encodeActiveAttribs(
 		if (!pMesh->activeAttribs[i].active) {
 			continue;
 		}
-		PIX_ERR_RETURN_IFNOT_COND(
-			err,
-			pMesh->activeAttribs[i].idx < 65536,
-			"active attrib idx exceeds 2^16"
-		);
 		stucEncodeValue(pAlloc, pData, (U8 *)&i, 8);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->activeAttribs[i].domain, 4);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pMesh->activeAttribs[i].idx, 16);
@@ -514,7 +509,6 @@ void matMapEntryInit(
 	void *pInitInfo,
 	I32 linIdx
 ) {
-	StucMapExport *pHandle = (StucMapExport *)pUserData;
 	MatMapEntryInit *pInit = (MatMapEntryInit *)pInitInfo;
 	MatMapEntry *pEntry = (MatMapEntry *)pCore;
 	pEntry->linIdx = linIdx;
@@ -603,13 +597,12 @@ void encodeMappingOpt(
 			.wScale = wScale,
 			.receiveLen = receiveLen
 		};
-		const char *pMatName = stucAttribAsVoidConst(&pMats->core, i);
 		MatMapEntry *pEntry = NULL;
 		stucHTableGet(
 			&pHandle->matMapTable,
 			0,
 			&globMatIdx,
-			&pEntry,
+			(void **)&pEntry,
 			true,
 			&(MatMapEntryInit) {.pMap = pMapArr->pArr[i].pMap, .opt = mappingOpt},
 			stucKeyFromI32, NULL, matMapEntryInit, matMapEntryCmp
@@ -1463,15 +1456,12 @@ void decodeAttribs(
 	AttribArray *pAttribs,
 	I32 dataLen
 ) {
-	stucStageBeginWrap(pCtx, "", pAttribs->count * dataLen);
 	for (I32 i = 0; i < pAttribs->count; ++i) {
 		Attrib* pAttrib = pAttribs->pArr + i;
-		stucSetStageName(pCtx, "Decoding attrib");
 		I32 attribSize = stucGetAttribSizeIntern(pAttrib->core.type);
 		pAttrib->core.pData = dataLen ?
 			pCtx->alloc.fpCalloc(dataLen, attribSize) : NULL;
 		attribSize *= 8;
-		I32 progressBase = i * pAttribs->count * dataLen;
 		for (I32 j = 0; j < dataLen; ++j) {
 			void *pAttribData = stucAttribAsVoid(&pAttrib->core, j);
 			if (pAttribs->pArr[i].core.type == STUC_ATTRIB_STRING) {
@@ -1480,10 +1470,8 @@ void decodeAttribs(
 			else {
 				stucDecodeValue(pData, pAttribData, attribSize);
 			}
-			stucStageProgressWrap(pCtx, j + progressBase);
 		}
 	}
-	stucStageEndWrap(pCtx);
 }
 
 static
@@ -1651,20 +1639,16 @@ StucErr loadObj(
 	err = isDataTagInvalid(pData, TAG_MESH_ATTRIBS);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	decodeAttribs(pCtx, pData, &pMesh->meshAttribs, 1);
-	stucStageEndWrap(pCtx);
 	err = isDataTagInvalid(pData, TAG_FACE_LIST);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pFaces = pCtx->alloc.fpCalloc(pMesh->faceCount + 1, sizeof(I32));
-	stucStageBeginWrap(pCtx, "Decoding faces", pMesh->faceCount);
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		stucDecodeValue(pData, (U8 *)&pMesh->pFaces[i], 32);
 		PIX_ERR_ASSERT("",
 			pMesh->pFaces[i] >= 0 &&
 			pMesh->pFaces[i] < pMesh->cornerCount
 		);
-		stucStageProgressWrap(pCtx, i);
 	}
-	stucStageEndWrap(pCtx);
 	err = isDataTagInvalid(pData, TAG_FACE_ATTRIBS);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pFaces[pMesh->faceCount] = pMesh->cornerCount;
@@ -1674,7 +1658,6 @@ StucErr loadObj(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pCorners = pCtx->alloc.fpCalloc(pMesh->cornerCount, sizeof(I32));
 	pMesh->pEdges = pCtx->alloc.fpCalloc(pMesh->cornerCount, sizeof(I32));
-	stucStageBeginWrap(pCtx, "Decoding corners", pMesh->cornerCount);
 	for (I32 i = 0; i < pMesh->cornerCount; ++i) {
 		stucDecodeValue(pData, (U8 *)&pMesh->pCorners[i], 32);
 		PIX_ERR_ASSERT("",
@@ -1686,9 +1669,7 @@ StucErr loadObj(
 			pMesh->pEdges[i] >= 0 &&
 			pMesh->pEdges[i] < pMesh->edgeCount
 		);
-		stucStageProgressWrap(pCtx, i);
 	}
-	stucStageEndWrap(pCtx);
 
 	err = isDataTagInvalid(pData, TAG_CORNER_ATTRIBS);
 	PIX_ERR_THROW_IFNOT(err, "", 0);

@@ -3,6 +3,8 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: Apache-2.0
 */
 
+#include <string.h>
+
 #include <poly_cutout.h>
 
 #include <uv_stucco_intern.h>
@@ -735,30 +737,6 @@ typedef struct GetExteriorBorderArgs {
 } GetExteriorBorderArgs;
 
 static
-bool getLowestBorder(
-	const MapToMeshBasic *pBasic,
-	void *pArgsVoid,
-	InFaceCorner inCorner,
-	InFaceCorner adjInCorner,
-	I32 borderEdge,
-	I32 walkIdx,
-	bool adj
-) {
-	GetExteriorBorderArgs *pArgs = pArgsVoid;
-	if (!walkIdx || (!adj && !adjInCorner.pFace)) {
-		V2_F32 pos =
-			stucGetUvPos(pBasic->pInMesh, &inCorner.pFace->face, inCorner.corner);
-		if (pos.d[0] <= pArgs->lowestPos.d[0] &&
-			pos.d[1] < pArgs->lowestPos.d[1]
-		) {
-			pArgs->lowestPos = pos;
-			pArgs->lowestBorder = pArgs->border;
-		}
-	}
-	return false;
-}
-
-static
 StucErr addNonClipInPieceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	const BorderCache *pBorderCache,
@@ -935,8 +913,6 @@ StucErr stucClipMapFace(
 	StucErr err = PIX_ERR_SUCCESS;
 	FaceRange mapFace = 
 		stucGetFaceRange(&pBasic->pMap->pMesh->core, pInPiece->pList->mapFace);
-
-	bool mapFaceWind = stucCalcFaceWindFromVerts(&mapFace, pBasic->pMap->pMesh);
 
 	InFaceCacheState inFaceCacheState = {.pBasic = pBasic, .initBounds = true};
 	HTable inFaceCache = {0};

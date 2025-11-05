@@ -367,8 +367,7 @@ StucErr stucAssignUsgsToVerts(
 	);
 	for (I32 i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
-		//TODO fix this
-		//Mesh *pFlatCutoff = (Mesh *)pUsgArr[i].pFlatCutoff->pData;
+		Mesh *pFlatCutoff = pMap->usgArr.pArr[i].pFlatCutoff + pUsgArr[i].flatCutoff.idx;
 		FaceRange squaresFace = stucGetFaceRange(&pSquares->core, i);
 		FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, 0);
 		for (I32 j = 0; j < pFaceCellsEntry->cellSize; ++j) {
@@ -394,8 +393,6 @@ StucErr stucAssignUsgsToVerts(
 			}
 			// ^ ^ ^
 
-			//TODO fix this
-			/*
 			for (I32 k = range.start; k < range.end; ++k) {
 				assignUsgToVertsInFace(
 					pAlloc,
@@ -409,7 +406,6 @@ StucErr stucAssignUsgsToVerts(
 					&squaresFace
 				);
 			}
-			*/
 		}
 		stucDestroyFaceCellsEntry(pAlloc, stucIdxFaceCells(&faceCellsTable, i, 0));
 	}

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <context.h>
 #include <map.h>
 #include <job.h>
+#include <utils.h>
 
 static
 I32 bufMeshArrGetVertCount(const BufMeshArr *pBufMeshes) {
@@ -206,7 +207,7 @@ void mergeTableAddVert(
 		pTable,
 		pKey->type == STUC_BUF_VERT_INTERSECT,
 		pKey,
-		&pEntry,
+		(void **)&pEntry,
 		true, pInitInfo,
 		mergeTableMakeKey, NULL, mergeTableEntryInit, mergeTableEntryCmp
 	);

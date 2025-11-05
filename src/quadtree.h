@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_math_utils.h>
 #include <pixenals_error_utils.h>
 
-#include <Mesh.h>
+#include <mesh.h>
 #include <types.h>
 
 #define CELL_MAX_VERTS 32

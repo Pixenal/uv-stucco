@@ -167,26 +167,6 @@ EncasedMapFace *addToEncasedFaces(
 	return pEntry;
 }
 
-static
-bool intersectTest(V2_F32 a, V2_F32 ab, V2_F32 c, V2_F32 cd) {
-	V2_F32 ac = _(c V2SUB a);
-	F32 det2 = _(ab V2DET cd);
-	if (det2 == .0f) {
-		return false;
-	}
-	F32 tMapEdge = _(ac V2DET cd) / det2;
-	if (tMapEdge < .0f || tMapEdge > 1.0f) {
-		return false;
-	}
-	det2 = _(cd V2DET ab);
-	if (det2 == .0f) {
-		return false;
-	}
-	V2_F32 ca = _(a V2SUB c);
-	F32 tInEdge = _(ca V2DET ab) / det2;
-	return (tInEdge >= .0f && tInEdge <= 1.0f);
-}
-
 typedef enum OverlapType {
 	STUC_FACE_OVERLAP_NONE,
 	STUC_FACE_OVERLAP_INTERSECT,

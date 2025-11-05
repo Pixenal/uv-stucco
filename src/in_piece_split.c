@@ -3,6 +3,8 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: Apache-2.0
 */
 
+#include <string.h>
+
 #include <in_piece.h>
 #include <context.h>
 #include <map.h>

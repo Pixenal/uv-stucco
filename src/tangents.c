@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <uv_stucco_intern.h>
 #include <merge_and_snap.h>
+#include <utils.h>
 
 typedef struct TPieceBuf {
 	U32 mergedWith : 31;
@@ -104,7 +105,6 @@ void getLowestTPiece(
 		if (pEntries[i].result != STUC_SEARCH_FOUND) {
 			continue;
 		}
-		const TPieceBuf *pTPiece = pTPieces->pArr + pEntries[i].pEntry->tPiece;
 		I32 tPieceIdx = pEntries[i].pEntry->tPiece;
 		while (pTPieces->pArr[tPieceIdx].merged) {
 			tPieceIdx = pTPieces->pArr[tPieceIdx].mergedWith;
@@ -155,7 +155,6 @@ void addOrMergeFaceTPieces(
 	I32 faceIdx,
 	bool add
 ) {
-	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	const StucMesh *pMesh = &pBasic->pInMesh->core;
 	FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, faceIdx);
 	TPieceVertSearch vertEntries[4] = {0};
@@ -164,7 +163,7 @@ void addOrMergeFaceTPieces(
 			pVertTable,
 			0,
 			pMesh->pCorners + face.start + i,
-			&vertEntries[i].pEntry,
+			(void **)&vertEntries[i].pEntry,
 			add, NULL,
 			tPieceVertMakeKey, NULL, tPieceVertInit, tPieceVertCmp
 		);
@@ -280,7 +279,7 @@ void buildTPieces(
 				&vertTable,
 				0,
 				&pInMesh->pCorners[face.start + j],
-				&pEntry,
+				(void **)&pEntry,
 				false, NULL,
 				tPieceVertMakeKey, NULL, NULL, tPieceVertCmp
 			);
