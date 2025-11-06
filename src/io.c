@@ -155,9 +155,11 @@ void stucDecodeValue(ByteString *pByteString, U8 *pValue, I32 bitLen) {
 	I32 byteLen = getByteLen(bitLen);
 	for (I32 i = 0; i < byteLen; ++i) {
 		pValue[i] = pStart[i] >> pByteString->nextBitIdx;
-		U8 nextByte = pStart[i + 1];
-		nextByte <<= 8 - pByteString->nextBitIdx;
-		pValue[i] |= nextByte;
+		if (i != byteLen - 1) {
+			U8 nextByte = pStart[i + 1];
+			nextByte <<= 8 - pByteString->nextBitIdx;
+			pValue[i] |= nextByte;
+		}
 	}
 	U8 mask = UCHAR_MAX >> (8 - abs(bitLen - byteLen * 8)) % 8;
 	pValue[byteLen - 1] &= mask;
@@ -1840,7 +1842,7 @@ StucErr decodeStucData(
 		pObjArr->pArr = pCtx->alloc.fpCalloc(pHeader->objCount, sizeof(StucObject));
 	}
 	if (pHeader->usgCount) {
-		pUsgArr->pArr = pCtx->alloc.fpCalloc(pHeader->usgCount, sizeof(Usg));
+		pUsgArr->pArr = pCtx->alloc.fpCalloc(pHeader->usgCount, sizeof(StucUsg));
 	}
 	if (pHeader->cutoffCount) {
 		pCutoffArr->pArr = pCtx->alloc.fpCalloc(pHeader->cutoffCount, sizeof(StucObject));
