@@ -6,6 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #define MAP_FORMAT_NAME_MAX_LEN 19
+#define MAP_FORMAT_NAME "UV Stucco Map"
 
 #include <uv_stucco.h>
 #include <types.h>
@@ -23,11 +24,15 @@ typedef struct StucHeader {
 	I64 dataSize;
 	I64 dataSizeCompressed;
 	I32 version;
-	I32 inAttribCount;
+	I32 idxAttribCount;
 	I32 objCount;
 	I32 usgCount;
 	I32 cutoffCount;
 } StucHeader;
+
+typedef struct StucMapDeps {
+	PixtyStrArr maps;
+} StucMapDeps;
 
 typedef struct StucMapExportIntern {
 	StucContext pCtx;
@@ -37,6 +42,7 @@ typedef struct StucMapExportIntern {
 	I32 cutoffIdxMax;
 	HTable matMapTable;
 	StucAttribIndexedArr idxAttribs;
+	bool compress;
 } StucMapExportIntern;
 
 typedef struct StucIdxTable {
@@ -61,7 +67,13 @@ typedef struct StucIdxTableArr {
 	StucAttribIndexedArr *pIndexedAttribs
 );*/
 
-StucErr stucLoadStucFile(
+StucErr stucMapImportGetDep(
+	StucContext pCtx,
+	const char *filePath,
+	StucMapDeps *pDeps
+);
+
+StucErr stucMapImport(
 	StucContext pCtx,
 	const char *filePath,
 	StucObjArr *pObjArr,
@@ -80,6 +92,19 @@ void stucEncodeValue(
 	U8 *value,
 	I32 lengthInBits
 );
-void stucEncodeString(const StucAlloc *pAlloc, ByteString *byteString, U8 *string);
+void stucEncodeString(const StucAlloc *pAlloc, ByteString *byteString, const char *string);
 void stucDecodeValue(ByteString *byteString, U8 *value, I32 lengthInBits);
 void stucDecodeString(ByteString *byteString, char *string, I32 maxLen);
+const char *stucGetBasename(const char *pStr, I32 *pOutLen);
+void stucIoDataTagValidate();
+static inline void stucMapDepsDestroy(const StucAlloc *pAlloc, StucMapDeps *pDeps) {
+	if (pDeps->maps.pArr) {
+		for (I32 i = 0; i < pDeps->maps.count; ++i) {
+			if (pDeps->maps.pArr[i].pStr) {
+				pAlloc->fpFree(pDeps->maps.pArr[i].pStr);
+			}
+		}
+		pAlloc->fpFree(pDeps->maps.pArr);
+	}
+	*pDeps = (StucMapDeps){0};
+}

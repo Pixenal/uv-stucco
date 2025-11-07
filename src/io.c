@@ -29,7 +29,9 @@ SPDX-License-Identifier: Apache-2.0
 
 typedef enum DataTag {
 	TAG_NONE,
-	TAG_OBJECT_START,
+	TAG_HEADER,
+	TAG_DATA,
+	TAG_OBJECT,
 	TAG_ACTIVE_ATTRIBS,
 	TAG_IDX_REDIRECTS,
 	TAG_MAP_OVERRIDES,
@@ -44,15 +46,108 @@ typedef enum DataTag {
 	TAG_EDGE_ATTRIBS,
 	TAG_VERT_ATTRIBS,
 	TAG_IDX_ATTRIBS,
+	TAG_DEP,
+	TAG_DEP_TYPE_MAP,
 	TAG_TYPE_OBJECT,
 	TAG_TYPE_TARGET,
 	TAG_TYPE_USG,
-	TAG_TYPE_USG_FLAT_CUTOFF
+	TAG_TYPE_USG_FLAT_CUTOFF,
+	TAG_ENUM_COUNT
 } DataTag;
 
-#define DATA_TAG_INT(charA, charB) (I16)charA | (I16)charB << 8
-#define DATA_TAG_STR(pStr, charA, charB) pStr[0] = charA, pStr[1] = charB
+#define DATA_TAG_KEY(charA, charB) ((U64)charA * 16777619 | (U64)charB * 7907 << 32)
+#define DATA_TAG_KEY_MAX 251
+#define DATA_TAG_KEY_TO_STR(key) \
+	(char[2]){(key & 0xffffffff) / 16777619, (key >> 32) / 7907}
 
+#define TAG_STR_HEADER                DATA_TAG_KEY('H', 'E')
+#define TAG_STR_DATA                  DATA_TAG_KEY('D', 'A')
+#define TAG_STR_OBJECT                DATA_TAG_KEY('O', 'B')
+#define TAG_STR_ACTIVE_ATTRIBS        DATA_TAG_KEY('A', 'A')
+#define TAG_STR_IDX_REDIRECTS         DATA_TAG_KEY('I', 'R')
+#define TAG_STR_MAP_OVERRIDES         DATA_TAG_KEY('M', 'O')
+#define TAG_STR_XFORM                 DATA_TAG_KEY('X', 'F')
+#define TAG_STR_OBJECT_TYPE           DATA_TAG_KEY('O', 'T')
+#define TAG_STR_MESH_HEADER           DATA_TAG_KEY('M', 'H')
+#define TAG_STR_MESH_ATTRIBS          DATA_TAG_KEY('M', 'A')
+#define TAG_STR_FACE_LIST             DATA_TAG_KEY('F', 'L')
+#define TAG_STR_FACE_ATTRIBS          DATA_TAG_KEY('F', 'A')
+#define TAG_STR_CORNER_AND_EDGE_LISTS DATA_TAG_KEY('C', 'L')
+#define TAG_STR_CORNER_ATTRIBS        DATA_TAG_KEY('C', 'A')
+#define TAG_STR_EDGE_ATTRIBS          DATA_TAG_KEY('E', 'A')
+#define TAG_STR_VERT_ATTRIBS          DATA_TAG_KEY('V', 'A')
+#define TAG_STR_IDX_ATTRIBS           DATA_TAG_KEY('I', 'A')
+#define TAG_STR_DEP                   DATA_TAG_KEY('D', 'P')
+#define TAG_STR_DEP_TYPE_MAP          DATA_TAG_KEY('T', 'M')
+#define TAG_STR_TYPE_OBJECT           DATA_TAG_KEY('T', 'O')
+#define TAG_STR_TYPE_TARGET           DATA_TAG_KEY('T', 'T')
+#define TAG_STR_TYPE_USG              DATA_TAG_KEY('T', 'U')
+#define TAG_STR_TYPE_USG_FLAT_CUTOFF  DATA_TAG_KEY('T', 'F')
+
+#define DATA_TAG_WRAP(key) (key % DATA_TAG_KEY_MAX)
+static const I8 dataTagKeyToTag[DATA_TAG_KEY_MAX] = {
+	[0] = 0,
+	[DATA_TAG_WRAP(TAG_STR_HEADER)] = TAG_HEADER,
+	[DATA_TAG_WRAP(TAG_STR_DATA)] = TAG_DATA,
+	[DATA_TAG_WRAP(TAG_STR_OBJECT)] = TAG_OBJECT,
+	[DATA_TAG_WRAP(TAG_STR_ACTIVE_ATTRIBS)] = TAG_ACTIVE_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_IDX_REDIRECTS)] = TAG_IDX_REDIRECTS,
+	[DATA_TAG_WRAP(TAG_STR_MAP_OVERRIDES)] = TAG_MAP_OVERRIDES,
+	[DATA_TAG_WRAP(TAG_STR_XFORM)] = TAG_XFORM,
+	[DATA_TAG_WRAP(TAG_STR_OBJECT_TYPE)] = TAG_OBJECT_TYPE,
+	[DATA_TAG_WRAP(TAG_STR_MESH_HEADER)] = TAG_MESH_HEADER,
+	[DATA_TAG_WRAP(TAG_STR_MESH_ATTRIBS)] = TAG_MESH_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_FACE_LIST)] = TAG_FACE_LIST,
+	[DATA_TAG_WRAP(TAG_STR_FACE_ATTRIBS)] = TAG_FACE_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_CORNER_AND_EDGE_LISTS)] = TAG_CORNER_AND_EDGE_LISTS,
+	[DATA_TAG_WRAP(TAG_STR_CORNER_ATTRIBS)] = TAG_CORNER_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_EDGE_ATTRIBS)] = TAG_EDGE_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_VERT_ATTRIBS)] = TAG_VERT_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_IDX_ATTRIBS)] = TAG_IDX_ATTRIBS,
+	[DATA_TAG_WRAP(TAG_STR_DEP)] = TAG_DEP,
+	[DATA_TAG_WRAP(TAG_STR_DEP_TYPE_MAP)] = TAG_DEP_TYPE_MAP,
+	[DATA_TAG_WRAP(TAG_STR_TYPE_OBJECT)] = TAG_TYPE_OBJECT,
+	[DATA_TAG_WRAP(TAG_STR_TYPE_TARGET)] = TAG_TYPE_TARGET,
+	[DATA_TAG_WRAP(TAG_STR_TYPE_USG)] = TAG_TYPE_USG,
+	[DATA_TAG_WRAP(TAG_STR_TYPE_USG_FLAT_CUTOFF)] = TAG_TYPE_USG_FLAT_CUTOFF
+};
+
+static const U64 dataTagToKey[TAG_ENUM_COUNT] = {
+	0,
+	TAG_STR_HEADER,
+	TAG_STR_DATA,
+	TAG_STR_OBJECT,
+	TAG_STR_ACTIVE_ATTRIBS,
+	TAG_STR_IDX_REDIRECTS,
+	TAG_STR_MAP_OVERRIDES,
+	TAG_STR_XFORM,
+	TAG_STR_OBJECT_TYPE,
+	TAG_STR_MESH_HEADER,
+	TAG_STR_MESH_ATTRIBS,
+	TAG_STR_FACE_LIST,
+	TAG_STR_FACE_ATTRIBS,
+	TAG_STR_CORNER_AND_EDGE_LISTS,
+	TAG_STR_CORNER_ATTRIBS,
+	TAG_STR_EDGE_ATTRIBS,
+	TAG_STR_VERT_ATTRIBS,
+	TAG_STR_IDX_ATTRIBS,
+	TAG_STR_DEP,
+	TAG_STR_DEP_TYPE_MAP,
+	TAG_STR_TYPE_OBJECT,
+	TAG_STR_TYPE_TARGET,
+	TAG_STR_TYPE_USG,
+	TAG_STR_TYPE_USG_FLAT_CUTOFF
+};
+
+void stucIoDataTagValidate() {
+	I8 flags[DATA_TAG_KEY_MAX] = {0};
+	for (I32 i = 1; i < TAG_ENUM_COUNT; ++i) {
+		PIX_ERR_ASSERT("no key assigned to data tag", dataTagToKey[i]);
+		I32 idx = DATA_TAG_WRAP(dataTagToKey[i]);
+		PIX_ERR_ASSERT("collision in data tag keys", !flags[idx]);
+		flags[idx] = 1;
+	}
+}
 
 PixErr checkZlibErr(I32 success, I32 zErr) {
 	PixErr err = PIX_ERR_SUCCESS;
@@ -133,8 +228,8 @@ void stucEncodeValue(
 	pByteString->nextBitIdx %= 8;
 }
 
-void stucEncodeString(const StucAlloc *pAlloc, ByteString *pByteString, U8 *pString) {
-	I32 lengthInBits = ((I32)strlen((char *)pString) + 1) * 8;
+void stucEncodeString(const StucAlloc *pAlloc, ByteString *pByteString, const char *pString) {
+	I32 lengthInBits = ((I32)strlen(pString) + 1) * 8;
 	I32 lengthInBytes = lengthInBits / 8;
 	//+8 for potential padding
 	reallocByteStringIfNeeded(pAlloc, pByteString, lengthInBits + 8);
@@ -238,7 +333,7 @@ void encodeAttribMeta(
 		stucEncodeValue(pAlloc, pData, (U8 *)&pAttribs->pArr[i].core.type, 8);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pAttribs->pArr[i].core.use, 8);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pAttribs->pArr[i].interpolate, 1);
-		stucEncodeString(pAlloc, pData, (U8 *)pAttribs->pArr[i].core.name);
+		stucEncodeString(pAlloc, pData, pAttribs->pArr[i].core.name);
 	}
 }
 
@@ -252,54 +347,18 @@ void encodeIndexedAttribMeta(
 		stucEncodeValue(pAlloc, pData, (U8 *)&pAttribs->pArr[i].core.type, 8);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pAttribs->pArr[i].core.use, 8);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pAttribs->pArr[i].count, 32);
-		stucEncodeString(pAlloc, pData, (U8 *)pAttribs->pArr[i].core.name);
+		stucEncodeString(pAlloc, pData, pAttribs->pArr[i].core.name);
 	}
 }
 
 static
-DataTag dataTagFromStr(char *pStr) {
-	switch(*(I16 *)pStr) {
-		case DATA_TAG_INT('O', 'S'):
-			return TAG_OBJECT_START;
-		case DATA_TAG_INT('A', 'A'):
-			return TAG_ACTIVE_ATTRIBS;
-		case DATA_TAG_INT('I', 'R'):
-			return TAG_IDX_REDIRECTS;
-		case DATA_TAG_INT('M', 'O'):
-			return TAG_MAP_OVERRIDES;
-		case DATA_TAG_INT('X', 'F'):
-			return TAG_XFORM;
-		case DATA_TAG_INT('O', 'T'):
-			return TAG_OBJECT_TYPE;
-		case DATA_TAG_INT('M', 'H'):
-			return TAG_MESH_HEADER;
-		case DATA_TAG_INT('M', 'A'):
-			return TAG_MESH_ATTRIBS;
-		case DATA_TAG_INT('F', 'L'):
-			return TAG_FACE_LIST;
-		case DATA_TAG_INT('F', 'A'):
-			return TAG_FACE_ATTRIBS;
-		case DATA_TAG_INT('C', 'L'):
-			return TAG_CORNER_AND_EDGE_LISTS;
-		case DATA_TAG_INT('C', 'A'):
-			return TAG_CORNER_ATTRIBS;
-		case DATA_TAG_INT('E', 'A'):
-			return TAG_EDGE_ATTRIBS;
-		case DATA_TAG_INT('V', 'A'):
-			return TAG_VERT_ATTRIBS;
-		case DATA_TAG_INT('I', 'A'):
-			return TAG_IDX_ATTRIBS;
-		case DATA_TAG_INT('T', 'O'):
-			return TAG_TYPE_OBJECT;
-		case DATA_TAG_INT('T', 'A'):
-			return TAG_TYPE_TARGET;
-		case DATA_TAG_INT('T', 'U'):
-			return TAG_TYPE_USG;
-		case DATA_TAG_INT('T', 'F'):
-			return TAG_TYPE_USG_FLAT_CUTOFF;
-		default:
-			return TAG_NONE;
-	}
+U64 dataTagKeyFromStr(const char *pStr) {
+	return (I32)DATA_TAG_KEY(pStr[0], pStr[1]);
+}
+
+static
+DataTag dataTagFromStr(const char *pStr) {
+	return dataTagKeyToTag[DATA_TAG_WRAP(dataTagKeyFromStr(pStr))];
 }
 
 static
@@ -312,75 +371,15 @@ DataTag decodeDataTag(ByteString *pByteString, char *pTagOut) {
 	char tag[2] = {0};
 	stucDecodeValue(pByteString, (U8 *)tag, 16);
 	if (pTagOut) {
-		DATA_TAG_STR(pTagOut, tag[0], tag[1]);
+		pTagOut[0] = tag[0];
+		pTagOut[1] = tag[1];
 	}
 	return dataTagFromStr(tag);
 }
 
 static
 void strFromDataTag(DataTag tag, char *pStr) {
-	switch(tag) {
-		case TAG_OBJECT_START:
-			DATA_TAG_STR(pStr, 'O', 'S');
-			break;
-		case TAG_ACTIVE_ATTRIBS:
-			DATA_TAG_STR(pStr, 'A', 'A');
-			break;
-		case TAG_IDX_REDIRECTS:
-			DATA_TAG_STR(pStr, 'I', 'R');
-			break;
-		case TAG_MAP_OVERRIDES:
-			DATA_TAG_STR(pStr, 'M', 'O');
-			break;
-		case TAG_XFORM:
-			DATA_TAG_STR(pStr, 'X', 'F');
-			break;
-		case TAG_OBJECT_TYPE:
-			DATA_TAG_STR(pStr, 'O', 'T');
-			break;
-		case TAG_MESH_HEADER:
-			DATA_TAG_STR(pStr, 'M', 'H');
-			break;
-		case TAG_MESH_ATTRIBS:
-			DATA_TAG_STR(pStr, 'M', 'A');
-			break;
-		case TAG_FACE_LIST:
-			DATA_TAG_STR(pStr, 'F', 'L');
-			break;
-		case TAG_FACE_ATTRIBS:
-			DATA_TAG_STR(pStr, 'F', 'A');
-			break;
-		case TAG_CORNER_AND_EDGE_LISTS:
-			DATA_TAG_STR(pStr, 'C', 'L');
-			break;
-		case TAG_CORNER_ATTRIBS:
-			DATA_TAG_STR(pStr, 'C', 'A');
-			break;
-		case TAG_EDGE_ATTRIBS:
-			DATA_TAG_STR(pStr, 'E', 'A');
-			break;
-		case TAG_VERT_ATTRIBS:
-			DATA_TAG_STR(pStr, 'V', 'A');
-			break;
-		case TAG_IDX_ATTRIBS:
-			DATA_TAG_STR(pStr, 'I', 'A');
-			break;
-		case TAG_TYPE_OBJECT:
-			DATA_TAG_STR(pStr, 'T', 'O');
-			break;
-		case TAG_TYPE_TARGET:
-			DATA_TAG_STR(pStr, 'T', 'A');
-			break;
-		case TAG_TYPE_USG:
-			DATA_TAG_STR(pStr, 'T', 'U');
-			break;
-		case TAG_TYPE_USG_FLAT_CUTOFF:
-			DATA_TAG_STR(pStr, 'T', 'F');
-			break;
-		case TAG_NONE:
-		default:
-			DATA_TAG_STR(pStr, 0, 0);
-	}
+	memcpy(pStr, &DATA_TAG_KEY_TO_STR(dataTagToKey[tag]), 2); 
 }
 
 static
@@ -704,7 +703,7 @@ StucErr encodeObj(
 	err = stucValidateMesh(pMesh, false, checkPosOnly);
 	PIX_ERR_RETURN_IFNOT(err, "mesh validation failed");
 	//encode obj header
-	encodeDataTag(pAlloc, pData, TAG_OBJECT_START);
+	encodeDataTag(pAlloc, pData, TAG_OBJECT);
 	if (pIdxTable && pIdxTable->count) {
 		encodeRedirectTable(pAlloc, pData, pIdxTable);
 	}
@@ -864,7 +863,8 @@ void destroyMapExport(StucMapExport *pHandle) {
 StucErr stucMapExportInit(
 	StucContext pCtx,
 	StucMapExport **ppHandle,
-	const char *pPath
+	const char *pPath,
+	bool compress
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pCtx->alloc;
@@ -887,6 +887,7 @@ StucErr stucMapExportInit(
 		(I32Arr){.pArr = (I32[1]){sizeof(MatMapEntry)}, .count = 1},
 		pHandle
 	);
+	pHandle->compress = compress;
 	*ppHandle = pHandle;
 	return err;
 }
@@ -905,6 +906,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	StucMapExport *pHandle = *ppHandle;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 
+	ByteString headerSize = {0};
 	ByteString header = {0};
 	U8 *pCompressed = NULL;
 	void *pFile = NULL;
@@ -943,7 +945,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 		Z_OK,
 		deflateInit2(
 			&zStream,
-			Z_DEFAULT_COMPRESSION,
+			pHandle->compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION,
 			Z_DEFLATED,
 			STUC_WINDOW_BITS,
 			8,
@@ -960,24 +962,12 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = checkZlibErr(Z_OK, deflateEnd(&zStream));
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	printf("Compressed data is %ld long\n", zStream.total_out);
 
 	//encode header
 	const char *format = "UV Stucco Map File";
-	I32 formatLen = (I32)strnlen(format, MAP_FORMAT_NAME_MAX_LEN);
-	PIX_ERR_ASSERT("", formatLen < MAP_FORMAT_NAME_MAX_LEN);
-	header.size =
-		8 * ((I64)formatLen + 1) +
-		16 + //version
-		64 + //compressed data size
-		64 + //uncompressed data size
-		32 + //indexed attrib count
-		32 + //obj count
-		32 + //usg count
-		32;  //flatten cutoff count
-	header.size = header.size / 8 + (header.size % 8 != 0);
+	header.size = 64;
 	header.pString = pAlloc->fpCalloc(header.size, 1);
-	stucEncodeString(pAlloc, &header, (U8 *)format);
+	stucEncodeString(pAlloc, &header, format);
 	I32 version = STUC_MAP_VERSION;
 	stucEncodeValue(pAlloc, &header, (U8 *)&version, 16);
 	stucEncodeValue(pAlloc, &header, (U8 *)&zStream.total_out, 64);
@@ -987,12 +977,24 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.usgCount, 32);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.cutoffCount, 32);
 
+	encodeDataTag(pAlloc, &header, TAG_DEP);
+	PixalcLinAlloc *pTableAlloc = stucHTableAllocGet(&pHandle->matMapTable, 0);
+	stucEncodeValue(pAlloc, &header, (U8 *)&pTableAlloc->linIdx, 32);
+	PixalcLinAllocIter iter = {0};
+	pixalcLinAllocIterInit(pTableAlloc, (PixtyRange){.start=0, .end=INT32_MAX}, &iter);
+	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
+		encodeDataTag(pAlloc, &header, TAG_DEP_TYPE_MAP);
+		MatMapEntry *pEntry = pixalcLinAllocGetItem(&iter);
+		stucEncodeString(pAlloc, &header, pEntry->pMap->pName);
+	}
+
+	header.size = header.byteIdx + !!header.nextBitIdx;
+
 	err = pHandle->pCtx->io.fpOpen(&pFile, pHandle->pPath, 0, pAlloc);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	I64 finalHeaderLen = header.byteIdx + (header.nextBitIdx > 0);
-	err = pHandle->pCtx->io.fpWrite(pFile, (U8 *)&finalHeaderLen, 2);
+	err = pHandle->pCtx->io.fpWrite(pFile, (U8 *)&header.size, 4);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(pFile, header.pString, (I32)finalHeaderLen);
+	err = pHandle->pCtx->io.fpWrite(pFile, header.pString, header.size);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = pHandle->pCtx->io.fpWrite(pFile, pCompressed, (I32)zStream.total_out);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -1501,21 +1503,44 @@ void decodeIndexedAttribs(
 }
 
 static
-StucHeader decodeStucHeader(
-	ByteString *headerByteString,
-	AttribIndexedArr *pIndexedAttribs
+StucErr decodeStucHeader(
+	StucContext pCtx,
+	ByteString *pByteString,
+	StucHeader *pHeader,
+	StucMapDeps *pDeps
 ) {
-	StucHeader header = {0};
-	stucDecodeString(headerByteString, header.format, MAP_FORMAT_NAME_MAX_LEN);
-	stucDecodeValue(headerByteString, (U8 *)&header.version, 16);
-	stucDecodeValue(headerByteString, (U8 *)&header.dataSizeCompressed, 64);;
-	stucDecodeValue(headerByteString, (U8 *)&header.dataSize, 64);
-	stucDecodeValue(headerByteString, (U8 *)&pIndexedAttribs->count, 32);
-	stucDecodeValue(headerByteString, (U8 *)&header.objCount, 32);
-	stucDecodeValue(headerByteString, (U8 *)&header.usgCount, 32);
-	stucDecodeValue(headerByteString, (U8 *)&header.cutoffCount, 32);
+	StucErr err = PIX_ERR_SUCCESS;
+	stucDecodeString(pByteString, pHeader->format, MAP_FORMAT_NAME_MAX_LEN);
+	stucDecodeValue(pByteString, (U8 *)&pHeader->version, 16);
+	stucDecodeValue(pByteString, (U8 *)&pHeader->dataSizeCompressed, 64);;
+	stucDecodeValue(pByteString, (U8 *)&pHeader->dataSize, 64);
+	stucDecodeValue(pByteString, (U8 *)&pHeader->idxAttribCount, 32);
+	stucDecodeValue(pByteString, (U8 *)&pHeader->objCount, 32);
+	stucDecodeValue(pByteString, (U8 *)&pHeader->usgCount, 32);
+	stucDecodeValue(pByteString, (U8 *)&pHeader->cutoffCount, 32);
 
-	return header;
+	isDataTagInvalid(pByteString, TAG_DEP);
+	stucDecodeValue(pByteString, (U8 *)&pDeps->maps.count, 32);
+	if (!pDeps->maps.count) {
+		return err;
+	}
+	pDeps->maps.size = pDeps->maps.count;
+	pDeps->maps.pArr = pCtx->alloc.fpCalloc(pDeps->maps.size, sizeof(PixtyStr));
+	I32 pathMax = pixioPathMaxGet();
+	char *pBuf = pCtx->alloc.fpMalloc(pathMax);
+	for (I32 i = 0; i < pDeps->maps.count; ++i) {
+		memset(pBuf, 0, pathMax);
+		stucDecodeString(pByteString, pBuf, pathMax);
+		I32 len = strnlen(pBuf, pathMax);
+		PIX_ERR_THROW_IFNOT_COND(err, len != pathMax, "", 0);
+		pDeps->maps.pArr[i].pStr = pCtx->alloc.fpMalloc(len + 1);
+		memcpy(pDeps->maps.pArr[i].pStr, pBuf, len + 1);
+	}
+	PIX_ERR_CATCH(0, err, stucMapDepsDestroy(&pCtx->alloc, pDeps););
+	if (pBuf) {
+		pCtx->alloc.fpFree(pBuf);
+	}
+	return err;
 }
 
 static
@@ -1576,7 +1601,7 @@ StucErr loadObj(
 	stucCreateMesh(pCtx, pObj, STUC_OBJECT_DATA_MESH_INTERN);
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
 
-	err = isDataTagInvalid(pData, TAG_OBJECT_START);
+	err = isDataTagInvalid(pData, TAG_OBJECT);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	DataTag tag = decodeDataTag(pData, NULL);
 	if (tag == TAG_IDX_REDIRECTS) {
@@ -1761,9 +1786,9 @@ StucErr loadDataByTag(
 			break;
 		}
 		case TAG_IDX_ATTRIBS:
-			if (pIndexedAttribs->count) {
-				PIX_ERR_ASSERT("", pIndexedAttribs->count > 0);
-				pIndexedAttribs->size = pIndexedAttribs->count;
+			if (pHeader->idxAttribCount) {
+				PIX_ERR_ASSERT("", pHeader->idxAttribCount > 0);
+				pIndexedAttribs->size = pIndexedAttribs->count = pHeader->idxAttribCount;
 				pIndexedAttribs->pArr =
 					pCtx->alloc.fpCalloc(pIndexedAttribs->size, sizeof(AttribIndexed));
 				decodeIndexedAttribMeta(pData, pIndexedAttribs);
@@ -1893,7 +1918,75 @@ StucErr decodeStucData(
 	return err;
 }
 
-StucErr stucLoadStucFile(
+static
+StucErr openMapFile(StucContext pCtx, const char *pFilepath, void **ppFile) {
+	StucErr err = PIX_ERR_SUCCESS;
+	printf("Loading STUC file: %s\n", pFilepath);
+	err = pCtx->io.fpOpen(ppFile, pFilepath, 1, &pCtx->alloc);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+static
+StucErr importMapHeader(
+	StucContext pCtx,
+	void *pFile,
+	StucHeader *pHeader,
+	StucMapDeps *pDeps
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	ByteString headerByteString = {0};
+	I16 headerSize = 0;
+	err = pCtx->io.fpRead(pFile, (U8 *)&headerSize, 2);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	headerByteString.pString = pCtx->alloc.fpMalloc(headerSize);
+	err = pCtx->io.fpRead(pFile, headerByteString.pString, headerSize);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = decodeStucHeader(pCtx, &headerByteString, pHeader, pDeps);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		!strncmp(pHeader->format, MAP_FORMAT_NAME, MAP_FORMAT_NAME_MAX_LEN),
+		"map file is corrupt",
+		0
+	);
+	PIX_ERR_THROW_IFNOT_COND(
+		err, 
+		pHeader->version == STUC_MAP_VERSION,
+		"map file version not supported",
+		0
+	);
+	PIX_ERR_CATCH(0, err, ;);
+	if (headerByteString.pString) {
+		pCtx->alloc.fpFree(headerByteString.pString);
+	}
+	return err;
+}
+
+StucErr stucMapImportGetDep(
+	StucContext pCtx,
+	const char *filePath,
+	StucMapDeps *pDeps
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	void *pFile = NULL;
+	U8 *pDataRaw = NULL;
+	ByteString dataByteString = {0};
+	StucHeader header = {0};
+
+	err = openMapFile(pCtx, filePath, &pFile);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = importMapHeader(pCtx, pFile, &header, pDeps);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+
+	PIX_ERR_CATCH(0, err, stucMapDepsDestroy(&pCtx->alloc, pDeps););
+	if (pFile) {
+		pCtx->io.fpClose(pFile);
+	}
+	return err;
+}
+
+StucErr stucMapImport(
 	StucContext pCtx,
 	const char *filePath,
 	StucObjArr *pObjArr,
@@ -1904,36 +1997,16 @@ StucErr stucLoadStucFile(
 	bool correctIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	ByteString headerByteString = {0};
-	ByteString dataByteString = {0};
 	void *pFile = NULL;
 	U8 *pDataRaw = NULL;
-	printf("Loading STUC file: %s\n", filePath);
-	err = pCtx->io.fpOpen(&pFile, filePath, 1, &pCtx->alloc);
+	ByteString dataByteString = {0};
+	StucHeader header = {0};
+	StucMapDeps deps = {0};
+
+	err = openMapFile(pCtx, filePath, &pFile);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	I16 headerSize = 0;
-	err = pCtx->io.fpRead(pFile, (U8 *)&headerSize, 2);
+	err = importMapHeader(pCtx, pFile, &header, &deps);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	printf("Stuc File Header Size: %d\n", headerSize);
-	printf("Header is %d bytes\n", headerSize);
-	headerByteString.pString = pCtx->alloc.fpMalloc(headerSize);
-	printf("Reading header\n");
-	err = pCtx->io.fpRead(pFile, headerByteString.pString, headerSize);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	printf("Decoding header\n");
-	StucHeader header = decodeStucHeader(&headerByteString, pIndexedAttribs);
-	PIX_ERR_THROW_IFNOT_COND(
-		err,
-		!strncmp(header.format, "UV Stucco Map File", MAP_FORMAT_NAME_MAX_LEN),
-		"map file is corrupt",
-		0
-	);
-	PIX_ERR_THROW_IFNOT_COND(
-		err, 
-		header.version == STUC_MAP_VERSION,
-		"map file version not supported",
-		0
-	);
 
 	//decompress data
 	z_stream zStream = {
@@ -1941,7 +2014,6 @@ StucErr stucLoadStucFile(
 		.zfree = freeZlibWrap,
 		.opaque = (void *)&pCtx->alloc
 	};
-	printf("Reading data\n");
 	pDataRaw = pCtx->alloc.fpMalloc((I32)header.dataSizeCompressed);
 	err = pCtx->io.fpRead(pFile, pDataRaw, (I32)header.dataSizeCompressed);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -1952,7 +2024,6 @@ StucErr stucLoadStucFile(
 	dataByteString.pString = pCtx->alloc.fpMalloc(header.dataSize);
 	zStream.next_out = dataByteString.pString;
 	zStream.avail_out = header.dataSize;
-	printf("Decompressing data\n");
 	err = checkZlibErr(Z_STREAM_END, inflate(&zStream, Z_FINISH));
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = checkZlibErr(Z_OK, inflateEnd(&zStream));
@@ -1979,14 +2050,12 @@ StucErr stucLoadStucFile(
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err, ;);
+	stucMapDepsDestroy(&pCtx->alloc, &deps);
 	if (pFile) {
 		pCtx->io.fpClose(pFile);
 	}
 	if (pDataRaw) {
 		pCtx->alloc.fpFree(pDataRaw);
-	}
-	if (headerByteString.pString) {
-		pCtx->alloc.fpFree(headerByteString.pString);
 	}
 	if (dataByteString.pString) {
 		pCtx->alloc.fpFree(dataByteString.pString);
@@ -2007,4 +2076,21 @@ void stucIoSetDefault(StucContext pCtx) {
 	pCtx->io.fpClose = pixioFileClose;
 	pCtx->io.fpWrite = pixioFileWrite;
 	pCtx->io.fpRead = pixioFileRead;
+}
+
+const char *stucGetBasename(const char *pStr, I32 *pOutLen) {
+	I32 pathMax = pixioPathMaxGet();
+	I32 len = strnlen(pStr, pathMax);
+	if (len > pathMax) {
+		*pOutLen = 0;
+		return NULL;
+	}
+	for (I32 i = len - 1; i > 0; --i) {
+		if (pStr[i - 1] == '/' || pStr[i - 1] == '\\') {
+			*pOutLen = len - i;
+			return pStr;
+		}
+	}
+	*pOutLen = len;
+	return pStr;
 }

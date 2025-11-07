@@ -411,7 +411,8 @@ STUC_EXPORT
 StucErr stucMapExportInit(
 	StucContext pCtx,
 	StucMapExport **ppHandle,
-	const char *pPath
+	const char *pPath,
+	bool compress
 );
 STUC_EXPORT
 StucErr stucMapExportEnd(StucMapExport **ppHandle);
