@@ -33,7 +33,7 @@ typedef struct MapToMeshBasic {
 	const Mesh *pInMesh;
 	const StucMap pMap;
 	InFaceTable *pInFaceTable;
-	const StucCommonAttribList *pCommonAttribList;
+	const StucBlendOptArr *pOptArr;
 	I32 inFaceSize;
 	const F32 wScale;
 	const F32 receiveLen;

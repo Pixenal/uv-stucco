@@ -170,8 +170,8 @@ bool borderEdgeCmp(
 }
 
 static
-U64 borderEdgeMakeKey(const void *pKeyData) {
-	return (U64)*(I32 *)pKeyData;
+StucKey borderEdgeMakeKey(const void *pKeyData) {
+	return (StucKey){.pKey = pKeyData, .size = sizeof(FaceCorner)};
 }
 
 static

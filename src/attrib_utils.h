@@ -20,8 +20,8 @@ typedef StucAttribIndexedArr AttribIndexedArr;
 typedef StucAttribOrigin AttribOrigin;
 typedef StucAttribCopyOpt AttribCopyOpt;
 typedef StucBlendConfig BlendConfig;
-typedef StucCommonAttrib CommonAttrib;
-typedef StucCommonAttribList CommonAttribList;
+typedef StucBlendOpt BlendOpt;
+typedef StucBlendOptArr BlendOptArr;
 
 //TODO switch pAttrib pData ptr from void * to U8 *?
 
@@ -64,7 +64,8 @@ StucAttrib *stucGetAttribIntern(
 	AttribArray *pAttribs,
 	bool excludeActive,
 	const StucContext pCtx,
-	const StucMesh *pMesh
+	const StucMesh *pMesh,
+	I32 *pIdx
 );
 //pCtx and pMesh can be NULL if excludeActive is false
 const Attrib *stucGetAttribInternConst(
@@ -72,7 +73,8 @@ const Attrib *stucGetAttribInternConst(
 	const AttribArray *pAttribs,
 	bool excludeActive,
 	const StucContext pCtx,
-	const StucMesh *pMesh
+	const StucMesh *pMesh,
+	I32 *pIdx
 );
 void stucSetAttribIdxActive(
 	StucMesh *pMesh,
@@ -103,10 +105,6 @@ StucTypeDefault *stucGetTypeDefaultConfig(
 );
 AttribArray *stucGetAttribArrFromDomain(StucMesh *pMesh, StucDomain domain);
 const AttribArray *stucGetAttribArrFromDomainConst(const StucMesh *pMesh, StucDomain domain);
-const StucCommonAttrib *stucGetCommonAttrib(
-	const StucCommonAttribArr *pArr,
-	char *pName
-);
 StucErr stucGetMatchingAttrib(
 	StucContext pCtx,
 	StucMesh *pDest, AttribArray *pDestAttribArr,
@@ -123,9 +121,9 @@ StucErr stucGetMatchingAttribConst(
 	bool excludeActive,
 	const Attrib **ppOut
 );
-const StucCommonAttrib *stucGetCommonAttribFromDomain(
-	const StucCommonAttribList *pList,
-	char *pName,
+const StucBlendOpt *stucGetBlendOpt(
+	const StucBlendOptArr *pOptArr,
+	I32 attribIdx,
 	StucDomain domain
 );
 AttribIndexed *stucGetAttribIndexedIntern(

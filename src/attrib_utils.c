@@ -447,7 +447,8 @@ Attrib *stucGetAttribIntern(
 	AttribArray *pAttribs,
 	bool excludeActive,
 	const StucContext pCtx,
-	const StucMesh *pMesh
+	const StucMesh *pMesh,
+	I32 *pIdx
 ) {
 	for (I32 i = 0; i < pAttribs->count; ++i) {
 		PIX_ERR_ASSERT(
@@ -463,6 +464,9 @@ Attrib *stucGetAttribIntern(
 			STUC_ATTRIB_NAME_MAX_LEN)
 			) {
 
+			if (pIdx) {
+				*pIdx = i;
+			}
 			return pAttribs->pArr + i;
 		}
 	}
@@ -474,9 +478,10 @@ const Attrib *stucGetAttribInternConst(
 	const AttribArray *pAttribs,
 	bool excludeActive,
 	const StucContext pCtx,
-	const StucMesh *pMesh
+	const StucMesh *pMesh,
+	I32 *pIdx
 ) {
-	return stucGetAttribIntern(pName, (AttribArray *)pAttribs, excludeActive, pCtx, pMesh);
+	return stucGetAttribIntern(pName, (AttribArray *)pAttribs, excludeActive, pCtx, pMesh, NULL);
 }
 
 void stucSetAttribIdxActive(
@@ -700,7 +705,7 @@ void stucCopyAllAttribs(
 	I32 iSrc
 ) {
 	for (I32 i = 0; i < pDest->count; ++i) {
-		Attrib *pSrcAttrib = stucGetAttribIntern(pDest->pArr[i].core.name, pSrc, false, NULL, NULL);
+		Attrib *pSrcAttrib = stucGetAttribIntern(pDest->pArr[i].core.name, pSrc, false, NULL, NULL, NULL);
 		if (pSrcAttrib) {
 			stucCopyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
 		}
@@ -798,36 +803,16 @@ StucTypeDefault *stucGetTypeDefaultConfig(
 	}
 }
 
-const StucCommonAttrib *stucGetCommonAttrib(
-	const StucCommonAttribArr *pArr,
-	char *pName
-) {
-	for (I32 i = 0; i < pArr->count; ++i) {
-		if (!strncmp(pName, pArr->pArr[i].name, STUC_ATTRIB_NAME_MAX_LEN)) {
-			return pArr->pArr + i;
-		}
-	}
-	return NULL;
-}
-
-const StucCommonAttrib *stucGetCommonAttribFromDomain(
-	const StucCommonAttribList *pList,
-	char *pName,
+const StucBlendOpt *stucGetBlendOpt(
+	const StucBlendOptArr *pOptArr,
+	I32 attribIdx,
 	StucDomain domain
 ) {
-	switch (domain) {
-		case STUC_DOMAIN_FACE:
-			return stucGetCommonAttrib(&pList->face, pName);
-		case STUC_DOMAIN_CORNER:
-			return stucGetCommonAttrib(&pList->corner, pName);
-		case STUC_DOMAIN_EDGE:
-			return stucGetCommonAttrib(&pList->edge, pName);
-		case STUC_DOMAIN_VERT:
-			return stucGetCommonAttrib(&pList->vert, pName);
-		default:
-			PIX_ERR_ASSERT("invalid domain", false);
+	for (I32 i = 0; i < pOptArr[domain].count; ++i) {
+		if (pOptArr[domain].pArr[i].attrib == attribIdx) {
+			return pOptArr[domain].pArr + i;
+		}
 	}
-	PIX_ERR_ASSERT("invalid domain", false);
 	return NULL;
 }
 
@@ -1705,7 +1690,8 @@ StucErr stucGetMatchingAttrib(
 			pDestAttribArr,
 			excludeActive,
 			pCtx,
-			pDest
+			pDest,
+			NULL
 		);
 	}
 	else if (searchActive) {

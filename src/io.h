@@ -56,6 +56,17 @@ typedef struct StucIdxTableArr {
 	I32 count;
 } StucIdxTableArr;
 
+typedef struct ObjMapOpts {
+	StucMapArr arr;
+	I32 obj;
+} ObjMapOpts;
+
+typedef struct ObjMapOptsArr {
+	ObjMapOpts *pArr;
+	I32 size;
+	I32 count;
+} ObjMapOptsArr;
+
 //void stucWriteDebugImage(Cell *pRootCell);
 /*StucErr stucWriteStucFile(
 	StucContext pCtx,
@@ -77,6 +88,7 @@ StucErr stucMapImport(
 	StucContext pCtx,
 	const char *filePath,
 	StucObjArr *pObjArr,
+	ObjMapOptsArr *pMapOptsArr,
 	StucUsgArr *pUsgArr,
 	StucObjArr *pCutoffArr,
 	StucIdxTableArr **ppIdxTableArrs,
@@ -95,7 +107,7 @@ void stucEncodeValue(
 void stucEncodeString(const StucAlloc *pAlloc, ByteString *byteString, const char *string);
 void stucDecodeValue(ByteString *byteString, U8 *value, I32 lengthInBits);
 void stucDecodeString(ByteString *byteString, char *string, I32 maxLen);
-const char *stucGetBasename(const char *pStr, I32 *pOutLen);
+const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen);
 void stucIoDataTagValidate();
 static inline void stucMapDepsDestroy(const StucAlloc *pAlloc, StucMapDeps *pDeps) {
 	if (pDeps->maps.pArr) {

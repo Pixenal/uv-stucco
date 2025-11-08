@@ -83,11 +83,6 @@ bool tPieceVertCmp(
 	return pEntry->vert == *(I32 *)pKey;
 }
 
-static
-U64 tPieceVertMakeKey(const void *pKey) {
-	return *(I32 *)pKey;
-}
-
 typedef struct TPieceVertSearch {
 	TPieceVert *pEntry;
 	SearchResult result;
@@ -165,7 +160,7 @@ void addOrMergeFaceTPieces(
 			pMesh->pCorners + face.start + i,
 			(void **)&vertEntries[i].pEntry,
 			add, NULL,
-			tPieceVertMakeKey, NULL, tPieceVertInit, tPieceVertCmp
+			stucKeyFromI32, NULL, tPieceVertInit, tPieceVertCmp
 		);
 	}
 	I32 lowestTPiece = INT32_MAX;
@@ -281,7 +276,7 @@ void buildTPieces(
 				&pInMesh->pCorners[face.start + j],
 				(void **)&pEntry,
 				false, NULL,
-				tPieceVertMakeKey, NULL, NULL, tPieceVertCmp
+				stucKeyFromI32, NULL, NULL, tPieceVertCmp
 			);
 			if (result == STUC_SEARCH_NOT_FOUND) {
 				continue;

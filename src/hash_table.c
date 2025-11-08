@@ -105,11 +105,7 @@ const PixalcLinAlloc *stucHTableAllocGetConst(const HTable *pHandle, I32 idx) {
 	return pHandle->allocHandles + idx;
 }
 
-U64 stucKeyFromI32(const void *pKeyData) {
-	return *(I32 *)pKeyData;
-}
-
-HTableBucket *stucHTableBucketGet(HTable *pHandle, U64 key) {
-	U64 hash = stucFnvHash((U8 *)&key, sizeof(key), pHandle->size);
+HTableBucket *stucHTableBucketGet(HTable *pHandle, StucKey key) {
+	U64 hash = stucFnvHash((U8 *)&key.pKey, key.size, pHandle->size);
 	return pHandle->pTable + hash;
 }

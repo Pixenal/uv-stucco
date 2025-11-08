@@ -26,4 +26,5 @@ typedef struct StucMapInternal {
 	StucAttribIndexedArr indexedAttribs;
 	V2_F32 zBounds;
 	char *pName;
+	char *pPath;
 } MapFile;

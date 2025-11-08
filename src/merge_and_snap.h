@@ -139,40 +139,8 @@ void getBufMeshForVertMergeEntry(
 }
 
 static inline
-U64 mergeTableMakeKey(const void *pKeyData) {
-	const MergeTableKey *pKey = pKeyData;
-	U64 key = 0;
-	switch (pKey->type) {
-		case STUC_BUF_VERT_SUB_TYPE_IN: {
-			const InVertKey *pInKey = &pKey->key.inOrMap.in;
-			key = (U64)pInKey->inVert << 32 | (U64)pInKey->mapFace;
-			break;
-		}
-		case STUC_BUF_VERT_SUB_TYPE_MAP: {
-			const MapVertKey *pMapKey = &pKey->key.inOrMap.map;
-			key = (U64)pMapKey->mapVert << 32 | (U64)pMapKey->inFace;
-			break;
-		}
-		case STUC_BUF_VERT_SUB_TYPE_EDGE_IN: {
-			const EdgeInVertKey *pInKey = &pKey->key.onEdge.in;
-			key = (U64)pInKey->inVert << 32 | (U64)pInKey->mapEdge;
-			break;
-		}
-		case STUC_BUF_VERT_SUB_TYPE_EDGE_MAP: {
-			const EdgeMapVertKey *pMapKey = &pKey->key.onEdge.map;
-			key = (U64)pMapKey->mapVert << 32 | (U64)pMapKey->inEdge;
-			break;
-		}
-		case STUC_BUF_VERT_OVERLAP:
-			key = (U64)pKey->key.overlap.inVert << 32 | (U64)pKey->key.overlap.mapVert;
-			break;
-		case STUC_BUF_VERT_INTERSECT:
-			key = (U64)pKey->key.intersect.inEdge << 32 | (U64)pKey->key.intersect.mapEdge;
-			break;
-		default:
-			PIX_ERR_ASSERT("invalid vert type", false);
-	}
-	return key + ((U64)pKey->tile.d[0] << 16 | (U64)pKey->tile.d[1]);
+StucKey mergeTableMakeKey(const void *pKeyData) {
+	return (StucKey){.pKey = pKeyData, .size = sizeof(MergeTableKey)};
 }
 
 static inline

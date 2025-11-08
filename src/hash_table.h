@@ -34,6 +34,11 @@ typedef struct HTable {
 	I32 size;
 } HTable;
 
+typedef struct StucKey {
+	const void *pKey;
+	I32 size;
+} StucKey;
+
 typedef enum SearchResult {
 	STUC_SEARCH_FOUND,
 	STUC_SEARCH_NOT_FOUND,
@@ -50,7 +55,7 @@ void stucHTableInit(
 void stucHTableDestroy(HTable *pHandle);
 PixalcLinAlloc *stucHTableAllocGet(HTable *pHandle, I32 idx);
 const PixalcLinAlloc *stucHTableAllocGetConst(const HTable *pHandle, I32 idx);
-HTableBucket *stucHTableBucketGet(HTable *pHandle, U64 key);
+HTableBucket *stucHTableBucketGet(HTable *pHandle, StucKey key);
 STUC_FORCE_INLINE
 SearchResult stucHTableGet(
 	HTable *pHandle,
@@ -59,7 +64,7 @@ SearchResult stucHTableGet(
 	void **ppEntry,
 	bool addEntry,
 	void *pInitInfo,
-	U64 (* fpMakeKey)(const void *),
+	StucKey (* fpMakeKey)(const void *),
 	bool (* fpAddPredicate)(const void *, const void *, const void *),
 	void (* fpInitEntry)(void *, HTableEntryCore *, const void *, void *, I32),
 	bool (* fpCompareEntry)(const HTableEntryCore *, const void *, const void *)
@@ -119,7 +124,7 @@ SearchResult stucHTableGetConst(
 	void **ppEntry,
 	bool addEntry,
 	const void *pInitInfo,
-	U64 (* fpMakeKey)(const void *),
+	StucKey (* fpMakeKey)(const void *),
 	bool (* fpAddPredicate)(const void *, const void *, const void *),
 	void (* fpInitEntry)(void *, HTableEntryCore *, const void *, void *, I32),
 	bool (* fpCompareEntry)(const HTableEntryCore *, const void *, const void *)
@@ -147,4 +152,18 @@ bool stucHTableCmpFalse(
 	return false;
 }
 
-U64 stucKeyFromI32(const void *pKeyData);
+static inline
+StucKey stucKeyFromI32(const void *pKeyData) {
+	return (StucKey){.pKey = pKeyData, .size = sizeof(I32)};
+}
+
+static inline
+StucKey stucKeyFromI64(const void *pKeyData) {
+	return (StucKey){.pKey = pKeyData, .size = sizeof(I64)};
+}
+
+static inline
+StucKey stucKeyFromPath(const void *pKeyData) {
+	I32 len = strnlen(pKeyData, pixioPathMaxGet());
+	return (StucKey){.pKey = pKeyData, .size = len};
+}

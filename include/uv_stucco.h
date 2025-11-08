@@ -217,24 +217,16 @@ typedef struct StucBlendConfig {
 	bool order;
 } StucBlendConfig;
 
-typedef struct StucCommonAttrib {
-	char name[STUC_ATTRIB_NAME_MAX_LEN];
+typedef struct StucBlendOpt {
 	StucBlendConfig blendConfig;
-} StucCommonAttrib;
+	int32_t attrib;
+} StucBlendOpt;
 
-typedef struct StucCommonAttribArr {
-	StucCommonAttrib *pArr;
+typedef struct StucBlendOptArr {
+	StucBlendOpt *pArr;
 	int32_t size;
 	int32_t count;
-} StucCommonAttribArr;
-
-typedef struct StucCommonAttribList {
-	StucCommonAttribArr mesh;
-	StucCommonAttribArr face;
-	StucCommonAttribArr corner;
-	StucCommonAttribArr edge;
-	StucCommonAttribArr vert;
-} StucCommonAttribList;
+} StucBlendOptArr;
 
 typedef struct StucTypeDefault {
 	StucBlendConfig blendConfig;
@@ -279,15 +271,21 @@ typedef struct StucObjectData {
 	StucObjectType type;
 } StucObjectData;
 
+typedef union StucMapOrIdx {
+	StucMap ptr;
+	int64_t idx;
+} StucMapOrIdx;
+
 typedef struct StucMapArrEntry {
-	StucMap pMap;
+	StucMapOrIdx map;
+	StucBlendOptArr blendOptArr[STUC_DOMAIN_MESH];
+	float wScale;
+	float receiveLen;
 	int8_t matIdx;
 } StucMapArrEntry;
 
 typedef struct StucMapArr {
 	StucMapArrEntry *pArr;
-	//TODO maybe rename CommonAttrib to Blend or such? It's shorter
-	StucCommonAttribList *pCommonAttribArr;
 	int32_t size;
 	int32_t count;
 } StucMapArr;
@@ -448,7 +446,12 @@ StucErr stucMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucErr stucMapFileLoad(StucContext pCtx, StucMap *pMapHandle, const char *filePath);
+StucErr stucMapFileLoad(
+	StucContext pCtx,
+	const char *filePath,
+	PixErr (* fpMapGet)(const char *, const char **, const StucMap *),
+	PixErr (* fpMapStore)(const char *, StucMap *)
+);
 STUC_EXPORT
 StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
 //Use this to access the mesh contaned within a StucMap handle.
@@ -461,19 +464,19 @@ StucErr stucQueryCommonAttribs(
 	StucContext pCtx,
 	const StucMap pMap,
 	const StucMesh *pMesh,
-	StucCommonAttribList *pCommonAttribs
+	StucBlendOptArr *pBlendOptArr
 );
 STUC_EXPORT
-StucErr stucCommonAttribArrGetFromDomain(
+StucErr stucCommonBlendOptArrGetFromDomain(
 	StucContext pCtx,
-	StucCommonAttribList *pList,
+	StucBlendOptArr *pList,
 	StucDomain domain,
-	StucCommonAttribArr **ppArr
+	StucBlendOptArr **ppArr
 );
 STUC_EXPORT
-StucErr stucDestroyCommonAttribs(
+StucErr stucDestroyBlendOptArr(
 	StucContext pCtx,
-	StucCommonAttribList *pCommonAttribs
+	StucBlendOptArr *pBlendOptArr
 );
 STUC_EXPORT
 StucErr stucQueueMapToMesh(

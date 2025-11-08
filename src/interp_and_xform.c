@@ -342,18 +342,19 @@ void blendCommonAttrib(
 	const Attrib *pInAttrib,
 	const Attrib *pMapAttrib,
 	Attrib *pOutAttrib,
+	I32 outAttribIdx,
 	I32 dataIdx,
 	StucDomain domain
 ) {
 	//TODO should this be using name even for active attribs?
-	const StucCommonAttrib *pCommon = stucGetCommonAttribFromDomain(
-		pBasic->pCommonAttribList,
-		pOutAttrib->core.name,
+	const StucBlendOpt *pOpts = stucGetBlendOpt(
+		pBasic->pOptArr,
+		outAttribIdx,
 		domain
 	);
 	StucBlendConfig blendConfig = {0};
-	if (pCommon) {
-		blendConfig = pCommon->blendConfig;
+	if (pOpts) {
+		blendConfig = pOpts->blendConfig;
 	}
 	else {
 		StucTypeDefault *pDefault =
@@ -506,7 +507,8 @@ void interpAndBlendAttribs(
 					pBasic,
 					&inAttribWrap,
 					&mapAttribWrap,
-					pOutAttrib, dataIdx,
+					pOutAttrib, i,
+					dataIdx,
 					domain
 				);
 				break;
