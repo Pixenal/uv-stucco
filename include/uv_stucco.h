@@ -32,6 +32,7 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_ATTRIB_NAME_MAX_LEN 96
 #define STUC_ATTRIB_STRING_MAX_LEN 64
 
+//TODO typedefs should not make pointer types
 typedef struct StucContextInternal *StucContext;
 typedef struct StucMapInternal *StucMap;
 typedef struct StucMapExportIntern StucMapExport;
@@ -449,8 +450,8 @@ STUC_EXPORT
 StucErr stucMapFileLoad(
 	StucContext pCtx,
 	const char *filePath,
-	PixErr (* fpMapGet)(const char *, const char **, const StucMap *),
-	PixErr (* fpMapStore)(const char *, StucMap *)
+	PixErr (* fpMapGet)(const char *, const char **, StucMap * const),
+	PixErr (* fpMapStore)(const char *, StucMap)
 );
 STUC_EXPORT
 StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
@@ -459,6 +460,10 @@ StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
 //call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
 STUC_EXPORT
 StucErr stucMapFileMeshGet(StucContext pCtx, StucMap pMap, const StucMesh **ppMesh);
+STUC_EXPORT
+StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName);
+STUC_EXPORT
+StucErr stucMapPathGet(StucContext pCtx, StucMap pMap, const char **ppPath);
 STUC_EXPORT
 StucErr stucQueryCommonAttribs(
 	StucContext pCtx,
@@ -499,7 +504,8 @@ StucErr stucMapToMesh(
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
-	float receiveLen
+	float receiveLen,
+	bool keepExistingIdxAttribs
 );
 STUC_EXPORT
 StucErr stucObjArrDestroy(const StucContext pCtx, StucObjArr *pArr);

@@ -2174,15 +2174,12 @@ AttribIndexed *stucAppendIndexedAttrib(
 	return pIndexedAttrib;
 }
 
-StucErr stucAppendAndCopyIndexedAttrib(
+StucErr stucAppendAndCopyIdxAttrib(
 	StucContext pCtx,
-	const char *pName,
-	AttribIndexedArr *pDestArr,
-	const AttribIndexedArr *pSrcArr
+	const AttribIndexed *pSrc,
+	AttribIndexedArr *pDestArr
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	AttribIndexed *pSrc = stucGetAttribIndexedInternConst(pSrcArr, pName);
-	PIX_ERR_RETURN_IFNOT_COND(err, pSrc, "");
 	AttribIndexed *pIndexedAttrib = stucAppendIndexedAttrib(
 		pCtx,
 		pDestArr,
@@ -2197,6 +2194,19 @@ StucErr stucAppendAndCopyIndexedAttrib(
 		STUC_ATTRIB_STRING_MAX_LEN * pSrc->count
 	);
 	pIndexedAttrib->count = pSrc->count;
+	return err;
+}
+
+StucErr stucAppendAndCopyIdxAttribFromName(
+	StucContext pCtx,
+	const char *pName,
+	const AttribIndexedArr *pSrcArr,
+	AttribIndexedArr *pDestArr
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	AttribIndexed *pSrc = stucGetAttribIndexedInternConst(pSrcArr, pName);
+	PIX_ERR_RETURN_IFNOT_COND(err, pSrc, "");
+	stucAppendAndCopyIdxAttrib(pCtx, pSrc, pDestArr);
 	return err;
 }
 

@@ -355,7 +355,7 @@ void encodeIndexedAttribMeta(
 
 static
 U64 dataTagKeyFromStr(const char *pStr) {
-	return (I32)DATA_TAG_KEY(pStr[0], pStr[1]);
+	return (U64)DATA_TAG_KEY(pStr[0], pStr[1]);
 }
 
 static
@@ -396,7 +396,7 @@ StucErr isDataTagInvalid(ByteString *pByteString, DataTag tag) {
 	);
 	char refStr[2] = {0};
 	strFromDataTag(tag, refStr);
-	PIX_ERR_CATCH(0, err, printf("should be %s, is %s", refStr, str););
+	PIX_ERR_CATCH(0, err, ;);
 	return err;
 }
 
@@ -998,7 +998,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	//encode header
-	const char *format = "UV Stucco Map File";
+	const char *format = MAP_FORMAT_NAME;
 	header.size = 64;
 	header.pString = pAlloc->fpCalloc(header.size, 1);
 	stucEncodeString(pAlloc, &header, format);
@@ -1554,7 +1554,8 @@ StucErr decodeStucHeader(
 	stucDecodeValue(pByteString, (U8 *)&pHeader->usgCount, 32);
 	stucDecodeValue(pByteString, (U8 *)&pHeader->cutoffCount, 32);
 
-	isDataTagInvalid(pByteString, TAG_DEP);
+	err = isDataTagInvalid(pByteString, TAG_DEP);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	stucDecodeValue(pByteString, (U8 *)&pDeps->maps.count, 32);
 	if (!pDeps->maps.count) {
 		return err;
@@ -2050,8 +2051,8 @@ StucErr importMapHeader(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	ByteString headerByteString = {0};
-	I16 headerSize = 0;
-	err = pCtx->io.fpRead(pFile, (U8 *)&headerSize, 2);
+	I32 headerSize = 0;
+	err = pCtx->io.fpRead(pFile, (U8 *)&headerSize, 4);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	headerByteString.pString = pCtx->alloc.fpMalloc(headerSize);
 	err = pCtx->io.fpRead(pFile, headerByteString.pString, headerSize);
@@ -2214,7 +2215,7 @@ const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen) {
 			if (pNameLen) {
 				*pNameLen = len - i;
 			}
-			return pStr;
+			return pStr + i;
 		}
 	}
 	if (pNameLen) {

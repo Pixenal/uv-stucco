@@ -252,11 +252,16 @@ AttribIndexed *stucAppendIndexedAttrib(
 	StucAttribType type,
 	StucAttribUse use
 );
-StucErr stucAppendAndCopyIndexedAttrib(
+StucErr stucAppendAndCopyIdxAttrib(
+	StucContext pCtx,
+	const AttribIndexed *pSrc,
+	AttribIndexedArr *pDestArr
+);
+StucErr stucAppendAndCopyIdxAttribFromName(
 	StucContext pCtx,
 	const char *pName,
-	AttribIndexedArr *pDestArr,
-	const AttribIndexedArr *pSrcArr
+	const AttribIndexedArr *pSrcArr,
+	AttribIndexedArr *pDestArr
 );
 void stucAppendToIndexedAttrib(
 	StucContext pCtx,
