@@ -4,6 +4,8 @@ SPDX-License-Identifier: Apache-2.0
 */
 
 #pragma once
+#include <string.h>
+
 #include <pixenals_alloc_utils.h>
 
 #include <types.h>

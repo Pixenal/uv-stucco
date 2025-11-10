@@ -940,7 +940,6 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	StucMapExport *pHandle = *ppHandle;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 
-	ByteString headerSize = {0};
 	ByteString header = {0};
 	U8 *pCompressed = NULL;
 	void *pFile = NULL;
@@ -2085,8 +2084,6 @@ StucErr stucMapImportGetDep(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	void *pFile = NULL;
-	U8 *pDataRaw = NULL;
-	ByteString dataByteString = {0};
 	StucHeader header = {0};
 
 	err = openMapFile(pCtx, filePath, &pFile);
