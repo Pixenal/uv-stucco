@@ -106,6 +106,6 @@ const PixalcLinAlloc *stucHTableAllocGetConst(const HTable *pHandle, I32 idx) {
 }
 
 HTableBucket *stucHTableBucketGet(HTable *pHandle, StucKey key) {
-	U64 hash = stucFnvHash((U8 *)&key.pKey, key.size, pHandle->size);
+	U64 hash = stucFnvHash((U8 *)key.pKey, key.size, pHandle->size);
 	return pHandle->pTable + hash;
 }
