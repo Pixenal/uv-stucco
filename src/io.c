@@ -190,9 +190,9 @@ void reallocByteStringIfNeeded(
 	PIX_ERR_ASSERT("", bitCount <= pByteString->size * 8);
 	bitCount += bitOffset;
 	I64 byteCount = bitCount / 8 + (bitCount % 8 != 0);
-	if (byteCount >= pByteString->size) {
+	if (byteCount && byteCount >= pByteString->size) {
 		I64 oldSize = pByteString->size;
-		pByteString->size *= 2;
+		pByteString->size = byteCount * 2;
 		pByteString->pString = pAlloc->fpRealloc(pByteString->pString, pByteString->size);
 		memset(pByteString->pString + oldSize, 0, pByteString->size - oldSize);
 	}
@@ -583,10 +583,6 @@ void encodeBlendOpts(
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
 		StucBlendOptArr *pArr = pMapArrEntry->blendOptArr + domain; 
 		const AttribArray *pAttribArr = stucGetAttribArrFromDomainConst(pMesh, domain);
-		PIX_ERR_ASSERT(
-			"common attrib arr len differs from mesh attrib arr",
-			pArr->count == pAttribArr->count
-		);
 
 		I32 countBytePos = pBlendOptBuf->byteIdx;
 		stucEncodeValue(pAlloc, pBlendOptBuf, (U8[]){0, 0}, 16);
@@ -628,29 +624,27 @@ void optsFinalEncode(
 	const StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	ByteString *pData = &pHandle->data;
 	UBitField8 header = !!blendOptOverride | wScaleOverride << 1 | receiveOverride << 2;
-	if (header) {
-		stucEncodeValue(pAlloc, pData, (U8 *)&matIdx, 16);
-		stucEncodeValue(pAlloc, pData, (U8 *)&header, 8);
-		stucEncodeValue(pAlloc, pData, (U8 *)&pMatMapEntry->linIdx, 16);
-		if (blendOptOverride) {
-			reallocByteStringIfNeeded(pAlloc, pData, (I64)pBlendOpt->byteIdx * 8);
-			memcpy(pData->pString, pBlendOpt->pString, pBlendOpt->byteIdx);
-			pData->byteIdx += pBlendOpt->byteIdx;
-		}
-		if (pBlendOpt->pString) {
-			pAlloc->fpFree(pBlendOpt->pString);
-		}
-		if (wScaleOverride) {
-			stucEncodeValue(pAlloc, pData, (U8 *)&pMatMapEntry->opt.wScale, 32);
-		}
-		if (receiveOverride) {
-			stucEncodeValue(pAlloc, pData, (U8 *)&pMatMapEntry->opt.receiveLen, 32);
-		}
+	stucEncodeValue(pAlloc, pData, (U8 *)&matIdx, 16);
+	stucEncodeValue(pAlloc, pData, (U8 *)&header, 8);
+	stucEncodeValue(pAlloc, pData, (U8 *)&pMatMapEntry->linIdx, 16);
+	if (blendOptOverride) {
+		reallocByteStringIfNeeded(pAlloc, pData, (I64)pBlendOpt->byteIdx * 8);
+		memcpy(pData->pString, pBlendOpt->pString, pBlendOpt->byteIdx);
+		pData->byteIdx += pBlendOpt->byteIdx;
+	}
+	if (pBlendOpt->pString) {
+		pAlloc->fpFree(pBlendOpt->pString);
+	}
+	if (wScaleOverride) {
+		stucEncodeValue(pAlloc, pData, (U8 *)&pMatMapEntry->opt.wScale, 32);
+	}
+	if (receiveOverride) {
+		stucEncodeValue(pAlloc, pData, (U8 *)&pMatMapEntry->opt.receiveLen, 32);
 	}
 }
 
 static
-void encodeMappingOpt(
+StucErr encodeMappingOpt(
 	StucMapExport *pHandle,
 	const StucMesh *pMesh,
 	const StucMapArr *pMapArr,
@@ -659,30 +653,35 @@ void encodeMappingOpt(
 	F32 wScale,
 	F32 receiveLen
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	ByteString *pData = &pHandle->data;
+
+	StucMesh meshCpy = *pMesh;
+	err = stucAttemptToSetMissingActiveDomains(&meshCpy);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	const Attrib *pAttrib =
-		stucGetActiveAttribConst(pHandle->pCtx, pMesh, STUC_ATTRIB_USE_IDX);
-	const AttribIndexed *pMats =
-		stucGetAttribIndexedInternConst(pIdxAttribArr, pAttrib->core.name);
-	intptr_t attribIdx = (intptr_t)(pMats) - (intptr_t)(pAttrib->core.pData);
-	attribIdx /= (intptr_t)stucGetAttribSizeIntern(pAttrib->core.type);
+		stucGetActiveAttribConst(pHandle->pCtx, &meshCpy, STUC_ATTRIB_USE_IDX);
 	encodeDataTag(pAlloc, pData, TAG_MAP_OVERRIDES);
 	I32 countDataPos = pData->byteIdx;
 	stucEncodeValue(pAlloc, pData, (U8[]){0, 0}, 16);
 	I32 count = 0;
-	for (I32 i = 0; i < pMats->count; ++i) {
+	const AttribIndexed *pMats =
+		stucGetAttribIndexedInternConst(pIdxAttribArr, pAttrib->core.name);
+	intptr_t attribIdx = (intptr_t)pMats - (intptr_t)pIdxAttribArr->pArr;
+	for (I32 i = 0; i < pMapArr->count; ++i) {
 		I32 globMatIdx = pIdxTable->pArr[attribIdx].table.pArr[i];
 		if (globMatIdx == -2) {
 			continue;//mat is not use in mesh
 		}
+		++count;
 		MappingOpt mappingOpt = {
 			.wScale = wScale,
 			.receiveLen = receiveLen
 		};
 		MatMapEntry *pEntry = NULL;
 		stucHTableGet(
-			&pHandle->matMapTable,
+			&pHandle->mapTable,
 			0,
 			pMapArr->pArr[i].map.ptr->pName,
 			(void **)&pEntry,
@@ -690,13 +689,13 @@ void encodeMappingOpt(
 			&(MatMapEntryInit) {.pMap = pMapArr->pArr[i].map.ptr, .opt = mappingOpt},
 			stucKeyFromPath, NULL, matMapEntryInit, matMapEntryCmp
 		);
-		bool wScaleOverride = pEntry->opt.wScale = wScale;
-		bool receiveOverride = pEntry->opt.receiveLen == receiveLen;
+		bool wScaleOverride = pEntry->opt.wScale != wScale;
+		bool receiveOverride = pEntry->opt.receiveLen != receiveLen;
 		bool blendOptOverride = false;
 		ByteString blendOptBuf = {0};
 		encodeBlendOpts(
 			pHandle,
-			pMesh,
+			&meshCpy,
 			pMapArr->pArr + i,
 			pEntry,
 			&blendOptBuf,
@@ -711,6 +710,7 @@ void encodeMappingOpt(
 		);
 	}
 	*(I16 *)&pData->pString[countDataPos] = count;
+	return err;
 }
 
 static
@@ -889,7 +889,7 @@ void destroyMapExport(StucMapExport *pHandle) {
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	pAlloc->fpFree(pHandle->pPath);
 	pAlloc->fpFree(pHandle->data.pString);
-	stucHTableDestroy(&pHandle->matMapTable);
+	stucHTableDestroy(&pHandle->mapTable);
 	stucAttribIndexedArrDestroy(pHandle->pCtx, &pHandle->idxAttribs);
 	*pHandle = (StucMapExport){0};
 }
@@ -916,7 +916,7 @@ StucErr stucMapExportInit(
 	pHandle->cutoffIdxMax = -1;
 	stucHTableInit(
 		pAlloc,
-		&pHandle->matMapTable,
+		&pHandle->mapTable,
 		16,
 		(I32Arr){.pArr = (I32[1]){sizeof(MatMapEntry)}, .count = 1},
 		pHandle
@@ -1011,7 +1011,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.cutoffCount, 32);
 
 	encodeDataTag(pAlloc, &header, TAG_DEP);
-	PixalcLinAlloc *pTableAlloc = stucHTableAllocGet(&pHandle->matMapTable, 0);
+	PixalcLinAlloc *pTableAlloc = stucHTableAllocGet(&pHandle->mapTable, 0);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pTableAlloc->linIdx, 32);
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pTableAlloc, (PixtyRange){.start=0, .end=INT32_MAX}, &iter);
@@ -1183,16 +1183,18 @@ StucErr makeIdxAttribRedirects(
 	I8 *pIdxIsUsed = pAlloc->fpMalloc(INT8_MAX);
 	pIdxTable->size = pIdxTable->count = pIndexedAttribs->count;
 	pIdxTable->pArr = pAlloc->fpCalloc(pIdxTable->size, sizeof(StucIdxTable));
-	bool hasRedirect = false;
 	for (I32 i = 0; i < pIndexedAttribs->count; ++i) {
 		const AttribIndexed *pRef = pIndexedAttribs->pArr + i;
 		err = markUsedIndices(pHandle, pIdxIsUsed, pMesh, pRef);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
-		err = setRedirects(pHandle, pIdxTable->pArr + i, pIdxIsUsed, pRef, &hasRedirect);
+		err = setRedirects(
+			pHandle,
+			pIdxTable->pArr + i,
+			pIdxIsUsed,
+			pRef,
+			&pIdxTable->hasRedirect
+		);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
-	}
-	if (!hasRedirect) {
-		destroyIdxTableArr(pAlloc, pIdxTable);
 	}
 	PIX_ERR_CATCH(0, err, destroyIdxTableArr(pAlloc, pIdxTable););
 	if (pIdxIsUsed) {
@@ -1216,7 +1218,7 @@ StucErr mapExportObjAdd(
 	err = makeIdxAttribRedirects(pHandle, pObj, pIndexedAttribs, &idxTable);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	if (isTarget) {
-		encodeMappingOpt(
+		err = encodeMappingOpt(
 			pHandle,
 			(StucMesh *)pObj->pData,
 			pMapArr,
@@ -1225,6 +1227,10 @@ StucErr mapExportObjAdd(
 			wScale,
 			receiveLen
 		);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	if (!idxTable.hasRedirect) {
+		destroyIdxTableArr(&pHandle->pCtx->alloc, &idxTable);
 	}
 	err = encodeObj(
 		pHandle,

@@ -2252,3 +2252,34 @@ UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count) {
 	}
 	return field;
 }
+
+StucErr stucAttemptToSetMissingActiveDomains(StucMesh *pMesh) {
+	StucErr err = PIX_ERR_SUCCESS;
+	for (I32 i = 1; i < STUC_ATTRIB_USE_ENUM_COUNT; ++i) {
+		if (i == STUC_ATTRIB_USE_SP_ENUM_COUNT) {
+			continue;
+		}
+		AttribActive *pIdx = pMesh->activeAttribs + i;
+		if (pIdx->domain != STUC_DOMAIN_NONE) {
+			continue;
+		}
+		for (I32 j = STUC_DOMAIN_FACE; j <= STUC_DOMAIN_VERT; ++j) {
+			const AttribArray *pAttribArr = stucGetAttribArrFromDomainConst(pMesh, j);
+			if (pIdx->idx >= pAttribArr->count ||
+				pAttribArr->pArr[pIdx->idx].core.use != i
+			) {
+				continue;
+			}
+			//the below is false, 2 domains have their own candidate.
+			//the intended attrib is ambiguous, so return error
+			PIX_ERR_RETURN_IFNOT_COND(
+				err,
+				pIdx->domain == STUC_DOMAIN_NONE,
+				"Unable to determine active attrib domain"
+			);
+			pIdx->domain = j;
+		}
+	}
+	return err;
+}
+

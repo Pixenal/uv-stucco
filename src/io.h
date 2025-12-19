@@ -40,8 +40,9 @@ typedef struct StucMapExportIntern {
 	StucHeader header;
 	ByteString data;
 	I32 cutoffIdxMax;
-	HTable matMapTable;
+	HTable mapTable;
 	StucAttribIndexedArr idxAttribs;
+	I8Arr matMapTable;
 	bool compress;
 } StucMapExportIntern;
 
@@ -54,6 +55,7 @@ typedef struct StucIdxTableArr {
 	StucIdxTable *pArr;
 	I32 size;
 	I32 count;
+	bool hasRedirect;
 } StucIdxTableArr;
 
 typedef struct ObjMapOpts {

@@ -276,3 +276,5 @@ UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count);
 
 #define STUC_ATTRIB_USE_FIELD(arr)\
 	stucAttribUseField((arr), sizeof(arr) / sizeof(StucAttribUse))
+
+StucErr stucAttemptToSetMissingActiveDomains(StucMesh *pMesh);
