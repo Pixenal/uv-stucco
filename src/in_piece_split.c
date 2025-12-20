@@ -453,6 +453,12 @@ void fillBorderBuf(
 		if (pEntry->checked) {
 			continue;
 		}
+		I32 adjCorner = 0;
+		//this is using the table for the pre-split piece.
+		//this is fine, as faces arn't marked removed until the end of this func
+		if (getAdjFaceInPiece(pBasic, pIdxTable, pEntry->corner, &adjCorner)) {
+			continue;//we want an exterior edge to start, so skip this one
+		}
 		I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, pEntry->corner);
 		if (stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
 			findAndAddBorder(
