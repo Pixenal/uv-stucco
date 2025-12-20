@@ -600,6 +600,7 @@ void encodeBlendOpts(
 				sizeof(BlendConfig))
 			) {
 				stucEncodeValue(pAlloc, pBlendOptBuf, (U8 *)&pArr->pArr[j].attrib, 16);
+				stucEncodeValue(pAlloc, pBlendOptBuf, (U8 *)&pAttrib->core.type, 8);
 				encodeBlendConfigOverride(pAlloc, pBlendOptBuf, pDefault, pBlendConfig);
 				++count;
 			}
@@ -1561,21 +1562,28 @@ StucErr decodeStucHeader(
 
 	err = isDataTagInvalid(pByteString, TAG_DEP);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	stucDecodeValue(pByteString, (U8 *)&pDeps->maps.count, 32);
-	if (!pDeps->maps.count) {
+	I32 depCount = 0;
+	stucDecodeValue(pByteString, (U8 *)&depCount, 32);
+	if (!depCount) {
 		return err;
 	}
-	pDeps->maps.size = pDeps->maps.count;
-	pDeps->maps.pArr = pCtx->alloc.fpCalloc(pDeps->maps.size, sizeof(PixtyStr));
 	I32 pathMax = pixioPathMaxGet();
 	char *pBuf = pCtx->alloc.fpMalloc(pathMax);
-	for (I32 i = 0; i < pDeps->maps.count; ++i) {
-		memset(pBuf, 0, pathMax);
-		stucDecodeString(pByteString, pBuf, pathMax);
-		I32 len = strnlen(pBuf, pathMax);
-		PIX_ERR_THROW_IFNOT_COND(err, len != pathMax, "", 0);
-		pDeps->maps.pArr[i].pStr = pCtx->alloc.fpMalloc(len + 1);
-		memcpy(pDeps->maps.pArr[i].pStr, pBuf, len + 1);
+	for (I32 i = 0; i < depCount; ++i) {
+		DataTag type = decodeDataTag(pByteString, NULL);
+		switch (type) {
+			case TAG_DEP_TYPE_MAP: {
+				memset(pBuf, 0, pathMax);
+				stucDecodeString(pByteString, pBuf, pathMax);
+				I32 len = strnlen(pBuf, pathMax);
+				PIX_ERR_THROW_IFNOT_COND(err, len != pathMax, "", 0);
+				I32 newIdx = 0;
+				PIXALC_DYN_ARR_ADD(PixtyStr, &pCtx->alloc, &pDeps->maps, newIdx);
+				pDeps->maps.pArr[newIdx].pStr = pCtx->alloc.fpMalloc(len + 1);
+				memcpy(pDeps->maps.pArr[newIdx].pStr, pBuf, len + 1);
+				break;
+			}
+		}
 	}
 	PIX_ERR_CATCH(0, err, stucMapDepsDestroy(&pCtx->alloc, pDeps););
 	if (pBuf) {
@@ -1757,11 +1765,13 @@ StucErr loadObj(
 }
 
 static
-void decodeBlendOpts(
+StucErr decodeBlendOpts(
+	StucContext pCtx,
 	const StucAlloc *pAlloc,
 	ByteString *pData,
 	StucMapArrEntry *pEntry
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
 		StucBlendOptArr *pArr = pEntry->blendOptArr + domain;
 		stucDecodeValue(pData, (U8 *)&pArr->count, 16);
@@ -1770,6 +1780,10 @@ void decodeBlendOpts(
 		for (I32 i = 0; i < pArr->count; ++i) {
 			StucBlendOpt *pOpts = pArr->pArr + i;
 			stucDecodeValue(pData, (U8 *)&pOpts->attrib, 16);
+			AttribType type = STUC_ATTRIB_NONE;
+			stucDecodeValue(pData, (U8 *)&type, 16);
+			PIX_ERR_RETURN_IFNOT_COND(err, type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT, "");
+			pOpts->blendConfig = stucGetTypeDefaultConfig(&pCtx->typeDefaults, type)->blendConfig;
 			UBitField8 flags = 0;
 			stucDecodeValue(pData, (U8 *)&flags, 8);
 			if (flags & 0x1) {
@@ -1798,16 +1812,20 @@ void decodeBlendOpts(
 			}
 		}
 	}
+	return err;
 }
 
 static
 StucErr loadMapOverrides(
+	StucContext pCtx,
 	const StucAlloc *pAlloc,
 	ByteString *pData,
 	ObjMapOptsArr *pMapOptsArr,
 	I32 objIdx
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	err = isDataTagInvalid(pData, TAG_MAP_OVERRIDES);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	I32 count = 0;
 	stucDecodeValue(pData, (U8 *)&count, 16);
 	if (!count) {
@@ -1826,13 +1844,21 @@ StucErr loadMapOverrides(
 		stucDecodeValue(pData, (U8 *)&header, 8);
 		stucDecodeValue(pData, (U8 *)&pEntry->map.idx, 16);
 		if (header & 0x1) {
-			decodeBlendOpts(pAlloc, pData, pEntry);
+			err = decodeBlendOpts(pCtx, pAlloc, pData, pEntry);
+			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 		if (header >> 1 & 0x1) {
 			stucDecodeValue(pData, (U8 *)&pEntry->wScale, 32);
 		}
+		else {
+			//TODO replace with default wscale
+			pEntry->wScale = 1.0f;
+		}
 		if (header >> 2 & 0x1) {
 			stucDecodeValue(pData, (U8 *)&pEntry->receiveLen, 32);
+		}
+		else {
+			pEntry->receiveLen = -1.0f;
 		}
 	}
 	return err;
@@ -1866,7 +1892,7 @@ StucErr loadDataByTag(
 	StucErr err = PIX_ERR_SUCCESS;
 	switch (decodeDataTag(pData, NULL)) {
 		case TAG_TYPE_TARGET:
-			err = loadMapOverrides(&pCtx->alloc, pData, pMapOptsArr, pObjArr->count);
+			err = loadMapOverrides(pCtx, &pCtx->alloc, pData, pMapOptsArr, pObjArr->count);
 			PIX_ERR_RETURN_IFNOT(err, "");
 			//v fallthrough v
 		case TAG_TYPE_OBJECT: {
@@ -2006,6 +2032,7 @@ StucErr decodeStucData(
 			pIdxTableArrs,
 			pIndexedAttribs
 		);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
 	} while(pData->byteIdx != pData->size);
 	if (correctIdxAttribs) {
 		for (I32 i = 0; i < pObjArr->count; ++i) {

@@ -450,8 +450,9 @@ STUC_EXPORT
 StucErr stucMapFileLoad(
 	StucContext pCtx,
 	const char *filePath,
-	PixErr (* fpMapGet)(const char *, const char **, StucMap * const),
-	PixErr (* fpMapStore)(const char *, StucMap)
+	void *pUserData,
+	PixErr (* fpMapGet)(void *, const char *, const char **, StucMap * const),
+	PixErr (* fpMapStore)(void *, const char *, StucMap)
 );
 STUC_EXPORT
 StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);

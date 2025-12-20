@@ -42,7 +42,7 @@ I32 getNearbyPrime(I32 num) {
 		268435459
 	};
 	F32 exp = log2f((F32)num);
-	I32 expRound = roundf(exp);
+	I32 expRound = (I32)roundf(exp);
 	PIX_ERR_ASSERT("a value this high shouldn't've been passed", expRound <= 28);
 	return primes[expRound];
 }

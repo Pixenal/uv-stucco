@@ -1473,7 +1473,7 @@ void blendUseColor(
 		U8 *pDestVoid = stucAttribAsVoid(pDest, iDest);
 		I32 compSize = stucGetAttribSizeIntern(compType);
 		for (I32 i = 0; i < destVecSize; ++i) {
-			iDestBuf[i] = destBuf[i] * destMax;
+			iDestBuf[i] = (I64)(destBuf[i] * destMax);
 			memcpy(
 				pDestVoid + compSize * i,
 				iDestBuf + i,
