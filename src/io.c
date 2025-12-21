@@ -735,7 +735,7 @@ StucErr encodeObj(
 		"invalid mesh"
 	);
 	StucMesh *pMesh = (StucMesh *)pObj->pData;
-	err = stucValidateMesh(pMesh, false, checkPosOnly);
+	err = stucValidateMesh(&pHandle->pCtx->alloc, pMesh, false, checkPosOnly);
 	PIX_ERR_RETURN_IFNOT(err, "mesh validation failed");
 	//encode obj header
 	encodeDataTag(pAlloc, pData, TAG_OBJECT);
