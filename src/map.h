@@ -19,7 +19,7 @@ typedef struct AttributeDesc {
 
 typedef struct StucMapInternal {
 	UsgArr usgArr;
-	const Mesh *pMesh;
+	Mesh *pMesh;
 	BBox *pFaceBBoxes;
 	TriCache triCache;
 	QuadTree quadTree;

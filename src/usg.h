@@ -42,7 +42,7 @@ typedef struct UsgInFace {
 } UsgInFace;
 
 typedef struct UsgArr {
-	const Mesh *pSquares;
+	Mesh *pSquares;
 	Usg *pArr;
 	StucUsg *pMemArr;
 	UsgInFace *pInFaceTable;

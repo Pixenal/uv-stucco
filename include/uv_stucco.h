@@ -460,7 +460,7 @@ StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
 //Objects are collapsed in map handles, so if you want the original geometry
 //call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
 STUC_EXPORT
-StucErr stucMapFileMeshGet(StucContext pCtx, StucMap pMap, const StucMesh **ppMesh);
+StucErr stucMapFileMeshGet(StucContext pCtx, StucMap pMap, StucMesh **ppMesh);
 STUC_EXPORT
 StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName);
 STUC_EXPORT
@@ -571,12 +571,14 @@ StucErr stucAttribSpIsValid(
 	const StucAttribCore *pCore,
 	StucDomain domain
 );
+//TODO replace 'AllDomains' funcs with single func that takes domains as bitflags
 STUC_EXPORT
 StucErr stucAttribGetAllDomains(
 	StucContext pCtx,
 	StucMesh *pMesh,
 	const char *pName,
 	StucAttrib **ppAttrib,
+	int32_t *pIdx,
 	StucDomain *pDomain
 );
 STUC_EXPORT
@@ -585,6 +587,7 @@ StucErr stucAttribGetAllDomainsConst(
 	const StucMesh *pMesh,
 	const char *pName,
 	const StucAttrib **ppAttrib,
+	int32_t *pIdx,
 	StucDomain *pDomain
 );
 STUC_EXPORT

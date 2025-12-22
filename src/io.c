@@ -1964,6 +1964,7 @@ StucErr correctIdxAttribsOnLoad(
 			pMesh,
 			pIdxAttribs->pArr[pIdxTableArr->pArr[i].idx].core.name,
 			&pAttrib,
+			NULL,
 			&domain
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
