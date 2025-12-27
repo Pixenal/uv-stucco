@@ -36,6 +36,7 @@ SPDX-License-Identifier: Apache-2.0
 typedef struct StucContextInternal *StucContext;
 typedef struct StucMapInternal *StucMap;
 typedef struct StucMapExportIntern StucMapExport;
+typedef struct StucMapLoadIntern StucMapLoad;
 
 //TODO add array wrapper structs, so that you don't need to pass
 //separate "count" variables to functions. IntArray, AttribArray,
@@ -268,6 +269,13 @@ typedef enum StucObjectType {
 	STUC_OBJECT_DATA_MESH_BUF
 } StucObjectType;
 
+typedef enum StucMapStatus {
+	STUC_MAP_PENDING_LOAD,
+	STUC_MAP_LOADED,
+	STUC_MAP_ERROR,
+	STUC_MAP_MISSING_DEP
+} StucMapStatus;
+
 typedef struct StucObjectData {
 	StucObjectType type;
 } StucObjectData;
@@ -447,13 +455,31 @@ StucErr stucMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucErr stucMapFileLoad(
+StucErr stucMapFileLoadInit(
 	StucContext pCtx,
-	const char *filePath,
+	StucMapLoad **ppState,
+	const char *pFilepath,
+	double timestamp,
 	void *pUserData,
-	PixErr (* fpMapGet)(void *, const char *, const char **, StucMap * const),
-	PixErr (* fpMapStore)(void *, const char *, StucMap)
+	PixErr (* fpMapGet)(void *, const char *, char **, double *, StucMap * const),
+	PixErr (* fpMapStore)(
+		void *,
+		const char *,
+		const char *,
+		double,
+		StucMap,
+		StucMapStatus,
+		const PixtyStrArr *
+	)
 );
+STUC_EXPORT
+StucErr stucMapFileLoadDeps(StucMapLoad *pState);
+STUC_EXPORT
+StucErr stucMapFileLoad(StucMapLoad *pState);
+STUC_EXPORT
+StucErr stucMapFileLoadGetDepStatus(StucMapLoad *pState, StucMapStatus *pStatus);
+STUC_EXPORT
+StucErr stucMapLoadDestroy(StucMapLoad *pState);
 STUC_EXPORT
 StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
 //Use this to access the mesh contaned within a StucMap handle.
@@ -463,8 +489,6 @@ STUC_EXPORT
 StucErr stucMapFileMeshGet(StucContext pCtx, StucMap pMap, StucMesh **ppMesh);
 STUC_EXPORT
 StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName);
-STUC_EXPORT
-StucErr stucMapPathGet(StucContext pCtx, StucMap pMap, const char **ppPath);
 STUC_EXPORT
 StucErr stucQueryCommonAttribs(
 	StucContext pCtx,
