@@ -22,3 +22,6 @@
 [submodule "extern/poly-cutout"]
 	path = extern/poly-cutout
 	url = https://github.com/Pixenal/poly-cutout.git
+[submodule "extern/pixenals-structs"]
+	path = extern/pixenals-structs
+	url = https://github.com/Pixenal/pixenals-structs
