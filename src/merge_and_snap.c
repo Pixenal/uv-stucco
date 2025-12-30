@@ -25,7 +25,7 @@ void stucVertMergeTableInit(
 	const MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pTable
+	PixuctHTable *pTable
 ) {
 	I32 vertTotal = bufMeshArrGetVertCount(pInPieces->pBufMeshes);
 	vertTotal += bufMeshArrGetVertCount(pInPiecesClip->pBufMeshes);
@@ -33,7 +33,7 @@ void stucVertMergeTableInit(
 		"mapToMesh should have returned before this func if empty",
 		vertTotal > 0
 	);
-	stucHTableInit(
+	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
 		pTable,
 		vertTotal / 4 + 1,
@@ -48,7 +48,7 @@ void stucVertMergeTableInit(
 static
 void mergeTableEntryInit(
 	void *pUserData,
-	HTableEntryCore *pEntryCore,
+	PixuctHTableEntryCore *pEntryCore,
 	const void *pKeyData,
 	void *pInitInfo,
 	I32 linIdx
@@ -198,12 +198,12 @@ MergeTableInitInfoVert mergeTableGetBufVert(const BufMesh *pBufMesh, FaceCorner 
 
 static
 void mergeTableAddVert(
-	HTable *pTable,
+	PixuctHTable *pTable,
 	const MergeTableKey *pKey,
 	VertMergeCorner *pInitInfo
 ) {
 	VertMerge *pEntry = NULL;
-	SearchResult result = stucHTableGet(
+	SearchResult result = pixuctHTableGet(
 		pTable,
 		pKey->type == STUC_BUF_VERT_INTERSECT,
 		pKey,
@@ -211,8 +211,8 @@ void mergeTableAddVert(
 		true, pInitInfo,
 		mergeTableMakeKey, NULL, mergeTableEntryInit, mergeTableEntryCmp
 	);
-	PIX_ERR_ASSERT("", result == STUC_SEARCH_ADDED || result == STUC_SEARCH_FOUND);
-	if (result == STUC_SEARCH_FOUND) {
+	PIX_ERR_ASSERT("", result == PIX_SEARCH_ADDED || result == PIX_SEARCH_FOUND);
+	if (result == PIX_SEARCH_FOUND) {
 		pEntry->cornerCount++;
 	}
 }
@@ -241,7 +241,7 @@ void mergeTableAddVerts(
 	bool clipped,
 	I32 bufMeshIdx,
 	FaceCorner bufCorner,
-	HTable *pTable
+	PixuctHTable *pTable
 ) {
 	const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + bufMeshIdx;
 	const InPiece *pInPiece = bufFaceGetInPiece(pBufMesh, bufCorner.face, pInPieces);
@@ -261,7 +261,7 @@ void stucMergeVerts(
 	const MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	bool clipped,
-	HTable *pTable
+	PixuctHTable *pTable
 ) {
 	for (I32 i = 0; i < pInPieces->pBufMeshes->count; ++i) {
 		const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + i;
@@ -291,13 +291,13 @@ typedef struct SnapJobArgs {
 typedef struct SnapJobInitInfo {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
-	HTable *pMergeTable;
+	PixuctHTable *pMergeTable;
 } SnapJobInitInfo;
 
 static
 I32 snapJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfoVoid) {
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
-	const PixalcLinAlloc *pIntersectAlloc = stucHTableAllocGet(pInitInfo->pMergeTable, 1);
+	const PixalcLinAlloc *pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
 	return pixalcLinAllocGetCount(pIntersectAlloc);
 }
 
@@ -305,7 +305,7 @@ static
 void snapJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEntryVoid) {
 	SnapJobArgs *pEntry = pEntryVoid;
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
-	pEntry->pIntersectAlloc = stucHTableAllocGet(pInitInfo->pMergeTable, 1);
+	pEntry->pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
 	pEntry->pInPieces = pInitInfo->pInPieces;
 	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
 }
@@ -332,7 +332,7 @@ StucErr stucSnapIntersectVerts(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	I32 *pSnappedVerts
 ) {
 	StucErr err = PIX_ERR_SUCCESS;

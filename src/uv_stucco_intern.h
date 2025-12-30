@@ -16,7 +16,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <types.h>
 #include <context.h>
 #include <map.h>
-#include <hash_table.h>
+#include <pixenals_structs.h>
 #include <in_piece.h>
 
 #define STUC_TILE_BIT_LEN 11
@@ -68,20 +68,20 @@ StucErr stucBuildTangentsForInPieces(
 	MapToMeshBasic *pBasic,
 	Mesh *pInMesh, //in-mesh is const in MapToMeshBasic
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable
+	PixuctHTable *pMergeTable
 );
 StucErr stucBuildTangents(void *pArgsVoid);
 
-StucErr stucInitOutMesh(MapToMeshBasic *pBasic, HTable *pMergeTable, I32 snappedVerts);
+StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 snappedVerts);
 void stucAddVertsToOutMesh(
 	MapToMeshBasic *pBasic,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	I32 vertAllocIdx
 );
 void stucAddFacesAndCornersToOutMesh(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	OutBufIdxArr *pOutBufIdxArr,
 	BufOutRangeTable *pBufOutTable,
 	bool clip

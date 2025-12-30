@@ -9,7 +9,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <job.h>
 #include <context.h>
-#include <hash_table.h>
+#include <pixenals_structs.h>
 #include <mesh.h>
 
 struct MapToMeshBasic;
@@ -26,7 +26,7 @@ typedef struct EncasingInFaceArr {
 } EncasingInFaceArr;
 
 typedef struct EncasedMapFace {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	EncasingInFaceArr inFaces;
 	I32 mapFace;
 	V2_I16 tile;
@@ -192,7 +192,7 @@ typedef struct InPieceArr {
 
 typedef struct FindEncasedFacesJobArgs {
 	JobArgs core;
-	HTable encasedFaces;
+	PixuctHTable encasedFaces;
 	InPieceArr inPiecesMono;
 } FindEncasedFacesJobArgs;
 
@@ -203,7 +203,7 @@ typedef struct SplitInPiecesAlloc {
 } SplitInPiecesAlloc;
 
 typedef struct InFaceCacheEntry {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	FaceRange face;
 	V2_F32 fMin;
 	V2_F32 fMax;

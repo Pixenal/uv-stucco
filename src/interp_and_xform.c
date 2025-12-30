@@ -23,7 +23,7 @@ typedef struct InterpAttribsJobArgs {
 	Mesh *pOutMesh;
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
-	const HTable *pMergeTable;
+	const PixuctHTable *pMergeTable;
 	const BufOutRangeTable *pBufOutTable;
 	const OutBufIdxArr *pOutBufIdxArr;
 } InterpAttribsJobArgs;
@@ -611,7 +611,7 @@ const VertMerge *getVertMergeFromBufCorner(
 	BufVertType type,
 	I32 mergedVert
 ) {
-	const PixalcLinAlloc *pLinAlloc = stucHTableAllocGetConst(
+	const PixalcLinAlloc *pLinAlloc = pixuctHTableAllocGetConst(
 		pArgs->pMergeTable,
 		type == STUC_BUF_VERT_INTERSECT
 	);
@@ -788,7 +788,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 typedef struct XformVertsJobInitInfo {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
-	HTable *pMergeTable;
+	PixuctHTable *pMergeTable;
 	I32 vertAllocIdx;
 } XformVertsJobInitInfo;
 
@@ -796,7 +796,7 @@ static
 I32 xformVertsJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfoVoid) {
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
-		stucHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
+		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
 	return pixalcLinAllocGetCount(pVertAlloc);
 }
 
@@ -805,7 +805,7 @@ void xformVertsJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEntry
 	xformAndInterpVertsJobArgs *pEntry = pEntryVoid;
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
-		stucHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
+		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
 	pEntry->pVertAlloc = pVertAlloc;
 	pEntry->pOutMesh = &pBasic->outMesh;
 	pEntry->pInPieces = pInitInfo->pInPieces;
@@ -818,7 +818,7 @@ StucErr stucXFormAndInterpVerts(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	I32 vertAllocIdx
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -847,7 +847,7 @@ StucErr stucXFormAndInterpVerts(
 typedef struct InterpAttribsJobInitInfo {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
-	const HTable *pMergeTable;
+	const PixuctHTable *pMergeTable;
 	const BufOutRangeTable *pBufOutTable;
 	const OutBufIdxArr *pOutBufIdxArr;
 	StucDomain domain;
@@ -877,7 +877,7 @@ StucErr stucInterpAttribs(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	const BufOutRangeTable *pBufOutTable,
 	const OutBufIdxArr *pOutBufIdxArr,
 	StucDomain domain,

@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <uv_stucco.h>
 #include <types.h>
-#include <hash_table.h>
+#include <pixenals_structs.h>
 
 typedef struct ByteString {
 	unsigned char *pString;
@@ -40,7 +40,7 @@ typedef struct StucMapExportIntern {
 	StucHeader header;
 	ByteString data;
 	I32 cutoffIdxMax;
-	HTable mapTable;
+	PixuctHTable mapTable;
 	StucAttribIndexedArr idxAttribs;
 	I8Arr matMapTable;
 	bool compress;

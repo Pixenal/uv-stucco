@@ -37,7 +37,7 @@ typedef struct InFaceCacheState {
 static
 void inFaceCacheEntryInit(
 	void *pUserData,
-	HTableEntryCore *pEntryVoid,
+	PixuctHTableEntryCore *pEntryVoid,
 	const void *pKeyData,
 	void *pInitInfoVoid,
 	I32 linAlloc
@@ -57,7 +57,7 @@ void inFaceCacheEntryInit(
 
 static
 bool inFaceCacheEntryCmp(
-	const HTableEntryCore *pEntry,
+	const PixuctHTableEntryCore *pEntry,
 	const void *pKeyData,
 	const void *pDataToAdd
 ) {
@@ -66,13 +66,13 @@ bool inFaceCacheEntryCmp(
 
 static
 SearchResult inFaceCacheGet(
-	HTable *pCache,
+	PixuctHTable *pCache,
 	const InPiece *pInPiece,
 	I32 face,
 	bool addEntry,
 	InFaceCacheEntry **ppEntry
 ) {
-	return stucHTableGet(
+	return pixuctHTableGet(
 		pCache,
 		0,
 		&face,
@@ -86,7 +86,7 @@ static
 InFaceCorner getAdjFaceInPiece(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	InFaceCorner corner
 ) {
 	I32 edge = stucGetMeshEdge(
@@ -147,7 +147,7 @@ static
 StucErr walkInPieceBorder(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	FaceCorner startCorner,
 	bool (* fpFunc)(
 		const MapToMeshBasic *, void *, InFaceCorner, InFaceCorner, I32, I32, bool
@@ -206,7 +206,7 @@ static
 void getInPieceBounds(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache
+	PixuctHTable *pInFaceCache
 ) {
 	EncasingInFaceArr *pInFaces = &pInPiece->pList->inFaces;
 	for (I32 i = 0; i < pInFaces->count; ++i) {
@@ -227,7 +227,7 @@ InsideStatus getFaceEncasingVert(
 	const MapToMeshBasic *pBasic,
 	V2_F32 vert,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	InFaceCorner *pCorner
 ) {
 	EncasingInFaceArr *pInFaces = &pInPiece->pList->inFaces;
@@ -511,7 +511,7 @@ static
 InsideStatus findEncasingInPieceFace(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	const FaceRange *pMapFace,
 	I32 mapCorner,
 	InFaceCorner *pInCorner,
@@ -539,7 +539,7 @@ static
 I32 addMapVert(
 	const MapToMeshBasic *pBasic,
 	const BorderCache *pBorderCache,
-	const InPiece *pInPiece, HTable *pInPieceCache,
+	const InPiece *pInPiece, PixuctHTable *pInPieceCache,
 	BufMesh *pBufMesh,
 	const FaceRange *pMapFace, I32 mapCorner,
 	BufVertType *pType
@@ -610,7 +610,7 @@ StucErr bufMeshAddVert(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const BorderCache *pBorderCache,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	I32 inPieceOffset,
 	const FaceRange *pMapFace,
 	const PlycutCorner *pCorner,
@@ -666,7 +666,7 @@ StucErr addFaceToBufMesh(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const BorderCache *pBorderCache,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	I32 inPieceOffset,
 	BufMesh *pBufMesh,
 	const FaceRange *pMapFace,
@@ -702,7 +702,7 @@ void addFacesToBufMesh(
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	const FaceRange *pMapFace,
 	const PlycutFaceArr *pFaces
 ) {
@@ -743,7 +743,7 @@ StucErr addNonClipInPieceToBufMesh(
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
-	HTable *pInFaceCache
+	PixuctHTable *pInFaceCache
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
@@ -776,9 +776,9 @@ StucErr addNonClipInPieceToBufMesh(
 }
 
 static
-void inFaceCacheDestroy(const MapToMeshBasic *pBasic, HTable *pTable
+void inFaceCacheDestroy(const MapToMeshBasic *pBasic, PixuctHTable *pTable
 ) {
-	PixalcLinAlloc *pAlloc = stucHTableAllocGet(pTable, 0);
+	PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(pTable, 0);
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pAlloc, (Range) {0, INT32_MAX}, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
@@ -788,7 +788,7 @@ void inFaceCacheDestroy(const MapToMeshBasic *pBasic, HTable *pTable
 			pEntry->pCorners = NULL;
 		}
 	}
-	stucHTableDestroy(pTable);
+	pixuctHTableDestroy(pTable);
 }
 
 static
@@ -837,7 +837,7 @@ static
 void borderCacheInit(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
-	HTable *pInFaceCache,
+	PixuctHTable *pInFaceCache,
 	BorderCache *pBorderCache
 ) {
 	pBorderCache->pInPiece = pInPiece;
@@ -915,8 +915,8 @@ StucErr stucClipMapFace(
 		stucGetFaceRange(&pBasic->pMap->pMesh->core, pInPiece->pList->mapFace);
 
 	InFaceCacheState inFaceCacheState = {.pBasic = pBasic, .initBounds = true};
-	HTable inFaceCache = {0};
-	stucHTableInit(
+	PixuctHTable inFaceCache = {0};
+	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
 		&inFaceCache,
 		pInPiece->faceCount / 2 + 1,
@@ -972,8 +972,8 @@ StucErr stucAddMapFaceToBufMesh(
 	StucErr err = PIX_ERR_SUCCESS;
 
 	InFaceCacheState inFaceCacheState = {.pBasic = pBasic, .initBounds = true};
-	HTable inFaceCache = {0};
-	stucHTableInit(
+	PixuctHTable inFaceCache = {0};
+	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
 		&inFaceCache,
 		pInPiece->faceCount / 2 + 1,

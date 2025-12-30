@@ -24,7 +24,7 @@ void splitInPiecesJobInit(MapToMeshBasic *pBasic, void *pInitInfo, void *pEntryV
 }
 
 typedef struct PieceFaceIdx {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	const EncasingInFace *pInFace;
 	bool removed;
 	bool pendingRemove;
@@ -34,7 +34,7 @@ typedef struct PieceFaceIdx {
 static
 void initPieceFaceIdxEntry(
 	void *pUserData,
-	HTableEntryCore *pEntry,
+	PixuctHTableEntryCore *pEntry,
 	const void *pKeyData,
 	void *pInitInfo,
 	I32 linIdx
@@ -45,7 +45,7 @@ void initPieceFaceIdxEntry(
 
 static
 bool cmpPieceFaceIdxEntry(
-	const HTableEntryCore *pEntry,
+	const PixuctHTableEntryCore *pEntry,
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
@@ -54,7 +54,7 @@ bool cmpPieceFaceIdxEntry(
 
 static
 void buildPieceFaceIdxTable(
-	HTable *pTable,
+	PixuctHTable *pTable,
 	const EncasingInFaceArr *pInFaces
 ) {
 	for (I32 i = 0; i < pInFaces->count; ++i) {
@@ -62,7 +62,7 @@ void buildPieceFaceIdxTable(
 		PieceFaceIdx *pEntry = NULL;
 		I32 faceIdx = pInFace->idx;
 		SearchResult result =
-			stucHTableGetConst(
+			pixuctHTableGetConst(
 				pTable,
 				0,
 				&faceIdx,
@@ -70,13 +70,13 @@ void buildPieceFaceIdxTable(
 				true, pInFace,
 				stucKeyFromI32, NULL, initPieceFaceIdxEntry, cmpPieceFaceIdxEntry
 			);
-		PIX_ERR_ASSERT("", result == STUC_SEARCH_ADDED);
+		PIX_ERR_ASSERT("", result == PIX_SEARCH_ADDED);
 	}
 }
 
 static
-SearchResult pieceFaceIdxTableGet(HTable *pTable, I32 face, void **ppEntry) {
-	return stucHTableGet(
+SearchResult pieceFaceIdxTableGet(PixuctHTable *pTable, I32 face, void **ppEntry) {
+	return pixuctHTableGet(
 		pTable,
 		0,
 		&face,
@@ -100,7 +100,7 @@ bool isEdgeInternal(
 static
 PieceFaceIdx *getAdjFaceInPiece(
 	const MapToMeshBasic *pBasic,
-	HTable *pIdxTable,
+	PixuctHTable *pIdxTable,
 	FaceCorner corner,
 	I32 *pAdjCorner
 ) {
@@ -141,7 +141,7 @@ PieceFaceIdx *getAdjFaceInPiece(
 }
 
 typedef struct BorderEdgeTableEntry {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	FaceCorner corner;
 	bool checked;
 } BorderEdgeTableEntry;
@@ -149,7 +149,7 @@ typedef struct BorderEdgeTableEntry {
 static
 void borderEdgeInit(
 	void *pUserData,
-	HTableEntryCore *pEntry,
+	PixuctHTableEntryCore *pEntry,
 	const void *pKeyData,
 	void *pInitInfo,
 	I32 linIdx
@@ -159,7 +159,7 @@ void borderEdgeInit(
 
 static
 bool borderEdgeCmp(
-	const HTableEntryCore *pEntryCore,
+	const PixuctHTableEntryCore *pEntryCore,
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
@@ -170,18 +170,18 @@ bool borderEdgeCmp(
 }
 
 static
-StucKey borderEdgeMakeKey(const void *pKeyData) {
-	return (StucKey){.pKey = pKeyData, .size = sizeof(FaceCorner)};
+PixuctKey borderEdgeMakeKey(const void *pKeyData) {
+	return (PixuctKey){.pKey = pKeyData, .size = sizeof(FaceCorner)};
 }
 
 static
 BorderEdgeTableEntry *borderEdgeAddOrGet(
-	HTable *pBorderTable,
+	PixuctHTable *pBorderTable,
 	FaceCorner corner,
 	bool add
 ) {
 	BorderEdgeTableEntry *pEntry = NULL;
-	SearchResult result = stucHTableGet(
+	SearchResult result = pixuctHTableGet(
 		pBorderTable,
 		0,
 		&corner,
@@ -191,7 +191,7 @@ BorderEdgeTableEntry *borderEdgeAddOrGet(
 	);
 	PIX_ERR_ASSERT(
 		"there shouldn't be an existing entry if adding",
-		!(add ^ (result == STUC_SEARCH_ADDED))
+		!(add ^ (result == PIX_SEARCH_ADDED))
 	);
 	return pEntry;
 }
@@ -227,8 +227,8 @@ static
 bool findAndAddBorder(
 	const MapToMeshBasic *pBasic,
 	BorderBuf *pBorderBuf,
-	HTable *pIdxTable,
-	HTable *pBorderEdgeTable,
+	PixuctHTable *pIdxTable,
+	PixuctHTable *pBorderEdgeTable,
 	I32 edgesMax,
 	BorderEdgeTableEntry *pStart
 ) {
@@ -381,8 +381,8 @@ void addAdjFaces(
 	const FaceRange *pMapFace,
 	const MapCornerLookup *pMapCorners,
 	InFaceBuf *pInFaceBuf,
-	HTable *pIdxTable,
-	HTable *pBorderEdges,
+	PixuctHTable *pIdxTable,
+	PixuctHTable *pBorderEdges,
 	PieceFaceIdx *pFace
 ) {
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, pFace->pInFace->idx);
@@ -420,8 +420,8 @@ void addAdjFaces(
 }
 
 static
-PieceFaceIdx *getFirstRemainingFace(HTable *pIdxTable) {
-	PixalcLinAlloc *pTableAlloc = stucHTableAllocGet(pIdxTable, 0);
+PieceFaceIdx *getFirstRemainingFace(PixuctHTable *pIdxTable) {
+	PixalcLinAlloc *pTableAlloc = pixuctHTableAllocGet(pIdxTable, 0);
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pTableAlloc, (Range) { 0, INT32_MAX }, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
@@ -439,10 +439,10 @@ static
 void fillBorderBuf(
 	const MapToMeshBasic *pBasic,
 	BorderBuf *pBorderBuf,
-	HTable *pIdxTable,
-	HTable *pBorderEdges
+	PixuctHTable *pIdxTable,
+	PixuctHTable *pBorderEdges
 ) {
-	PixalcLinAlloc *pAlloc = stucHTableAllocGet(pBorderEdges, 0);
+	PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(pBorderEdges, 0);
 	pBorderBuf->arr.count = 0;
 	pBorderBuf->preserveRoots.count = 0;
 	I32 edgeCount = pixalcLinAllocGetCount(pAlloc);
@@ -481,13 +481,13 @@ void splitAdjFacesIntoPiece(
 	InFaceBuf *pInFaceBuf,
 	BorderBuf *pBorderBuf,
 	const InPiece *pInPiece,
-	HTable *pIdxTable,
+	PixuctHTable *pIdxTable,
 	InPiece *pNewInPiece,
 	I32 *pFacesRemaining
 ) {
 	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
-	HTable borderEdges = {0};
-	stucHTableInit(
+	PixuctHTable borderEdges = {0};
+	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
 		&borderEdges,
 		*pFacesRemaining / 2 + 1,
@@ -533,7 +533,7 @@ void splitAdjFacesIntoPiece(
 			pBorderBuf->arr.count * sizeof(Border)
 		);
 	}
-	stucHTableDestroy(&borderEdges);
+	pixuctHTableDestroy(&borderEdges);
 	
 	// copy buf into new in-piece, & mark in-faces as removed in idx-table
 	pNewInPiece->pList->inFaces.count = pInFaceBuf->count;
@@ -585,8 +585,8 @@ void splitInPieceEntry(
 	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 
-	HTable idxTable = {0};
-	stucHTableInit(
+	PixuctHTable idxTable = {0};
+	pixuctHTableInit(
 		pAlloc,
 		&idxTable,
 		pInPiece->faceCount / 4 + 1,
@@ -657,7 +657,7 @@ void splitInPieceEntry(
 		PIX_ERR_ASSERT("", facesRemaining >= 0 && facesRemaining < pInPiece->faceCount);
 	} while(facesRemaining);
 	pAlloc->fpFree(mapCorners.pHalfPlanes);
-	stucHTableDestroy(&idxTable);
+	pixuctHTableDestroy(&idxTable);
 }
 
 static

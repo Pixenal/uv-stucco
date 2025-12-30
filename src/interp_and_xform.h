@@ -74,7 +74,7 @@ StucErr stucInterpAttribs(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	const BufOutRangeTable *pBufOutTable,
 	const OutBufIdxArr *pOutBufIdxArr,
 	StucDomain domain,
@@ -84,6 +84,6 @@ StucErr stucXFormAndInterpVerts(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	I32 vertAllocIdx
 );

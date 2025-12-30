@@ -80,7 +80,7 @@ typedef struct VertMergeTransform {
 } VertMergeTransform;
 
 typedef struct VertMerge {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	MergeTableKey key;
 	VertMergeCorner bufCorner;
 	VertMergeTransform transform;
@@ -100,13 +100,13 @@ void stucVertMergeTableInit(
 	const MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pTable
+	PixuctHTable *pTable
 );
 void stucMergeVerts(
 	const MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	bool clipped,
-	HTable *pTable
+	PixuctHTable *pTable
 );
 void stucMergeTableGetVertKey(
 	const MapToMeshBasic *pBasic,
@@ -120,7 +120,7 @@ StucErr stucSnapIntersectVerts(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	I32 *pSnappedVerts
 );
 
@@ -139,13 +139,13 @@ void getBufMeshForVertMergeEntry(
 }
 
 static inline
-StucKey mergeTableMakeKey(const void *pKeyData) {
-	return (StucKey){.pKey = pKeyData, .size = sizeof(MergeTableKey)};
+PixuctKey mergeTableMakeKey(const void *pKeyData) {
+	return (PixuctKey){.pKey = pKeyData, .size = sizeof(MergeTableKey)};
 }
 
 static inline
 bool mergeTableEntryCmp(
-	const HTableEntryCore *pEntryCore,
+	const PixuctHTableEntryCore *pEntryCore,
 	const void *pKeyData,
 	const void *pInitInfo
 ) {

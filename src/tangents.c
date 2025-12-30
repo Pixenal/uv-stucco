@@ -46,7 +46,7 @@ typedef struct TPieceArr {
 } TPieceArr;
 
 typedef struct TPieceVert {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	I32 vert;
 	I32 tPiece;
 } TPieceVert;
@@ -64,7 +64,7 @@ typedef struct TangentJobArgs {
 static
 void tPieceVertInit(
 	void *pUserData,
-	HTableEntryCore *pEntryCore,
+	PixuctHTableEntryCore *pEntryCore,
 	const void *pKey,
 	void *pInitInfo,
 	I32 linIdx
@@ -75,7 +75,7 @@ void tPieceVertInit(
 
 static
 bool tPieceVertCmp(
-	const HTableEntryCore *pEntryCore,
+	const PixuctHTableEntryCore *pEntryCore,
 	const void *pKey,
 	const void *pInitInfo
 ) {
@@ -97,7 +97,7 @@ void getLowestTPiece(
 	I32 *pLowestTPiece
 ) {
 	for (I32 i = 0; i < pFace->size; ++i) {
-		if (pEntries[i].result != STUC_SEARCH_FOUND) {
+		if (pEntries[i].result != PIX_SEARCH_FOUND) {
 			continue;
 		}
 		I32 tPieceIdx = pEntries[i].pEntry->tPiece;
@@ -122,7 +122,7 @@ void setVertsAndMergeTPieces(
 	I32 tPiece
 ) {
 	for (I32 i = 0; i < pFace->size; ++i) {
-		if (pEntries[i].result == STUC_SEARCH_FOUND &&
+		if (pEntries[i].result == PIX_SEARCH_FOUND &&
 			pEntries[i].pEntry->tPiece != tPiece
 		) {
 			PIX_ERR_ASSERT(
@@ -136,7 +136,7 @@ void setVertsAndMergeTPieces(
 			// updating the vert entry reduces time spent walking merge chains
 			pEntries[i].pEntry->tPiece = tPiece;
 		}
-		else if (pEntries[i].result == STUC_SEARCH_ADDED) {
+		else if (pEntries[i].result == PIX_SEARCH_ADDED) {
 			pEntries[i].pEntry->tPiece = tPiece;
 		}
 	}
@@ -146,7 +146,7 @@ static
 void addOrMergeFaceTPieces(
 	const MapToMeshBasic *pBasic,
 	TPieceBufArr *pTPieces,
-	HTable *pVertTable,
+	PixuctHTable *pVertTable,
 	I32 faceIdx,
 	bool add
 ) {
@@ -154,7 +154,7 @@ void addOrMergeFaceTPieces(
 	FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, faceIdx);
 	TPieceVertSearch vertEntries[4] = {0};
 	for (I32 i = 0; i < face.size; ++i) {
-		vertEntries[i].result = stucHTableGet(
+		vertEntries[i].result = pixuctHTableGet(
 			pVertTable,
 			0,
 			pMesh->pCorners + face.start + i,
@@ -187,7 +187,7 @@ void buildTPiecesForBufVerts(
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixalcLinAlloc *pMergeAlloc,
 	TPieceBufArr *pTPieces,
-	HTable *pVertTable,
+	PixuctHTable *pVertTable,
 	bool *pChecked
 ) {
 	PixalcLinAllocIter iter = {0};
@@ -223,13 +223,13 @@ static
 void buildTPieces(
 	const MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	TPieceArr *pTPieces
 ) {
-	PixalcLinAlloc *pMergeAlloc = stucHTableAllocGet(pMergeTable, 0);
-	PixalcLinAlloc *pMergeAllocIntersect = stucHTableAllocGet(pMergeTable, 1);
-	HTable vertTable = { 0 };
-	stucHTableInit(
+	PixalcLinAlloc *pMergeAlloc = pixuctHTableAllocGet(pMergeTable, 0);
+	PixalcLinAlloc *pMergeAllocIntersect = pixuctHTableAllocGet(pMergeTable, 1);
+	PixuctHTable vertTable = { 0 };
+	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
 		&vertTable,
 		pixalcLinAllocGetCount(pMergeAlloc) + pixalcLinAllocGetCount(pMergeAllocIntersect),
@@ -270,7 +270,7 @@ void buildTPieces(
 		FaceRange face = stucGetFaceRange(pInMesh, i);
 		for (I32 j = 0; j < face.size; ++j) {
 			TPieceVert *pEntry = NULL;
-			SearchResult result = stucHTableGet(
+			SearchResult result = pixuctHTableGet(
 				&vertTable,
 				0,
 				&pInMesh->pCorners[face.start + j],
@@ -278,7 +278,7 @@ void buildTPieces(
 				false, NULL,
 				stucKeyFromI32, NULL, NULL, tPieceVertCmp
 			);
-			if (result == STUC_SEARCH_NOT_FOUND) {
+			if (result == PIX_SEARCH_NOT_FOUND) {
 				continue;
 			}
 			I32 bufIdx = pEntry->tPiece;
@@ -307,7 +307,7 @@ void buildTPieces(
 			pTPieces->faceCount++;
 		}
 	}
-	stucHTableDestroy(&vertTable);
+	pixuctHTableDestroy(&vertTable);
 	pBasic->pCtx->alloc.fpFree(tPiecesBuf.pArr);
 }
 
@@ -343,7 +343,7 @@ StucErr stucBuildTangentsForInPieces(
 	MapToMeshBasic *pBasic,
 	Mesh *pInMesh, //in-mesh is const in MapToMeshBasic
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
-	HTable *pMergeTable
+	PixuctHTable *pMergeTable
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	TPieceArr tPieces = {0};

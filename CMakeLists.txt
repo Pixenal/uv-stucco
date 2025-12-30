@@ -48,7 +48,7 @@ add_library(${PROJECT} STATIC
 	src/uv_stucco.c src/io.c src/quadtree.c src/utils.c src/attrib_utils.c src/mesh.c
 	src/usg.c src/interp_and_xform.c src/interp_for_buf.c src/in_pieces_init.c
 	src/in_piece_split.c src/merge_and_snap.c src/buf_mesh.c src/tangents.c src/job.c
-	src/out_mesh.c src/hash_table.c
+	src/out_mesh.c
 	extern/MikkTSpace/mikktspace.c
 )
 target_include_directories(${PROJECT} PRIVATE include src extern/MikkTSpace)
@@ -76,12 +76,15 @@ if (NOT TARGET PixenalsMathUtils)
 	add_subdirectory(extern/pixenals-math-utils)
 endif()
 add_subdirectory(extern/pixenals-thread-utils)
+add_subdirectory(extern/pixenals-structs)
 target_link_libraries(${PROJECT} PRIVATE
-	PolyCutout PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils PixenalsThreadUtils
+	PolyCutout PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
+	PixenalsThreadUtils PixenalsStructs
 )
 target_include_directories(${PROJECT} PUBLIC
 	extern/poly-cutout/include
 	extern/pixenals-types/include extern/pixenals-error-utils/include
 	extern/pixenals-alloc-utils/include extern/pixenals-io-utils/include
 	extern/pixenals-math-utils/include extern/pixenals-thread-utils/include
+	extern/pixenals-structs/include
 )

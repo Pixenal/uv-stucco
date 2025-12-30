@@ -492,7 +492,7 @@ typedef struct MappingOpt {
 } MappingOpt;
 
 typedef struct MatMapEntry {
-	HTableEntryCore core;
+	PixuctHTableEntryCore core;
 	I32 linIdx;
 	StucMap pMap;
 	MappingOpt opt;
@@ -506,7 +506,7 @@ typedef struct MatMapEntryInit {
 static
 void matMapEntryInit(
 	void *pUserData,
-	HTableEntryCore *pCore,
+	PixuctHTableEntryCore *pCore,
 	const void *pKeyData,
 	void *pInitInfo,
 	I32 linIdx
@@ -520,7 +520,7 @@ void matMapEntryInit(
 
 static
 bool matMapEntryCmp(
-	const HTableEntryCore *pEntry,
+	const PixuctHTableEntryCore *pEntry,
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
@@ -681,7 +681,7 @@ StucErr encodeMappingOpt(
 			.receiveLen = receiveLen
 		};
 		MatMapEntry *pEntry = NULL;
-		stucHTableGet(
+		pixuctHTableGet(
 			&pHandle->mapTable,
 			0,
 			pMapArr->pArr[i].map.ptr->pName,
@@ -890,7 +890,7 @@ void destroyMapExport(StucMapExport *pHandle) {
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	pAlloc->fpFree(pHandle->pPath);
 	pAlloc->fpFree(pHandle->data.pString);
-	stucHTableDestroy(&pHandle->mapTable);
+	pixuctHTableDestroy(&pHandle->mapTable);
 	stucAttribIndexedArrDestroy(pHandle->pCtx, &pHandle->idxAttribs);
 	*pHandle = (StucMapExport){0};
 }
@@ -915,7 +915,7 @@ StucErr stucMapExportInit(
 	pData->size = 1024;
 	pData->pString = pAlloc->fpCalloc(pData->size, 1);
 	pHandle->cutoffIdxMax = -1;
-	stucHTableInit(
+	pixuctHTableInit(
 		pAlloc,
 		&pHandle->mapTable,
 		16,
@@ -1012,7 +1012,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	stucEncodeValue(pAlloc, &header, (U8 *)&pHandle->header.cutoffCount, 32);
 
 	encodeDataTag(pAlloc, &header, TAG_DEP);
-	PixalcLinAlloc *pTableAlloc = stucHTableAllocGet(&pHandle->mapTable, 0);
+	PixalcLinAlloc *pTableAlloc = pixuctHTableAllocGet(&pHandle->mapTable, 0);
 	stucEncodeValue(pAlloc, &header, (U8 *)&pTableAlloc->linIdx, 32);
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pTableAlloc, (PixtyRange){.start=0, .end=INT32_MAX}, &iter);

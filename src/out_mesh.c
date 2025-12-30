@@ -8,13 +8,13 @@ SPDX-License-Identifier: Apache-2.0
 #include <attrib_utils.h>
 #include <merge_and_snap.h>
 
-StucErr stucInitOutMesh(MapToMeshBasic *pBasic, HTable *pMergeTable, I32 snappedVerts) {
+StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 snappedVerts) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	Mesh *pMesh = &pBasic->outMesh;
 	pMesh->core.type.type = STUC_OBJECT_DATA_MESH_BUF;
-	PixalcLinAlloc *pVertAlloc = stucHTableAllocGet(pMergeTable, 0);
-	PixalcLinAlloc *pIntersectVertAlloc = stucHTableAllocGet(pMergeTable, 1);
+	PixalcLinAlloc *pVertAlloc = pixuctHTableAllocGet(pMergeTable, 0);
+	PixalcLinAlloc *pIntersectVertAlloc = pixuctHTableAllocGet(pMergeTable, 1);
 	I32 bufVertTotal = pixalcLinAllocGetCount(pVertAlloc);
 	bufVertTotal += pixalcLinAllocGetCount(pIntersectVertAlloc);
 	bufVertTotal -= snappedVerts;
@@ -56,10 +56,10 @@ StucErr stucInitOutMesh(MapToMeshBasic *pBasic, HTable *pMergeTable, I32 snapped
 
 void stucAddVertsToOutMesh(
 	MapToMeshBasic *pBasic,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	I32 vertAllocIdx
 ) {
-	PixalcLinAlloc *pVertAlloc = stucHTableAllocGet(pMergeTable, vertAllocIdx);
+	PixalcLinAlloc *pVertAlloc = pixuctHTableAllocGet(pMergeTable, vertAllocIdx);
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pVertAlloc, (Range) {0, INT32_MAX}, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
@@ -100,7 +100,7 @@ void addBufFaceToOutMesh(
 	const BufMesh *pBufMesh,
 	I32 bufMeshIdx,
 	bool clip,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	OutBufIdxArr *pOutBufIdxArr,
 	I32 faceIdx
 ) {
@@ -113,7 +113,7 @@ void addBufFaceToOutMesh(
 		MergeTableKey key = {0};
 		stucMergeTableGetVertKey(pBasic, pInPiece, pBufMesh, bufCorner, &key);
 		VertMerge *pEntry = NULL;
-		SearchResult result = stucHTableGet(
+		SearchResult result = pixuctHTableGet(
 			pMergeTable,
 			0,
 			&key,
@@ -121,7 +121,7 @@ void addBufFaceToOutMesh(
 			false, NULL,
 			mergeTableMakeKey, NULL, NULL, mergeTableEntryCmp
 		);
-		PIX_ERR_ASSERT("", pEntry && result == STUC_SEARCH_FOUND);
+		PIX_ERR_ASSERT("", pEntry && result == PIX_SEARCH_FOUND);
 		BufVertType type = bufMeshGetType(pBufMesh, bufCorner);
 		if (pEntry->removed) {
 			continue;
@@ -195,7 +195,7 @@ void addBufFaceToOutMesh(
 void stucAddFacesAndCornersToOutMesh(
 	MapToMeshBasic *pBasic,
 	const InPieceArr *pInPieces,
-	HTable *pMergeTable,
+	PixuctHTable *pMergeTable,
 	OutBufIdxArr *pOutBufIdxArr,
 	BufOutRangeTable *pBufOutTable,
 	bool clip
