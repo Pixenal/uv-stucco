@@ -701,11 +701,16 @@ I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc) {
 void stucCopyAllAttribs(
 	AttribArray *pDest,
 	I32 iDest,
-	AttribArray *pSrc,
+	const AttribArray *pSrc,
 	I32 iSrc
 ) {
 	for (I32 i = 0; i < pDest->count; ++i) {
-		Attrib *pSrcAttrib = stucGetAttribIntern(pDest->pArr[i].core.name, pSrc, false, NULL, NULL, NULL);
+		const Attrib *pSrcAttrib = stucGetAttribInternConst(
+			pDest->pArr[i].core.name,
+			pSrc,
+			false,
+			NULL, NULL, NULL
+		);
 		if (pSrcAttrib) {
 			stucCopyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
 		}
@@ -1813,29 +1818,30 @@ StucErr allocAttribsFromArr(
 StucErr stucAllocAttribs(
 	StucContext pCtx,
 	StucDomain domain,
-	Mesh *pDest,
+	I32 domainSize,
+	StucMesh *pDest,
 	I32 srcCount,
-	const Mesh *const *ppSrcArr,
+	const StucMesh *const *ppSrcArr,
 	I32 activeSrc,
 	bool setCommon,
 	bool allocData,
 	bool aliasData
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	AttribArray *pDestAttribArr = stucGetAttribArrFromDomain(&pDest->core, domain);
+	AttribArray *pDestAttribArr = stucGetAttribArrFromDomain(pDest, domain);
 	pDestAttribArr->size = 2;
 	pDestAttribArr->pArr = pCtx->alloc.fpCalloc(pDestAttribArr->size, sizeof(Attrib));
 	for (I32 i = 0; i < srcCount; ++i) {
 		const AttribArray *pSrcAttribArr =
-			stucGetAttribArrFromDomainConst(&ppSrcArr[i]->core, domain);
+			stucGetAttribArrFromDomainConst(ppSrcArr[i], domain);
 		if (pSrcAttribArr && pSrcAttribArr->count) {
 			err = allocAttribsFromArr(
 				pCtx,
-				&pDest->core,
+				pDest,
 				pDestAttribArr,
-				&ppSrcArr[i]->core,
+				ppSrcArr[i],
 				pSrcAttribArr,
-				stucGetDomainSize(pDest, domain),
+				domainSize,
 				domain,
 				setCommon,
 				allocData,
@@ -1926,6 +1932,10 @@ StucErr stucAllocAttribsFromMeshArr(
 #ifdef STUC_DISABLE_EDGES_IN_BUF
 	skipEdge = pDest->core.type.type == STUC_OBJECT_DATA_MESH_BUF;
 #endif
+	const StucMesh **ppMeshSrcsCore = pCtx->alloc.fpMalloc(sizeof(void *) * srcCount);
+	for (I32 i = 0; i < srcCount; ++i) {
+		ppMeshSrcsCore[i] = &ppMeshSrcs[i]->core;
+	}
 	for (I32 i = STUC_DOMAIN_FACE; i <= STUC_DOMAIN_VERT; ++i) {
 		if (i == STUC_DOMAIN_EDGE && skipEdge) {
 			continue;
@@ -1933,9 +1943,10 @@ StucErr stucAllocAttribsFromMeshArr(
 		err = stucAllocAttribs(
 			pCtx,
 			i,
-			pDest,
+			stucGetDomainSize(pDest, i),
+			&pDest->core,
 			srcCount,
-			ppMeshSrcs,
+			ppMeshSrcsCore,
 			activeSrc,
 			setCommon,
 			allocData,

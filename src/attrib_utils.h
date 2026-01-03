@@ -95,7 +95,7 @@ I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc);
 void stucCopyAllAttribs(
 	AttribArray *pDest,
 	I32 iDest,
-	AttribArray *pSrc,
+	const AttribArray *pSrc,
 	I32 iSrc
 );
 void stucSetTypeDefaultConfig(StucContext pCtx);
@@ -156,9 +156,10 @@ void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar);
 StucErr stucAllocAttribs(
 	StucContext pCtx,
 	StucDomain domain,
-	Mesh *pDest,
+	I32 domainSize,
+	StucMesh *pDest,
 	I32 srcCount,
-	const Mesh *const *ppSrcArr,
+	const StucMesh *const *ppSrcArr,
 	I32 activeSrc,
 	bool setCommon,
 	bool allocData,

@@ -73,12 +73,11 @@ bool hitTestTri(
 	HitEdgeTable *pHitEdges
 ) {
 	//add bounding squares to speed up tests maybe?
-	V2_F32 triV2[3] = {
-		*(V2_F32 *)&pTri[0],
-		*(V2_F32 *)&pTri[1],
-		*(V2_F32 *)&pTri[2]
-	};
-	V3_F32 bc = pixmCartesianToBarycentric(triV2, (V2_F32 *)&point);
+	V3_F32 bc = pixmCartesianToBarycentric(
+		pTri,
+		&point,
+		&(V3_F32){.d = {.0f, .0f, 1.0f}}
+	);
 	if (!pixmV3F32IsFinite(bc)) {
 		//degenerate
 		return false;
@@ -645,7 +644,11 @@ void stucUsgVertTransform(
 	_(&usgTri.uv[0] V2SUBEQL fTileMin);
 	_(&usgTri.uv[1] V2SUBEQL fTileMin);
 	_(&usgTri.uv[2] V2SUBEQL fTileMin);
-	V3_F32 usgBc = pixmCartesianToBarycentric(usgTri.uv, &uv);
+	V3_F32 usgBc = pixmCartesianToBarycentric(
+		&(V3_F32){.d = {usgTri.uv->d[0], usgTri.uv->d[1]}},
+		&(V3_F32){.d = {uv.d[0], uv.d[1]}},
+		&(V3_F32){.d = {.0f, .0f, 1.0f}}
+	);
 	*pPos = pixmBarycentricToCartesian(usgTri.xyz, usgBc);
 	if (pEntry->pEntry->offset) {
 		_(pPos V3ADDEQL _(pEntry->pEntry->normal V3MULS pEntry->pEntry->offset));

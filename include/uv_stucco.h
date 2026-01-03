@@ -518,7 +518,8 @@ StucErr stucQueueMapToMesh(
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
-	float receiveLen
+	float receiveLen,
+	bool triangulate
 );
 STUC_EXPORT
 StucErr stucMapToMesh(
@@ -530,7 +531,8 @@ StucErr stucMapToMesh(
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
 	float receiveLen,
-	bool keepExistingIdxAttribs
+	bool keepExistingIdxAttribs,
+	bool triangulate
 );
 STUC_EXPORT
 StucErr stucObjArrDestroy(const StucContext pCtx, StucObjArr *pArr);
@@ -658,6 +660,9 @@ StucErr stucObjectInit(
 	StucMesh *pMesh,
 	const Stuc_M4x4 *pTransform
 );
+STUC_EXPORT
+StucErr stucMeshAttribsCornerToVert(StucContext pCtx, StucMesh *pMesh);
+
 #ifdef __cplusplus
 }
 #endif
