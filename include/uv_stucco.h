@@ -486,7 +486,12 @@ StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
 //Objects are collapsed in map handles, so if you want the original geometry
 //call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
 STUC_EXPORT
-StucErr stucMapFileMeshGet(StucContext pCtx, StucMap pMap, StucMesh **ppMesh);
+StucErr stucMapFileMeshGet(
+	StucContext pCtx,
+	StucMap pMap,
+	StucMesh **ppMesh,
+	StucAttribIndexedArr **ppIdxAttribs
+);
 STUC_EXPORT
 StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName);
 STUC_EXPORT
