@@ -1017,24 +1017,24 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 	BorderCache borderCache = {0};
 
 	I32 rangeSize = pArgs->core.range.end - pArgs->core.range.start;
+	const MapToMeshBasic *pBasic = (const MapToMeshBasic *)pArgs->core.pShared;
 	for (I32 i = 0; i < rangeSize; ++i) {
 		I32 inPieceIdx = pArgs->core.range.start + i;
 		pArgs->fpAddPiece(
-			pArgs->core.pBasic,
+			pBasic,
 			inPieceIdx,
 			pArgs->pInPiecesSplit->pArr + inPieceIdx,
 			&pArgs->bufMesh,
 			&borderCache
 		);
 	}
-	const StucAlloc *pAlloc = &pArgs->core.pBasic->pCtx->alloc;
+	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	borderCacheDestroy(pAlloc, &borderCache);
 	return err;
 }
 
 
 SrcFaces stucGetSrcFacesForBufCorner(
-	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
 	FaceCorner corner
@@ -1099,12 +1099,12 @@ typedef struct BufMeshJobInitInfo {
 } BufMeshJobInitInfo;
 
 static
-I32 bufMeshInitJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfoVoid) {
+I32 bufMeshInitJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
 	return ((BufMeshJobInitInfo *)pInitInfoVoid)->pInPiecesSplit->count;
 }
 
 static
-void bufMeshInitJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEntryVoid) {
+void bufMeshInitJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
 	BufMeshInitJobArgs *pEntry = pEntryVoid;
 	BufMeshJobInitInfo *pInitInfo = pInitInfoVoid;
 	pEntry->pInPiecesSplit = pInitInfo->pInPiecesSplit;
@@ -1140,12 +1140,13 @@ StucErr stucInPieceArrInitBufMeshes(
 	I32 jobCount = 0;
 	BufMeshInitJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
+		pBasic->pCtx,
 		pBasic,
 		&jobCount, jobArgs, sizeof(BufMeshInitJobArgs),
 		&(BufMeshJobInitInfo) {.pInPiecesSplit = pInPieces, .fpAddPiece = fpAddPiece},
 		bufMeshInitJobsGetRange, bufMeshInitJobInit);
 	err = stucDoJobInParallel(
-		pBasic,
+		pBasic->pCtx,
 		jobCount, jobArgs, sizeof(BufMeshInitJobArgs),
 		stucBufMeshInit
 	);

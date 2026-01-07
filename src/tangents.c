@@ -60,6 +60,11 @@ typedef struct TangentJobArgs {
 	F32 *pTSigns;
 } TangentJobArgs;
 
+typedef struct TangentTris {
+	StucContext pCtx;
+	Mesh *pMesh;
+} TangentTris;
+
 
 static
 void tPieceVertInit(
@@ -144,14 +149,15 @@ void setVertsAndMergeTPieces(
 
 static
 void addOrMergeFaceTPieces(
-	const MapToMeshBasic *pBasic,
+	StucContext pCtx,
+	const Mesh *pInMesh,
 	TPieceBufArr *pTPieces,
 	PixuctHTable *pVertTable,
 	I32 faceIdx,
 	bool add
 ) {
-	const StucMesh *pMesh = &pBasic->pInMesh->core;
-	FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, faceIdx);
+	const StucMesh *pMesh = &pInMesh->core;
+	FaceRange face = stucGetFaceRange(&pInMesh->core, faceIdx);
 	TPieceVertSearch vertEntries[4] = {0};
 	for (I32 i = 0; i < face.size; ++i) {
 		vertEntries[i].result = pixuctHTableGet(
@@ -171,7 +177,7 @@ void addOrMergeFaceTPieces(
 			return; //no entries were found for this face
 		}
 		//all entries are new, so append new tPiece to arr
-		PIXALC_DYN_ARR_ADD(TPieceBuf, &pBasic->pCtx->alloc, pTPieces, tPiece);
+		PIXALC_DYN_ARR_ADD(TPieceBuf, &pCtx->alloc, pTPieces, tPiece);
 		pTPieces->pArr[tPiece] = (TPieceBuf) {0};
 	}
 	else {
@@ -183,7 +189,8 @@ void addOrMergeFaceTPieces(
 
 static
 void buildTPiecesForBufVerts(
-	const MapToMeshBasic *pBasic,
+	StucContext pCtx,
+	const Mesh *pInMesh,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixalcLinAlloc *pMergeAlloc,
 	TPieceBufArr *pTPieces,
@@ -203,17 +210,16 @@ void buildTPiecesForBufVerts(
 			&pBufMesh
 		);
 		SrcFaces srcFaces = stucGetSrcFacesForBufCorner(
-			pBasic,
 			pInPiece,
 			pBufMesh,
 			pEntry->bufCorner.corner
 		);
 		PIX_ERR_ASSERT(
 			"",
-			srcFaces.in >= 0 && srcFaces.in < pBasic->pInMesh->core.faceCount
+			srcFaces.in >= 0 && srcFaces.in < pInMesh->core.faceCount
 		);
 		if (!pChecked[srcFaces.in]) {
-			addOrMergeFaceTPieces(pBasic, pTPieces, pVertTable, srcFaces.in, true);
+			addOrMergeFaceTPieces(pCtx, pInMesh, pTPieces, pVertTable, srcFaces.in, true);
 			pChecked[srcFaces.in] = true;
 		}
 	}
@@ -221,7 +227,8 @@ void buildTPiecesForBufVerts(
 
 static
 void buildTPieces(
-	const MapToMeshBasic *pBasic,
+	StucContext pCtx,
+	const Mesh *pInMesh,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,
 	TPieceArr *pTPieces
@@ -230,17 +237,18 @@ void buildTPieces(
 	PixalcLinAlloc *pMergeAllocIntersect = pixuctHTableAllocGet(pMergeTable, 1);
 	PixuctHTable vertTable = { 0 };
 	pixuctHTableInit(
-		&pBasic->pCtx->alloc,
+		&pCtx->alloc,
 		&vertTable,
 		pixalcLinAllocGetCount(pMergeAlloc) + pixalcLinAllocGetCount(pMergeAllocIntersect),
 		(I32Arr) {.pArr = (I32[]){sizeof(TPieceVert)}, .count = 1},
 		NULL
 	);
 	bool *pChecked =
-		pBasic->pCtx->alloc.fpCalloc(pBasic->pInMesh->core.faceCount, sizeof(bool));
+		pCtx->alloc.fpCalloc(pInMesh->core.faceCount, sizeof(bool));
 	TPieceBufArr tPiecesBuf = {0};
 	buildTPiecesForBufVerts(
-		pBasic,
+		pCtx,
+		pInMesh,
 		pInPieces, pInPiecesClip,
 		pMergeAlloc,
 		&tPiecesBuf,
@@ -248,7 +256,8 @@ void buildTPieces(
 		pChecked
 	);
 	buildTPiecesForBufVerts(
-		pBasic,
+		pCtx,
+		pInMesh,
 		pInPieces, pInPiecesClip,
 		pMergeAllocIntersect,
 		&tPiecesBuf,
@@ -257,23 +266,23 @@ void buildTPieces(
 	);
 	PIX_ERR_ASSERT("map-to-mesh should have returned earlier if empty", tPiecesBuf.pArr);
 	//not adding new t-pieces, only merging existing ones
-	const StucMesh *pInMesh = &pBasic->pInMesh->core;
-	for (I32 i = 0; i < pInMesh->faceCount; ++i) {
+	const StucMesh *pInCore = &pInMesh->core;
+	for (I32 i = 0; i < pInCore->faceCount; ++i) {
 		if (!pChecked[i]) {
-			addOrMergeFaceTPieces(pBasic, &tPiecesBuf, &vertTable, i, false);
+			addOrMergeFaceTPieces(pCtx, pInMesh, &tPiecesBuf, &vertTable, i, false);
 			pChecked[i] = true;
 		}
 	}
-	pBasic->pCtx->alloc.fpFree(pChecked);
+	pCtx->alloc.fpFree(pChecked);
 	
-	for (I32 i = 0; i < pInMesh->faceCount; ++i) {
-		FaceRange face = stucGetFaceRange(pInMesh, i);
+	for (I32 i = 0; i < pInCore->faceCount; ++i) {
+		FaceRange face = stucGetFaceRange(pInCore, i);
 		for (I32 j = 0; j < face.size; ++j) {
 			TPieceVert *pEntry = NULL;
 			SearchResult result = pixuctHTableGet(
 				&vertTable,
 				0,
-				&pInMesh->pCorners[face.start + j],
+				&pInCore->pCorners[face.start + j],
 				(void **)&pEntry,
 				false, NULL,
 				stucKeyFromI32, NULL, NULL, tPieceVertCmp
@@ -289,15 +298,15 @@ void buildTPieces(
 			pEntry->tPiece = bufIdx;
 			TPieceBuf *pBuf = tPiecesBuf.pArr + bufIdx;
 			if (!pBuf->added) {
-				PIXALC_DYN_ARR_ADD(TPiece, &pBasic->pCtx->alloc, pTPieces, pBuf->idx);
+				PIXALC_DYN_ARR_ADD(TPiece, &pCtx->alloc, pTPieces, pBuf->idx);
 				pTPieces->pArr[pBuf->idx] = (TPiece) {0};
 				pBuf->added = true;
 			}
-			PIX_ERR_ASSERT("", pBuf->idx >= 0 && pBuf->idx < pTPieces->count);
+			PIX_ERR_ASSERT("", pBuf->idx >= 0u && pBuf->idx < pTPieces->count);
 			I32 faceArrIdx = -1;
 			PIXALC_DYN_ARR_ADD(
 				TPieceInFace,
-				&pBasic->pCtx->alloc,
+				&pCtx->alloc,
 				(&pTPieces->pArr[pBuf->idx].inFaces),
 				faceArrIdx
 			);
@@ -308,16 +317,16 @@ void buildTPieces(
 		}
 	}
 	pixuctHTableDestroy(&vertTable);
-	pBasic->pCtx->alloc.fpFree(tPiecesBuf.pArr);
+	pCtx->alloc.fpFree(tPiecesBuf.pArr);
 }
 
 static
-I32 tangentJobGetRange(const MapToMeshBasic *pBasic, void *pInitInfo) {
+I32 tangentJobGetRange(StucContext pCtx, const void *pShared, void *pInitInfo) {
 	return ((TPieceArr *)pInitInfo)->faceCount;
 }
 
 static
-void tangentJobInit(MapToMeshBasic *pBasic, void *pInitInfo, void *pEntryVoid) {
+void tangentJobInit(StucContext pCtx, void *pShared, void *pInitInfo, void *pEntryVoid) {
 	TangentJobArgs *pEntry = pEntryVoid;
 	pEntry->pTPieces = (TPieceArr *)pInitInfo;
 }
@@ -340,25 +349,26 @@ void copyTangentsFromJobFaces(
 }
 
 StucErr stucBuildTangentsForInPieces(
-	MapToMeshBasic *pBasic,
-	Mesh *pInMesh, //in-mesh is const in MapToMeshBasic
+	StucContext pCtx,
+	Mesh *pInMesh,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	TPieceArr tPieces = {0};
-	buildTPieces(pBasic, pInPieces, pInPiecesClip, pMergeTable, &tPieces);
+	buildTPieces(pCtx, pInMesh, pInPieces, pInPiecesClip, pMergeTable, &tPieces);
 	PIX_ERR_ASSERT("", tPieces.pArr);
 	I32 jobCount = tPieces.count; //max jobs
 	TangentJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
-		pBasic,
+		pCtx,
+		pInMesh,
 		&jobCount,
 		jobArgs, sizeof(TangentJobArgs),
 		&tPieces,
 		tangentJobGetRange, tangentJobInit
 	);
-	tPieces.pInFaces = pBasic->pCtx->alloc.fpCalloc(tPieces.faceCount, sizeof(I32));
+	tPieces.pInFaces = pCtx->alloc.fpCalloc(tPieces.faceCount, sizeof(I32));
 	{
 		tPieces.faceCount = 0;
 		I32 job = 0;
@@ -373,7 +383,7 @@ StucErr stucBuildTangentsForInPieces(
 				I32 faceJobLocal = -1;
 				PIXALC_DYN_ARR_ADD(
 					I32,
-					&pBasic->pCtx->alloc,
+					&pCtx->alloc,
 					(&jobArgs[job].faces),
 					faceJobLocal
 				);
@@ -385,17 +395,17 @@ StucErr stucBuildTangentsForInPieces(
 				tPieces.faceCount++;
 				jobArgs[job].cornerCount += face.size;
 			}
-			pBasic->pCtx->alloc.fpFree(tPieces.pArr[i].inFaces.pArr);
+			pCtx->alloc.fpFree(tPieces.pArr[i].inFaces.pArr);
 		}
 		//last job may not match jobcount depending on num faces in each t-piece,
 		//so update that here
 		jobArgs[job].core.range.end = tPieces.faceCount;
 		jobCount = job + 1;
 	}
-	pBasic->pCtx->alloc.fpFree(tPieces.pArr);
+	pCtx->alloc.fpFree(tPieces.pArr);
 	tPieces = (TPieceArr) {.pInFaces = tPieces.pInFaces, .faceCount = tPieces.faceCount};
 	err = stucDoJobInParallel(
-		pBasic,
+		pCtx,
 		jobCount, jobArgs, sizeof(TangentJobArgs),
 		stucBuildTangents
 	);
@@ -405,11 +415,11 @@ StucErr stucBuildTangentsForInPieces(
 	}
 	PIX_ERR_CATCH(0, err, ;);
 	for (I32 i = 0; i < jobCount; ++i) {
-		pBasic->pCtx->alloc.fpFree(jobArgs[i].faces.pArr);
-		pBasic->pCtx->alloc.fpFree(jobArgs[i].pTangents);
-		pBasic->pCtx->alloc.fpFree(jobArgs[i].pTSigns);
+		pCtx->alloc.fpFree(jobArgs[i].faces.pArr);
+		pCtx->alloc.fpFree(jobArgs[i].pTangents);
+		pCtx->alloc.fpFree(jobArgs[i].pTSigns);
 	}
-	pBasic->pCtx->alloc.fpFree(tPieces.pInFaces);
+	pCtx->alloc.fpFree(tPieces.pInFaces);
 	return err;
 }
 
@@ -417,6 +427,12 @@ static
 int mikktGetNumFaces(const SMikkTSpaceContext *pCtx) {
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	return pArgs->faces.count;
+}
+
+static
+int mikktTrisGetNumFaces(const SMikkTSpaceContext *pCtx) {
+	TangentTris *pState = pCtx->m_pUserData;
+	return pState->pMesh->core.faceCount;
 }
 
 static
@@ -428,12 +444,17 @@ static
 int mikktGetNumVertsOfFace(const SMikkTSpaceContext *pCtx, const int iFace) {
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	I32 inFaceIdx = mikktGetInFace(pArgs, iFace);
-	return stucGetFaceRange(&pArgs->core.pBasic->pInMesh->core, inFaceIdx).size;
+	return stucGetFaceRange(&((const Mesh *)pArgs->core.pShared)->core, inFaceIdx).size;
+}
+
+static
+int mikktTrisGetNumVertsOfFace(const SMikkTSpaceContext *pCtx, const int iFace) {
+	return 3;
 }
 
 static
 I32 mikktGetInFaceStart(const TangentJobArgs *pArgs, I32 inFaceIdx) {
-	return pArgs->core.pBasic->pInMesh->core.pFaces[inFaceIdx];
+	return ((const Mesh *)pArgs->core.pShared)->core.pFaces[inFaceIdx];
 }
 
 static
@@ -446,8 +467,21 @@ void mikktGetPos(
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	I32 inFaceIdx = mikktGetInFace(pArgs, iFace);
 	I32 inFaceStart = mikktGetInFaceStart(pArgs, inFaceIdx);
-	I32 vertIdx = pArgs->core.pBasic->pInMesh->core.pCorners[inFaceStart + iVert];
-	*(V3_F32 *)pFvPosOut = pArgs->core.pBasic->pInMesh->pPos[vertIdx];
+	const Mesh *pInMesh = pArgs->core.pShared;
+	I32 vertIdx = pInMesh->core.pCorners[inFaceStart + iVert];
+	*(V3_F32 *)pFvPosOut = pInMesh->pPos[vertIdx];
+}
+
+static
+void mikktTrisGetPos(
+	const SMikkTSpaceContext *pCtx,
+	F32 *pFvPosOut,
+	const int iFace,
+	const int iVert
+) {
+	TangentTris *pState = pCtx->m_pUserData;
+	I32 vertIdx = pState->pMesh->core.pCorners[iFace * 3 + iVert];
+	*(V3_F32 *)pFvPosOut = pState->pMesh->pPos[vertIdx];
 }
 
 static
@@ -460,7 +494,20 @@ void mikktGetNormal(
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	I32 inFaceIdx = mikktGetInFace(pArgs, iFace);
 	I32 inFaceStart = mikktGetInFaceStart(pArgs, inFaceIdx);
-	*(V3_F32 *)pFvNormOut = pArgs->core.pBasic->pInMesh->pNormals[inFaceStart + iVert];
+	const Mesh *pInMesh = pArgs->core.pShared;
+	*(V3_F32 *)pFvNormOut = pInMesh->pNormals[inFaceStart + iVert];
+}
+
+static
+void mikktTrisGetNormal(
+	const SMikkTSpaceContext *pCtx,
+	F32 *pFvNormOut,
+	const int iFace,
+	const int iVert
+) {
+	TangentTris *pState = pCtx->m_pUserData;
+	I32 corner = iFace * 3 + iVert;
+	*(V3_F32 *)pFvNormOut = pState->pMesh->pNormals[corner];
 }
 
 static
@@ -473,7 +520,20 @@ void mikktGetTexCoord(
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	I32 inFaceIdx = mikktGetInFace(pArgs, iFace);
 	I32 inFaceStart = mikktGetInFaceStart(pArgs, inFaceIdx);
-	*(V2_F32 *)pFvTexcOut = pArgs->core.pBasic->pInMesh->pUvs[inFaceStart + iVert];
+	const Mesh *pInMesh = pArgs->core.pShared;
+	*(V2_F32 *)pFvTexcOut = pInMesh->pUvs[inFaceStart + iVert];
+}
+
+static
+void mikktTrisGetTexCoord(
+	const SMikkTSpaceContext *pCtx,
+	F32 *pFvTexcOut,
+	const int iFace,
+	const int iVert
+) {
+	TangentTris *pState = pCtx->m_pUserData;
+	I32 corner = iFace * 3 + iVert;
+	*(V2_F32 *)pFvTexcOut = pState->pMesh->pUvs[corner];
 }
 
 static
@@ -490,14 +550,31 @@ void mikktSetTSpaceBasic(
 	pArgs->pTSigns[corner] = fSign;
 }
 
+static
+void mikktTrisSetTSpaceBasic(
+	const SMikkTSpaceContext *pCtx,
+	const F32 *pFvTangent,
+	const F32 fSign,
+	const int iFace,
+	const int iVert
+) {
+	TangentTris *pState = pCtx->m_pUserData;
+	I32 corner = iFace * 3 + iVert;
+	pState->pMesh->pTangents[corner] = *(V3_F32 *)pFvTangent;
+	pState->pMesh->pTSigns[corner] = fSign;
+}
+
+static
+StucErr stucBuildTangentsIntern(SMikkTSpaceContext *pMikktCtx) {
+	StucErr err = PIX_ERR_SUCCESS;
+	if (!genTangSpaceDefault(pMikktCtx)) {
+		PIX_ERR_RETURN(err, "mikktspace func 'genTangSpaceDefault' returned error");
+	}
+	return err;
+}
+
 StucErr stucBuildTangents(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
-	TangentJobArgs *pArgs = pArgsVoid;
-	const StucAlloc *pAlloc = &pArgs->core.pBasic->pCtx->alloc;
-
-	pArgs->pTangents = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(V3_F32));
-	pArgs->pTSigns = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(F32));
-
 	SMikkTSpaceInterface mikktInterface = {
 		.m_getNumFaces = mikktGetNumFaces,
 		.m_getNumVerticesOfFace = mikktGetNumVertsOfFace,
@@ -506,12 +583,35 @@ StucErr stucBuildTangents(void *pArgsVoid) {
 		.m_getTexCoord = mikktGetTexCoord,
 		.m_setTSpaceBasic = mikktSetTSpaceBasic
 	};
-	SMikkTSpaceContext mikktContext = {
+	SMikkTSpaceContext mikktCtx = {
 		.m_pInterface = &mikktInterface,
-		.m_pUserData = pArgs
+		.m_pUserData = pArgsVoid
 	};
-	if (!genTangSpaceDefault(&mikktContext)) {
-		PIX_ERR_RETURN(err, "mikktspace func 'genTangSpaceDefault' returned error");
-	}
+	TangentJobArgs *pArgs = pArgsVoid;
+	const StucAlloc *pAlloc = &pArgs->core.pCtx->alloc;
+	pArgs->pTangents = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(V3_F32));
+	pArgs->pTSigns = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(F32));
+	err = stucBuildTangentsIntern(&mikktCtx);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh) {
+	StucErr err = PIX_ERR_SUCCESS;
+	SMikkTSpaceInterface mikktInterface = {
+		.m_getNumFaces = mikktTrisGetNumFaces,
+		.m_getNumVerticesOfFace = mikktTrisGetNumVertsOfFace,
+		.m_getPosition = mikktTrisGetPos,
+		.m_getNormal = mikktTrisGetNormal,
+		.m_getTexCoord = mikktTrisGetTexCoord,
+		.m_setTSpaceBasic = mikktTrisSetTSpaceBasic
+	};
+	TangentTris state = {.pCtx = pCtx, .pMesh = pMesh};
+	SMikkTSpaceContext mikktCtx = {
+		.m_pInterface = &mikktInterface,
+		.m_pUserData = &state
+	};
+	err = stucBuildTangentsIntern(&mikktCtx);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }

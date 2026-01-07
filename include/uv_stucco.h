@@ -667,6 +667,8 @@ StucErr stucObjectInit(
 );
 STUC_EXPORT
 StucErr stucMeshAttribsCornerToVert(StucContext pCtx, StucMesh *pMesh);
+STUC_EXPORT
+StucErr stucMeshBuildTangentsForTris(StucContext pCtx, StucMesh *pMesh);
 
 #ifdef __cplusplus
 }

@@ -10,12 +10,14 @@ SPDX-License-Identifier: Apache-2.0
 
 static
 void setJobArgsCore(
-	const MapToMeshBasic *pBasic,
+	StucContext pCtx,
+	const void *pShared,
 	JobArgs *pCore,
 	Range *pRanges,
 	I32 jobIdx
 ) {
-	pCore->pBasic = pBasic;
+	pCore->pCtx = pCtx;
+	pCore->pShared = pShared;
 	pCore->range = pRanges[jobIdx];
 	pCore->id = jobIdx;
 }
@@ -39,19 +41,20 @@ void divideArrAmongstJobs(I32 arrSize, I32 *pJobCount, Range *pRanges) {
 }
 
 void stucMakeJobArgs(
-	MapToMeshBasic *pBasic,
+	StucContext pCtx,
+	void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
-	I32 (* fpGetArrCount)(const MapToMeshBasic *, void *),
-	void (* fpInitArgEntry)(MapToMeshBasic *, void *, void *)
+	I32 (* fpGetArrCount)(StucContext, const void *, void *),
+	void (* fpInitArgEntry)(StucContext, void *, void *, void *)
 ) {
 	Range ranges[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
-	divideArrAmongstJobs(fpGetArrCount(pBasic, pInitInfo), pJobCount, ranges);
+	divideArrAmongstJobs(fpGetArrCount(pCtx, pShared, pInitInfo), pJobCount, ranges);
 	for (I32 i = 0; i < *pJobCount; ++i) {
 		void *pArgEntry = (U8 *)pArgs + i * argStructSize;
-		setJobArgsCore(pBasic, (JobArgs *)pArgEntry, ranges, i);
+		setJobArgsCore(pCtx, pShared, (JobArgs *)pArgEntry, ranges, i);
 		if (fpInitArgEntry) {
-			fpInitArgEntry(pBasic, pInitInfo, pArgEntry);
+			fpInitArgEntry(pCtx, pShared, pInitInfo, pArgEntry);
 		}
 	}
 }

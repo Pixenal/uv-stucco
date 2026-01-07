@@ -18,7 +18,7 @@ typedef struct SplitInPiecesJobArgs {
 	SplitInPiecesAlloc alloc;
 } SplitInPiecesJobArgs;
 
-void splitInPiecesJobInit(MapToMeshBasic *pBasic, void *pInitInfo, void *pEntryVoid) {
+void splitInPiecesJobInit(StucContext pCtx, void *pShared, void *pInitInfo, void *pEntryVoid) {
 	SplitInPiecesJobArgs *pEntry = pEntryVoid;
 	pEntry->pInPieceArr = pInitInfo;
 }
@@ -485,7 +485,7 @@ void splitAdjFacesIntoPiece(
 	InPiece *pNewInPiece,
 	I32 *pFacesRemaining
 ) {
-	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	PixuctHTable borderEdges = {0};
 	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
@@ -582,7 +582,7 @@ void splitInPieceEntry(
 	InFaceBuf *pInFaceBuf,
 	BorderBuf *pBorderBuf
 ) {
-	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 
 	PixuctHTable idxTable = {0};
@@ -664,7 +664,7 @@ static
 StucErr splitInPieces(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	SplitInPiecesJobArgs *pArgs = pArgsVoid;
-	const StucAlloc *pAlloc = &pArgs->core.pBasic->pCtx->alloc;
+	const StucAlloc *pAlloc = &pArgs->core.pCtx->alloc;
 	I32 rangeSize = pArgs->core.range.end - pArgs->core.range.start;
 	pArgs->newInPieces.size = rangeSize;
 	pArgs->newInPiecesClip.size = rangeSize;
@@ -728,7 +728,7 @@ const InPieceArr *getNewInPiecesClip(const SplitInPiecesJobArgs *pJobArgs) {
 	return &pJobArgs->newInPiecesClip;
 }
 
-I32 inPiecesJobsGetRange(const MapToMeshBasic *pBasic, void *pInitEntry) {
+I32 inPiecesJobsGetRange(StucContext pCtx, const void *pShared, void *pInitEntry) {
 	return ((InPieceArr *)pInitEntry)->count;
 }
 
@@ -743,13 +743,14 @@ StucErr stucInPieceArrSplit(
 	I32 jobCount = 0;
 	SplitInPiecesJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = { 0 };
 	stucMakeJobArgs(
+		pBasic->pCtx,
 		pBasic,
 		&jobCount, jobArgs, sizeof(SplitInPiecesJobArgs),
 		pInPieces,
 		inPiecesJobsGetRange, splitInPiecesJobInit
 	);
 	err = stucDoJobInParallel(
-		pBasic,
+		pBasic->pCtx,
 		jobCount, jobArgs, sizeof(SplitInPiecesJobArgs),
 		splitInPieces
 	);

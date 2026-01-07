@@ -253,7 +253,6 @@ StucErr inPieceArrSplit(
 	SplitInPiecesAllocArr *pSplitAlloc
 );
 SrcFaces stucGetSrcFacesForBufCorner(
-	const struct MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
 	FaceCorner corner

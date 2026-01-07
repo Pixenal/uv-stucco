@@ -295,14 +295,14 @@ typedef struct SnapJobInitInfo {
 } SnapJobInitInfo;
 
 static
-I32 snapJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfoVoid) {
+I32 snapJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
 	const PixalcLinAlloc *pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
 	return pixalcLinAllocGetCount(pIntersectAlloc);
 }
 
 static
-void snapJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEntryVoid) {
+void snapJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
 	SnapJobArgs *pEntry = pEntryVoid;
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
 	pEntry->pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
@@ -339,6 +339,7 @@ StucErr stucSnapIntersectVerts(
 	I32 jobCount = 0;
 	SnapJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
+		pBasic->pCtx,
 		pBasic,
 		&jobCount, jobArgs, sizeof(SnapJobArgs),
 		&(SnapJobInitInfo) {
@@ -348,7 +349,7 @@ StucErr stucSnapIntersectVerts(
 		},
 		snapJobsGetRange, snapJobInit);
 	err = stucDoJobInParallel(
-		pBasic,
+		pBasic->pCtx,
 		jobCount, jobArgs, sizeof(SnapJobArgs),
 		snapIntersectVertsInRange
 	);

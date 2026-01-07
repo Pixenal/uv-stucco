@@ -545,7 +545,7 @@ static
 StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	xformAndInterpVertsJobArgs *pArgs = pArgsVoid;
-	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pArgs->pVertAlloc, pArgs->core.range, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
@@ -693,6 +693,7 @@ const VertMerge *getVertMergeEntry(
 StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	InterpAttribsJobArgs *pArgs = pArgsVoid;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	I32 corner = pArgs->core.range.start;
 	for (
 		I32 i = bufOutTableGetStart(pArgs, corner);
@@ -714,7 +715,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				.map = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MAP}
 			};
 			interpAndBlendAttribs(
-				pArgs->core.pBasic,
+				pBasic,
 				pArgs->pOutMesh,
 				corner,
 				STUC_DOMAIN_CORNER,
@@ -726,7 +727,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 			);
 			M3x3 tbn = {0};
 			getInterpolatedTbn(
-				pArgs->core.pBasic,
+				pBasic,
 				pInPiece,
 				pBufMesh,
 				bufCorner,
@@ -765,7 +766,6 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		);
 
 		SrcFaces srcFaces = stucGetSrcFacesForBufCorner(
-			pArgs->core.pBasic,
 			pInPiece,
 			pBufMesh,
 			bufCorner
@@ -773,7 +773,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		//not actually interpolating faces,
 		//just copying
 		interpAndBlendAttribs(
-			pArgs->core.pBasic,
+			(const MapToMeshBasic *)pArgs->core.pShared,
 			pArgs->pOutMesh,
 			face,
 			STUC_DOMAIN_FACE,
@@ -793,7 +793,7 @@ typedef struct XformVertsJobInitInfo {
 } XformVertsJobInitInfo;
 
 static
-I32 xformVertsJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfoVoid) {
+I32 xformVertsJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
 		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
@@ -801,13 +801,13 @@ I32 xformVertsJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfoVoid) {
 }
 
 static
-void xformVertsJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEntryVoid) {
+void xformVertsJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
 	xformAndInterpVertsJobArgs *pEntry = pEntryVoid;
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
 		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
 	pEntry->pVertAlloc = pVertAlloc;
-	pEntry->pOutMesh = &pBasic->outMesh;
+	pEntry->pOutMesh = &((MapToMeshBasic *)pShared)->outMesh;
 	pEntry->pInPieces = pInitInfo->pInPieces;
 	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
 	 //TODO again, make an enum or something for lin-alloc handles
@@ -825,6 +825,7 @@ StucErr stucXFormAndInterpVerts(
 	I32 jobCount = 0;
 	xformAndInterpVertsJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
+		pBasic->pCtx,
 		pBasic,
 		&jobCount, jobArgs, sizeof(xformAndInterpVertsJobArgs),
 		&(XformVertsJobInitInfo) {
@@ -836,7 +837,7 @@ StucErr stucXFormAndInterpVerts(
 		xformVertsJobsGetRange, xformVertsJobInit
 	);
 	err = stucDoJobInParallel(
-		pBasic,
+		pBasic->pCtx,
 		jobCount, jobArgs, sizeof(xformAndInterpVertsJobArgs),
 		xformAndInterpVertsInRange
 	);
@@ -854,18 +855,18 @@ typedef struct InterpAttribsJobInitInfo {
 } InterpAttribsJobInitInfo;
 
 static
-I32 interpAttribsJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfo) {
+I32 interpAttribsJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfo) {
 	return stucDomainCountGetIntern(
-		&pBasic->outMesh.core,
+		&((MapToMeshBasic *)pShared)->outMesh.core,
 		((InterpAttribsJobInitInfo *)pInitInfo)->domain
 	);
 }
 
 static
-void interpAttribsJobInit(MapToMeshBasic *pBasic, void *pInitInfoVoid, void *pEntryVoid) {
+void interpAttribsJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
 	InterpAttribsJobArgs *pEntry = pEntryVoid;
 	InterpAttribsJobInitInfo *pInitInfo = pInitInfoVoid;
-	pEntry->pOutMesh = &pBasic->outMesh;
+	pEntry->pOutMesh = &((MapToMeshBasic *)pShared)->outMesh;
 	pEntry->pInPieces = pInitInfo->pInPieces;
 	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
 	pEntry->pMergeTable = pInitInfo->pMergeTable;
@@ -887,6 +888,7 @@ StucErr stucInterpAttribs(
 	I32 jobCount = 0;
 	InterpAttribsJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
+		pBasic->pCtx,
 		pBasic,
 		&jobCount, jobArgs, sizeof(InterpAttribsJobArgs),
 		&(InterpAttribsJobInitInfo) {
@@ -900,7 +902,7 @@ StucErr stucInterpAttribs(
 		interpAttribsJobsGetRange, interpAttribsJobInit
 	);
 	err = stucDoJobInParallel(
-		pBasic,
+		pBasic->pCtx,
 		jobCount, jobArgs, sizeof(InterpAttribsJobArgs),
 		job
 	);

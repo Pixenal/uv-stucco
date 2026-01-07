@@ -65,12 +65,13 @@ typedef struct BufOutRangeTable {
 } BufOutRangeTable;
 
 StucErr stucBuildTangentsForInPieces(
-	MapToMeshBasic *pBasic,
-	Mesh *pInMesh, //in-mesh is const in MapToMeshBasic
+	StucContext pCtx,
+	Mesh *pInMesh,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable
 );
-StucErr stucBuildTangents(void *pArgsVoid);
+StucErr stucBuildTangents(void *pArgs);
+StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh);
 
 StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 snappedVerts);
 void stucAddVertsToOutMesh(

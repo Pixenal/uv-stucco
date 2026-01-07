@@ -9,15 +9,17 @@ SPDX-License-Identifier: Apache-2.0
 struct MapToMeshBasic;
 
 typedef struct JobArgs {
-	const struct MapToMeshBasic *pBasic;
+	const void *pShared;
+	StucContext pCtx;
 	Range range;
 	I32 id;
 } JobArgs;
 
 void stucMakeJobArgs(
-	struct MapToMeshBasic *pBasic,
+	StucContext pCtx,
+	void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
-	I32 (* fpGetArrCount)(const struct MapToMeshBasic *, void *),
-	void (* fpInitArgEntry)(struct MapToMeshBasic *, void *, void *)
+	I32 (* fpGetArrCount)(StucContext, const void *, void *),
+	void (* fpInitArgEntry)(StucContext, void *, void *, void *)
 );

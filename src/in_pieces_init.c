@@ -162,7 +162,12 @@ EncasedMapFace *addToEncasedFaces(
 	);
 	if (result == PIX_SEARCH_FOUND) {
 		PIX_ERR_ASSERT("", pEntry);
-		appendToEncasedEntry(pArgs->core.pBasic, pEntry, pInFace, inFaceWind);
+		appendToEncasedEntry(
+			(const MapToMeshBasic *)pArgs->core.pShared,
+			pEntry,
+			pInFace,
+			inFaceWind
+		);
 	}
 	return pEntry;
 }
@@ -237,8 +242,9 @@ StucErr getEncasedFacesPerFace(
 	StucErr err = PIX_ERR_SUCCESS;
 	V2_F32 fTileMin = {(F32)tile.d[0], (F32)tile.d[1]};
 	PIX_ERR_ASSERT("", pInFace->size == 3 || pInFace->size == 4);
-	const Mesh *pInMesh = pArgs->core.pBasic->pInMesh;
-	const StucMap pMap = pArgs->core.pBasic->pMap;
+	const MapToMeshBasic *pBasic = (const MapToMeshBasic *)pArgs->core.pShared;
+	const Mesh *pInMesh = pBasic->pInMesh;
+	const StucMap pMap = pBasic->pMap;
 	FaceBounds bounds = {0};
 	stucGetInFaceBounds(&bounds, pInMesh->pUvs, *pInFace);
 	_(&bounds.fBBox.min V2SUBEQL fTileMin);
@@ -266,14 +272,15 @@ StucErr getEncasedFacesPerFace(
 	for (I32 i = 0; i < pFaceCellsEntry->cellSize; ++i) {
 		const I32 *pCellFaces = NULL;
 		Range range = {0};
-		getCellMapFaces(pArgs->core.pBasic, pFaceCellsEntry, i, &pCellFaces, &range);
+		const MapToMeshBasic *pBasic = pArgs->core.pShared;
+		getCellMapFaces(pBasic, pFaceCellsEntry, i, &pCellFaces, &range);
 		for (I32 j = range.start; j < range.end; ++j) {
 			if (!stucIsBBoxInBBox(bounds.fBBox, pMap->pFaceBBoxes[pCellFaces[j]])) {
 				continue;
 			}
 			FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[j]);
 			OverlapType overlap = doInAndMapFacesOverlap(
-				pArgs->core.pBasic,
+				pBasic,
 				inCorners, pInFace,
 				pMap->pMesh, &mapFace
 			);
@@ -318,7 +325,7 @@ static
 StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCellsTable) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
-	const MapToMeshBasic *pBasic = pArgs->core.pBasic;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
 		if (pBasic->maskIdx != -1 && pBasic->pInMesh->pMatIdx &&
 		    pBasic->pInMesh->pMatIdx[i] != pBasic->maskIdx) {
@@ -351,23 +358,24 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	FindEncasedFacesJobArgs *pArgs = pArgsVoid;
 	PIX_ERR_ASSERT("", pArgs);
-	StucContext pCtx = pArgs->core.pBasic->pCtx;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	StucContext pCtx = pBasic->pCtx;
 
 	FaceCellsTable faceCellsTable = {0};
 	I32 averageMapFacesPerFace = 0;
 	stucGetEncasingCells(
 		&pCtx->alloc,
-		pArgs->core.pBasic->pMap,
-		pArgs->core.pBasic->pInMesh,
-		pArgs->core.pBasic->maskIdx,
+		pBasic->pMap,
+		pBasic->pInMesh,
+		pBasic->maskIdx,
 		pArgs->core.range,
 		&faceCellsTable,
 		&averageMapFacesPerFace
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	EncasedMapFaceTableState tableState =  {.pBasic = pArgs->core.pBasic};
+	EncasedMapFaceTableState tableState =  {.pBasic = pBasic};
 	pixuctHTableInit(
-		&pArgs->core.pBasic->pCtx->alloc,
+		&pBasic->pCtx->alloc,
 		&pArgs->encasedFaces,
 		faceCellsTable.uniqueFaces / 4 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedMapFace)}, .count = 1},
@@ -381,8 +389,8 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 }
 
 static
-I32 encasedTableJobsGetRange(const MapToMeshBasic *pBasic, void *pInitInfo) {
-	return pBasic->pInMesh->core.faceCount;
+I32 encasedTableJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfo) {
+	return ((MapToMeshBasic *)pShared)->pInMesh->core.faceCount;
 }
 
 typedef struct InPieceInitInfo {
@@ -510,13 +518,14 @@ StucErr stucInPieceArrInit(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	stucMakeJobArgs(
+		pBasic->pCtx,
 		pBasic,
 		pJobCount, pJobArgs, sizeof(FindEncasedFacesJobArgs),
 		NULL,
 		encasedTableJobsGetRange, NULL
 	);
 	err = stucDoJobInParallel(
-		pBasic,
+		pBasic->pCtx,
 		*pJobCount, pJobArgs, sizeof(FindEncasedFacesJobArgs),
 		stucFindEncasedFaces
 	);
