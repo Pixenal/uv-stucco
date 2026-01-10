@@ -669,6 +669,13 @@ STUC_EXPORT
 StucErr stucMeshAttribsCornerToVert(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT
 StucErr stucMeshBuildTangentsForTris(StucContext pCtx, StucMesh *pMesh);
+STUC_EXPORT
+StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh);
+STUC_EXPORT
+StucErr stucMeshAllocCopy(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
+STUC_EXPORT
+StucErr stucCopyMesh(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
+
 
 #ifdef __cplusplus
 }
