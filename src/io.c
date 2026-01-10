@@ -249,17 +249,17 @@ void stucEncodeString(const StucAlloc *pAlloc, ByteString *pByteString, const ch
 void stucDecodeValue(ByteString *pByteString, U8 *pValue, I32 bitLen) {
 	U8 *pStart = pByteString->pString + pByteString->byteIdx;
 
-	I32 byteLen = getByteLen(bitLen);
-	for (I32 i = 0; i < byteLen; ++i) {
+	I32 strByteLen = getByteLen(bitLen + pByteString->nextBitIdx);
+	for (I32 i = 0; i < strByteLen; ++i) {
 		pValue[i] = pStart[i] >> pByteString->nextBitIdx;
-		if (i != byteLen - 1) {
+		if (i != strByteLen - 1) {
 			U8 nextByte = pStart[i + 1];
 			nextByte <<= 8 - pByteString->nextBitIdx;
 			pValue[i] |= nextByte;
 		}
 	}
-	U8 mask = UCHAR_MAX >> (8 - abs(bitLen - byteLen * 8)) % 8;
-	pValue[byteLen - 1] &= mask;
+	U8 mask = UCHAR_MAX >> (8 - abs(bitLen - strByteLen * 8)) % 8;
+	pValue[strByteLen - 1] &= mask;
 	pByteString->nextBitIdx = pByteString->nextBitIdx + bitLen;
 	pByteString->byteIdx += pByteString->nextBitIdx / 8;
 	pByteString->nextBitIdx %= 8;
