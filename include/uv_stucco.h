@@ -337,7 +337,7 @@ typedef PixalcFPtrs StucAlloc;
 
 typedef struct StucThreadPool {
 	void (*fpInit)(void **, int32_t *, const StucAlloc *);
-	void (*fpJobStackGetJob)(void *, void **);
+	void (*fpJobStackGetJob)(void *, void **, int32_t);
 	StucErr (*pJobStackPushJobs)(
 		void *,
 		int32_t,
@@ -348,7 +348,7 @@ typedef struct StucThreadPool {
 	StucErr (*fpWaitForJobs)(void *, int32_t, void **, bool, bool *);
 	StucErr (*fpJobHandleDestroy)(void *, void **);
 	StucErr (*fpGetJobErr)(void *, void *, StucErr *);
-	bool (*fpGetAndDoJob)(void *);
+	bool (*fpGetAndDoJob)(void *, int32_t);
 	void (*fpMutexGet)(void *, void **);
 	void (*fpMutexLock)(void *, void *);
 	void (*fpMutexUnlock)(void *, void *);
@@ -672,7 +672,12 @@ StucErr stucMeshBuildTangentsForTris(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT
 StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucErr stucMeshAllocCopy(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
+StucErr stucMeshAllocCopy(
+	StucContext pCtx,
+	StucMesh *pDest,
+	const StucMesh *pSrc,
+	bool activeOnly
+);
 STUC_EXPORT
 StucErr stucCopyMesh(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
 

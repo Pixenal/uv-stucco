@@ -260,64 +260,6 @@ void fBlendColorDodge(F64 *pDest, F64 a, F64 b) {
 	INDEX_ATTRIB(t,pD,iD,4,3) = (t)((F32)INDEX_ATTRIB(t,pD,iD,4,3) / sum);\
 }
 
-I32 stucGetAttribSizeIntern(AttribType type) {
-	switch (type) {
-		case STUC_ATTRIB_I8:
-			return 1;
-		case STUC_ATTRIB_I16:
-			return 2;
-		case STUC_ATTRIB_I32:
-			return 4;
-		case STUC_ATTRIB_I64:
-			return 8;
-		case STUC_ATTRIB_F32:
-			return 4;
-		case STUC_ATTRIB_F64:
-			return 8;
-		case STUC_ATTRIB_V2_I8:
-			return 2;
-		case STUC_ATTRIB_V2_I16:
-			return 4;
-		case STUC_ATTRIB_V2_I32:
-			return 8;
-		case STUC_ATTRIB_V2_I64:
-			return 16;
-		case STUC_ATTRIB_V2_F32:
-			return 8;
-		case STUC_ATTRIB_V2_F64:
-			return 16;
-		case STUC_ATTRIB_V3_I8:
-			return 3;
-		case STUC_ATTRIB_V3_I16:
-			return 6;
-		case STUC_ATTRIB_V3_I32:
-			return 12;
-		case STUC_ATTRIB_V3_I64:
-			return 24;
-		case STUC_ATTRIB_V3_F32:
-			return 12;
-		case STUC_ATTRIB_V3_F64:
-			return 24;
-		case STUC_ATTRIB_V4_I8:
-			return 4;
-		case STUC_ATTRIB_V4_I16:
-			return 8;
-		case STUC_ATTRIB_V4_I32:
-			return 16;
-		case STUC_ATTRIB_V4_I64:
-			return 32;
-		case STUC_ATTRIB_V4_F32:
-			return 16;
-		case STUC_ATTRIB_V4_F64:
-			return 32;
-		case STUC_ATTRIB_STRING:
-			return STUC_ATTRIB_STRING_MAX_LEN;
-		default:
-			PIX_ERR_ASSERT("", false);
-			return 0;
-	}
-}
-
 StucErr stucAssignActiveAliases(
 	StucContext pCtx,
 	Mesh *pMesh,
@@ -498,222 +440,6 @@ void stucSetAttribIdxActive(
 		pMesh->activeAttribs[use].active = true;
 		pMesh->activeAttribs[use].idx = (I16)idx;
 		pMesh->activeAttribs[use].domain = domain;
-	}
-}
-
-V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx) {
-	return (V3_F32 *)pAttrib->pData + idx;
-}
-
-V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx) {
-	return (V2_F32 *)pAttrib->pData + idx;
-}
-
-I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx) {
-	return (I32 *)pAttrib->pData + idx;
-}
-
-I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx) {
-	return (I8 *)pAttrib->pData + idx;
-}
-
-const char *stucAttribAsStrConst(const AttribCore *pAttrib, I32 idx) {
-	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
-}
-
-char *stucAttribAsStr(AttribCore *pAttrib, I32 idx) {
-	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
-}
-
-void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx) {
-	switch (pAttrib->type) {
-		case STUC_ATTRIB_I8:
-			return ((I8 *)pAttrib->pData) + idx;
-		case STUC_ATTRIB_I16:
-			return ((I16 *)pAttrib->pData) + idx;
-		case STUC_ATTRIB_I32:
-			return ((I32 *)pAttrib->pData) + idx;
-		case STUC_ATTRIB_I64:
-			return ((I64 *)pAttrib->pData) + idx;
-		case STUC_ATTRIB_F32:
-			return ((F32 *)pAttrib->pData) + idx;
-		case STUC_ATTRIB_F64:
-			return ((F64 *)pAttrib->pData) + idx;
-		case STUC_ATTRIB_V2_I8:
-			return ((I8 (*)[2])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V2_I16:
-			return ((I16 (*)[2])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V2_I32:
-			return ((I32 (*)[2])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V2_I64:
-			return ((I64 (*)[2])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V2_F32:
-			return ((F32 (*)[2])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V2_F64:
-			return ((F64 (*)[2])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V3_I8:
-			return ((I8 (*)[3])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V3_I16:
-			return ((I16 (*)[3])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V3_I32:
-			return ((I32 (*)[3])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V3_I64:
-			return ((I64 (*)[3])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V3_F32:
-			return ((F32 (*)[3])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V3_F64:
-			return ((F64 (*)[3])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V4_I8:
-			return ((I8 (*)[4])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V4_I16:
-			return ((I16 (*)[4])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V4_I32:
-			return ((I32 (*)[4])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V4_I64:
-			return ((I64 (*)[4])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V4_F32:
-			return ((F32 (*)[4])pAttrib->pData) + idx;
-		case STUC_ATTRIB_V4_F64:
-			return ((F64 (*)[4])pAttrib->pData) + idx;
-		case STUC_ATTRIB_STRING:
-			return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
-		default:
-			PIX_ERR_ASSERT("", false);
-			return NULL;
-	}
-}
-
-const void *stucAttribAsVoidConst(const AttribCore *pAttrib, I32 idx) {
-	return stucAttribAsVoid((AttribCore *)pAttrib, idx);
-}
-
-I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32 iSrc) {
-	if (pSrc->type != pDest->type) {
-		return 1;
-	}
-	switch (pSrc->type) {
-		case STUC_ATTRIB_I8:
-			((I8 *)pDest->pData)[iDest] = ((I8 *)pSrc->pData)[iSrc];
-			break;
-		case STUC_ATTRIB_I16:
-			((I16 *)pDest->pData)[iDest] = ((I16 *)pSrc->pData)[iSrc];
-			break;
-		case STUC_ATTRIB_I32:
-			((I32 *)pDest->pData)[iDest] = ((I32 *)pSrc->pData)[iSrc];
-			break;
-		case STUC_ATTRIB_I64:
-			((I64 *)pDest->pData)[iDest] = ((I64 *)pSrc->pData)[iSrc];
-			break;
-		case STUC_ATTRIB_F32:
-			((F32 *)pDest->pData)[iDest] = ((F32 *)pSrc->pData)[iSrc];
-			break;
-		case STUC_ATTRIB_F64:
-			((F64 *)pDest->pData)[iDest] = ((F64 *)pSrc->pData)[iSrc];
-			break;
-		case STUC_ATTRIB_V2_I8:
-			memcpy(((I8 (*)[2])pDest->pData)[iDest],
-			       ((I8 (*)[2])pSrc->pData)[iSrc], sizeof(I8[2]));
-			break;
-		case STUC_ATTRIB_V2_I16:
-			memcpy(((I16 (*)[2])pDest->pData)[iDest],
-			       ((I16 (*)[2])pSrc->pData)[iSrc], sizeof(I16[2]));
-			break;
-		case STUC_ATTRIB_V2_I32:
-			memcpy(((I32 (*)[2])pDest->pData)[iDest],
-			       ((I32 (*)[2])pSrc->pData)[iSrc], sizeof(I32[2]));
-			break;
-		case STUC_ATTRIB_V2_I64:
-			memcpy(((I64 (*)[2])pDest->pData)[iDest],
-			       ((I64 (*)[2])pSrc->pData)[iSrc], sizeof(I64[2]));
-			break;
-		case STUC_ATTRIB_V2_F32:
-			memcpy(((F32 (*)[2])pDest->pData)[iDest],
-			       ((F32 (*)[2])pSrc->pData)[iSrc], sizeof(F32[2]));
-			break;
-		case STUC_ATTRIB_V2_F64:
-			memcpy(((F64 (*)[2])pDest->pData)[iDest],
-			       ((F64 (*)[2])pSrc->pData)[iSrc], sizeof(F64[2]));
-			break;
-		case STUC_ATTRIB_V3_I8:
-			memcpy(((I8 (*)[3])pDest->pData)[iDest],
-			       ((I8 (*)[3])pSrc->pData)[iSrc], sizeof(I8[3]));
-			break;
-		case STUC_ATTRIB_V3_I16:
-			memcpy(((I16 (*)[3])pDest->pData)[iDest],
-			       ((I16 (*)[3])pSrc->pData)[iSrc], sizeof(I16[3]));
-			break;
-		case STUC_ATTRIB_V3_I32:
-			memcpy(((I32 (*)[3])pDest->pData)[iDest],
-			       ((I32 (*)[3])pSrc->pData)[iSrc], sizeof(I32[3]));
-			break;
-		case STUC_ATTRIB_V3_I64:
-			memcpy(((I64 (*)[3])pDest->pData)[iDest],
-			       ((I64 (*)[3])pSrc->pData)[iSrc], sizeof(I64[3]));
-			break;
-		case STUC_ATTRIB_V3_F32:
-			memcpy(((F32 (*)[3])pDest->pData)[iDest],
-			       ((F32 (*)[3])pSrc->pData)[iSrc], sizeof(F32[3]));
-			break;
-		case STUC_ATTRIB_V3_F64:
-			memcpy(((F64 (*)[3])pDest->pData)[iDest],
-			       ((F64 (*)[3])pSrc->pData)[iSrc], sizeof(F64[3]));
-			break;
-		case STUC_ATTRIB_V4_I8:
-			memcpy(((I8 (*)[4])pDest->pData)[iDest],
-			       ((I8 (*)[4])pSrc->pData)[iSrc], sizeof(I8[4]));
-			break;
-		case STUC_ATTRIB_V4_I16:
-			memcpy(((I16 (*)[4])pDest->pData)[iDest],
-			       ((I16 (*)[4])pSrc->pData)[iSrc], sizeof(I16[4]));
-			break;
-		case STUC_ATTRIB_V4_I32:
-			memcpy(((I32 (*)[4])pDest->pData)[iDest],
-			       ((I32 (*)[4])pSrc->pData)[iSrc], sizeof(I32[4]));
-			break;
-		case STUC_ATTRIB_V4_I64:
-			memcpy(((I64 (*)[4])pDest->pData)[iDest],
-			       ((I64 (*)[4])pSrc->pData)[iSrc], sizeof(I64[4]));
-			break;
-		case STUC_ATTRIB_V4_F32:
-			memcpy(((F32 (*)[4])pDest->pData)[iDest],
-			       ((F32 (*)[4])pSrc->pData)[iSrc], sizeof(F32[4]));
-			break;
-		case STUC_ATTRIB_V4_F64:
-			memcpy(((F64 (*)[4])pDest->pData)[iDest],
-			       ((F64 (*)[4])pSrc->pData)[iSrc], sizeof(F64[4]));
-			break;
-		case STUC_ATTRIB_STRING:
-			memcpy(((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pDest->pData)[iDest],
-			       ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pSrc->pData)[iSrc],
-			       sizeof(F64[STUC_ATTRIB_STRING_MAX_LEN]));
-			break;
-		default:
-			PIX_ERR_ASSERT("invalid attrib type", false);
-	}
-	return 0;
-}
-
-I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc) {
-	PIX_ERR_ASSERT("", pSrc->copyOpt == STUC_ATTRIB_COPY);
-	return stucCopyAttribCore(&pDest->core, iDest, &pSrc->core, iSrc);
-}
-
-void stucCopyAllAttribs(
-	AttribArray *pDest,
-	I32 iDest,
-	const AttribArray *pSrc,
-	I32 iSrc
-) {
-	for (I32 i = 0; i < pDest->count; ++i) {
-		const Attrib *pSrcAttrib = stucGetAttribInternConst(
-			pDest->pArr[i].core.name,
-			pSrc,
-			false,
-			NULL, NULL, NULL
-		);
-		if (pSrcAttrib) {
-			stucCopyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
-		}
 	}
 }
 
@@ -1744,12 +1470,17 @@ StucErr allocAttribsFromArr(
 	bool setCommon,
 	bool allocData,
 	bool aliasData,
-	bool keepActive
+	bool keepActive,
+	bool activeOnly
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	for (I32 j = 0; j < pSrcAttribs->count; ++j) {
 		Attrib *pSrcAttrib = pSrcAttribs->pArr + j;
 		if (pSrcAttrib->copyOpt == STUC_ATTRIB_DONT_COPY) {
+			continue;
+		}
+		bool srcIsActive = stucIsAttribActive(pCtx, pSrc, pSrcAttrib);
+		if (activeOnly && !srcIsActive) {
 			continue;
 		}
 		Attrib *pDestAttrib = NULL;
@@ -1765,8 +1496,7 @@ StucErr allocAttribsFromArr(
 		if (pDestAttrib) {
 			//if attribute already exists in destination,
 			//set origin to common and set if active, then skip
-			if (keepActive &&
-				stucIsAttribActive(pCtx, pSrc, pSrcAttrib) &&
+			if (keepActive && srcIsActive &&
 				!pDest->activeAttribs[pSrcAttrib->core.use].active) {
 				stucSetAttribIdxActive(
 					pDest, pDestAttribs->count,
@@ -1825,7 +1555,8 @@ StucErr stucAllocAttribs(
 	I32 activeSrc,
 	bool setCommon,
 	bool allocData,
-	bool aliasData
+	bool aliasData,
+	bool activeOnly
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	AttribArray *pDestAttribArr = stucGetAttribArrFromDomain(pDest, domain);
@@ -1846,7 +1577,8 @@ StucErr stucAllocAttribs(
 				setCommon,
 				allocData,
 				aliasData,
-				activeSrc < 0 ? true : i == activeSrc
+				activeSrc < 0 ? true : i == activeSrc,
+				activeOnly
 			);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
@@ -1925,7 +1657,8 @@ StucErr stucAllocAttribsFromMeshArr(
 	I32 activeSrc,
 	bool setCommon,
 	bool allocData,
-	bool aliasData
+	bool aliasData,
+	bool activeOnly
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	bool skipEdge = false;
@@ -1950,7 +1683,8 @@ StucErr stucAllocAttribsFromMeshArr(
 			activeSrc,
 			setCommon,
 			allocData,
-			aliasData
+			aliasData,
+			activeOnly
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
 	}
@@ -2029,9 +1763,10 @@ void stucAppendAttrib(
 #define CMP_VEC_ATTRIBS(t, size, a, b)\
 	pixmV##size##t##Equal(*(const V##size##_##t *)a, *(const V##size##_##t *)b)
 
-bool stucCmpAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB) {
+bool stucCmpIdxAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB) {
 	const void *pAData = stucAttribAsVoidConst(pA, iA);
 	const void *pBData = stucAttribAsVoidConst(pB, iB);
+	//TODO replace switch statement with a single memcmp
 	switch (pA->type) {
 		case STUC_ATTRIB_I8:
 			return (I8 *)pAData == (I8 *)pBData;
@@ -2100,7 +1835,7 @@ I32 stucGetIdxInIndexedAttrib(
 	I32 srcIdx
 ) {
 	for (I32 k = 0; k < pDest->count; ++k) {
-		if (stucCmpAttribs(&pDest->core, k, &pSrc->core, srcIdx)) {
+		if (stucCmpIdxAttribs(&pDest->core, k, &pSrc->core, srcIdx)) {
 			return k;
 		}
 	}

@@ -35,7 +35,7 @@ StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 s
 		2,
 		srcs,
 		0,
-		true, true, false
+		true, true, false, false
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = stucAssignActiveAliases(

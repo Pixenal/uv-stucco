@@ -1,6 +1,6 @@
 [submodule "extern/MikkTSpace"]
 	path = extern/MikkTSpace
-	url = https://github.com/mmikk/MikkTSpace
+	url = https://github.com/Pixenal/MikkTSpace.git
 [submodule "extern/pixenals-types"]
 	path = extern/pixenals-types
 	url = https://github.com/Pixenal/pixenals-types.git

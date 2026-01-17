@@ -25,6 +25,99 @@ typedef StucBlendOptArr BlendOptArr;
 
 //TODO switch pAttrib pData ptr from void * to U8 *?
 
+static const I8 attribSizes[STUC_ATTRIB_TYPE_ENUM_COUNT] = {
+	1,// I8
+	2,// I16
+	4,// I32
+	8,// I64
+	4,// F32
+	8,// F64
+	2,// V2_I8
+	4,// V2_I16
+	8,// V2_I32
+	16,// V2_I64
+	8,// V2_F32
+	16,// V2_F64
+	3,// V3_I8
+	6,// V3_I16
+	12,// V3_I32
+	24,// V3_I64
+	12,// V3_F32
+	24,// V3_F64
+	4,// V4_I8
+	8,// V4_I16
+	16,// V4_I32
+	32,// V4_I64
+	16,// V4_F32
+	32,// V4_F64
+	STUC_ATTRIB_STRING_MAX_LEN,// STRING
+	0 //None
+};
+
+static inline
+I32 stucGetAttribSizeIntern(AttribType type) {
+	return (I32)attribSizes[type];
+}
+
+static inline
+V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx) {
+	return (V3_F32 *)pAttrib->pData + idx;
+}
+
+static inline
+V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx) {
+	return (V2_F32 *)pAttrib->pData + idx;
+}
+
+static inline
+I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx) {
+	return (I32 *)pAttrib->pData + idx;
+}
+
+static inline
+I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx) {
+	return (I8 *)pAttrib->pData + idx;
+}
+
+static inline
+const char *stucAttribAsStrConst(const AttribCore *pAttrib, I32 idx) {
+	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
+}
+
+static inline
+char *stucAttribAsStr(AttribCore *pAttrib, I32 idx) {
+	return ((char (*)[STUC_ATTRIB_STRING_MAX_LEN])pAttrib->pData)[idx];
+}
+
+static inline
+void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx) {
+	return ((U8 *)pAttrib->pData) + idx * stucGetAttribSizeIntern(pAttrib->type);
+}
+
+static inline
+const void *stucAttribAsVoidConst(const AttribCore *pAttrib, I32 idx) {
+	return stucAttribAsVoid((AttribCore *)pAttrib, idx);
+}
+
+//TODO some of these funcs still don't use PixErr
+static inline
+I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32 iSrc) {
+	PIX_ERR_ASSERT("", pSrc->type == pDest->type);
+	I32 size = stucGetAttribSizeIntern(pSrc->type);
+	memcpy(
+		((U8 *)pDest->pData) + iDest * size,
+		((U8 *)pSrc->pData) + iSrc * size,
+		size
+	);
+	return 0;
+}
+
+static inline
+I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc) {
+	PIX_ERR_ASSERT("", pSrc->copyOpt == STUC_ATTRIB_COPY);
+	return stucCopyAttribCore(&pDest->core, iDest, &pSrc->core, iSrc);
+}
+
 typedef enum SpecialBufAttrib {
 	STUC_ATTRIB_SP_BUF_NONE,
 	STUC_ATTRIB_SP_BUF_W,
@@ -39,7 +132,6 @@ typedef enum SpecialBufAttrib {
 void stucSetDefaultSpAttribNames(StucContext pCtx);
 void stucSetDefaultSpAttribDomains(StucContext pCtx);
 void stucSetDefaultSpAttribTypes(StucContext pCtx);
-I32 stucGetAttribSizeIntern(AttribType type);
 StucErr stucAssignActiveAliases(
 	StucContext pCtx,
 	Mesh *pMesh,
@@ -81,22 +173,6 @@ void stucSetAttribIdxActive(
 	I32 idx,
 	StucAttribUse use,
 	StucDomain domain
-);
-V3_F32 *stucAttribAsV3(AttribCore *pAttrib, I32 idx);
-V2_F32 *stucAttribAsV2(AttribCore *pAttrib, I32 idx);
-I32 *stucAttribAsI32(AttribCore *pAttrib, I32 idx);
-I8 *stucAttribAsI8(AttribCore *pAttrib, I32 idx);
-const char *stucAttribAsStrConst(const AttribCore *pAttrib, I32 idx);
-char *stucAttribAsStr(AttribCore *pAttrib, I32 idx);
-void *stucAttribAsVoid(AttribCore *pAttrib, I32 idx);
-const void *stucAttribAsVoidConst(const AttribCore *pAttrib, I32 idx);
-I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32 iSrc);
-I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc);
-void stucCopyAllAttribs(
-	AttribArray *pDest,
-	I32 iDest,
-	const AttribArray *pSrc,
-	I32 iSrc
 );
 void stucSetTypeDefaultConfig(StucContext pCtx);
 StucTypeDefault *stucGetTypeDefaultConfig(
@@ -163,7 +239,8 @@ StucErr stucAllocAttribs(
 	I32 activeSrc,
 	bool setCommon,
 	bool allocData,
-	bool aliasData
+	bool aliasData,
+	bool activeOnly
 );
 void stucReallocAttrib(
 	const StucAlloc *pAlloc,
@@ -193,7 +270,8 @@ StucErr stucAllocAttribsFromMeshArr(
 	I32 activeSrc,
 	bool setCommon,
 	bool allocData,
-	bool aliasData
+	bool aliasData,
+	bool activeOnly
 );
 void stucInitAttrib(
 	const StucAlloc *pAlloc,
@@ -226,7 +304,7 @@ void stucAppendAttrib(
 	AttribType type,
 	StucAttribUse use
 );
-bool stucCmpAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB);
+bool stucCmpIdxAttribs(const AttribCore *pA, I32 iA, const AttribCore *pB, I32 iB);
 I32 stucGetIdxInIndexedAttrib(
 	const AttribIndexed *pDest,
 	const AttribIndexed *pSrc,
@@ -279,3 +357,85 @@ UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count);
 	stucAttribUseField((arr), sizeof(arr) / sizeof(StucAttribUse))
 
 StucErr stucAttemptToSetMissingActiveDomains(StucMesh *pMesh);
+
+static inline
+void stucCopyAttribs(AttribArray *pDest, I32 iDest, AttribArray *pSrc, I32 iSrc) {
+	for (I32 i = 0; i < pSrc->count; ++i) {
+		AttribCore *pDestAttrib = &pDest->pArr[pDest->count + i].core;
+		AttribCore *pSrcAttrib = &pSrc->pArr[i].core;
+		memcpy(
+			stucAttribAsVoid(pDestAttrib, iDest),
+			stucAttribAsVoid(pSrcAttrib, iSrc),
+			stucGetAttribSizeIntern(pSrcAttrib->type)
+		);
+	}
+}
+
+static inline
+void stucCopyInSameAttrib(AttribArray *pArr, I32 iDest, I32 iSrc) {
+	for (I32 i = 0; i < pArr->count; ++i) {
+		AttribCore *pAttrib = &pArr->pArr[i].core;
+		memcpy(
+			stucAttribAsVoid(pAttrib, iDest),
+			stucAttribAsVoid(pAttrib, iSrc),
+			stucGetAttribSizeIntern(pAttrib->type)
+		);
+	}
+}
+
+static inline
+bool stucCmpAttribs(AttribArray *pDest, I32 iDest, AttribArray *pSrc, I32 iSrc) {
+	for (I32 i = 0; i < pSrc->count; ++i) {
+		AttribCore *pDestAttrib = &pDest->pArr[pDest->count + i].core;
+		AttribCore *pSrcAttrib = &pSrc->pArr[i].core;
+		if (!memcmp(
+			stucAttribAsVoid(pDestAttrib, iDest),
+			stucAttribAsVoid(pSrcAttrib, iSrc),
+			stucGetAttribSizeIntern(pSrcAttrib->type)
+		)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static inline
+void stucCopyAllAttribs(
+	AttribArray *pDest,
+	I32 iDest,
+	const AttribArray *pSrc,
+	I32 iSrc,
+	bool idxAligned
+) {
+	for (I32 i = 0; i < pDest->count; ++i) {
+		const Attrib *pSrcAttrib;
+		if (idxAligned) {
+			pSrcAttrib = pSrc->pArr + i;
+		}
+		else {
+			pSrcAttrib = stucGetAttribInternConst(
+				pDest->pArr[i].core.name,
+				pSrc,
+				false,
+				NULL, NULL, NULL
+			);
+		}
+		if (pSrcAttrib) {
+			stucCopyAttrib(pDest->pArr + i, iDest, pSrcAttrib, iSrc);
+		}
+	}
+}
+
+static inline
+void stucReallocVertAttribsIfNeeded(StucContext pCtx, StucMesh *pMesh, I32 *pVertSize) {
+	PIX_ERR_ASSERT("", pMesh->vertCount <= *pVertSize);
+	if (pMesh->vertCount == *pVertSize) {
+		*pVertSize *= 2;
+		for (I32 i = 0; i < pMesh->vertAttribs.size; ++i) {
+			AttribCore *pAttrib = &pMesh->vertAttribs.pArr[i].core;
+			if (pAttrib->pData) {
+				stucReallocAttrib(&pCtx->alloc, NULL, pAttrib, *pVertSize);
+			}
+		}
+	}
+}

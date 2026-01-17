@@ -302,7 +302,7 @@ void buildTPieces(
 				pTPieces->pArr[pBuf->idx] = (TPiece) {0};
 				pBuf->added = true;
 			}
-			PIX_ERR_ASSERT("", pBuf->idx >= 0u && pBuf->idx < pTPieces->count);
+			PIX_ERR_ASSERT("", pBuf->idx >= 0u && pBuf->idx < (U32)pTPieces->count);
 			I32 faceArrIdx = -1;
 			PIXALC_DYN_ARR_ADD(
 				TPieceInFace,
@@ -565,9 +565,9 @@ void mikktTrisSetTSpaceBasic(
 }
 
 static
-StucErr stucBuildTangentsIntern(SMikkTSpaceContext *pMikktCtx) {
+StucErr stucBuildTangentsIntern(StucContext pCtx, SMikkTSpaceContext *pMikktCtx) {
 	StucErr err = PIX_ERR_SUCCESS;
-	if (!genTangSpaceDefault(pMikktCtx)) {
+	if (!genTangSpaceDefault(pMikktCtx, pCtx->pThreadPoolHandle)) {
 		PIX_ERR_RETURN(err, "mikktspace func 'genTangSpaceDefault' returned error");
 	}
 	return err;
@@ -583,15 +583,16 @@ StucErr stucBuildTangents(void *pArgsVoid) {
 		.m_getTexCoord = mikktGetTexCoord,
 		.m_setTSpaceBasic = mikktSetTSpaceBasic
 	};
-	SMikkTSpaceContext mikktCtx = {
-		.m_pInterface = &mikktInterface,
-		.m_pUserData = pArgsVoid
-	};
 	TangentJobArgs *pArgs = pArgsVoid;
 	const StucAlloc *pAlloc = &pArgs->core.pCtx->alloc;
+	SMikkTSpaceContext mikktCtx = {
+		.m_pInterface = &mikktInterface,
+		.m_pUserData = pArgsVoid,
+		.alloc = *pAlloc
+	};
 	pArgs->pTangents = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(V3_F32));
 	pArgs->pTSigns = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(F32));
-	err = stucBuildTangentsIntern(&mikktCtx);
+	err = stucBuildTangentsIntern(pArgs->core.pCtx, &mikktCtx);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
@@ -609,9 +610,10 @@ StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh) {
 	TangentTris state = {.pCtx = pCtx, .pMesh = pMesh};
 	SMikkTSpaceContext mikktCtx = {
 		.m_pInterface = &mikktInterface,
-		.m_pUserData = &state
+		.m_pUserData = &state,
+		.alloc = pCtx->alloc
 	};
-	err = stucBuildTangentsIntern(&mikktCtx);
+	err = stucBuildTangentsIntern(pCtx, &mikktCtx);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
