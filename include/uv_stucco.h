@@ -336,7 +336,7 @@ typedef struct StucObjArr {
 typedef PixalcFPtrs StucAlloc;
 
 typedef struct StucThreadPool {
-	void (*fpInit)(void **, int32_t *, const StucAlloc *);
+	PixErr (*fpInit)(void **, int32_t *, const StucAlloc *);
 	void (*fpJobStackGetJob)(void *, void **, int32_t);
 	StucErr (*pJobStackPushJobs)(
 		void *,
