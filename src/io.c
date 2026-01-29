@@ -920,7 +920,9 @@ StucErr stucMapExportInit(
 		&pHandle->mapTable,
 		16,
 		(I32Arr){.pArr = (I32[1]){sizeof(MatMapEntry)}, .count = 1},
-		pHandle
+		NULL,
+		pHandle,
+		true
 	);
 	pHandle->compress = compress;
 	*ppHandle = pHandle;

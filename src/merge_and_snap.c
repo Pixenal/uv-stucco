@@ -41,7 +41,9 @@ void stucVertMergeTableInit(
 			.pArr = (I32[]) {sizeof(VertMerge), sizeof(VertMergeIntersect)},
 			.count = 2
 		},
-		NULL
+		NULL,
+		NULL,
+		true
 	);
 }
 

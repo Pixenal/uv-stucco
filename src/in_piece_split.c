@@ -492,7 +492,9 @@ void splitAdjFacesIntoPiece(
 		&borderEdges,
 		*pFacesRemaining / 2 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(BorderEdgeTableEntry)}, .count = 1},
-		NULL
+		NULL,
+		NULL,
+		true
 	);
 	pInFaceBuf->count = 0;
 	{
@@ -591,7 +593,9 @@ void splitInPieceEntry(
 		&idxTable,
 		pInPiece->faceCount / 4 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(PieceFaceIdx)}, .count = 1},
-		NULL
+		NULL,
+		NULL,
+		true
 	);
 	{
 		EncasedMapFace *pInFaces = pInPiece->pList;

@@ -209,7 +209,8 @@ static
 OverlapType doInAndMapFacesOverlap(
 	const MapToMeshBasic *pBasic,
 	const HalfPlane *pInCorners, FaceRange *pInFace,
-	const Mesh *pMapMesh, FaceRange *pMapFace
+	const Mesh *pMapMesh, FaceRange *pMapFace,
+	PlycutMem *pPlycutAlc
 ) {
 	PlycutInput inInput =
 		{.pSizes = &pInFace->size, .boundaries = 1, .pUserData = pInFace};
@@ -222,7 +223,8 @@ OverlapType doInAndMapFacesOverlap(
 		pInCorners, inInput, getInCornerPos,
 		NULL, mapInput, getMapCornerPos,
 		NULL,
-		&overlaps
+		&overlaps,
+		pPlycutAlc
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	if (overlaps) {
@@ -237,7 +239,8 @@ StucErr getEncasedFacesPerFace(
 	FindEncasedFacesJobArgs *pArgs,
 	FaceCellsTable *pFaceCellsTable,
 	V2_I16 tile,
-	FaceRange *pInFace
+	FaceRange *pInFace,
+	PlycutMem *pPlycutAlc
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	V2_F32 fTileMin = {(F32)tile.d[0], (F32)tile.d[1]};
@@ -282,7 +285,8 @@ StucErr getEncasedFacesPerFace(
 			OverlapType overlap = doInAndMapFacesOverlap(
 				pBasic,
 				inCorners, pInFace,
-				pMap->pMesh, &mapFace
+				pMap->pMesh, &mapFace,
+				pPlycutAlc
 			);
 			if (overlap != STUC_FACE_OVERLAP_NONE) {
 				addToEncasedFaces(pArgs, pInFace, inFaceWind, &mapFace, tile);
@@ -298,7 +302,8 @@ StucErr getEncasedFacesPerTile(
 	FindEncasedFacesJobArgs *pArgs,
 	FaceRange *pInFace,
 	FaceCellsTable *pFaceCellsTable,
-	I32 faceIdx
+	I32 faceIdx,
+	PlycutMem *pPlycutAlc
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	FaceBounds *pFaceBounds = 
@@ -313,7 +318,8 @@ StucErr getEncasedFacesPerTile(
 				pArgs,
 				pFaceCellsTable,
 				tile,
-				pInFace
+				pInFace,
+				pPlycutAlc
 			);
 			PIX_ERR_RETURN_IFNOT(err, "");
 		}
@@ -326,6 +332,7 @@ StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCel
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	PlycutMem plycutAlc = {0};
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
 		if (pBasic->maskIdx != -1 && pBasic->pInMesh->pMatIdx &&
 		    pBasic->pInMesh->pMatIdx[i] != pBasic->maskIdx) {
@@ -339,7 +346,7 @@ StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCel
 		inFace.idx = i;
 		bool skipped = false;
 		if (inFace.size <= 4) {
-			err = getEncasedFacesPerTile(pArgs, &inFace, pFaceCellsTable, i);
+			err = getEncasedFacesPerTile(pArgs, &inFace, pFaceCellsTable, i, &plycutAlc);
 		}
 		else {
 			skipped = true;
@@ -349,8 +356,11 @@ StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs, FaceCellsTable *pFaceCel
 				stucIdxFaceCells(pFaceCellsTable, i, pArgs->core.range.start);
 			stucDestroyFaceCellsEntry(&pBasic->pCtx->alloc, pFaceCellsEntry);
 		}
-		PIX_ERR_RETURN_IFNOT(err, "");
+		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
+	PIX_ERR_CATCH(0, err, ;);
+	pixalcLinAllocDestroy(&plycutAlc.root);
+	pixalcLinAllocDestroy(&plycutAlc.corner);
 	return err;
 }
 
@@ -379,7 +389,9 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 		&pArgs->encasedFaces,
 		faceCellsTable.uniqueFaces / 4 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedMapFace)}, .count = 1},
-		&tableState
+		NULL,
+		&tableState,
+		true
 	);
 	err = getEncasedFaces(pArgs, &faceCellsTable);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -493,7 +505,9 @@ void linkEncasedTableEntries(
 		&idxTable,
 		pInPieceArr->size / 4 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedEntryIdx)}, .count = 1},
-		NULL
+		NULL,
+		NULL,
+		true
 	);
 
 	for (I32 i = 0; i < jobCount; ++i) {

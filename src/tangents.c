@@ -241,7 +241,9 @@ void buildTPieces(
 		&vertTable,
 		pixalcLinAllocGetCount(pMergeAlloc) + pixalcLinAllocGetCount(pMergeAllocIntersect),
 		(I32Arr) {.pArr = (I32[]){sizeof(TPieceVert)}, .count = 1},
-		NULL
+		NULL,
+		NULL,
+		true
 	);
 	bool *pChecked =
 		pCtx->alloc.fpCalloc(pInMesh->core.faceCount, sizeof(bool));
