@@ -335,9 +335,11 @@ ReceiveIntersectResult doesCornerIntersectReceive(
 		}
 		F32 tMapEdge = 0;
 		F32 tInEdge = 0;
+		V2_F32 mapUv = pMapCorners->pHalfPlanes[i].uv;
+		V2_F32 mapUvNext = pMapCorners->pHalfPlanes[stucGetCornerNext(i, pMapFace)].uv;
 		stucCalcIntersection(
 			inVert, inVertNext,
-			pMapCorners->pHalfPlanes[i].uv, pMapCorners->pHalfPlanes[i].dir,
+			pMapCorners->pHalfPlanes[i].uv, _(mapUvNext V2SUB mapUv),
 			NULL,
 			&tInEdge, &tMapEdge
 		);

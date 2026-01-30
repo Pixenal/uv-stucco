@@ -231,6 +231,123 @@ void getInPieceBounds(
 }
 
 static
+InsideStatus isPointInFaceConvex(
+	bool wind,
+	I32 faceSize,
+	HalfPlane *pCorners,
+	V2_F32 point,
+	I32 *pOnCorner
+) {
+	I32 onEdge[2] = {-1, -1};
+	for (I32 i = 0; i < faceSize; ++i) {
+		InsideStatus status = stucIsPointInHalfPlane(
+			point,
+			pCorners[i].uv,
+			pixmV2F32LineNormal(_(pCorners[(i + 1) % faceSize].uv V2SUB pCorners[i].uv)),
+			wind
+		);
+		if (status == STUC_INSIDE_STATUS_OUTSIDE) {
+			return STUC_INSIDE_STATUS_OUTSIDE;
+		}
+		if (status == STUC_INSIDE_STATUS_ON_LINE) {
+			PIX_ERR_ASSERT("on 3 edges?", onEdge[0] == -1 || onEdge[1] == -1);
+			onEdge[onEdge[0] != -1] = i;
+		}
+	}
+	if (onEdge[1] != -1) {
+		*pOnCorner = !onEdge[0] && onEdge[1] == faceSize - 1 ? 0 : onEdge[1];
+		return STUC_INSIDE_STATUS_ON_VERT;
+	}
+	if (onEdge[0] != -1) {
+		*pOnCorner = onEdge[0];
+		return STUC_INSIDE_STATUS_ON_LINE;
+	}
+	return STUC_INSIDE_STATUS_INSIDE;
+}
+
+static
+bool isQuadConcave(
+	bool wind,
+	I32 faceSize,
+	HalfPlane *pCorners,
+	V2_F32 point,
+	I32 *pIdx
+) {
+	for (I32 i = 0; i < faceSize; ++i) {
+		I32 iNext = (i + 1) % faceSize;
+		InsideStatus status = stucIsPointInHalfPlane(
+			pCorners[(i + 2) % faceSize].uv,
+			pCorners[i].uv,
+			pixmV2F32LineNormal(_(pCorners[iNext].uv V2SUB pCorners[i].uv)),
+			wind
+		);
+		if (status != STUC_INSIDE_STATUS_INSIDE) {
+			if (pIdx) {
+				*pIdx = iNext;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+static
+InsideStatus testQuadAsTri(
+	I32 start,
+	bool wind,
+	HalfPlane *pCorners,
+	V2_F32 point,
+	I32 *pOnCorner
+) {
+	I32 last = (start + 2) % 4;
+	HalfPlane tri[3] = {
+		pCorners[start],
+		pCorners[(start + 1) % 4],
+		pCorners[last]
+	};
+	I32 onCorner = 0;
+	InsideStatus status = isPointInFaceConvex(wind, 3, tri, point, &onCorner);
+	switch (status) {
+		case STUC_INSIDE_STATUS_ON_LINE:
+			if (onCorner == last) {
+				return STUC_INSIDE_STATUS_INSIDE;
+			}
+			//v fallthrough v
+		case STUC_INSIDE_STATUS_ON_VERT:
+			if (pOnCorner) {
+				*pOnCorner = onCorner;
+			}
+			//v fallthrough v
+		default:
+			return status;
+	}
+}
+
+static
+InsideStatus isPointInFace(
+	bool wind,
+	I32 faceSize,
+	HalfPlane *pCorners,
+	V2_F32 point,
+	I32 *pOnCorner
+) {
+	InsideStatus status = STUC_INSIDE_STATUS_NONE;
+	if (faceSize >= 4) {
+		PIX_ERR_ASSERT("", faceSize == 4);
+		I32 corner = 0;
+		if (isQuadConcave(wind, faceSize, pCorners, point, &corner)) {
+			status = testQuadAsTri(corner, wind, pCorners, point, pOnCorner);
+			if (status == STUC_INSIDE_STATUS_INSIDE) {
+				return STUC_INSIDE_STATUS_INSIDE;
+			}
+			corner = (corner + 2) % faceSize;
+			return testQuadAsTri(corner, wind, pCorners, point, pOnCorner);
+		}
+	}
+	return isPointInFaceConvex(wind, faceSize, pCorners, point, pOnCorner);
+}
+
+static
 InsideStatus getFaceEncasingVert(
 	const MapToMeshBasic *pBasic,
 	V2_F32 vert,
@@ -249,43 +366,25 @@ InsideStatus getFaceEncasingVert(
 			true,
 			&pInFaceEntry
 		);
-		if (!_(vert V2GREATEQL pInFaceEntry->fMin) || !_(vert V2LESSEQL pInFaceEntry->fMax)) {
+		if (!_(vert V2GREATEQL pInFaceEntry->fMin) ||
+			!_(vert V2LESSEQL pInFaceEntry->fMax)
+		) {
 			continue;
 		}
 		HalfPlane *pInCornerCache =
 			getInCornerCache(pBasic, pHalfPlaneAlc, pInPiece, pInFaceEntry);
-		bool inside = true;
-		I32 onEdge[2] = {-1, -1};
-		for (I32 j = 0; j < pInFaceEntry->face.size; ++j) {
-			InsideStatus status = stucIsPointInHalfPlane(
-				vert,
-				pInCornerCache[j].uv,
-				pInCornerCache[j].halfPlane,
-				pInFaces->pArr[i].wind
-			);
-			if (status == STUC_INSIDE_STATUS_OUTSIDE) {
-				inside = false;
-				break;
-			}
-			if (status == STUC_INSIDE_STATUS_ON_LINE) {
-				PIX_ERR_ASSERT("on 3 edges?", onEdge[0] == -1 || onEdge[1] == -1);
-				onEdge[onEdge[0] != -1] = j;
-			}
-		}
-		if (!inside) {
+		InsideStatus status = isPointInFace(
+			pInFaces->pArr[i].wind,
+			pInFaceEntry->face.size,
+			pInCornerCache,
+			vert,
+			&pCorner->corner
+		);
+		if (status == STUC_INSIDE_STATUS_OUTSIDE) {
 			continue;
 		}
 		pCorner->pFace = pInFaceEntry;
-		if (onEdge[1] != -1) {
-			pCorner->corner =
-				!onEdge[0] && onEdge[1] == pInFaceEntry->face.size - 1 ? 0 : onEdge[1];
-			return STUC_INSIDE_STATUS_ON_VERT;
-		}
-		if (onEdge[0] != -1) {
-			pCorner->corner = onEdge[0];
-			return STUC_INSIDE_STATUS_ON_LINE;
-		}
-		return STUC_INSIDE_STATUS_INSIDE;
+		return status;
 	}
 	return STUC_INSIDE_STATUS_OUTSIDE;
 }
@@ -540,12 +639,12 @@ InsideStatus findEncasingInPieceFace(
 			pInPiece,
 			pInCorner->pFace
 		);
-		*pAlpha = stucGetT(
-			pos,
-			pInCornerCache[pInCorner->corner].uv,
-			pInCornerCache[pInCorner->corner].dirUnit,
-			pInCornerCache[pInCorner->corner].len
-		);
+		I32 corner = pInCorner->corner;
+		V2_F32 uv = pInCornerCache[corner].uv;
+		I32 cornerNext = stucGetCornerNext(corner, &pInCorner->pFace->face);
+		V2_F32 uvNext = pInCornerCache[cornerNext].uv;
+		V2_F32 dirUnit = _(_(uvNext V2SUB uv) V2DIVS pInCornerCache[corner].len);
+		*pAlpha = stucGetT(pos, uv, dirUnit, pInCornerCache[corner].len);
 	}
 	return status;
 }
