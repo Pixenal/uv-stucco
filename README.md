@@ -9,6 +9,7 @@
 
 # Notes
 - Normal transform uses the [Mikk](http://www.mikktspace.com) tangent space.
+- This is currently a work in progress, no docs or precompiled binaries atm
 
 # Building
 ```
