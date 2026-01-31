@@ -69,17 +69,6 @@ typedef struct ObjMapOptsArr {
 	I32 count;
 } ObjMapOptsArr;
 
-//void stucWriteDebugImage(Cell *pRootCell);
-/*StucErr stucWriteStucFile(
-	StucContext pCtx,
-	const char *pPath,
-	I32 objCount,
-	StucObject *pObjArr,
-	I32 usgCount,
-	StucUsg *pUsgArr,
-	StucAttribIndexedArr *pIndexedAttribs
-);*/
-
 StucErr stucMapImportGetDep(
 	StucContext pCtx,
 	const char *filePath,

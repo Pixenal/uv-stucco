@@ -314,7 +314,7 @@ void snapJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEn
 
 static
 void snapIntersectVert(const SnapJobArgs *pArgs, VertMergeIntersect *pVert) {
-	//snap
+	//TODO snap
 }
 
 static

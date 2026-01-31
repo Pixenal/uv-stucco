@@ -346,7 +346,6 @@ void blendCommonAttrib(
 	I32 dataIdx,
 	StucDomain domain
 ) {
-	//TODO should this be using name even for active attribs?
 	const StucBlendOpt *pOpts = stucGetBlendOpt(
 		pBasic->pOptArr,
 		outAttribIdx,

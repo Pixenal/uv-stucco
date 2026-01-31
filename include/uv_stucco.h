@@ -32,18 +32,11 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_ATTRIB_NAME_MAX_LEN 96
 #define STUC_ATTRIB_STRING_MAX_LEN 64
 
-//TODO typedefs should not make pointer types
+//TODO remove opaque strctures to allow external stack allocation
 typedef struct StucContextInternal *StucContext;
 typedef struct StucMapInternal *StucMap;
 typedef struct StucMapExportIntern StucMapExport;
 typedef struct StucMapLoadIntern StucMapLoad;
-
-//TODO add array wrapper structs, so that you don't need to pass
-//separate "count" variables to functions. IntArray, AttribArray,
-//CommonAttribArray.
-
-//TODO add semantic information to attribs, eg, quarternion, stuc, normals,
-//colour, boolean, etc
 
 //TODO unify naming. different structs and enums called "type", "attrib", "blend".
 //Make it consistent. They're attribute types;

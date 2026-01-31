@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 
 typedef struct Usg {
 	//allow user to save name of usg meshes if desired?
-	//Obviously wouldn't include it in the map file by default,
+	//probably wouldn't include it in the map file by default,
 	//due to potential size increase. But if one wants to go
 	//and edit the stuc file later, it may be helpful as a choice
 	Mesh *pMesh;

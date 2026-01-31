@@ -236,7 +236,6 @@ bool findAndAddBorder(
 	Border border = {.start = pStart->corner};
 	FaceCorner corner = pStart->corner;
 	BorderEdgeTableEntry *pEntry  = pStart;
-	//bool wind = getPieceFaceIdxEntry(pIdxTable, corner.face)->pInFace->wind;
 	do {
 		if (border.len != 0) {//dont run this on first edge
 			if (

@@ -751,8 +751,7 @@ I32 checkIfLinkedEdge(
 	I32 linked = 0;
 	for (I32 i = 0; i < pAncestor->edgeFaceSize; ++i) {
 		I32 faceIdx = pAncestor->pEdgeFaces[i];
-		//FaceRange face = stucGetFaceRange(&pMap->pMesh->core, faceIdx);
-		//doesn't catch cases where edge intersect with bounds,
+		//TODO doesn't catch cases where edge intersect with bounds,
 		//replace with a better method
 		if (stucIsBBoxInBBox(pChild->bbox, pFaceBBoxes[faceIdx])) {
 			if (!linked) {
@@ -936,8 +935,6 @@ void allocateChildren(
 	PIX_ERR_ASSERT("", !pTree->cellTable.pArr[0].localIdx);
 	pTree->cellTable.pArr[parentCell].pChildren = pTree->cellTable.pArr + pTree->cellCount;
 	for (I32 i = 0; i < 4; ++i) {
-		// v for visualizing quadtree v
-		//cell->children[i].cellIdx = rand();
 		Cell *cell = pTree->cellTable.pArr[parentCell].pChildren + i;
 		PIX_ERR_ASSERT("", !cell->initialized);
 		cell->cellIdx = pTree->cellCount;

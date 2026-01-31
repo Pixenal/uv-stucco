@@ -125,7 +125,6 @@ typedef struct BufVertOverlapArr {
 } BufVertOverlapArr;
 
 typedef struct IntersectVert {
-	//V2_F32 pos;
 	F32 tInEdge;
 	F32 tMapEdge;
 	I32 inFace;

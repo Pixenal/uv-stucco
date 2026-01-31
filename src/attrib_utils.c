@@ -1896,7 +1896,7 @@ bool stucCheckAttribsAreCompatible(const Attrib *pA, const Attrib *pB) {
 		// throwing an err because of it would be annoying
 		//pA->interpolate == pB->interpolate && 
 		
-		//TODO readd type checking, but be more specific,
+		//TODO redo type checking, but be more specific,
 		//make a table of compatible types per attrib use
 		//pA->core.type == pB->core.type &&
 		pA->core.use == pB->core.use;

@@ -445,7 +445,6 @@ I32 addIntersectVert(
 	InFaceCorner inCorner =
 		getInCornerFromPlycut(pBorderCache, pInfo->clipCorner);
 	pBufMesh->intersectVerts.pArr[vert] = (IntersectVert){
-		//.pos = *(V2_F32 *)&pCorner->pos,
 		.inFace = inCorner.pFace->face.idx,
 		.inCorner = inCorner.corner,
 		.mapCorner = pInfo->subjCorner.corner,
