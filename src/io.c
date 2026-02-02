@@ -477,12 +477,19 @@ void encodeRedirectTable(
 		StucIdxTable *pTable = pIdxTable->pArr + i;
 		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->idx, 16);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->table.count, 8);
+		PIX_ERR_ASSERT("", !pData->nextBitIdx);
+		I32 countMem = pData->byteIdx;
+		stucEncodeValue(pAlloc, pData, &(U8){0}, 8);
+		I32 count = 0;
 		for (I32 j = 0; j < pTable->table.count; ++j) {
 			if (pTable->table.pArr[j] >= 0) {
+				++count;
 				stucEncodeValue(pAlloc, pData, (U8 *)&j, 8);//local
 				stucEncodeValue(pAlloc, pData, (U8 *)&pTable->table.pArr[j], 8);//global
 			}
 		}
+		PIX_ERR_ASSERT("", count <= UINT8_MAX);
+		pData->pString[countMem] = (U8)count;
 	}
 }
 
@@ -1406,7 +1413,9 @@ StucErr loadIdxRedirects(
 		stucDecodeValue(pData, (U8 *)&pTable->table.count, 8);
 		pTable->table.size = pTable->table.count;
 		pTable->table.pArr = pAlloc->fpCalloc(pTable->table.size, 1);
-		for (I32 j = 0; j < pTable->table.count; ++j) {
+		I32 count = 0;
+		stucDecodeValue(pData, (U8 *)&count, 8);
+		for (I32 j = 0; j < count; ++j) {
 			I32 idx = 0;
 			stucDecodeValue(pData, (U8 *)&idx, 8);
 			PIX_ERR_RETURN_IFNOT_COND(err, idx < pTable->table.count, "");
