@@ -145,6 +145,7 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 	HitEdgeTable hitEdges = {0};
 	hitEdges.size = pMesh->core.edgeCount;
 	hitEdges.pTable = pAlloc->fpCalloc(hitEdges.size, sizeof(HitEdge));
+	U8 triBuf[STUC_NGON_MAX_SIZE];
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, i);
 		V3_F32 tri[3] = {0};
@@ -160,9 +161,8 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 			wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 		}
 		else {
-			I32 triCount = face.size - 2;
-			FaceTriangulated tris = {.pTris = pAlloc->fpCalloc(triCount * 3, 1)};
-			stucTriangulateFaceFromVerts(pAlloc, &face, pMesh, &tris);
+			PIX_ERR_ASSERT("invalid face size", face.size <= STUC_NGON_MAX_SIZE);
+			I32 triCount = stucTriangulateFaceFromVerts(pAlloc, &face, pMesh, triBuf);
 			for (I32 j = 0; j < triCount; ++j) {
 				I32 triStart = j * 3;
 				getTri(
@@ -170,13 +170,12 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 					triVerts,
 					pMesh,
 					&face,
-					tris.pTris[triStart],
-					tris.pTris[triStart + 1],
-					tris.pTris[triStart + 2]
+					triBuf[triStart],
+					triBuf[triStart + 1],
+					triBuf[triStart + 2]
 				);
 				wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 			}
-			pAlloc->fpFree(tris.pTris);
 		}
 	}
 	return wind % 2;

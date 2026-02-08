@@ -123,7 +123,7 @@ void interpCacheUpdateTriMap(
 	pCache->active = STUC_INTERP_CACHE_TRI_MAP;
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
-	const U8 *pTri = stucGetTri(pBasic->pMap->triCache.pArr, mapFace.idx, mapTri);
+	const U8 *pTri = stucTriGet(&pBasic->pMap->triCache, mapFace.idx, mapTri);
 	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
 	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.start + inCorner];
 	_(&inUv V2SUBEQL fTile);
