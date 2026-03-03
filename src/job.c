@@ -29,8 +29,8 @@ void divideArrAmongstJobs(I32 arrSize, I32 *pJobCount, Range *pRanges) {
 		return;
 	}
 	PIX_ERR_ASSERT("", *pJobCount >= 0);
-	I32 jobCount =  *pJobCount && *pJobCount < PIX_THREAD_MAX_SUB_MAPPING_JOBS ?
-		*pJobCount : PIX_THREAD_MAX_SUB_MAPPING_JOBS;
+	I32 jobCount =  *pJobCount && *pJobCount < PIXTH_MAX_SUB_MAPPING_JOBS ?
+		*pJobCount : PIXTH_MAX_SUB_MAPPING_JOBS;
 	I32 piecesPerJob = arrSize / jobCount;
 	jobCount = !piecesPerJob ? 1 : jobCount;
 	for (I32 i = 0; i < jobCount; ++i) {
@@ -48,7 +48,7 @@ void stucMakeJobArgs(
 	I32 (* fpGetArrCount)(StucContext, const void *, void *),
 	void (* fpInitArgEntry)(StucContext, void *, void *, void *)
 ) {
-	Range ranges[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
+	Range ranges[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	divideArrAmongstJobs(fpGetArrCount(pCtx, pShared, pInitInfo), pJobCount, ranges);
 	for (I32 i = 0; i < *pJobCount; ++i) {
 		void *pArgEntry = (U8 *)pArgs + i * argStructSize;

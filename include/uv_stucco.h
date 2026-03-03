@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_types.h>
 #include <pixenals_alloc_utils.h>
 #include <pixenals_io_utils.h>
+#include <pixenals_thread_utils.h>
 
 #define STUC_DISABLE_EDGES_IN_BUF
 
@@ -33,7 +34,6 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_ATTRIB_STRING_MAX_LEN 64
 
 //TODO remove opaque strctures to allow external stack allocation
-typedef struct StucContextInternal *StucContext;
 typedef struct StucMapInternal *StucMap;
 typedef struct StucMapExportIntern StucMapExport;
 typedef struct StucMapLoadIntern StucMapLoad;
@@ -329,27 +329,18 @@ typedef struct StucObjArr {
 typedef PixalcFPtrs StucAlloc;
 
 typedef struct StucThreadPool {
-	PixErr (*fpInit)(void **, int32_t *, const StucAlloc *);
-	void (*fpJobStackGetJob)(void *, void **, int32_t);
+	PixErr (*fpInit)(PixthPoolCtx *, int32_t *, const StucAlloc *, bool);
 	StucErr (*pJobStackPushJobs)(
-		void *,
+		PixthPoolCtx *,
 		int32_t,
-		void **,
-		StucErr (*)(void *),
-		void **
+		int32_t,
+		PixthJob *
 	);
-	StucErr (*fpWaitForJobs)(void *, int32_t, void **, bool, bool *);
-	StucErr (*fpJobHandleDestroy)(void *, void **);
-	StucErr (*fpGetJobErr)(void *, void *, StucErr *);
-	bool (*fpGetAndDoJob)(void *, int32_t);
-	void (*fpMutexGet)(void *, void **);
-	void (*fpMutexLock)(void *, void *);
-	void (*fpMutexUnlock)(void *, void *);
-	void (*fpMutexDestroy)(void *, void *);
-	void (*fpBarrierGet)(void *, void **, int32_t);
-	bool (*fpBarrierWait)(void *, void *);
-	void (*fpBarrierDestroy)(void *, void *);
-	void (*fpDestroy)(void *);
+	StucErr (*fpWaitForJobs)(PixthPoolCtx *, int32_t, PixthJob *, int32_t, bool, bool *);
+	StucErr (*fpGetJobErr)(PixthPoolCtx *, PixthJob *, StucErr *);
+	StucErr (*fpLogDump)(PixthPoolCtx *, PixtyI8Arr *);
+	void (*fpDestroy)(PixthPoolCtx *);
+	PixthPoolCtx handle;
 } StucThreadPool;
 
 typedef PixioFileOpenType StucFileOpenType;
@@ -393,19 +384,42 @@ typedef struct StucStageReport {
 	int32_t outOf;
 } StucStageReport;
 
+//TODO rename to StucCtx and remove redundant opaque ptr typedef
+typedef struct StucContextInternal {
+	void *pCustom;
+	StucThreadPool threadPool;
+	StucAlloc alloc;
+	StucIo io;
+	I32 threadCount;
+	StucTypeDefaultConfig typeDefaults;
+	StucStageReport stageReport;
+	I32 stageInterval;
+	//these are used only for special attribs
+	// (ie, active attributes which are aliased internally for quick access).
+	//Non active attribs, or active attributes outside the special range, are not limited
+	//to these domains or types.
+	// spAttribNames are defaults for internal special attrib creation.
+	char spAttribNames[STUC_ATTRIB_USE_SP_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN];
+	StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT];
+	StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT];
+} StucContextInternal;
+typedef struct StucContextInternal *StucContext;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 STUC_EXPORT
+//TODO replace old param names, context should be pCtx
 StucErr stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
 StucErr stucContextInit(
-	StucContext *ppCtx,
+	StucContext pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pTheadPool,
 	StucIo *pIo,
 	StucTypeDefaultConfig *pTypeDefaultConfig,
-	StucStageReport *pStageReport
+	StucStageReport *pStageReport,
+	bool threadLogging
 );
 STUC_EXPORT
 StucErr stucMapExportInit(
@@ -509,7 +523,7 @@ StucErr stucDestroyBlendOptArr(
 STUC_EXPORT
 StucErr stucQueueMapToMesh(
 	StucContext pCtx,
-	void **ppJobHandle,
+	PixthJob *pJobHandle,
 	StucMapArr *pMapArr,
 	StucMesh *pMeshIn,
 	StucAttribIndexedArr *pInIndexedAttribs,
@@ -522,6 +536,7 @@ StucErr stucQueueMapToMesh(
 STUC_EXPORT
 StucErr stucMapToMesh(
 	StucContext pCtx,
+	I32 threadId,
 	const StucMapArr *pMapArr,
 	const StucMesh *pMeshIn,
 	const StucAttribIndexedArr *pInIndexedAttribs,
@@ -569,7 +584,7 @@ STUC_EXPORT
 StucErr stucWaitForJobs(
 	StucContext pCtx,
 	int32_t count,
-	void **ppHandles,
+	PixthJob *pHandles,
 	bool wait,
 	bool *pDone
 );
@@ -577,13 +592,7 @@ STUC_EXPORT
 StucErr stucJobGetErrs(
 	StucContext pCtx,
 	int32_t jobCount,
-	void ***pppJobHandles
-);
-STUC_EXPORT
-void stucJobDestroyHandles(
-	StucContext pCtx,
-	int32_t jobCount,
-	void **ppJobHandles
+	PixthJob *pJobHandles
 );
 STUC_EXPORT
 StucErr stucAttribSpTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
@@ -674,6 +683,28 @@ StucErr stucMeshAllocCopy(
 STUC_EXPORT
 StucErr stucCopyMesh(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
 
+#ifdef STUC_DEBUG_UTILS
+static inline
+StucErr stucThreadPoolLogDump(StucContext pCtx, const char *pPath) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PixtyI8Arr log = {0};
+	err = pCtx->threadPool.fpLogDump(&pCtx->threadPool.handle, &log);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	void *pFile = NULL;
+	err = pixioFileOpen(&pFile, pPath, PIX_IO_FILE_OPEN_WRITE, &pCtx->alloc);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = pixioFileWrite(pFile, log.pArr, log.count);
+	PIX_ERR_THROW_IFNOT(err, "", 1);
+	PIX_ERR_CATCH(1, err, ;);
+	err = pixioFileClose(pFile);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_CATCH(0, err, ;);
+	if (log.pArr) {
+		pCtx->alloc.fpFree(log.pArr);
+	}
+	return err;
+}
+#endif
 
 #ifdef __cplusplus
 }

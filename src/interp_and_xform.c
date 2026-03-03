@@ -3,7 +3,6 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: Apache-2.0
 */
 
-#include <context.h>
 #include <map.h>
 #include <attrib_utils.h>
 #include <interp_and_xform.h>
@@ -16,6 +15,7 @@ typedef struct xformAndInterpVertsJobArgs {
 	const InPieceArr *pInPiecesClip;
 	PixalcLinAlloc *pVertAlloc;
 	bool intersect;
+	JobArgsFoot foot;
 } xformAndInterpVertsJobArgs;
 
 typedef struct InterpAttribsJobArgs {
@@ -26,6 +26,7 @@ typedef struct InterpAttribsJobArgs {
 	const PixuctHTable *pMergeTable;
 	const BufOutRangeTable *pBufOutTable;
 	const OutBufIdxArr *pOutBufIdxArr;
+	JobArgsFoot foot;
 } InterpAttribsJobArgs;
 
 static
@@ -815,6 +816,7 @@ void xformVertsJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, voi
 
 StucErr stucXFormAndInterpVerts(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,
@@ -822,7 +824,7 @@ StucErr stucXFormAndInterpVerts(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 jobCount = 0;
-	xformAndInterpVertsJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
+	xformAndInterpVertsJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,
@@ -837,6 +839,7 @@ StucErr stucXFormAndInterpVerts(
 	);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
+		threadId,
 		jobCount, jobArgs, sizeof(xformAndInterpVertsJobArgs),
 		xformAndInterpVertsInRange
 	);
@@ -875,6 +878,7 @@ void interpAttribsJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, 
 
 StucErr stucInterpAttribs(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,
@@ -885,7 +889,7 @@ StucErr stucInterpAttribs(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 jobCount = 0;
-	InterpAttribsJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
+	InterpAttribsJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,
@@ -902,6 +906,7 @@ StucErr stucInterpAttribs(
 	);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
+		threadId,
 		jobCount, jobArgs, sizeof(InterpAttribsJobArgs),
 		job
 	);

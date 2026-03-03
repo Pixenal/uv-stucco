@@ -1127,6 +1127,7 @@ typedef struct BufMeshInitJobArgs {
 	);
 	const InPieceArr *pInPiecesSplit;
 	BufMesh bufMesh;
+	JobArgsFoot foot;
 } BufMeshInitJobArgs;
 
 StucErr stucBufMeshInit(void *pArgsVoid) {
@@ -1254,6 +1255,7 @@ void bufMeshArrMoveToInPieces(
 
 StucErr stucInPieceArrInitBufMeshes(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	InPieceArr *pInPieces,
 	StucErr (* fpAddPiece)(
 		const MapToMeshBasic *,
@@ -1267,7 +1269,7 @@ StucErr stucInPieceArrInitBufMeshes(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 jobCount = 0;
-	BufMeshInitJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
+	BufMeshInitJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,
@@ -1276,6 +1278,7 @@ StucErr stucInPieceArrInitBufMeshes(
 		bufMeshInitJobsGetRange, bufMeshInitJobInit);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
+		threadId,
 		jobCount, jobArgs, sizeof(BufMeshInitJobArgs),
 		stucBufMeshInit
 	);

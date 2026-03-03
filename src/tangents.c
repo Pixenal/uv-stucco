@@ -58,6 +58,7 @@ typedef struct TangentJobArgs {
 	I32 cornerCount;
 	V3_F32 *pTangents;
 	F32 *pTSigns;
+	JobArgsFoot foot;
 } TangentJobArgs;
 
 typedef struct TangentTris {
@@ -352,6 +353,7 @@ void copyTangentsFromJobFaces(
 
 StucErr stucBuildTangentsForInPieces(
 	StucContext pCtx,
+	I32 threadId,
 	Mesh *pInMesh,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable
@@ -361,7 +363,7 @@ StucErr stucBuildTangentsForInPieces(
 	buildTPieces(pCtx, pInMesh, pInPieces, pInPiecesClip, pMergeTable, &tPieces);
 	PIX_ERR_ASSERT("", tPieces.pArr);
 	I32 jobCount = tPieces.count; //max jobs
-	TangentJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
+	TangentJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pCtx,
 		pInMesh,
@@ -408,6 +410,7 @@ StucErr stucBuildTangentsForInPieces(
 	tPieces = (TPieceArr) {.pInFaces = tPieces.pInFaces, .faceCount = tPieces.faceCount};
 	err = stucDoJobInParallel(
 		pCtx,
+		threadId,
 		jobCount, jobArgs, sizeof(TangentJobArgs),
 		stucBuildTangents
 	);
@@ -569,7 +572,7 @@ void mikktTrisSetTSpaceBasic(
 static
 StucErr stucBuildTangentsIntern(StucContext pCtx, SMikkTSpaceContext *pMikktCtx) {
 	StucErr err = PIX_ERR_SUCCESS;
-	if (!genTangSpaceDefault(pMikktCtx, pCtx->pThreadPoolHandle)) {
+	if (!genTangSpaceDefault(pMikktCtx, &pCtx->threadPool.handle)) {
 		PIX_ERR_RETURN(err, "mikktspace func 'genTangSpaceDefault' returned error");
 	}
 	return err;
@@ -590,7 +593,8 @@ StucErr stucBuildTangents(void *pArgsVoid) {
 	SMikkTSpaceContext mikktCtx = {
 		.m_pInterface = &mikktInterface,
 		.m_pUserData = pArgsVoid,
-		.alloc = *pAlloc
+		.alloc = *pAlloc,
+		.threadId = pArgs->core.threadId
 	};
 	pArgs->pTangents = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(V3_F32));
 	pArgs->pTSigns = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(F32));
@@ -613,7 +617,8 @@ StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh) {
 	SMikkTSpaceContext mikktCtx = {
 		.m_pInterface = &mikktInterface,
 		.m_pUserData = &state,
-		.alloc = pCtx->alloc
+		.alloc = pCtx->alloc,
+		.threadId = 0
 	};
 	err = stucBuildTangentsIntern(pCtx, &mikktCtx);
 	PIX_ERR_RETURN_IFNOT(err, "");

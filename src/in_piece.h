@@ -8,7 +8,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_thread_utils.h>
 
 #include <job.h>
-#include <context.h>
 #include <pixenals_structs.h>
 #include <mesh.h>
 
@@ -178,7 +177,7 @@ typedef struct BufMesh {
 } BufMesh;
 
 typedef struct BufMeshArr {
-	BufMesh arr[PIX_THREAD_MAX_SUB_MAPPING_JOBS];
+	BufMesh arr[PIXTH_MAX_SUB_MAPPING_JOBS];
 	I32 count;
 } BufMeshArr;
 
@@ -193,6 +192,7 @@ typedef struct FindEncasedFacesJobArgs {
 	JobArgs core;
 	PixuctHTable encasedFaces;
 	InPieceArr inPiecesMono;
+	JobArgsFoot foot;
 } FindEncasedFacesJobArgs;
 
 typedef struct SplitInPiecesAlloc {
@@ -277,12 +277,14 @@ StucErr stucAddMapFaceToBufMesh(
 StucErr stucBufMeshInit(void *pArgsVoid);
 StucErr stucInPieceArrInit(
 	struct MapToMeshBasic *pBasic,
+	I32 threadId,
 	InPieceArr *pInPieces,
 	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
 	bool *pEmpty
 );
 StucErr stucInPieceArrInitBufMeshes(
 	struct MapToMeshBasic *pBasic,
+	I32 threadId,
 	InPieceArr *pInPieces,
 	StucErr (* fpAddPiece)(
 		const struct MapToMeshBasic *,
@@ -300,6 +302,7 @@ I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
 //destroys in-piece arr after splitting
 StucErr stucInPieceArrSplit(
 	struct MapToMeshBasic *pBasic,
+	I32 threadId,
 	InPieceArr *pInPieces,
 	InPieceArr *pInPiecesSplit,
 	InPieceArr *pInPiecesSplitClip,

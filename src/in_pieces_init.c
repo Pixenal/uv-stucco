@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <in_piece.h>
 #include <quadtree.h>
-#include <context.h>
 #include <map.h>
 #include <utils.h>
 
@@ -526,6 +525,7 @@ void linkEncasedTableEntries(
 
 StucErr stucInPieceArrInit(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	InPieceArr *pInPieces,
 	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
 	bool *pEmpty
@@ -540,6 +540,7 @@ StucErr stucInPieceArrInit(
 	);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
+		threadId,
 		*pJobCount, pJobArgs, sizeof(FindEncasedFacesJobArgs),
 		stucFindEncasedFaces
 	);

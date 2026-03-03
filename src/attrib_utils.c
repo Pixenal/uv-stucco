@@ -15,7 +15,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_error_utils.h>
 
 #include <attrib_utils.h>
-#include <context.h>
 #include <mesh.h>
 
 void stucSetDefaultSpAttribNames(StucContext pCtx) {

@@ -13,7 +13,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <assert.h>
 
 #include <quadtree.h>
-#include <context.h>
 #include <map.h>
 #include <pixenals_math_utils.h>
 #include <utils.h>

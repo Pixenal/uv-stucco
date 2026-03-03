@@ -4,7 +4,6 @@ SPDX-License-Identifier: Apache-2.0
 */
 
 #include <merge_and_snap.h>
-#include <context.h>
 #include <map.h>
 #include <job.h>
 #include <utils.h>
@@ -288,6 +287,7 @@ typedef struct SnapJobArgs {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
 	I32 snappedCount;
+	JobArgsFoot foot;
 } SnapJobArgs;
 
 typedef struct SnapJobInitInfo {
@@ -332,6 +332,7 @@ StucErr snapIntersectVertsInRange(void *pArgsVoid) {
 
 StucErr stucSnapIntersectVerts(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,
@@ -339,7 +340,7 @@ StucErr stucSnapIntersectVerts(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 jobCount = 0;
-	SnapJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = {0};
+	SnapJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,
@@ -352,6 +353,7 @@ StucErr stucSnapIntersectVerts(
 		snapJobsGetRange, snapJobInit);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
+		threadId,
 		jobCount, jobArgs, sizeof(SnapJobArgs),
 		snapIntersectVertsInRange
 	);

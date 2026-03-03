@@ -14,7 +14,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <mesh.h>
 #include <usg.h>
 #include <types.h>
-#include <context.h>
 #include <map.h>
 #include <pixenals_structs.h>
 #include <in_piece.h>
@@ -66,6 +65,7 @@ typedef struct BufOutRangeTable {
 
 StucErr stucBuildTangentsForInPieces(
 	StucContext pCtx,
+	I32 threadId,
 	Mesh *pInMesh,
 	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable

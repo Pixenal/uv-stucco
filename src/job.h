@@ -9,11 +9,19 @@ SPDX-License-Identifier: Apache-2.0
 struct MapToMeshBasic;
 
 typedef struct JobArgs {
+	//padding between this and previous arg entry (core is always the first component)
+	char padding[PIXTH_CACHELINE_SIZE / 2];
 	const void *pShared;
+	PixErr (*fpJob) (void *);
 	StucContext pCtx;
 	Range range;
 	I32 id;
+	I32 threadId;
 } JobArgs;
+
+typedef struct JobArgsFoot {
+	char padding[PIXTH_CACHELINE_SIZE / 2];
+} JobArgsFoot;
 
 void stucMakeJobArgs(
 	StucContext pCtx,

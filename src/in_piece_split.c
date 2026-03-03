@@ -6,7 +6,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <string.h>
 
 #include <in_piece.h>
-#include <context.h>
 #include <map.h>
 #include <utils.h>
 
@@ -16,6 +15,7 @@ typedef struct SplitInPiecesJobArgs {
 	InPieceArr newInPieces;
 	InPieceArr newInPiecesClip;
 	SplitInPiecesAlloc alloc;
+	JobArgsFoot foot;
 } SplitInPiecesJobArgs;
 
 void splitInPiecesJobInit(StucContext pCtx, void *pShared, void *pInitInfo, void *pEntryVoid) {
@@ -739,6 +739,7 @@ I32 inPiecesJobsGetRange(StucContext pCtx, const void *pShared, void *pInitEntry
 
 StucErr stucInPieceArrSplit(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	InPieceArr *pInPieces,
 	InPieceArr *pInPiecesSplit,
 	InPieceArr *pInPiecesSplitClip,
@@ -746,7 +747,7 @@ StucErr stucInPieceArrSplit(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 jobCount = 0;
-	SplitInPiecesJobArgs jobArgs[PIX_THREAD_MAX_SUB_MAPPING_JOBS] = { 0 };
+	SplitInPiecesJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = { 0 };
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,
@@ -756,6 +757,7 @@ StucErr stucInPieceArrSplit(
 	);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
+		threadId,
 		jobCount, jobArgs, sizeof(SplitInPiecesJobArgs),
 		splitInPieces
 	);

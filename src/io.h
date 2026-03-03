@@ -15,8 +15,8 @@ SPDX-License-Identifier: Apache-2.0
 typedef struct ByteString {
 	unsigned char *pString;
 	I64 size;
-	I64 nextBitIdx;
 	I64 byteIdx;
+	I32 nextBitIdx;
 } ByteString;
 
 typedef struct StucHeader {

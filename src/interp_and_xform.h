@@ -72,6 +72,7 @@ void stucInterpBufAttrib(
 );
 StucErr stucInterpAttribs(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,
@@ -82,6 +83,7 @@ StucErr stucInterpAttribs(
 );
 StucErr stucXFormAndInterpVerts(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,

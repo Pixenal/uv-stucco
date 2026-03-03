@@ -118,6 +118,7 @@ void stucMergeTableGetVertKey(
 
 StucErr stucSnapIntersectVerts(
 	MapToMeshBasic *pBasic,
+	I32 threadId,
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	PixuctHTable *pMergeTable,

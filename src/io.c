@@ -24,7 +24,6 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <io.h>
 #include <map.h>
-#include <context.h>
 #include <attrib_utils.h>
 
 typedef enum DataTag {
@@ -58,7 +57,10 @@ typedef enum DataTag {
 #define DATA_TAG_KEY(charA, charB) ((U64)charA * 16777619 | (U64)charB * 7907 << 32)
 #define DATA_TAG_KEY_MAX 251
 #define DATA_TAG_KEY_TO_STR(key) \
-	(char[2]){(key & 0xffffffff) / 16777619, (key >> 32) / 7907}
+	(char[2]) {\
+		(char)((key & 0xffffffff) / 16777619),\
+		(char)((key >> 32) / 7907)\
+	}
 
 #define TAG_STR_HEADER                DATA_TAG_KEY('H', 'E')
 #define TAG_STR_DATA                  DATA_TAG_KEY('D', 'A')
@@ -478,7 +480,7 @@ void encodeRedirectTable(
 		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->idx, 16);
 		stucEncodeValue(pAlloc, pData, (U8 *)&pTable->table.count, 8);
 		PIX_ERR_ASSERT("", !pData->nextBitIdx);
-		I32 countMem = pData->byteIdx;
+		I64 countMem = pData->byteIdx;
 		stucEncodeValue(pAlloc, pData, &(U8){0}, 8);
 		I32 count = 0;
 		for (I32 j = 0; j < pTable->table.count; ++j) {
@@ -591,7 +593,7 @@ void encodeBlendOpts(
 		StucBlendOptArr *pArr = pMapArrEntry->blendOptArr + domain; 
 		const AttribArray *pAttribArr = stucGetAttribArrFromDomainConst(pMesh, domain);
 
-		I32 countBytePos = pBlendOptBuf->byteIdx;
+		I64 countBytePos = pBlendOptBuf->byteIdx;
 		stucEncodeValue(pAlloc, pBlendOptBuf, (U8[]){0, 0}, 16);
 		I32 count = 0;
 		for (I32 j = 0; j < pArr->count; ++j) {
@@ -652,6 +654,12 @@ void optsFinalEncode(
 }
 
 static
+PixuctKey keyFromPath(const void *pKeyData) {
+	I32 len = (I32)strnlen(pKeyData, pixioPathMaxGet());
+	return (PixuctKey){.pKey = pKeyData, .size = len};
+}
+
+static
 StucErr encodeMappingOpt(
 	StucMapExport *pHandle,
 	const StucMesh *pMesh,
@@ -671,7 +679,7 @@ StucErr encodeMappingOpt(
 	const Attrib *pAttrib =
 		stucGetActiveAttribConst(pHandle->pCtx, &meshCpy, STUC_ATTRIB_USE_IDX);
 	encodeDataTag(pAlloc, pData, TAG_MAP_OVERRIDES);
-	I32 countDataPos = pData->byteIdx;
+	I64 countDataPos = pData->byteIdx;
 	stucEncodeValue(pAlloc, pData, (U8[]){0, 0}, 16);
 	I32 count = 0;
 	const AttribIndexed *pMats =
@@ -695,7 +703,7 @@ StucErr encodeMappingOpt(
 			(void **)&pEntry,
 			true,
 			&(MatMapEntryInit) {.pMap = pMapArr->pArr[i].map.ptr, .opt = mappingOpt},
-			stucKeyFromPath, NULL, matMapEntryInit, matMapEntryCmp
+			keyFromPath, NULL, matMapEntryInit, matMapEntryCmp
 		);
 		bool wScaleOverride = pEntry->opt.wScale != wScale;
 		bool receiveOverride = pEntry->opt.receiveLen != receiveLen;
@@ -831,7 +839,7 @@ StucErr stucMapExportInit(
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pCtx->alloc;
 	PIX_ERR_RETURN_IFNOT_COND(err, pPath[0], "path is empty");
-	I32 pathLen = strnlen(pPath, pixioPathMaxGet());
+	I32 pathLen = (I32)strnlen(pPath, pixioPathMaxGet());
 	PIX_ERR_RETURN_IFNOT_COND(err, pathLen != pixioPathMaxGet(), "path is too long");
 	++pathLen;
 	StucMapExport *pHandle = pAlloc->fpCalloc(1, sizeof(StucMapExport));
@@ -916,10 +924,10 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 		)
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	zStream.avail_out = deflateBound(&zStream, dataSize);
+	zStream.avail_out = deflateBound(&zStream, (uLong)dataSize);
 	pCompressed = pAlloc->fpMalloc(zStream.avail_out);
 	zStream.next_out = pCompressed;
-	zStream.avail_in = dataSize;
+	zStream.avail_in = (uInt)dataSize;
 	zStream.next_in = pHandle->data.pString;
 	err = checkZlibErr(Z_STREAM_END, deflate(&zStream, Z_FINISH));
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -957,7 +965,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = pHandle->pCtx->io.fpWrite(pFile, (U8 *)&header.size, 4);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(pFile, header.pString, header.size);
+	err = pHandle->pCtx->io.fpWrite(pFile, header.pString, (I32)header.size);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = pHandle->pCtx->io.fpWrite(pFile, pCompressed, (I32)zStream.total_out);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -1070,8 +1078,9 @@ StucErr setRedirects(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	AttribIndexed *pAttrib = getGlobIdxAttrib(pHandle, pRef);
-	pIdxTable->idx = 
-		((intptr_t)pAttrib - (intptr_t)pHandle->idxAttribs.pArr) / sizeof(AttribIndexed);
+	pIdxTable->idx = (I32)(
+		((intptr_t)pAttrib - (intptr_t)pHandle->idxAttribs.pArr) / sizeof(AttribIndexed)
+	);
 	PIX_ERR_ASSERT("", pIdxTable->idx >= 0 && pIdxTable->idx < pHandle->idxAttribs.count);
 	pIdxTable->table.pArr = pHandle->pCtx->alloc.fpCalloc(pRef->count, 1);
 	for (I32 i = 0; i < pRef->count; ++i) {
@@ -1360,7 +1369,7 @@ StucErr decodeStucHeader(
 			case TAG_DEP_TYPE_MAP: {
 				memset(pBuf, 0, pathMax);
 				stucDecodeString(pByteString, pBuf, pathMax);
-				I32 len = strnlen(pBuf, pathMax);
+				I32 len = (I32)strnlen(pBuf, pathMax);
 				PIX_ERR_THROW_IFNOT_COND(err, len != pathMax, "", 0);
 				I32 newIdx = 0;
 				PIXALC_DYN_ARR_ADD(PixtyStr, &pCtx->alloc, &pDeps->maps, newIdx);
@@ -1954,10 +1963,10 @@ StucErr stucMapImport(
 	zStream.next_in = pDataRaw;
 	err = checkZlibErr(Z_OK, inflateInit2(&zStream, STUC_WINDOW_BITS));
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	zStream.avail_in = header.dataSizeCompressed;
+	zStream.avail_in = (uInt)header.dataSizeCompressed;
 	dataByteString.pString = pCtx->alloc.fpMalloc(header.dataSize);
 	zStream.next_out = dataByteString.pString;
-	zStream.avail_out = header.dataSize;
+	zStream.avail_out = (uInt)header.dataSize;
 	err = checkZlibErr(Z_STREAM_END, inflate(&zStream, Z_FINISH));
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = checkZlibErr(Z_OK, inflateEnd(&zStream));
@@ -2015,7 +2024,7 @@ void stucIoSetDefault(StucContext pCtx) {
 
 const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen) {
 	I32 pathMax = pixioPathMaxGet();
-	I32 len = strnlen(pStr, pathMax);
+	I32 len = (I32)strnlen(pStr, pathMax);
 	if (len > pathMax) {
 		if (pNameLen) {
 			*pNameLen = 0;
