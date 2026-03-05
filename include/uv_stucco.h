@@ -111,7 +111,8 @@ typedef enum StucBlendMode {
 	STUC_BLEND_OVERLAY,
 	STUC_BLEND_SOFT_LIGHT,
 	STUC_BLEND_COLOR_DODGE,
-	STUC_BLEND_APPEND //strings only
+	STUC_BLEND_APPEND, //strings only
+	STUC_BLEND_ENUM_COUNT
 } StucBlendMode;
 
 typedef enum StucAttribOrigin {

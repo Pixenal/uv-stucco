@@ -90,15 +90,6 @@ F64 clamp(F64 a, F64 min, F64 max) {
 */
 
 static
-void fBlendReplace(F64 *pDest, F64 a, F64 b) {
-	*pDest = b;
-}
-static
-void iBlendReplace(I64 *pDest, I64 a, I64 b) {
-	*pDest = b;
-}
-
-static
 void fBlendMultiply(F64 *pDest, F64 a, F64 b) {
 	*pDest = a * b;
 }
@@ -802,29 +793,15 @@ AttribType stucAttribGetCompTypeIntern(AttribType type) {
 	return (type -  STUC_ATTRIB_I8) % (STUC_ATTRIB_V2_I8 - STUC_ATTRIB_I8);
 }
 
+static I32 compSizes[STUC_ATTRIB_V2_I8] = {1, 2, 4, 8, 4, 8};
+
 static
 I32 getAttribCompTypeSize(AttribType type) {
 	if (type >= STUC_ATTRIB_V2_I8) {
 		type = stucAttribGetCompTypeIntern(type);
 	}
-	switch (type) {
-		case STUC_ATTRIB_I8:
-			return 1;
-		case STUC_ATTRIB_I16:
-			return 2;
-		case STUC_ATTRIB_I32:
-			return 4;
-		case STUC_ATTRIB_I64:
-			return 8;
-		case STUC_ATTRIB_F32:
-			return 4;
-		case STUC_ATTRIB_F64:
-			return 8;
-		default:
-			PIX_ERR_ASSERT("invalid attrib type", false);
-	}
-	PIX_ERR_ASSERT("invalid type", false);
-	return 0;
+	PIX_ERR_ASSERT("invalid attrib type", type >= 0 && type < STUC_ATTRIB_V2_I8);
+	return compSizes[type];
 }
 
 static
@@ -962,6 +939,26 @@ void blendComponents(
 	}\
 }
 
+typedef struct BlendFuncs {
+	void (* f)(F64 *, F64, F64);
+	void (* i)(I64 *, I64, I64);
+} BlendFuncs;
+
+static BlendFuncs blendFuncs[STUC_BLEND_ENUM_COUNT] = {
+	{.f = NULL, .i = NULL},
+	{.f = fBlendMultiply, .i = iBlendMultiply},
+	{.f = fBlendDivide, .i = iBlendDivide},
+	{.f = fBlendAdd, .i = iBlendAdd},
+	{.f = fBlendSubtract, .i = iBlendSubtract},
+	{.f = fBlendAddSub, .i = NULL},
+	{.f = fBlendLighten, .i = iBlendLighten},
+	{.f = fBlendDarken, .i = iBlendDarken},
+	{.f = fBlendOverlay, .i = NULL},
+	{.f = fBlendSoftLight, .i = NULL},
+	{.f = fBlendColorDodge, .i = NULL},
+	{.f = NULL, .i = NULL}
+};
+
 static
 void blendSwitch(
 	StucBlendConfig blendConfig,
@@ -972,163 +969,34 @@ void blendSwitch(
 	bool isSigned
 ) {
 	void *pDestVal = stucAttribAsVoid(pDest, iDest);
-	const void *pAVal = stucAttribAsVoidConst(pA, iA);
 	const void *pBVal = stucAttribAsVoidConst(pB, iB);
-	AttribType destCompType = stucAttribGetCompTypeIntern(pDest->type);
-	AttribType aCompType = stucAttribGetCompTypeIntern(pA->type);
-	AttribType bCompType = stucAttribGetCompTypeIntern(pB->type);
-	I32 destVecSize = stucAttribTypeGetVecSizeIntern(pDest->type);
-	I32 aVecSize = stucAttribTypeGetVecSizeIntern(pA->type);
-	I32 bVecSize = stucAttribTypeGetVecSizeIntern(pB->type);
-	switch (blendConfig.blend) {
-		case STUC_BLEND_REPLACE:
-			if (blendFlags >> STUC_BLEND_REPLACE & 0x1) {
-				blendComponents(
-					fBlendReplace,
-					iBlendReplace,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_MULTIPLY:
-			if (blendFlags >> STUC_BLEND_MULTIPLY & 0x1) {
-				blendComponents(
-					fBlendMultiply,
-					iBlendMultiply,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_DIVIDE:
-			if (blendFlags >> STUC_BLEND_DIVIDE & 0x1) {
-				blendComponents(
-					fBlendDivide,
-					iBlendDivide,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_ADD:
-			if (blendFlags >> STUC_BLEND_ADD & 0x1) {
-				blendComponents(
-					fBlendAdd,
-					iBlendAdd,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_SUBTRACT:
-			if (blendFlags >> STUC_BLEND_SUBTRACT & 0x1) {
-				blendComponents(
-					fBlendSubtract,
-					iBlendSubtract,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_ADD_SUB:
-			if (blendFlags >> STUC_BLEND_ADD_SUB & 0x1) {
-				blendComponents(
-					fBlendAddSub,
-					NULL,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_LIGHTEN:
-			if (blendFlags >> STUC_BLEND_LIGHTEN & 0x1) {
-				blendComponents(
-					fBlendLighten,
-					iBlendLighten,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_DARKEN:
-			if (blendFlags >> STUC_BLEND_DARKEN & 0x1) {
-				blendComponents(
-					fBlendDarken,
-					iBlendDarken,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_OVERLAY:
-			if (blendFlags >> STUC_BLEND_OVERLAY & 0x1) {
-				blendComponents(
-					fBlendOverlay,
-					NULL,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_SOFT_LIGHT:
-			if (blendFlags >> STUC_BLEND_SOFT_LIGHT & 0x1) {
-				blendComponents(
-					fBlendSoftLight,
-					NULL,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_COLOR_DODGE:
-			if (blendFlags >> STUC_BLEND_COLOR_DODGE & 0x1) {
-				blendComponents(
-					fBlendColorDodge,
-					NULL,
-					blendConfig,
-					pDestVal, destCompType, destVecSize,
-					pAVal, aCompType, aVecSize, normalizeA, aMax,
-					pBVal, bCompType, bVecSize, normalizeB, bMax,
-					isSigned
-				);
-			}
-			break;
-		case STUC_BLEND_APPEND:
-			if (blendFlags >> STUC_BLEND_APPEND & 0x1) {
-				//TODO
-			}
-			break;
+	PIX_ERR_ASSERT(
+		"",
+		blendConfig.blend >= 0 && blendConfig.blend < STUC_BLEND_ENUM_COUNT
+	);
+	if (blendConfig.blend == STUC_BLEND_REPLACE) {
+		memcpy(pDestVal, pBVal, stucGetAttribSizeIntern(pDest->type));
+	}
+	else if (blendConfig.blend == STUC_BLEND_APPEND) {
+		//TODO
+	}
+	else {
+		const void *pAVal = stucAttribAsVoidConst(pA, iA);
+		AttribType destCompType = stucAttribGetCompTypeIntern(pDest->type);
+		AttribType aCompType = stucAttribGetCompTypeIntern(pA->type);
+		AttribType bCompType = stucAttribGetCompTypeIntern(pB->type);
+		I32 destVecSize = stucAttribTypeGetVecSizeIntern(pDest->type);
+		I32 aVecSize = stucAttribTypeGetVecSizeIntern(pA->type);
+		I32 bVecSize = stucAttribTypeGetVecSizeIntern(pB->type);
+		blendComponents(
+			blendFuncs[blendConfig.blend].f,
+			blendFuncs[blendConfig.blend].i,
+			blendConfig,
+			pDestVal, destCompType, destVecSize,
+			pAVal, aCompType, aVecSize, normalizeA, aMax,
+			pBVal, bCompType, bVecSize, normalizeB, bMax,
+			isSigned
+		);
 	}
 }
 

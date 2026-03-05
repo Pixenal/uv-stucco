@@ -148,23 +148,29 @@ StucErr getInterpolatedTbn(
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
 	InterpCacheLimited *pInInterpCache,
+	const V3_F32 *pNormal,
 	M3x3 *pTbn
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	V3_F32 tangent = {0};
 	V3_F32 normal = {0};
 	F32 tSign = .0f;
-	err = interpActiveAttrib(
-		pBasic,
-		pInPiece,
-		pBufMesh,
-		bufCorner,
-		pInInterpCache,
-		&normal,
-		STUC_ATTRIB_V3_F32,
-		STUC_ATTRIB_USE_NORMAL
-	);
-	PIX_ERR_RETURN_IFNOT(err, "");
+	if (pNormal) {
+		normal = *pNormal;
+	}
+	else {
+		err = interpActiveAttrib(
+			pBasic,
+			pInPiece,
+			pBufMesh,
+			bufCorner,
+			pInInterpCache,
+			&normal,
+			STUC_ATTRIB_V3_F32,
+			STUC_ATTRIB_USE_NORMAL
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
 	err = interpActiveAttrib(
 		pBasic,
 		pInPiece,
@@ -212,6 +218,7 @@ StucErr mapUvwToXyzFlat(
 		pBufMesh,
 		bufCorner,
 		pInInterpCache,
+		NULL,
 		pTbn
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -373,9 +380,70 @@ void blendCommonAttrib(
 	);
 }
 
+typedef struct AttribPair {
+	Attrib *pOut;
+	const Attrib *pIn;
+	const Attrib *pMap;
+} AttribPair;
+
+typedef struct AttribCache {
+	AttribPair *pArr;
+	I32 size;
+	I32 count;
+} AttribCache;
+
+static
+void cacheAttribPairs(
+	const MapToMeshBasic *pBasic,
+	Mesh *pOutMesh,
+	StucDomain domain,
+	AttribCache *pCache
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	AttribArray *pOutAttribArr = stucGetAttribArrFromDomain(&pOutMesh->core, domain);
+	const AttribArray *pMapAttribArr =
+		stucGetAttribArrFromDomainConst(&pBasic->pMap->pMesh->core, domain);
+	const AttribArray *pInAttribArr =
+		stucGetAttribArrFromDomainConst(&pBasic->pInMesh->core, domain);
+	PIXALC_DYN_ARR_RESIZE(AttribPair, &pBasic->pCtx->alloc, pCache, pOutAttribArr->count);
+	pCache->count = 0;
+	for (I32 i = 0; i < pOutAttribArr->count; ++i) {
+		pCache->pArr[i].pOut = pOutAttribArr->pArr + i;
+		PIX_ERR_ASSERT(
+			"string attribs are only for internal use. This needs to be caught earlier",
+			pCache->pArr[i].pOut->core.type != STUC_ATTRIB_STRING
+		);
+		if (pCache->pArr[i].pOut ==
+			stucGetActiveAttrib(pBasic->pCtx, &pOutMesh->core, STUC_ATTRIB_USE_POS)
+		) {
+			continue;
+		}
+		err = stucGetMatchingAttribConst(
+			pBasic->pCtx,
+			&pBasic->pInMesh->core, pInAttribArr,
+			&pOutMesh->core, pCache->pArr[i].pOut,
+			true,
+			false,
+			&pCache->pArr[i].pIn
+		);
+		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
+		stucGetMatchingAttribConst(
+			pBasic->pCtx,
+			&pBasic->pMap->pMesh->core, pMapAttribArr,
+			&pOutMesh->core, pCache->pArr[i].pOut,
+			true,
+			false,
+			&pCache->pArr[i].pMap
+		);
+		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
+		++pCache->count;
+	}
+}
+
 static
 void interpAndBlendAttribs(
 	const MapToMeshBasic *pBasic,
+	AttribCache *pCache,
 	Mesh *pOutMesh,
 	I32 dataIdx,
 	StucDomain domain,
@@ -383,7 +451,8 @@ void interpAndBlendAttribs(
 	const BufMesh *pBufMesh,//corners or verts
 	const FaceCorner *pBufCorner,//corners or verts
 	InterpCaches *pInterpCaches,//corners or verts
-	const SrcFaces *pSrcFaces//faces
+	const SrcFaces *pSrcFaces,//faces
+	V3_F32 *pNormal
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	if (domain == STUC_DOMAIN_FACE) {
@@ -395,6 +464,7 @@ void interpAndBlendAttribs(
 	else {
 		PIX_ERR_ASSERT("invalid domain for this func", false);
 	}
+	/*
 	AttribArray *pOutAttribArr = stucGetAttribArrFromDomain(&pOutMesh->core, domain);
 	const AttribArray *pMapAttribArr =
 		stucGetAttribArrFromDomainConst(&pBasic->pMap->pMesh->core, domain);
@@ -433,7 +503,12 @@ void interpAndBlendAttribs(
 			&pMapAttrib
 		);
 		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
+		*/
 
+	for (I32 i = 0; i < pCache->count; ++i) {
+		AttribPair attribs = pCache->pArr[i];
+		AttribType type = attribs.pOut->core.type;
+		AttribUse use = attribs.pOut->core.use;
 		U64 inBuf[4] = {0};
 		Attrib inAttribWrap = {
 			.core = {.pData = inBuf, .type = type, .use = use},
@@ -447,7 +522,7 @@ void interpAndBlendAttribs(
 
 		bool interpIn = false;
 		bool interpMap = false;
-		switch (pOutAttrib->origin) {
+		switch (attribs.pOut->origin) {
 			case STUC_ATTRIB_ORIGIN_COMMON:
 				interpIn = interpMap = true;
 				break;
@@ -461,11 +536,14 @@ void interpAndBlendAttribs(
 				PIX_ERR_ASSERT("invalid attrib origin", false);
 		}
 		if (interpIn) {
-			PIX_ERR_ASSERT("", pInAttrib->core.type == type && pInAttrib->core.use == use);
+			PIX_ERR_ASSERT(
+				"",
+				attribs.pIn->core.type == type && attribs.pIn->core.use == use
+			);
 			if (domain == STUC_DOMAIN_FACE) {
 				stucCopyAttribCore(
 					&inAttribWrap.core, 0,
-					&pInAttrib->core, pSrcFaces->in
+					&attribs.pIn->core, pSrcFaces->in
 				);
 			}
 			else {
@@ -475,17 +553,20 @@ void interpAndBlendAttribs(
 					pBufMesh,
 					*pBufCorner,
 					&inAttribWrap.core, 0,
-					&pInAttrib->core,
+					&attribs.pIn->core,
 					&pInterpCaches->in
 				);
 			}
 		}
 		if (interpMap) {
-			PIX_ERR_ASSERT("", pMapAttrib->core.type == type && pMapAttrib->core.use == use);
+			PIX_ERR_ASSERT(
+				"",
+				attribs.pMap->core.type == type && attribs.pMap->core.use == use
+			);
 			if (domain == STUC_DOMAIN_FACE) {
 				stucCopyAttribCore(
 					&mapAttribWrap.core, 0,
-					&pMapAttrib->core, pSrcFaces->map
+					&attribs.pMap->core, pSrcFaces->map
 				);
 			}
 			else {
@@ -495,28 +576,32 @@ void interpAndBlendAttribs(
 					pBufMesh,
 					*pBufCorner,
 					&mapAttribWrap.core, 0,
-					&pMapAttrib->core,
+					&attribs.pMap->core,
 					&pInterpCaches->map
 				);
 			}
 		}
+		
+		if (pNormal && use == STUC_ATTRIB_USE_NORMAL) {
+			memcpy(pNormal->d, inAttribWrap.core.pData, sizeof(pNormal->d));
+		}
 
-		switch (pOutAttrib->origin) {
+		switch (attribs.pOut->origin) {
 			case STUC_ATTRIB_ORIGIN_COMMON:
 				blendCommonAttrib(
 					pBasic,
 					&inAttribWrap,
 					&mapAttribWrap,
-					pOutAttrib, i,
+					attribs.pOut, i,
 					dataIdx,
 					domain
 				);
 				break;
 			case STUC_ATTRIB_ORIGIN_MESH_IN:
-				stucCopyAttribCore(&pOutAttrib->core, dataIdx, &inAttribWrap.core, 0);
+				stucCopyAttribCore(&attribs.pOut->core, dataIdx, &inAttribWrap.core, 0);
 				break;
 			case STUC_ATTRIB_ORIGIN_MAP:
-				stucCopyAttribCore(&pOutAttrib->core, dataIdx, &mapAttribWrap.core, 0);
+				stucCopyAttribCore(&attribs.pOut->core, dataIdx, &mapAttribWrap.core, 0);
 				break;
 			default:
 				PIX_ERR_ASSERT("invalid origin override", false);
@@ -546,6 +631,8 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	xformAndInterpVertsJobArgs *pArgs = pArgsVoid;
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	AttribCache attribs = {0};
+	cacheAttribPairs(pBasic, pArgs->pOutMesh, STUC_DOMAIN_VERT, &attribs);
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pArgs->pVertAlloc, pArgs->core.range, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
@@ -586,6 +673,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 		);
 		interpAndBlendAttribs(
 			pBasic,
+			&attribs,
 			pArgs->pOutMesh,
 			pEntry->outVert,
 			STUC_DOMAIN_VERT,
@@ -593,6 +681,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			pBufMesh,
 			&pEntry->bufCorner.corner,
 			&interpCaches,
+			NULL,
 			NULL
 		);
 		xformNormals(
@@ -694,6 +783,8 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	InterpAttribsJobArgs *pArgs = pArgsVoid;
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	AttribCache attribs = {0};
+	cacheAttribPairs(pBasic, pArgs->pOutMesh, STUC_DOMAIN_CORNER, &attribs);
 	I32 corner = pArgs->core.range.start;
 	for (
 		I32 i = bufOutTableGetStart(pArgs, corner);
@@ -714,8 +805,10 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
 				.map = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MAP}
 			};
+			V3_F32 normal = {0};
 			interpAndBlendAttribs(
 				pBasic,
+				&attribs,
 				pArgs->pOutMesh,
 				corner,
 				STUC_DOMAIN_CORNER,
@@ -723,7 +816,8 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				pBufMesh,
 				&bufCorner,
 				&interpCaches,
-				NULL
+				NULL,
+				&normal
 			);
 			M3x3 tbn = {0};
 			getInterpolatedTbn(
@@ -732,6 +826,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				pBufMesh,
 				bufCorner,
 				&interpCaches.in,
+				&normal,
 				&tbn
 			);
 			xformNormals(
@@ -749,6 +844,9 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	InterpAttribsJobArgs *pArgs = pArgsVoid;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	AttribCache attribs = {0};
+	cacheAttribPairs(pBasic, pArgs->pOutMesh, STUC_DOMAIN_FACE, &attribs);
 	I32 rangeSize = pArgs->core.range.end - pArgs->core.range.start;
 	for (I32 i = 0; i < rangeSize; ++i) {
 		I32 face = pArgs->core.range.start + i;
@@ -773,12 +871,14 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		//not actually interpolating faces,
 		//just copying
 		interpAndBlendAttribs(
-			(const MapToMeshBasic *)pArgs->core.pShared,
+			pBasic,
+			&attribs,
 			pArgs->pOutMesh,
 			face,
 			STUC_DOMAIN_FACE,
 			NULL, NULL, NULL, NULL,
-			&srcFaces
+			&srcFaces,
+			NULL
 		);
 		//TODO transforming face normals not supported atm
 	}
