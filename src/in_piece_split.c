@@ -23,268 +23,29 @@ void splitInPiecesJobInit(StucContext pCtx, void *pShared, void *pInitInfo, void
 	pEntry->pInPieceArr = pInitInfo;
 }
 
-typedef struct PieceFaceIdx {
-	PixuctHTableEntryCore core;
-	const EncasingInFace *pInFace;
-	bool removed;
-	bool pendingRemove;
-	bool preserve[4];
-} PieceFaceIdx;
-
 static
-void initPieceFaceIdxEntry(
-	void *pUserData,
-	PixuctHTableEntryCore *pEntry,
-	const void *pKeyData,
-	void *pInitInfo,
-	I32 linIdx
-) {
-	EncasingInFace *pInFace = pInitInfo;
-	((PieceFaceIdx *)pEntry)->pInFace = pInFace;
+I32 stucCouldInEdgeIntersectMapFace(const Mesh *pMesh, I32 edge) {
+	bool preserve = stucGetIfPreserveEdge(pMesh, edge);
+	bool ret = stucGetIfSeamEdge(pMesh, edge) || stucGetIfMatBorderEdge(pMesh, edge);
+	return preserve && !ret ? 2 : preserve || ret;
 }
 
 static
-bool cmpPieceFaceIdxEntry(
-	const PixuctHTableEntryCore *pEntry,
-	const void *pKeyData,
-	const void *pInitInfo
-) {
-	return ((PieceFaceIdx *)pEntry)->pInFace->idx == *(I32 *)pKeyData;
-}
-
-static
-void buildPieceFaceIdxTable(
-	PixuctHTable *pTable,
-	const EncasingInFaceArr *pInFaces
-) {
-	for (I32 i = 0; i < pInFaces->count; ++i) {
-		const EncasingInFace *pInFace = pInFaces->pArr + i;
-		PieceFaceIdx *pEntry = NULL;
-		I32 faceIdx = pInFace->idx;
-		SearchResult result =
-			pixuctHTableGetConst(
-				pTable,
-				0,
-				&faceIdx,
-				(void **)&pEntry,
-				true, pInFace,
-				stucKeyFromI32, NULL, initPieceFaceIdxEntry, cmpPieceFaceIdxEntry
-			);
-		PIX_ERR_ASSERT("", result == PIX_SEARCH_ADDED);
-	}
-}
-
-static
-SearchResult pieceFaceIdxTableGet(PixuctHTable *pTable, I32 face, void **ppEntry) {
-	return pixuctHTableGet(
-		pTable,
-		0,
-		&face,
-		ppEntry,
-		false, NULL,
-		stucKeyFromI32, NULL, NULL, cmpPieceFaceIdxEntry
-	);
+bool borderPredicate(const void *pMeshRaw, I32 edge) {
+	return stucCouldInEdgeIntersectMapFace(pMeshRaw, edge);
 }
 
 static
 bool isEdgeInternal(
-	const MapToMeshBasic *pBasic,
-	const PieceFaceIdx *pAdj,
+	const void *pMeshRaw,
+	const ClustSplitFaceIdx *pAdj,
 	I32 edge
 ) {
-	I32 canIntersect = stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge);
+	const Mesh *pMesh = pMeshRaw;
+	I32 canIntersect = stucCouldInEdgeIntersectMapFace(pMesh, edge);
 	//if edge is preserve, and adj is pending remove, edge is internal, so ignore
 	return canIntersect == 1 || canIntersect == 2 && !pAdj->pendingRemove;
 }
-
-static
-PieceFaceIdx *getAdjFaceInPiece(
-	const MapToMeshBasic *pBasic,
-	PixuctHTable *pIdxTable,
-	FaceCorner corner,
-	I32 *pAdjCorner
-) {
-	FaceCorner adj = {0};
-	stucGetAdjCorner(pBasic->pInMesh, corner, &adj);
-	if (adj.corner == -1) {
-		return NULL;
-	}
-	PIX_ERR_ASSERT("", adj.corner >= 0);
-	PieceFaceIdx *pAdjIdxEntry = NULL;
-	pieceFaceIdxTableGet(pIdxTable, adj.face, (void **)&pAdjIdxEntry);
-	if (!pAdjIdxEntry) {
-		if (pAdjCorner) {
-			*pAdjCorner = -1;
-		}
-		return NULL;
-	}
-	I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, corner);
-	if (pAdjIdxEntry->removed || isEdgeInternal(pBasic, pAdjIdxEntry, edge)) {
-		if (pAdjCorner) {
-			*pAdjCorner = -1;
-		}
-		return NULL;
-	}
-	if (pAdjCorner) {
-		FaceRange adjFaceRange =
-			stucGetFaceRange(&pBasic->pInMesh->core, pAdjIdxEntry->pInFace->idx);
-		adj.corner = stucGetCornerNext(adj.corner, &adjFaceRange);
-		if (pAdjIdxEntry->preserve[adj.corner]) {
-			if (pAdjCorner) {
-				*pAdjCorner = -1;
-			}
-			return NULL;
-		}
-		*pAdjCorner = adj.corner;
-	}
-	return pAdjIdxEntry;
-}
-
-typedef struct BorderEdgeTableEntry {
-	PixuctHTableEntryCore core;
-	FaceCorner corner;
-	bool checked;
-} BorderEdgeTableEntry;
-
-static
-void borderEdgeInit(
-	void *pUserData,
-	PixuctHTableEntryCore *pEntry,
-	const void *pKeyData,
-	void *pInitInfo,
-	I32 linIdx
-) {
-	((BorderEdgeTableEntry *)pEntry)->corner = *(FaceCorner *)pKeyData;
-}
-
-static
-bool borderEdgeCmp(
-	const PixuctHTableEntryCore *pEntryCore,
-	const void *pKeyData,
-	const void *pInitInfo
-) {
-	BorderEdgeTableEntry *pEntry = (BorderEdgeTableEntry *)pEntryCore;
-	return
-		pEntry->corner.face == ((FaceCorner *)pKeyData)->face &&
-		pEntry->corner.corner == ((FaceCorner *)pKeyData)->corner;
-}
-
-static
-PixuctKey borderEdgeMakeKey(const void *pKeyData) {
-	return (PixuctKey){.pKey = pKeyData, .size = sizeof(FaceCorner)};
-}
-
-static
-BorderEdgeTableEntry *borderEdgeAddOrGet(
-	PixuctHTable *pBorderTable,
-	FaceCorner corner,
-	bool add
-) {
-	BorderEdgeTableEntry *pEntry = NULL;
-	SearchResult result = pixuctHTableGet(
-		pBorderTable,
-		0,
-		&corner,
-		(void **)&pEntry,
-		add, &corner,
-		borderEdgeMakeKey, NULL, borderEdgeInit, borderEdgeCmp
-	);
-	PIX_ERR_ASSERT(
-		"there shouldn't be an existing entry if adding",
-		!(add ^ (result == PIX_SEARCH_ADDED))
-	);
-	return pEntry;
-}
-
-static
-void addBorderToArr(const MapToMeshBasic *pBasic, BorderArr *pArr, Border border) {
-	StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	PIX_ERR_ASSERT("", pArr->count <= pArr->size);
-	if (!pArr->size) {
-		pArr->size = 2;
-		pArr->pArr = pBasic->pCtx->alloc.fpMalloc(pArr->size * sizeof(Border));
-	}
-	else if (pArr->count == pArr->size) {
-		pArr->size *= 2;
-		pArr->pArr = pAlloc->fpRealloc(pArr->pArr, pArr->size * sizeof(Border));
-	}
-	pArr->pArr[pArr->count] = border;
-	pArr->count++;
-}
-
-I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge) {
-	bool preserve = stucGetIfPreserveEdge(pInMesh, edge);
-	bool ret = stucGetIfSeamEdge(pInMesh, edge) || stucGetIfMatBorderEdge(pInMesh, edge);
-	return preserve && !ret ? 2 : preserve || ret;
-}
-
-typedef struct BorderBuf {
-	BorderArr arr;
-	BorderArr preserveRoots;
-} BorderBuf;
-
-static
-bool findAndAddBorder(
-	const MapToMeshBasic *pBasic,
-	BorderBuf *pBorderBuf,
-	PixuctHTable *pIdxTable,
-	PixuctHTable *pBorderEdgeTable,
-	I32 edgesMax,
-	BorderEdgeTableEntry *pStart
-) {
-	const Mesh *pInMesh = pBasic->pInMesh;
-	Border border = {.start = pStart->corner};
-	FaceCorner corner = pStart->corner;
-	BorderEdgeTableEntry *pEntry  = pStart;
-	do {
-		if (border.len != 0) {//dont run this on first edge
-			if (
-				corner.face == pStart->corner.face &&
-				corner.corner == pStart->corner.corner
-			) {
-				break;//full loop
-			}
-			pEntry = borderEdgeAddOrGet(pBorderEdgeTable, corner, false);
-		}
-		if (pEntry) {
-			PIX_ERR_ASSERT("", pEntry->checked == false);
-			pEntry->checked = true;
-			border.len++;
-		}
-		PIX_ERR_ASSERT("", border.len <= edgesMax);
-		I32 adjCorner = 0;
-		//this is using the table for the pre-split piece.
-		//this is fine, as faces arn't marked removed until the end of this func
-		const PieceFaceIdx *pAdjFace = getAdjFaceInPiece(
-			pBasic,
-			pIdxTable,
-			corner,
-			&adjCorner
-		);
-		PIX_ERR_ASSERT(
-			"if edge isn't in border arr, there should be an adj face",
-			!pEntry ^ !pAdjFace
-		);
-		if (pAdjFace) {
-			//edge is internal, move to next adjacent
-			corner.face = pAdjFace->pInFace->idx;
-			corner.corner = adjCorner;
-			//wind = pAdjFace->pInFace->wind;
-		}
-		else {
-			FaceRange faceRange = stucGetFaceRange(&pInMesh->core, corner.face);
-			corner.corner = stucGetCornerNext(corner.corner, &faceRange);
-		}
-	} while(true);
-	addBorderToArr(pBasic, &pBorderBuf->arr, border);
-	return true;
-}
-
-typedef struct InFaceBuf {
-	PieceFaceIdx **ppArr;
-	I32 size;
-	I32 count;
-} InFaceBuf;
 
 typedef enum ReceiveStatus {
 	STUC_RECEIVE_NONE,
@@ -351,21 +112,32 @@ ReceiveIntersectResult doesCornerIntersectReceive(
 	return STUC_NO_INTERSECT;
 }
 
+typedef struct SplitArgs {
+	const MapToMeshBasic *pBasic;
+	const FaceRange *pMapFace;
+	const MapCornerLookup *pMapCorners;
+	const InPiece *pInPiece;
+	InPieceArr *pNewInPieces;
+	InPieceArr *pNewInPiecesClip;
+	InPiece *pNewInPiece;
+	SplitInPiecesAlloc *pLinAlloc;
+} SplitArgs;
+
 static
 bool isEdgeValidPreserve(
-	const MapToMeshBasic *pBasic,
-	const FaceRange *pMapFace,
-	const MapCornerLookup *pMapCorners,
+	const void *pArgsRaw,
+	const Mesh *pInMesh,
 	const FaceRange *pInFace,
 	FaceCorner inCorner
 ) {
-	I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, inCorner);
-	if (pMapCorners->receive != STUC_RECEIVE_NONE &&
-		stucGetIfPreserveEdge(pBasic->pInMesh, edge)
+	const SplitArgs *pArgs = pArgsRaw;
+	I32 edge = stucGetMeshEdge(&pInMesh->core, inCorner);
+	if (pArgs->pMapCorners->receive != STUC_RECEIVE_NONE &&
+		stucGetIfPreserveEdge(pInMesh, edge)
 	) {
 		ReceiveIntersectResult result = doesCornerIntersectReceive(
-			pBasic,
-			pMapFace, pMapCorners,
+			pArgs->pBasic,
+			pArgs->pMapFace, pArgs->pMapCorners,
 			pInFace, inCorner
 		);
 		if (result == STUC_NO_INTERSECT || result == STUC_INTERSECTS_RECEIVE) {
@@ -374,184 +146,6 @@ bool isEdgeValidPreserve(
 		PIX_ERR_ASSERT("", result == STUC_INTERSECTS_NON_RECEIVE);
 	}
 	return false;
-}
-
-static
-void addAdjFaces(
-	const MapToMeshBasic *pBasic,
-	const FaceRange *pMapFace,
-	const MapCornerLookup *pMapCorners,
-	InFaceBuf *pInFaceBuf,
-	PixuctHTable *pIdxTable,
-	PixuctHTable *pBorderEdges,
-	PieceFaceIdx *pFace
-) {
-	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, pFace->pInFace->idx);
-	for (I32 i = 0; i < inFace.size; ++i) {
-		FaceCorner corner = {.face = inFace.idx, .corner = i};
-		I32 adjCorner = -1;
-		PieceFaceIdx *pAdjFace = getAdjFaceInPiece(
-			pBasic,
-			pIdxTable,
-			corner,
-			&adjCorner
-		);
-		if (!pAdjFace) {
-			borderEdgeAddOrGet(pBorderEdges, corner, true);
-			continue;
-		}
-		else if (pAdjFace->pendingRemove) {
-			//already added to this piece
-			continue; 
-		}
-		else if (isEdgeValidPreserve(pBasic, pMapFace, pMapCorners, &inFace, corner)) {
-			pFace->preserve[i] = true;
-			PIX_ERR_ASSERT("", adjCorner != -1);
-			pAdjFace->preserve[adjCorner] = true;
-			borderEdgeAddOrGet(pBorderEdges, corner, true);
-			continue;
-		}
-		PIX_ERR_ASSERT("", pAdjFace->pInFace);
-
-		pAdjFace->pendingRemove = true;
-		PIX_ERR_ASSERT("", pInFaceBuf->count < pInFaceBuf->size);
-		pInFaceBuf->ppArr[pInFaceBuf->count] = pAdjFace;
-		pInFaceBuf->count++;
-	}
-}
-
-static
-PieceFaceIdx *getFirstRemainingFace(PixuctHTable *pIdxTable) {
-	PixalcLinAlloc *pTableAlloc = pixuctHTableAllocGet(pIdxTable, 0);
-	PixalcLinAllocIter iter = {0};
-	pixalcLinAllocIterInit(pTableAlloc, (Range) { 0, INT32_MAX }, &iter);
-	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
-		PieceFaceIdx *pEntry = pixalcLinAllocGetItem(&iter);
-		PIX_ERR_ASSERT("", pEntry);
-		if (!pEntry->removed) {
-			return pEntry;
-		}
-	}
-	PIX_ERR_ASSERT("this func shouldn't have been called if no faces remained", false);
-	return NULL;
-}
-
-static
-void fillBorderBuf(
-	const MapToMeshBasic *pBasic,
-	BorderBuf *pBorderBuf,
-	PixuctHTable *pIdxTable,
-	PixuctHTable *pBorderEdges
-) {
-	PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(pBorderEdges, 0);
-	pBorderBuf->arr.count = 0;
-	pBorderBuf->preserveRoots.count = 0;
-	I32 edgeCount = pixalcLinAllocGetCount(pAlloc);
-	PixalcLinAllocIter iter = {0};
-	pixalcLinAllocIterInit(pAlloc, (Range) { 0, INT32_MAX }, &iter);
-	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
-		BorderEdgeTableEntry *pEntry = pixalcLinAllocGetItem(&iter);
-		if (pEntry->checked) {
-			continue;
-		}
-		I32 adjCorner = 0;
-		//this is using the table for the pre-split piece.
-		//this is fine, as faces arn't marked removed until the end of this func
-		if (getAdjFaceInPiece(pBasic, pIdxTable, pEntry->corner, &adjCorner)) {
-			continue;//we want an exterior edge to start, so skip this one
-		}
-		I32 edge = stucGetMeshEdge(&pBasic->pInMesh->core, pEntry->corner);
-		if (stucCouldInEdgeIntersectMapFace(pBasic->pInMesh, edge)) {
-			findAndAddBorder(
-				pBasic,
-				pBorderBuf,
-				pIdxTable,
-				pBorderEdges,
-				edgeCount,
-				pEntry
-			);
-		}
-	}
-}
-
-static
-void splitAdjFacesIntoPiece(
-	SplitInPiecesJobArgs *pArgs,
-	const FaceRange *pMapFace,
-	MapCornerLookup *pMapCorners,
-	InFaceBuf *pInFaceBuf,
-	BorderBuf *pBorderBuf,
-	const InPiece *pInPiece,
-	PixuctHTable *pIdxTable,
-	InPiece *pNewInPiece,
-	I32 *pFacesRemaining
-) {
-	const MapToMeshBasic *pBasic = pArgs->core.pShared;
-	PixuctHTable borderEdges = {0};
-	pixuctHTableInit(
-		&pBasic->pCtx->alloc,
-		&borderEdges,
-		*pFacesRemaining / 2 + 1,
-		(I32Arr) {.pArr = (I32[]) {sizeof(BorderEdgeTableEntry)}, .count = 1},
-		NULL,
-		NULL,
-		true
-	);
-	pInFaceBuf->count = 0;
-	{
-		PieceFaceIdx *pStartFace = getFirstRemainingFace(pIdxTable);
-		pInFaceBuf->ppArr[0] = pStartFace;
-		pStartFace->pendingRemove = true;
-		pInFaceBuf->count++;
-		I32 i = 0;
-		do {
-			PieceFaceIdx *pIdxEntry = NULL;
-			pieceFaceIdxTableGet(
-				pIdxTable,
-				pInFaceBuf->ppArr[i]->pInFace->idx,
-				(void **)&pIdxEntry
-			);
-			addAdjFaces(
-				pBasic,
-				pMapFace, pMapCorners,
-				pInFaceBuf,
-				pIdxTable,
-				&borderEdges,
-				pIdxEntry
-			);
-		} while (i++, i < pInFaceBuf->count);
-	}
-	pNewInPiece->faceCount = pInFaceBuf->count;
-	fillBorderBuf(pBasic, pBorderBuf, pIdxTable, &borderEdges);
-	if (pBorderBuf->arr.count) {
-		pNewInPiece->borderArr.count = pBorderBuf->arr.count;
-		pixalcLinAlloc(
-			&pArgs->alloc.border,
-			(void **)&pNewInPiece->borderArr.pArr,
-			pNewInPiece->borderArr.count
-		);
-		memcpy(
-			pNewInPiece->borderArr.pArr,
-			pBorderBuf->arr.pArr,
-			pBorderBuf->arr.count * sizeof(Border)
-		);
-	}
-	pixuctHTableDestroy(&borderEdges);
-	
-	// copy buf into new in-piece, & mark in-faces as removed in idx-table
-	pNewInPiece->pList->inFaces.count = pInFaceBuf->count;
-	pixalcLinAlloc(
-		&pArgs->alloc.inFace,
-		(void **)&pNewInPiece->pList->inFaces.pArr,
-		pNewInPiece->pList->inFaces.count
-	);
-	for (I32 i = 0; i < pInFaceBuf->count; ++i) {
-		PIX_ERR_ASSERT("", pInFaceBuf->ppArr[i]->pendingRemove);
-		pNewInPiece->pList->inFaces.pArr[i] = *pInFaceBuf->ppArr[i]->pInFace;
-		pInFaceBuf->ppArr[i]->removed = true;
-		pInFaceBuf->ppArr[i]->pendingRemove = false;
-	}
-	*pFacesRemaining -= pInFaceBuf->count;
 }
 
 static
@@ -579,32 +173,116 @@ ReceiveStatus getMapFaceReceiveStatus(
 }
 
 static
-void splitInPieceEntry(
+void newInPieceVerify(SplitArgs *pArgs) {
+	if (pArgs->pNewInPiece) {
+		return;
+	}
+	pixalcLinAlloc(&pArgs->pLinAlloc->encased, (void **)&pArgs->pNewInPiece->pList, 1);
+	pArgs->pNewInPiece->pList->cluster = pArgs->pInPiece->pList->cluster;
+	pArgs->pNewInPiece->pList->tile = pArgs->pInPiece->pList->tile;
+}
+
+static
+StucErr facesAdd(void *pArgsRaw, const ClustSplitFaceBuf *pBuf) {
+	StucErr err = PIX_ERR_SUCCESS;
+	SplitArgs *pArgs = pArgsRaw;
+	newInPieceVerify(pArgs);
+	pArgs->pNewInPiece->pList->inFaces.count = pBuf->count;
+	pixalcLinAlloc(
+		&pArgs->pLinAlloc->inFace,
+		(void **)&pArgs->pNewInPiece->pList->inFaces.pArr,
+		pArgs->pNewInPiece->pList->inFaces.count
+	);
+	pArgs->pNewInPiece->faceCount = pBuf->count;
+	for (I32 i = 0; i < pBuf->count; ++i) {
+		PIX_ERR_ASSERT("", pBuf->ppArr[i]->pendingRemove);
+		pArgs->pNewInPiece->pList->inFaces.pArr[i] = pBuf->ppArr[i]->face;
+	}
+	InPieceArr *pNewInPieces = pArgs->pNewInPiece->borderArr.count ?
+		pArgs->pNewInPiecesClip : pArgs->pNewInPieces;
+	PIX_ERR_ASSERT("", pNewInPieces->count <= pNewInPieces->size);
+	if (pNewInPieces->count == pNewInPieces->size) {
+		pNewInPieces->size *= 2;
+		pNewInPieces->pArr = pArgs->pBasic->pCtx->alloc.fpRealloc(
+			pNewInPieces->pArr,
+			pNewInPieces->size * sizeof(InPiece)
+		);
+	}
+	pNewInPieces->pArr[pNewInPieces->count] = *pArgs->pNewInPiece;
+	pNewInPieces->count++;
+	return err;
+}
+
+static
+StucErr borderAdd(void *pArgsRaw, const ClustBorderBuf *pBuf) {
+	StucErr err = PIX_ERR_SUCCESS;
+	SplitArgs *pArgs = pArgsRaw;
+	newInPieceVerify(pArgs);
+	pArgs->pNewInPiece->borderArr.count = pBuf->arr.count;
+	pixalcLinAlloc(
+		&pArgs->pLinAlloc->border,
+		(void **)&pArgs->pNewInPiece->borderArr.pArr,
+		pArgs->pNewInPiece->borderArr.count
+	);
+	memcpy(
+		pArgs->pNewInPiece->borderArr.pArr,
+		pBuf->arr.pArr,
+		pBuf->arr.count * sizeof(Border)
+	);
+	return err;
+}
+
+static
+PixErr buildIdxTable(
+	void *pArgsRaw,
+	void *pIdxTable,
+	void (*fpBuild)(void *, const PixtyI32Arr *)
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	SplitArgs *pArgs = pArgsRaw;
+	EncasedMapFace *pInFaces = pArgs->pInPiece->pList;
+	do {
+		fpBuild(pIdxTable, &pInFaces->inFaces);
+		pInFaces = (EncasedMapFace *)pInFaces->core.pNext;
+	} while (pInFaces);
+	return err;
+}
+
+static
+I32 getEdge(const void *pMeshRaw, ClustFaceCorner corner) {
+	return stucGetMeshEdge(
+		pMeshRaw,
+		(FaceCorner){
+			.face = corner.face,
+			.corner = corner.corner
+		}
+	);
+}
+
+static
+ClustFaceCorner getAdjCorner(const void *pMeshRaw, ClustFaceCorner corner) {
+	FaceCorner adj = {0};
+	stucGetAdjCorner(
+		pMeshRaw,
+		(FaceCorner){
+			.face = corner.face,
+			.corner = corner.corner
+		},
+		&adj
+	);
+	return (ClustFaceCorner){.face = adj.face, .corner = adj.corner};
+}
+
+static
+StucErr splitInPieceEntry(
 	SplitInPiecesJobArgs *pArgs,
 	const InPiece *pInPiece,
-	InFaceBuf *pInFaceBuf,
-	BorderBuf *pBorderBuf
+	ClustSplitFaceBuf *pInFaceBuf,
+	ClustBorderBuf *pBorderBuf
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-
-	PixuctHTable idxTable = {0};
-	pixuctHTableInit(
-		pAlloc,
-		&idxTable,
-		pInPiece->faceCount / 4 + 1,
-		(I32Arr) {.pArr = (I32[]) {sizeof(PieceFaceIdx)}, .count = 1},
-		NULL,
-		NULL,
-		true
-	);
-	{
-		EncasedMapFace *pInFaces = pInPiece->pList;
-		do {
-			buildPieceFaceIdxTable(&idxTable, &pInFaces->inFaces);
-			pInFaces = (EncasedMapFace *)pInFaces->core.pNext;
-		} while (pInFaces);
-	}
 
 	PIX_ERR_ASSERT("", pInPiece->faceCount > 0);
 	if (!pInFaceBuf->size) {
@@ -617,6 +295,7 @@ void splitInPieceEntry(
 			pAlloc->fpRealloc(pInFaceBuf->ppArr, pInFaceBuf->size * sizeof(void *));
 	}
 
+	//TODO replace with cluster border
 	FaceRange mapFace =
 		stucGetFaceRange(&pBasic->pMap->pMesh->core, pInPiece->pList->mapFace);
 	MapCornerLookup mapCorners = {
@@ -629,40 +308,42 @@ void splitInPieceEntry(
 		(V2_I16) {0},
 		mapCorners.pHalfPlanes
 	);
-
-	I32 facesRemaining = pInPiece->faceCount;
-	do {
-		InPiece newInPiece = {0};
-		pixalcLinAlloc(&pArgs->alloc.encased, (void **)&newInPiece.pList, 1);
-		newInPiece.pList->mapFace = pInPiece->pList->mapFace;
-		newInPiece.pList->tile = pInPiece->pList->tile;
-		splitAdjFacesIntoPiece(
-			pArgs,
-			&mapFace,
-			&mapCorners,
-			pInFaceBuf,
-			pBorderBuf,
-			pInPiece,
-			&idxTable,
-			&newInPiece,
-			&facesRemaining
-		);
-		InPieceArr *pNewInPieces = newInPiece.borderArr.count ?
-			&pArgs->newInPiecesClip : &pArgs->newInPieces;
-		PIX_ERR_ASSERT("", pNewInPieces->count <= pNewInPieces->size);
-		if (pNewInPieces->count == pNewInPieces->size) {
-			pNewInPieces->size *= 2;
-			pNewInPieces->pArr = pAlloc->fpRealloc(
-				pNewInPieces->pArr,
-				pNewInPieces->size * sizeof(InPiece)
-			);
-		}
-		pNewInPieces->pArr[pNewInPieces->count] = newInPiece;
-		pNewInPieces->count++;
-		PIX_ERR_ASSERT("", facesRemaining >= 0 && facesRemaining < pInPiece->faceCount);
-	} while(facesRemaining);
+	SplitArgs subArgs = {
+		.pBasic = pBasic,
+		.pInPiece = pInPiece,
+		.pLinAlloc = &pArgs->alloc,
+		.pMapCorners = &mapCorners,
+		.pMapFace = &mapFace
+	};
+	SplitMesh clustMesh = {
+		.pUserData = pBasic->pInMesh,
+		.faceCount = pBasic->pInMesh->core.faceCount,
+		.fpFaceRange = stucClustFaceRange,
+		.fpVert = stucClustVert,
+		.fpPos = stucClustPos,
+		.fpAdjCorner = getAdjCorner,
+		.fpEdge = getEdge
+	};
+	ClustSplitCallbacks clustCallbacks = {
+		.fpIdxTableBuild = buildIdxTable,
+		.fpSplitPredicate = isEdgeValidPreserve,
+		.fpBorderAdd = borderAdd,
+		.fpFacesAdd = facesAdd,
+		.fpIsEdgeIntern = isEdgeInternal,
+		.fpBorderPredicate = borderPredicate
+	};
+	err = clustSplitIslands(
+		pAlloc,
+		&clustMesh,
+		&subArgs,
+		&clustCallbacks,
+		pInPiece->faceCount,
+		pInFaceBuf,
+		pBorderBuf
+	);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_CATCH(0, err, ;);
 	pAlloc->fpFree(mapCorners.pHalfPlanes);
-	pixuctHTableDestroy(&idxTable);
 }
 
 static
@@ -677,21 +358,20 @@ StucErr splitInPieces(void *pArgsVoid) {
 	pArgs->newInPiecesClip.pArr =
 		pAlloc->fpMalloc(pArgs->newInPiecesClip.size * sizeof(InPiece));
 	pixalcLinAllocInit(pAlloc, &pArgs->alloc.encased, sizeof(EncasedMapFace), rangeSize, true);
-	pixalcLinAllocInit(pAlloc, &pArgs->alloc.inFace, sizeof(EncasingInFace), rangeSize, true);
+	pixalcLinAllocInit(pAlloc, &pArgs->alloc.inFace, sizeof(I32), rangeSize, true);
 	pixalcLinAllocInit(pAlloc, &pArgs->alloc.border, sizeof(Border), rangeSize, true);
-	InFaceBuf inFaceBuf = {0};
-	BorderBuf borderBuf = {0};
+	ClustSplitFaceBuf inFaceBuf = {0};
+	ClustBorderBuf borderBuf = {0};
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
-		splitInPieceEntry(pArgs, pArgs->pInPieceArr->pArr + i, &inFaceBuf, &borderBuf);
+		err = splitInPieceEntry(pArgs, pArgs->pInPieceArr->pArr + i, &inFaceBuf, &borderBuf);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
+	PIX_ERR_CATCH(0, "", ;);
 	if (inFaceBuf.ppArr) {
 		pAlloc->fpFree(inFaceBuf.ppArr);
 	}
 	if (borderBuf.arr.pArr) {
 		pAlloc->fpFree(borderBuf.arr.pArr);
-	}
-	if (borderBuf.preserveRoots.pArr) {
-		pAlloc->fpFree(borderBuf.preserveRoots.pArr);
 	}
 	return err;
 }

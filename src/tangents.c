@@ -167,7 +167,7 @@ void addOrMergeFaceTPieces(
 			pMesh->pCorners + face.start + i,
 			(void **)&vertEntries[i].pEntry,
 			add, NULL,
-			stucKeyFromI32, NULL, tPieceVertInit, tPieceVertCmp
+			pixuctKeyFromI32, NULL, tPieceVertInit, tPieceVertCmp
 		);
 	}
 	I32 lowestTPiece = INT32_MAX;
@@ -288,7 +288,7 @@ void buildTPieces(
 				&pInCore->pCorners[face.start + j],
 				(void **)&pEntry,
 				false, NULL,
-				stucKeyFromI32, NULL, NULL, tPieceVertCmp
+				pixuctKeyFromI32, NULL, NULL, tPieceVertCmp
 			);
 			if (result == PIX_SEARCH_NOT_FOUND) {
 				continue;

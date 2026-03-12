@@ -82,12 +82,12 @@ SearchResult inFaceCacheGet(
 		(void**)ppEntry,
 		addEntry,
 		&(InFaceCacheInitInfo) {.tile = pInPiece->pList->tile},
-		stucKeyFromI32, NULL, inFaceCacheEntryInit, inFaceCacheEntryCmp
+		pixuctKeyFromI32, NULL, inFaceCacheEntryInit, inFaceCacheEntryCmp
 	);
 }
 
 static
-InFaceCorner getAdjFaceInPiece(
+InFaceCorner clustGetAdjFace(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	PixuctHTable *pInFaceCache,
@@ -187,11 +187,12 @@ StucErr walkInPieceBorder(
 			j < pInPiece->faceCount * 4,
 			"stuck in loop"
 		);
-		InFaceCorner adjInCorner = getAdjFaceInPiece(
+		//TODO call clust func with ClustMesh
+		InFaceCorner adjInCorner = clustGetAdjFace(
 			pBasic,
 			pInPiece,
 			pInFaceCache,
-			inCorner
+			(ClustFaceCorner){.face = inCorner.pFace, .corner = inCorner.corner}
 		);
 		if (fpFunc(pBasic, pFuncArgs, inCorner, adjInCorner, borderEdge, j, adj)) {
 			break;
@@ -216,13 +217,13 @@ void getInPieceBounds(
 	const InPiece *pInPiece,
 	PixuctHTable *pInFaceCache
 ) {
-	EncasingInFaceArr *pInFaces = &pInPiece->pList->inFaces;
+	PixtyI32Arr *pInFaces = &pInPiece->pList->inFaces;
 	for (I32 i = 0; i < pInFaces->count; ++i) {
 		InFaceCacheEntry *pCacheEntry = NULL;
 		inFaceCacheGet(
 			pInFaceCache,
 			pInPiece,
-			pInFaces->pArr[i].idx,
+			pInFaces->pArr[i],
 			true,
 			&pCacheEntry
 		);
@@ -355,14 +356,14 @@ InsideStatus getFaceEncasingVert(
 	PixuctHTable *pInFaceCache,
 	InFaceCorner *pCorner
 ) {
-	EncasingInFaceArr *pInFaces = &pInPiece->pList->inFaces;
+	PixtyI32Arr *pInFaces = &pInPiece->pList->inFaces;
 	PixalcLinAlloc *pHalfPlaneAlc = pixuctHTableAllocGet(pInFaceCache, 1);
 	for (I32 i = 0; i < pInFaces->count; ++i) {
 		InFaceCacheEntry *pInFaceEntry = NULL;
 		inFaceCacheGet(
 			pInFaceCache,
 			pInPiece,
-			pInFaces->pArr[i].idx,
+			pInFaces->pArr[i],
 			true,
 			&pInFaceEntry
 		);
@@ -374,7 +375,7 @@ InsideStatus getFaceEncasingVert(
 		HalfPlane *pInCornerCache =
 			getInCornerCache(pBasic, pHalfPlaneAlc, pInPiece, pInFaceEntry);
 		InsideStatus status = isPointInFace(
-			pInFaces->pArr[i].wind,
+			//TODO gen wind for inface,
 			pInFaceEntry->face.size,
 			pInCornerCache,
 			vert,
@@ -947,11 +948,15 @@ void borderCacheInit(
 	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
 		InFaceCornerArr *pBorder = pBorderCache->pBorders + i;
 		pBorder->count = 0;
+		FaceCorner start = {
+			.face = pInPiece->borderArr.pArr[i].start.face,
+			.corner = pInPiece->borderArr.pArr[i].start.corner
+		};
 		walkInPieceBorder(
 			pBasic,
 			pInPiece,
 			pInFaceCache,
-			pInPiece->borderArr.pArr[i].start,
+			start,
 			borderCacheAdd, pBorder 
 		);
 		PIX_ERR_ASSERT("", pBorder->count == pInPiece->borderArr.pArr[i].len);

@@ -7,47 +7,27 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <pixenals_thread_utils.h>
 
+#include <cluster.h>
+
 #include <job.h>
 #include <pixenals_structs.h>
 #include <mesh.h>
 
 struct MapToMeshBasic;
 
-typedef struct EncasingInFace {
-	U32 idx : 31;
-	U32 wind : 1;
-} EncasingInFace;
-
-typedef struct EncasingInFaceArr {
-	EncasingInFace *pArr;
-	I32 size;
-	I32 count;
-} EncasingInFaceArr;
-
 typedef struct EncasedMapFace {
 	PixuctHTableEntryCore core;
-	EncasingInFaceArr inFaces;
-	I32 mapFace;
+	PixtyI32Arr inFaces;
+	I32 cluster;
 	V2_I16 tile;
 } EncasedMapFace;
 
 typedef struct EncasedEntryIdx {
 	struct EncasedEntryIdx *pNext;
-	I32 mapFace;
+	I32 cluster;
 	V2_I16 tile;
 	I32 entryIdx;
 } EncasedEntryIdx;
-
-typedef struct Border {
-	FaceCorner start;
-	I32 len;
-} Border;
-
-typedef struct BorderArr {
-	Border *pArr;
-	I32 size;
-	I32 count;
-} BorderArr;
 
 typedef struct BufFace {
 	I32 start;

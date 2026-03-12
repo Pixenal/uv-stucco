@@ -6,6 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <stdint.h>
 
+#include <cluster.h>
+
 #include <io.h>
 #include <quadtree.h>
 #include <mesh.h>
@@ -22,7 +24,10 @@ typedef struct StucMapInternal {
 	Mesh *pMesh;
 	BBox *pFaceBBoxes;
 	TriCache triCache;
+#ifdef STUC_QUADTREE_ENABLE
 	QuadTree quadTree;
+#endif
+	ClustTree clustTree;
 	StucAttribIndexedArr indexedAttribs;
 	V2_F32 zBounds;
 	char *pName;

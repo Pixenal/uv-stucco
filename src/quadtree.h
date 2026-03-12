@@ -10,6 +10,8 @@ SPDX-License-Identifier: Apache-2.0
 #include <mesh.h>
 #include <types.h>
 
+#ifdef STUC_QUADTREE_ENABLE
+
 #define CELL_MAX_VERTS 32
 
 typedef struct Cell {
@@ -128,3 +130,5 @@ FaceCells *stucIdxFaceCells(
 	I32 faceIdx,
 	I32 faceOffset
 );
+
+#endif

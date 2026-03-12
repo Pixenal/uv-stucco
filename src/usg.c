@@ -345,15 +345,19 @@ void assignUsgToVertsInFace(
 	}
 }
 
+//TODO reimplement with cluster tree
 StucErr stucAssignUsgsToVerts(
 	const StucAlloc *pAlloc,
 	StucMap pMap,
 	StucUsg *pUsgArr
 ) {
 	const Mesh *pSquares = pMap->usgArr.pSquares;
+#ifdef STUC_QUADTREE_ENABLE
 	FaceCellsTable faceCellsTable = {0};
+#endif
 	I32 averageMapFacesPerFace = 0;
 	Range faceRange = {.start = 0, .end = pSquares->core.faceCount};
+#ifdef STUC_QUADTREE_ENABLE
 	stucGetEncasingCells(
 		pAlloc,
 		pMap,
@@ -363,9 +367,11 @@ StucErr stucAssignUsgsToVerts(
 		&faceCellsTable,
 		&averageMapFacesPerFace
 	);
+#endif
 	for (I32 i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
 		Mesh *pFlatCutoff = pMap->usgArr.pArr[i].pFlatCutoff + pUsgArr[i].flatCutoff.idx;
+#ifdef STUC_QUADTREE_ENABLE
 		FaceRange squaresFace = stucGetFaceRange(&pSquares->core, i);
 		FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, 0);
 		for (I32 j = 0; j < pFaceCellsEntry->cellSize; ++j) {
@@ -406,8 +412,11 @@ StucErr stucAssignUsgsToVerts(
 			}
 		}
 		stucDestroyFaceCellsEntry(pAlloc, stucIdxFaceCells(&faceCellsTable, i, 0));
+#endif
 	}
+#ifdef STUC_QUADTREE_ENABLE
 	stucDestroyFaceCellsTable(pAlloc, &faceCellsTable, faceRange);
+#endif
 	return PIX_ERR_SUCCESS;
 }
 
@@ -502,6 +511,7 @@ StucErr isFaceClosestToOrigin(
 	return err;
 }
 
+//TODO reimplement with cluster tree
 static
 StucErr getClosestTriToOrigin(
 	const Usg *pUsg,
@@ -517,7 +527,9 @@ StucErr getClosestTriToOrigin(
 	for (I32 j = 0; j < pInFaceTable[i].count; ++j) {
 		FaceRange inFace = stucGetFaceRange(&pInMesh->core, pInFaceTable[i].pArr[j]);
 		FaceBounds faceBounds = {0};
+#ifdef STUC_QUADTREE_ENABLE
 		stucGetFaceBoundsForTileTest(&faceBounds, pInMesh, &inFace);
+#endif
 		V2_I32 minTile = faceBounds.min;
 		V2_I32 maxTile = faceBounds.max;
 		for (I32 l = minTile.d[1]; l <= maxTile.d[1]; ++l) {

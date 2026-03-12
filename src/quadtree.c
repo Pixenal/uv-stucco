@@ -18,6 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 #include <utils.h>
 #include <pixenals_error_utils.h>
 
+#ifdef STUC_QUADTREE_ENABLE
+
 typedef struct Children {
 	I32 d[4];
 } Children;
@@ -1199,3 +1201,5 @@ FaceCells *stucIdxFaceCells(
 ) {
 	return pFaceCellsTable->pFaceCells + (faceIdx - faceOffset);
 }
+
+#endif
