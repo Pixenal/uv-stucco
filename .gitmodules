@@ -25,3 +25,6 @@
 [submodule "extern/pixenals-structs"]
 	path = extern/pixenals-structs
 	url = https://github.com/Pixenal/pixenals-structs
+[submodule "extern/cluster-tree-2d"]
+	path = extern/cluster-tree-2d
+	url = https://github.com/Pixenal/cluster-tree-2d.git

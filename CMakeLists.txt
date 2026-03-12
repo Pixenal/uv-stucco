@@ -67,7 +67,9 @@ else()
 	target_link_libraries(${PROJECT} PRIVATE ${ZLIB_LIB})
 endif()
 set(PLYCUT_PIX_PATH "../")
+set(CLUTRE2_PIX_PATH "../")
 add_subdirectory(extern/poly-cutout)
+add_subdirectory(extern/cluster-tree-2d)
 if (NOT TARGET PixenalsAllocUtils)
 	add_subdirectory(extern/pixenals-alloc-utils)
 endif()
@@ -78,11 +80,12 @@ endif()
 add_subdirectory(extern/pixenals-thread-utils)
 add_subdirectory(extern/pixenals-structs)
 target_link_libraries(${PROJECT} PRIVATE
-	PolyCutout PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
+	PolyCutout ClusterTree2d PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
 	PixenalsThreadUtils PixenalsStructs
 )
 target_include_directories(${PROJECT} PUBLIC
 	extern/poly-cutout/include
+	extern/cluster-tree-2d/include
 	extern/pixenals-types/include extern/pixenals-error-utils/include
 	extern/pixenals-alloc-utils/include extern/pixenals-io-utils/include
 	extern/pixenals-math-utils/include extern/pixenals-thread-utils/include
