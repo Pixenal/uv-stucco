@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <pixenals_thread_utils.h>
 
-#include <cluster.h>
+#include <cluster_tree_2d.h>
 
 #include <job.h>
 #include <pixenals_structs.h>

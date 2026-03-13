@@ -453,13 +453,13 @@ PixErr getEncasingClusters(
 	PixErr err = PIX_ERR_SUCCESS;
 	*pArr = (ClusterArr){.pAlloc = &pBasic->pCtx->alloc};
 	FaceInfo faceInfo = {.pMesh = pBasic->pInMesh, .face = *pFace};
-	ClustFace clustFace = {
+	ClutreFace clustFace = {
 		.pUserData = &faceInfo,
 		.fpPos = stucClustPos,
 		.size = faceInfo.face.size
 	};
-	ClustArr clustArr = {.pUserData = pArr, .fpAdd = stucClustAdd};
-	err = clustSampleForFace(&pBasic->pMap->clustTree, &clustFace, &clustArr);
+	ClutreArr clustArr = {.pUserData = pArr, .fpAdd = stucClustAdd};
+	err = clutreSampleForFace(&pBasic->pMap->clustTree, &clustFace, &clustArr);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err,
 		clusterArrDestroy(pArr);
@@ -561,7 +561,7 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 	pixuctHTableInit(
 		&pBasic->pCtx->alloc,
 		&pArgs->encasedFaces,
-		clustTreeCount(&pBasic->pMap->clustTree) / 4 + 2,
+		clutreTreeCount(&pBasic->pMap->clustTree) / 4 + 2,
 		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedMapFace)}, .count = 1},
 		NULL,
 		&tableState,

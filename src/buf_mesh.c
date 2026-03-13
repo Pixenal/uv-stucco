@@ -187,12 +187,12 @@ StucErr walkInPieceBorder(
 			j < pInPiece->faceCount * 4,
 			"stuck in loop"
 		);
-		//TODO call clust func with ClustMesh
+		//TODO call clust func with ClutreMesh
 		InFaceCorner adjInCorner = clustGetAdjFace(
 			pBasic,
 			pInPiece,
 			pInFaceCache,
-			(ClustFaceCorner){.face = inCorner.pFace, .corner = inCorner.corner}
+			(ClutreFaceCorner){.face = inCorner.pFace, .corner = inCorner.corner}
 		);
 		if (fpFunc(pBasic, pFuncArgs, inCorner, adjInCorner, borderEdge, j, adj)) {
 			break;

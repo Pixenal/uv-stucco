@@ -24,13 +24,6 @@ void splitInPiecesJobInit(StucContext pCtx, void *pShared, void *pInitInfo, void
 }
 
 static
-I32 stucCouldInEdgeIntersectMapFace(const Mesh *pMesh, I32 edge) {
-	bool preserve = stucGetIfPreserveEdge(pMesh, edge);
-	bool ret = stucGetIfSeamEdge(pMesh, edge) || stucGetIfMatBorderEdge(pMesh, edge);
-	return preserve && !ret ? 2 : preserve || ret;
-}
-
-static
 bool borderPredicate(const void *pMeshRaw, I32 edge) {
 	return stucCouldInEdgeIntersectMapFace(pMeshRaw, edge);
 }
@@ -308,6 +301,7 @@ StucErr splitInPieceEntry(
 		(V2_I16) {0},
 		mapCorners.pHalfPlanes
 	);
+	/*
 	SplitArgs subArgs = {
 		.pBasic = pBasic,
 		.pInPiece = pInPiece,
@@ -342,6 +336,7 @@ StucErr splitInPieceEntry(
 		pBorderBuf
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
+	*/
 	PIX_ERR_CATCH(0, err, ;);
 	pAlloc->fpFree(mapCorners.pHalfPlanes);
 }
