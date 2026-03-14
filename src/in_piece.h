@@ -168,8 +168,24 @@ typedef struct InPieceArr {
 	I32 count;
 } InPieceArr;
 
+typedef struct ClustIdx {
+	U32 idx : 30;
+	U32 type : 2;//ClutreIntersect
+	PixtyV2_I16 tile;
+} ClustIdx;
+
+typedef struct IslandClustArr {
+	ClutreStart start;
+	/*
+	ClustIdx *pArr;
+	I32 size;
+	I32 count;
+	*/
+} IslandClustArr;
+
 typedef struct FindEncasedFacesJobArgs {
 	JobArgs core;
+	const IslandClustArr *pClustArr;
 	PixuctHTable encasedFaces;
 	InPieceArr inPiecesMono;
 	JobArgsFoot foot;
@@ -258,6 +274,7 @@ StucErr stucBufMeshInit(void *pArgsVoid);
 StucErr stucInPieceArrInit(
 	struct MapToMeshBasic *pBasic,
 	I32 threadId,
+	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
 	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
 	bool *pEmpty

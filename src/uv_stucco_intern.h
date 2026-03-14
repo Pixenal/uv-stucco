@@ -26,10 +26,65 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_FORCE_INLINE __attribute__((always_inline)) static inline
 #endif
 
+typedef struct BorderEdge {
+	FaceCorner corner;
+	I32 adjIsland;
+} BorderEdge;
+
+typedef struct BorderEdgeArr {
+	BorderEdge *pArr;
+	I32 size;
+	I32 count;
+} BorderEdgeArr;
+
+typedef struct Border {
+	BorderEdgeArr arr;
+	//I32 len;
+} Border;
+
+typedef struct BorderArr {
+	Border *pArr;
+	I32 size;
+	I32 count;
+	I32 outer;
+} BorderArr;
+
+typedef struct StucIsland {
+	BorderArr borders;
+	PixtyRange faces;
+} StucIsland;
+
+typedef struct StucSubIsland {
+	StucIsland core;
+} StucSubIsland;
+
+typedef struct StucSubIslandArr {
+	StucSubIsland *pArr;
+	I32 *pFaces;
+	I32 size;
+	I32 count;
+	I32 faceCount;
+} StucSubIslandArr;
+
+typedef struct StucInIsland {
+	StucIsland core;
+	StucSubIslandArr sub;
+	ClutreBb bb;
+} StucInIsland;
+
+typedef struct StucInIslandArr {
+	StucInIsland *pArr;
+	I32 *pFaces;
+	I32 size;
+	I32 count;
+	I32 faceCount;
+} StucInIslandArr;
+
 typedef struct MapToMeshBasic {
 	Mesh outMesh;
 	const StucContext pCtx;
 	const Mesh *pInMesh;
+	const StucInIslandArr *pInIslands;
 	const StucMap pMap;
 	InFaceTable *pInFaceTable;
 	const StucBlendOptArr *pOptArr;
