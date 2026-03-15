@@ -69,12 +69,13 @@ typedef struct StucSubIslandArr {
 typedef struct StucInIsland {
 	StucIsland core;
 	StucSubIslandArr sub;
+	PixuctHTable borderTable;
 	ClutreBb bb;
 } StucInIsland;
 
 typedef struct StucInIslandArr {
-	StucInIsland *pArr;
 	I32 *pFaces;
+	StucInIsland *pArr;
 	I32 size;
 	I32 count;
 	I32 faceCount;
@@ -117,6 +118,12 @@ typedef struct BufOutRangeTable {
 	I32 size;
 	I32 count;
 } BufOutRangeTable;
+
+typedef struct RangeArr {
+	PixtyRange *pArr;
+	I32 size;
+	I32 count;
+} RangeArr;
 
 StucErr stucBuildTangentsForInPieces(
 	StucContext pCtx,

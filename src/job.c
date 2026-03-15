@@ -52,9 +52,9 @@ void stucMakeJobArgs(
 	divideArrAmongstJobs(fpGetArrCount(pCtx, pShared, pInitInfo), pJobCount, ranges);
 	for (I32 i = 0; i < *pJobCount; ++i) {
 		void *pArgEntry = (U8 *)pArgs + i * argStructSize;
-		setJobArgsCore(pCtx, pShared, (JobArgs *)pArgEntry, ranges, i);
 		if (fpInitArgEntry) {
 			fpInitArgEntry(pCtx, pShared, pInitInfo, pArgEntry);
 		}
+		setJobArgsCore(pCtx, pShared, (JobArgs *)pArgEntry, ranges, i);
 	}
 }

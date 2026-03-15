@@ -853,6 +853,7 @@ typedef struct GetExteriorBorderArgs {
 static
 StucErr addNonClipInPieceToBufMesh(
 	const MapToMeshBasic *pBasic,
+	const FaceRange *pMapFace,
 	const BorderCache *pBorderCache,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
@@ -861,9 +862,8 @@ StucErr addNonClipInPieceToBufMesh(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
-	FaceRange mapFace = stucGetFaceRange(&pMapMesh->core, pInPiece->pList->mapFace);
 	I32 bufFaceStart = pBufMesh->corners.count;
-	for (I32 i = 0; i < mapFace.size; ++i) {	
+	for (I32 i = 0; i < pMapFace->size; ++i) {	
 		BufVertType type = 0;
 		I32 vert = 0;
 		vert = addMapVert(
@@ -871,7 +871,7 @@ StucErr addNonClipInPieceToBufMesh(
 			pBorderCache,
 			pInPiece, pInFaceCache,
 			pBufMesh,
-			&mapFace, i,
+			pMapFace, i,
 			&type
 		);
 		if (vert != -1) {
@@ -885,7 +885,7 @@ StucErr addNonClipInPieceToBufMesh(
 		);
 		return err;
 	}
-	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, mapFace.size);
+	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, bufFaceStart, pMapFace->size);
 	return err;
 }
 
@@ -1020,9 +1020,6 @@ StucErr stucClipMapFace(
 	void *pPlycutAlc
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	FaceRange mapFace = 
-		stucGetFaceRange(&pBasic->pMap->pMesh->core, pInPiece->pList->mapFace);
-
 	InFaceCacheState inFaceCacheState = {.pBasic = pBasic, .initBounds = true};
 	PixuctHTable inFaceCache = {0};
 	pixuctHTableInit(
@@ -1046,34 +1043,56 @@ StucErr stucClipMapFace(
 	for (I32 i = 0; i < inInput.boundaries; ++i) {
 		inInput.pSizes[i] = pInPiece->borderArr.pArr[i].len;
 	}
-	PlycutInput mapInput = {.pSizes = &mapFace.size, .boundaries = 1, .pUserData = &mapFace};
-	PlycutFaceArr out = {0};
-	plycutClip(
-		&pBasic->pCtx->alloc,
-		pBasic,
-		pBorderCache, inInput, getBorderCornerPos,
-		NULL, mapInput, getMapCornerPos,
-		&out,
-		NULL,
-		pPlycutAlc
-	);
-	if (out.count) {
-		addFacesToBufMesh(
+
+	PixtyI32Arr mapFaces = {0};
+	err = inPieceGetFaces(pBasic->pMap, pInPiece, &mapFaces);
+	for (I32 i = 0; i < mapFaces.count; ++i) {
+		FaceRange mapFace = stucGetFaceRange(pBasic->pMap->pMesh, mapFaces.pArr[i]);
+		PlycutInput mapInput = {.pSizes = &mapFace.size, .boundaries = 1, .pUserData = &mapFace};
+		PlycutFaceArr out = {0};
+		plycutClip(
+			&pBasic->pCtx->alloc,
 			pBasic,
-			pBorderCache,
-			inPieceOffset,
-			pInPiece,
-			pBufMesh,
-			&inFaceCache,
-			&mapFace,
-			&out
+			pBorderCache, inInput, getBorderCornerPos,
+			NULL, mapInput, getMapCornerPos,
+			&out,
+			NULL,
+			pPlycutAlc
 		);
+		if (out.count) {
+			addFacesToBufMesh(
+				pBasic,
+				pBorderCache,
+				inPieceOffset,
+				pInPiece,
+				pBufMesh,
+				&inFaceCache,
+				&mapFace,
+				&out
+			);
+		}
+		PIX_ERR_CATCH(0, err, 
+			err = PIX_ERR_SUCCESS; //skipping this face, reset err
+		);
+		plycutFaceArrDestroy(&pBasic->pCtx->alloc, &out);
 	}
-	PIX_ERR_CATCH(0, err, 
-		err = PIX_ERR_SUCCESS; //skipping this face, reset err
-	);
-	plycutFaceArrDestroy(&pBasic->pCtx->alloc, &out);
 	inFaceCacheDestroy(pBasic, &inFaceCache);
+	return err;
+}
+
+static
+StucErr inPieceGetFaces(
+	const StucMap pMap,
+	const InPiece *pInPiece,
+	PixtyI32Arr *pMapFaces
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	ClutreNode *pCluster = NULL;
+	err = clutreIdx(&pMap->clustTree, pInPiece->pList->cluster, &pCluster);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	PixtyI32Arr mapFaces = {0};
+	err = clutreFacesGet(&pMap->clustTree, pCluster, &mapFaces);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
@@ -1102,16 +1121,22 @@ StucErr stucAddMapFaceToBufMesh(
 		&inFaceCacheState,
 		false
 	);
-
-	err = addNonClipInPieceToBufMesh(
-		pBasic,
-		pBorderCache,
-		inPieceOffset,
-		pInPiece,
-		pBufMesh,
-		&inFaceCache
-	);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
+	
+	PixtyI32Arr mapFaces = {0};
+	err = inPieceGetFaces(pBasic->pMap, pInPiece, &mapFaces);
+	for (I32 i = 0; i < mapFaces.count; ++i) {
+		FaceRange mapFace = stucGetFaceRange(pBasic->pMap->pMesh, mapFaces.pArr[i]);
+		err = addNonClipInPieceToBufMesh(
+			pBasic,
+			&mapFaces,
+			pBorderCache,
+			inPieceOffset,
+			pInPiece,
+			pBufMesh,
+			&inFaceCache
+		);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
 	PIX_ERR_CATCH(0, err,
 		err = PIX_ERR_SUCCESS; //reset err (skipping face)
 	);

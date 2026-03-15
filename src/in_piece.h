@@ -17,14 +17,16 @@ struct MapToMeshBasic;
 
 typedef struct EncasedMapFace {
 	PixuctHTableEntryCore core;
-	PixtyI32Arr inFaces;
-	I32 cluster;
+	I32 inFaces;
+	U32 cluster : 31;
+	U32 clip : 1;
 	V2_I16 tile;
 } EncasedMapFace;
 
 typedef struct EncasedEntryIdx {
 	struct EncasedEntryIdx *pNext;
-	I32 cluster;
+	U32 cluster : 31;
+	U32 clip : 1;
 	V2_I16 tile;
 	I32 entryIdx;
 } EncasedEntryIdx;
@@ -37,7 +39,7 @@ typedef struct BufFace {
 
 typedef struct InPiece {
 	EncasedMapFace *pList;
-	BorderArr borderArr;
+	//BorderArr borderArr;
 	I32 faceCount;
 } InPiece;
 
@@ -183,9 +185,17 @@ typedef struct IslandClustArr {
 	*/
 } IslandClustArr;
 
+typedef struct InFaceMem {
+	PixtyI32Arr *pArr;
+	I32 size;
+	I32 count;
+	I32 initCount;
+} InFaceMem;
+
 typedef struct FindEncasedFacesJobArgs {
 	JobArgs core;
 	const IslandClustArr *pClustArr;
+	InFaceMem inFaces;
 	PixuctHTable encasedFaces;
 	InPieceArr inPiecesMono;
 	JobArgsFoot foot;
@@ -276,6 +286,7 @@ StucErr stucInPieceArrInit(
 	I32 threadId,
 	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
+	InPieceArr *pInPiecesClip,
 	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
 	bool *pEmpty
 );

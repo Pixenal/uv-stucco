@@ -11,6 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <utils.h>
 
 typedef struct EncasedMapFaceInitInfo {
+	InFaceMem *pInFaces;
 	const FaceRange *pInFace;
 	bool inFaceWind;
 } EncasedMapFaceInitInfo;
@@ -102,44 +103,49 @@ void encasedMapFaceInit(
 	EncasedMapFaceInitInfo *pInitInfo = pInitInfoVoid;
 	EncasedMapFace *pEntry = (EncasedMapFace *)pEntryCore;
 	pEntry->cluster = pKey->cluster;
+	pEntry->clip = pKey->clip;
 	pEntry->tile = pKey->tile;
-	pEntry->inFaces.count = pEntry->inFaces.size = 1;
-	pEntry->inFaces.pArr = pAlloc->fpMalloc(pEntry->inFaces.size * sizeof(I32));
-	pEntry->inFaces.pArr[0] = (U32)pInitInfo->pInFace->idx;
+	InFaceMem *pInFaces = pInitInfo->pInFaces;
+	PIXALC_DYN_ARR_ADD(PixtyI32Arr, pAlloc, pInFaces, pEntry->inFaces);
+	if (pEntry->inFaces >= pInFaces->initCount) {
+		PIX_ERR_ASSERT("", pEntry->inFaces == pInFaces->initCount);
+		pInFaces->pArr[pEntry->inFaces] = (PixtyI32Arr){0};
+		++pInFaces->initCount;
+	}
+	else {
+		pInFaces->pArr[pEntry->inFaces].count = 0;
+	}
+	I32 newIdx = 0;
+	PIXALC_DYN_ARR_ADD(I32, pAlloc, pInFaces->pArr + pEntry->inFaces, newIdx);
+	pInFaces->pArr[pEntry->inFaces].pArr[newIdx] = pInitInfo->pInFace->idx;
 }
 
 static
 bool encasedMapFaceCmp(
-	const PixuctHTableEntryCore *pEntry,
+	const PixuctHTableEntryCore *pEntryRaw,
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
+	const EncasedMapFace *pEntry = pEntryRaw;
+	const InPieceKey *pKey = pKeyData;
 	return 
-		((EncasedMapFace *)pEntry)->cluster == ((InPieceKey *)pKeyData)->cluster &&
-		_(((EncasedMapFace *)pEntry)->tile V2I16EQL ((InPieceKey *)pKeyData)->tile);
+		pEntry->cluster == pKey->cluster &&
+		pEntry->clip == pKey->clip &&
+		_(pEntry->tile V2I16EQL pKey->tile);
 }
 
 static
 void appendToEncasedEntry(
-	const MapToMeshBasic *pBasic,
+	FindEncasedFacesJobArgs *pArgs,
 	EncasedMapFace *pEntry,
 	const FaceRange *pInFace,
 	bool wind
 ) {
-	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	PixtyI32Arr *pInFaces = &pEntry->inFaces;
-	PIX_ERR_ASSERT(
-		"",
-		pInFaces->count > 0 && pInFaces->count <= pInFaces->size
-	);
-	//TODO replace manual reallocs with PIXALC_DYN_ARR_RESIZE or _ADD
-	if (pInFaces->count == pInFaces->size) {
-		pInFaces->size *= 2;
-		pInFaces->pArr =
-			pAlloc->fpRealloc(pInFaces->pArr, pInFaces->size * sizeof(I32));
-	}
-	pInFaces->pArr[pInFaces->count] = (U32)pInFace->idx;
-	pInFaces->count++;
+	const StucAlloc *pAlloc = &((const MapToMeshBasic *)pArgs->core.pShared)->pCtx->alloc;
+	PixtyI32Arr *pInFaces = pArgs->inFaces.pArr + pEntry->inFaces;
+	I32 newIdx = 0;
+	PIXALC_DYN_ARR_ADD(I32, pAlloc, pInFaces, newIdx);
+	pInFaces->pArr[newIdx] = pInFace->idx;
 }
 
 static
@@ -148,21 +154,25 @@ EncasedMapFace *addToEncasedFaces(
 	const FaceRange *pInFace,
 	bool inFaceWind,
 	I32 cluster,
+	bool clip,
 	V2_I16 tile
 ) {
 	EncasedMapFace *pEntry = NULL;
 	SearchResult result = pixuctHTableGet(
 		&pArgs->encasedFaces,
-		0,
-		&(InPieceKey) {.cluster = cluster, .tile = tile},
+		clip,
+		&(InPieceKey) {.cluster = cluster, .clip = clip, .tile = tile},
 		(void**)&pEntry,
-		true, &(EncasedMapFaceInitInfo) {.pInFace = pInFace, .inFaceWind = inFaceWind},
+		true,
+		&(EncasedMapFaceInitInfo) {
+			.pInFaces = &pArgs->inFaces, .pInFace = pInFace, .inFaceWind = inFaceWind
+		},
 		stucInPieceMakeKey, NULL, encasedMapFaceInit, encasedMapFaceCmp
 	);
 	if (result == PIX_SEARCH_FOUND) {
 		PIX_ERR_ASSERT("", pEntry);
 		appendToEncasedEntry(
-			(const MapToMeshBasic *)pArgs->core.pShared,
+			pArgs,
 			pEntry,
 			pInFace,
 			inFaceWind
@@ -259,6 +269,7 @@ PixErr inPieceAddFace(
 		&pInfo->inFace,
 		pInfo->inFaceWind,
 		idx,
+		status == CLUTRE_INTERSECT || status == CLUTRE_ENCLOSING,
 		(V2_I16){(I16)tile.d[0], (I16)tile.d[1]}
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -405,7 +416,10 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 		&pBasic->pCtx->alloc,
 		&pArgs->encasedFaces,
 		clutreTreeCount(&pBasic->pMap->clustTree) / 4 + 2,
-		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedMapFace)}, .count = 1},
+		(I32Arr) {
+			.pArr = (I32[]) {sizeof(EncasedMapFace), sizeof(EncasedMapFace)},
+			.count = 2
+		},
 		NULL,
 		&tableState,
 		true
@@ -422,7 +436,8 @@ I32 encasedTableJobsGetRange(StucContext pCtx, const void *pShared, void *pInitI
 }
 
 typedef struct InPieceInitInfo {
-	EncasedMapFace *pMapFace;
+	const InFaceMem *pInFaces;
+	EncasedMapFace *pCluster;
 	InPieceArr *pInPieceArr;
 } InPieceInitInfo;
 
@@ -435,16 +450,18 @@ void inPieceInit (
 	I32 linIdx
 ) {
 	EncasedEntryIdx *pIdxEntry = (EncasedEntryIdx *)pIdxEntryCore;
-	InPieceArr *pInPieceArr = ((InPieceInitInfo *)pInitInfoVoid)->pInPieceArr;
+	InPieceInitInfo *pInitInfo = pInitInfoVoid;
+	InPieceArr *pInPieceArr = pInitInfo->pInPieceArr;
 	const InPieceKey *pKey = pKeyData;
-	pIdxEntry->mapFace = pKey->mapFace;
+	pIdxEntry->cluster = pKey->cluster;
+	pIdxEntry->clip = pKey->clip;
 	pIdxEntry->tile = pKey->tile;
 	pIdxEntry->entryIdx = pInPieceArr->count;
 
-	EncasedMapFace *pMapFace = ((InPieceInitInfo *)pInitInfoVoid)->pMapFace;
+	EncasedMapFace *pCluster = ((InPieceInitInfo *)pInitInfoVoid)->pCluster;
 	InPiece *pInPiece = pInPieceArr->pArr + pInPieceArr->count;
-	pInPiece->pList = pMapFace;
-	pInPiece->faceCount = pMapFace->inFaces.count;
+	pInPiece->pList = pCluster;
+	pInPiece->faceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count;
 	pInPieceArr->count++;
 }
 
@@ -455,20 +472,24 @@ bool inPieceCmp(
 	const void *pInitInfo
 ) {
 	const EncasedEntryIdx *pIdxEntry = (EncasedEntryIdx *)pIdxEntryCore;
-	const InPieceKey *pMapFace = pKeyData;
+	const InPieceKey *pKey = pKeyData;
 	return
-		pIdxEntry->mapFace == pMapFace->mapFace &&
-		_(pIdxEntry->tile V2I16EQL pMapFace->tile);
+		pIdxEntry->cluster == pKey->cluster &&
+		pIdxEntry->clip == pKey->clip &&
+		_(pIdxEntry->tile V2I16EQL pKey->tile);
 }
 
 static
 void appendEncasedEntryToInPiece(
+	const InFaceMem *pInFaces,
 	EncasedMapFace *pEntry,
 	EncasedEntryIdx *pIdxEntry,
 	InPieceArr *pInPieceArr
 ) {
-	pInPieceArr->pArr[pIdxEntry->entryIdx].faceCount += pEntry->inFaces.count;
-	PixuctHTableEntryCore *pInPiece = (PixuctHTableEntryCore *)pInPieceArr->pArr[pIdxEntry->entryIdx].pList;
+	pInPieceArr->pArr[pIdxEntry->entryIdx].faceCount +=
+		pInFaces->pArr[pEntry->inFaces].count;
+	PixuctHTableEntryCore *pInPiece =
+		(PixuctHTableEntryCore *)pInPieceArr->pArr[pIdxEntry->entryIdx].pList;
 	while (pInPiece->pNext) {
 		pInPiece = pInPiece->pNext;
 	}
@@ -477,22 +498,45 @@ void appendEncasedEntryToInPiece(
 
 static
 void addEncasedEntryToInPieceArr(
-	const MapToMeshBasic *pBasic,
+	const FindEncasedFacesJobArgs *pArgs,
 	PixuctHTable *pIdxTable,
 	InPieceArr *pInPieceArr,
-	EncasedMapFace *pMapFace
+	EncasedMapFace *pCluster
 ) {
 	EncasedEntryIdx *pIdxEntry = NULL;
 	SearchResult result = pixuctHTableGet(
 		pIdxTable,
 		0,
-		&(InPieceKey) {.mapFace = pMapFace->mapFace, .tile = pMapFace->tile},
+		&(InPieceKey) {
+			.cluster = pCluster->cluster, .clip = pCluster->clip, .tile = pCluster->tile
+		},
 		(void **)&pIdxEntry,
-		true, &(InPieceInitInfo) {.pMapFace = pMapFace, .pInPieceArr = pInPieceArr},
+		true,
+		&(InPieceInitInfo) {
+			.pInFaces = &pArgs->inFaces, .pCluster = pCluster, .pInPieceArr = pInPieceArr
+		},
 		stucInPieceMakeKey, NULL, inPieceInit, inPieceCmp
 	);
 	if (result == PIX_SEARCH_FOUND) {
-		appendEncasedEntryToInPiece(pMapFace, pIdxEntry, pInPieceArr);
+		appendEncasedEntryToInPiece(&pArgs->inFaces, pCluster, pIdxEntry, pInPieceArr);
+	}
+}
+
+static
+void iterAndAddJobPieces(
+	I32 job,
+	FindEncasedFacesJobArgs *pJobArgs,
+	InPieceArr *pInPieceArr,
+	PixuctHTable *pIdxTable,
+	bool clip
+) {
+	PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&pJobArgs[job].encasedFaces, clip);
+	PixalcLinAllocIter iter = {0};
+	pixalcLinAllocIterInit(pAlloc, (Range) {0, INT32_MAX}, &iter);
+	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
+		EncasedMapFace *pEntry = pixalcLinAllocGetItem(&iter);
+		addEncasedEntryToInPieceArr(pJobArgs + job, pIdxTable, pInPieceArr, pEntry);
+		pEntry->core.pNext = NULL;
 	}
 }
 
@@ -502,24 +546,33 @@ void linkEncasedTableEntries(
 	I32 jobCount,
 	FindEncasedFacesJobArgs *pJobArgs,
 	InPieceArr *pInPieceArr,
+	InPieceArr *pInPieceClipArr,
 	bool *pEmpty
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	pInPieceArr->size = pInPieceArr->count = 0;
+	*pInPieceArr = (InPieceArr){0};
+	*pInPieceClipArr = (InPieceArr){0};
 	for (I32 i = 0; i < jobCount; ++i) {
-		PixalcLinAlloc *pTableAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
-		pInPieceArr->size += pixalcLinAllocGetCount(pTableAlloc);
+		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
+		pInPieceArr->size += pixalcLinAllocGetCount(pAlloc);
+		pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 1);
+		pInPieceClipArr->size += pixalcLinAllocGetCount(pAlloc);
 	}
-	if (pInPieceArr->size == 0) {
+	if (!pInPieceArr->size && !pInPieceClipArr->size) {
 		*pEmpty = true;
 		return;
 	}
-	pInPieceArr->pArr = pAlloc->fpCalloc(pInPieceArr->size, sizeof(InPiece));
+	if (pInPieceArr->size) {
+		pInPieceArr->pArr = pAlloc->fpCalloc(pInPieceArr->size, sizeof(InPiece));
+	}
+	if (pInPieceClipArr->size) {
+		pInPieceClipArr->pArr = pAlloc->fpCalloc(pInPieceClipArr->size, sizeof(InPiece));
+	}
 	PixuctHTable idxTable = {0};
 	pixuctHTableInit(
 		pAlloc,
 		&idxTable,
-		pInPieceArr->size / 4 + 1,
+		(pInPieceArr->size + pInPieceClipArr->size) / 4 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedEntryIdx)}, .count = 1},
 		NULL,
 		NULL,
@@ -527,14 +580,8 @@ void linkEncasedTableEntries(
 	);
 
 	for (I32 i = 0; i < jobCount; ++i) {
-		PixalcLinAlloc *pTableAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
-		PixalcLinAllocIter iter = {0};
-		pixalcLinAllocIterInit(pTableAlloc, (Range) {0, INT32_MAX}, &iter);
-		for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
-			EncasedMapFace *pEntry = pixalcLinAllocGetItem(&iter);
-			addEncasedEntryToInPieceArr(pBasic, &idxTable, pInPieceArr, pEntry);
-			pEntry->core.pNext = NULL;
-		}
+		iterAndAddJobPieces(pBasic, i, pJobArgs, pInPieceArr, &idxTable, 0);
+		iterAndAddJobPieces(pBasic, i, pJobArgs, pInPieceClipArr, &idxTable, 1);
 	}
 	pixuctHTableDestroy(&idxTable);
 	*pEmpty = false;
@@ -549,6 +596,10 @@ void encasedTableJobsInitArg(
 	void *pArgsRaw
 ) {
 	FindEncasedFacesJobArgs *pArgs = pArgsRaw;
+	InFaceMem inFaces = pArgs->inFaces;
+	*pArgs = (FindEncasedFacesJobArgs){0};
+	inFaces.count = 0;
+	pArgs->inFaces = inFaces;
 	pArgs->pClustArr = pInitInfoRaw;
 }
 
@@ -557,6 +608,7 @@ StucErr stucInPieceArrInit(
 	I32 threadId,
 	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
+	InPieceArr *pInPiecesClip,
 	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
 	bool *pEmpty
 ) {
@@ -580,6 +632,7 @@ StucErr stucInPieceArrInit(
 		pBasic,
 		*pJobCount, pJobArgs,
 		pInPieces,
+		pInPiecesClip,
 		pEmpty
 	);
 	return err;
