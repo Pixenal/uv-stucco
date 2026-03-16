@@ -13,7 +13,9 @@ SPDX-License-Identifier: Apache-2.0
 typedef struct EncasedMapFaceInitInfo {
 	InFaceMem *pInFaces;
 	const FaceRange *pInFace;
+	I32 job;
 	bool inFaceWind;
+	bool border;
 } EncasedMapFaceInitInfo;
 
 typedef struct EncasedMapFaceTableState {
@@ -103,13 +105,15 @@ void encasedMapFaceInit(
 	EncasedMapFaceInitInfo *pInitInfo = pInitInfoVoid;
 	EncasedMapFace *pEntry = (EncasedMapFace *)pEntryCore;
 	pEntry->cluster = pKey->cluster;
+	pEntry->job = pInitInfo->job;
 	pEntry->clip = pKey->clip;
 	pEntry->tile = pKey->tile;
+	pEntry->border = pInitInfo->border;
 	InFaceMem *pInFaces = pInitInfo->pInFaces;
-	PIXALC_DYN_ARR_ADD(PixtyI32Arr, pAlloc, pInFaces, pEntry->inFaces);
+	PIXALC_DYN_ARR_ADD(InFaceIdxArr, pAlloc, pInFaces, pEntry->inFaces);
 	if (pEntry->inFaces >= pInFaces->initCount) {
 		PIX_ERR_ASSERT("", pEntry->inFaces == pInFaces->initCount);
-		pInFaces->pArr[pEntry->inFaces] = (PixtyI32Arr){0};
+		pInFaces->pArr[pEntry->inFaces] = (InFaceIdxArr){0};
 		++pInFaces->initCount;
 	}
 	else {
@@ -117,7 +121,11 @@ void encasedMapFaceInit(
 	}
 	I32 newIdx = 0;
 	PIXALC_DYN_ARR_ADD(I32, pAlloc, pInFaces->pArr + pEntry->inFaces, newIdx);
-	pInFaces->pArr[pEntry->inFaces].pArr[newIdx] = pInitInfo->pInFace->idx;
+	pInFaces->pArr[pEntry->inFaces].pArr[newIdx] = (InFaceIdx){
+		.idx = (U32)pInitInfo->pInFace->idx,
+		.wind = pInitInfo->inFaceWind,
+		.border = pInitInfo->border
+	};
 }
 
 static
@@ -139,13 +147,18 @@ void appendToEncasedEntry(
 	FindEncasedFacesJobArgs *pArgs,
 	EncasedMapFace *pEntry,
 	const FaceRange *pInFace,
-	bool wind
+	bool wind,
+	bool border
 ) {
 	const StucAlloc *pAlloc = &((const MapToMeshBasic *)pArgs->core.pShared)->pCtx->alloc;
-	PixtyI32Arr *pInFaces = pArgs->inFaces.pArr + pEntry->inFaces;
+	InFaceIdxArr *pInFaces = pArgs->inFaces.pArr + pEntry->inFaces;
 	I32 newIdx = 0;
 	PIXALC_DYN_ARR_ADD(I32, pAlloc, pInFaces, newIdx);
-	pInFaces->pArr[newIdx] = pInFace->idx;
+	pInFaces->pArr[newIdx] = (InFaceIdx){
+		.idx = (U32)pInFace->idx,
+		.wind = wind,
+		.border = border
+	};
 }
 
 static
@@ -155,7 +168,8 @@ EncasedMapFace *addToEncasedFaces(
 	bool inFaceWind,
 	I32 cluster,
 	bool clip,
-	V2_I16 tile
+	V2_I16 tile,
+	bool border
 ) {
 	EncasedMapFace *pEntry = NULL;
 	SearchResult result = pixuctHTableGet(
@@ -165,7 +179,11 @@ EncasedMapFace *addToEncasedFaces(
 		(void**)&pEntry,
 		true,
 		&(EncasedMapFaceInitInfo) {
-			.pInFaces = &pArgs->inFaces, .pInFace = pInFace, .inFaceWind = inFaceWind
+			.pInFaces = &pArgs->inFaces,
+			.pInFace = pInFace,
+			.job = pArgs->core.id,
+			.inFaceWind = inFaceWind,
+			.border = border
 		},
 		stucInPieceMakeKey, NULL, encasedMapFaceInit, encasedMapFaceCmp
 	);
@@ -175,7 +193,8 @@ EncasedMapFace *addToEncasedFaces(
 			pArgs,
 			pEntry,
 			pInFace,
-			inFaceWind
+			inFaceWind,
+			border
 		);
 	}
 	return pEntry;
@@ -247,12 +266,56 @@ typedef struct InPieceClust {
 	FindEncasedFacesJobArgs *pArgs;
 	FaceRange inFace;
 	I32 inFaceWind;
+	bool borderFace;
 } InPieceClust;
 
 typedef struct FaceMesh {
 	const Mesh *pMesh;
 	FaceRange range;
 } FaceMesh;
+
+static
+bool isClustOnBorder(
+	FindEncasedFacesJobArgs *pArgs,
+	I32 cluster,
+	V2_I32 tile
+) {
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	PixtyRange faces = {0};
+	clutreFaceRangeGet(&pBasic->pMap->clustTree, cluster, &faces);
+	V2_I16 tile16 = {tile.d[0], tile.d[1]};
+	IslandClustArr *pArr = pArgs->pClustArr;
+	PixtyRange tileRange = {0};
+	for (I32 i = 0; i < pArr->tiles.count; ++i) {
+		if (_(tile16 V2I16EQL pArr->tiles.pArr[i].tile)) {
+			tileRange = pArr->tiles.pArr[i].range;
+			break;
+		}
+	}
+	PIX_ERR_ASSERT("", tileRange.start >= 0 && tileRange.end > tileRange.start);
+	PixtyRange range = tileRange;
+	I32 rangeSize;
+	while ((rangeSize = range.end - range.start) / 2) {
+		I32 mid = tileRange.start + rangeSize / 2;
+		PixtyRange midFaces = {0};
+		clutreFaceRangeGet(&pBasic->pMap->clustTree, pArr->pArr[mid].idx, &midFaces);
+		if (faces.start >= midFaces.start) {
+			range.start = mid;
+		}
+		else {
+			range.end = mid;
+		}
+	};
+	PixtyRange parentFaces = {0};
+	clutreFaceRangeGet(
+		&pBasic->pMap->clustTree,
+		pArr->pArr[range.start].idx,
+		&parentFaces
+	);
+	PIX_ERR_ASSERT("", faces.start >= parentFaces.start && faces.end <= parentFaces.end);
+	ClutreIntersect type = (ClutreIntersect)pArr->pArr[range.start].type;
+	return type == CLUTRE_INTERSECT || type == CLUTRE_ENCLOSED;
+}
 
 static
 PixErr inPieceAddFace(
@@ -269,8 +332,9 @@ PixErr inPieceAddFace(
 		&pInfo->inFace,
 		pInfo->inFaceWind,
 		idx,
-		status == CLUTRE_INTERSECT || status == CLUTRE_ENCLOSING,
-		(V2_I16){(I16)tile.d[0], (I16)tile.d[1]}
+		isClustOnBorder(pInfo->pArgs, idx, tile),
+		(V2_I16){(I16)tile.d[0], (I16)tile.d[1]},
+		pInfo->borderFace
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
@@ -305,7 +369,8 @@ StucErr getEncasedFacesPerFace(
 	InPieceClust clustInfo = {
 		.pArgs = pArgs,
 		.inFace = *pInFace,
-		.inFaceWind = inFaceWind
+		.inFaceWind = inFaceWind,
+		stucIsInFaceOnBorder(pBasic->pInMesh, pArgs->pClustArr, pInFace, NULL)
 	};
 	ClutreArr clustArr = {.pUserData = &clustInfo, .fpAdd = inPieceAddFace};
 	err = clutreSampleForFace(
@@ -375,7 +440,6 @@ PixtyV2_F32 stucClustPos(const void *pFaceRaw, I32 localCorner) {
 static
 StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_ASSERT("stores tiles with 16 bits earch", STUC_TILE_BIT_LEN <= 16);
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	PlycutMem plycutAlc = {0};
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {

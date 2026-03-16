@@ -15,11 +15,25 @@ SPDX-License-Identifier: Apache-2.0
 
 struct MapToMeshBasic;
 
+typedef struct InFaceIdx {
+	U32 idx : 30;
+	U32 wind : 1;
+	U32 border : 1;
+} InFaceIdx;
+
+typedef struct InFaceIdxArr {
+	InFaceIdx *pArr;
+	I32 size;
+	I32 count;
+} InFaceIdxArr;
+
 typedef struct EncasedMapFace {
 	PixuctHTableEntryCore core;
 	I32 inFaces;
-	U32 cluster : 31;
+	I32 job;
+	U32 cluster : 30;
 	U32 clip : 1;
+	U32 border : 1;
 	V2_I16 tile;
 } EncasedMapFace;
 
@@ -173,24 +187,47 @@ typedef struct InPieceArr {
 typedef struct ClustIdx {
 	U32 idx : 30;
 	U32 type : 2;//ClutreIntersect
-	PixtyV2_I16 tile;
+	//PixtyV2_I16 tile;
 } ClustIdx;
 
-typedef struct IslandClustArr {
-	ClutreStart start;
-	/*
-	ClustIdx *pArr;
+typedef struct TileRange {
+	PixtyRange range;
+	PixtyV2_I16 tile;
+} TileRange;
+
+typedef struct TileRangeArr {
+	TileRange *pArr;
 	I32 size;
 	I32 count;
-	*/
+} TileRangeArr;
+
+typedef struct StucBorderTable {
+	PixuctHTableEntryCore core;
+	I32 border;
+	I32 idx;
+	I32 edge;
+} StucBorderTable;
+
+typedef struct IslandClustArr {
+	const StucInIsland *pIsland;
+	ClutreStart start;
+	ClustIdx *pArr;
+	TileRangeArr tiles;
+	I32 size;
+	I32 count;
 } IslandClustArr;
 
 typedef struct InFaceMem {
-	PixtyI32Arr *pArr;
+	InFaceIdxArr *pArr;
 	I32 size;
 	I32 count;
 	I32 initCount;
 } InFaceMem;
+
+typedef struct InFaceMemArr {
+	InFaceMem arr[PIXTH_MAX_SUB_MAPPING_JOBS];
+	I32 count;
+} InFaceMemArr;
 
 typedef struct FindEncasedFacesJobArgs {
 	JobArgs core;
@@ -232,11 +269,30 @@ typedef struct InFaceCornerArr {
 	I32 count;
 } InFaceCornerArr;
 
-typedef struct BorderCache {
-	const InPiece *pInPiece;
-	InFaceCornerArr *pBorders;
+typedef struct PieceBorderEdge {
+	ClutreValidIdx next;
+	ClutreValidIdx prev;
+	I32 idx;
+} PieceBorderEdge;
+
+typedef struct PieceBorderList {
+	PieceBorderEdge *pArr;
 	I32 size;
 	I32 count;
+	ClutreValidIdx start;
+	I32 border;
+} PieceBorderList;
+
+typedef struct PieceBorders {
+	PieceBorderList *pArr;
+	I32 size;
+	I32 count;
+} PieceBorders;
+
+//TODO probably rename, this isn't a cache anymore
+typedef struct BorderCache {
+	const InPiece *pInPiece;
+	PieceBorders arr;
 } BorderCache;
 
 typedef struct SrcFaces {
@@ -264,6 +320,7 @@ SrcFaces stucGetSrcFacesForBufCorner(
 );
 StucErr stucClipMapFace(
 	const struct MapToMeshBasic *pBasic,
+	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
@@ -273,6 +330,7 @@ StucErr stucClipMapFace(
 );
 StucErr stucAddMapFaceToBufMesh(
 	const struct MapToMeshBasic *pBasic,
+	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
@@ -293,6 +351,7 @@ StucErr stucInPieceArrInit(
 StucErr stucInPieceArrInitBufMeshes(
 	struct MapToMeshBasic *pBasic,
 	I32 threadId,
+	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
 	StucErr (* fpAddPiece)(
 		const struct MapToMeshBasic *,
@@ -341,4 +400,49 @@ BufVertType bufMeshGetType(const BufMesh *pBufMesh, FaceCorner corner) {
 	BufFace bufFace = pBufMesh->faces.pArr[corner.face];
 	BufCorner bufCorner = pBufMesh->corners.pArr[bufFace.start + corner.corner];
 	return bufCorner.type;
+}
+
+static inline
+bool stucBorderTableCmp(
+	const PixuctHTableEntryCore *pEntry,
+	const void *pKeyData,
+	const void *pInitInfo
+) {
+	return ((StucBorderTable *)pEntry)->edge == *((I32 *)pKeyData);
+}
+
+static inline
+bool stucIsInFaceOnBorder(
+	const Mesh *pInMesh,
+	const IslandClustArr *pClustArr,
+	const FaceRange *pInFace,
+	const StucBorderTable **ppEntry
+) {
+	for (I32 i = 0; i < pInFace->size; ++i) {
+		const StucBorderTable *pEntry;
+		I32 edge = stucGetMeshEdge(
+			pInMesh,
+			(FaceCorner){.face = pInFace->idx, .corner = i}
+		);
+		SearchResult result = pixuctHTableGetConst(
+			&pClustArr->pIsland->borderTable,
+			0,
+			&edge,
+			&pEntry,
+			false,
+			NULL,
+			pixuctKeyFromI32, NULL, NULL, stucBorderTableCmp
+		);
+		if (result == PIX_SEARCH_FOUND) {
+			PIX_ERR_ASSERT("", pEntry);//TODO move this check into pixuctHTableGet
+			if (ppEntry) {
+				*ppEntry = pEntry;
+			}
+			return true;
+		}
+	}
+	if (ppEntry) {
+		*ppEntry = NULL;
+	}
+	return false;
 }

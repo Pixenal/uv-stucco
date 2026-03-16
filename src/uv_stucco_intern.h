@@ -18,8 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_structs.h>
 #include <in_piece.h>
 
-#define STUC_TILE_BIT_LEN 11
-
 #ifdef WIN32
 #define STUC_FORCE_INLINE __forceinline
 #else

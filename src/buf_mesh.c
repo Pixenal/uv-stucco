@@ -939,28 +939,60 @@ void borderCacheAlloc(
 static
 void borderCacheInit(
 	const MapToMeshBasic *pBasic,
+	const IslandClustArr *pClustArr,
+	const InFaceMemArr *pInFaceArr,
 	const InPiece *pInPiece,
 	PixuctHTable *pInFaceCache,
 	BorderCache *pBorderCache
 ) {
+	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
 	pBorderCache->pInPiece = pInPiece;
-	borderCacheAlloc(&pBasic->pCtx->alloc, &pInPiece->borderArr, pBorderCache);
-	for (I32 i = 0; i < pInPiece->borderArr.count; ++i) {
-		InFaceCornerArr *pBorder = pBorderCache->pBorders + i;
-		pBorder->count = 0;
-		FaceCorner start = {
-			.face = pInPiece->borderArr.pArr[i].start.face,
-			.corner = pInPiece->borderArr.pArr[i].start.corner
-		};
-		walkInPieceBorder(
-			pBasic,
-			pInPiece,
-			pInFaceCache,
-			start,
-			borderCacheAdd, pBorder 
-		);
-		PIX_ERR_ASSERT("", pBorder->count == pInPiece->borderArr.pArr[i].len);
-	}
+	const EncasedMapFace *pEntry = pInPiece->pList;
+	PIX_ERR_ASSERT("", pEntry);
+	do {
+		PIX_ERR_ASSERT("", pEntry->job < pInFaceArr->count);
+		const InFaceIdxArr *pInFaces =
+			pInFaceArr->arr[pEntry->job].pArr + pEntry->inFaces;
+		for (I32 i = 0; i < pInFaces->count; ++i)  {
+			if (!pInFaces->pArr[i].border) {
+				continue;
+			}
+			InFaceIdx idx = pInFaces->pArr[i];
+			const Border *pBorder = pClustArr->pIsland->core.borders.pArr + idx.border;
+			FaceCorner corner = pBorder->arr.pArr[idx.idx].corner;
+			FaceRange face = stucGetFaceRange(pBasic->pInMesh, corner.face);
+			StucBorderTable *pEntry = NULL;
+			if (!stucIsInFaceOnBorder(pBasic->pInMesh, pClustArr, &face, &pEntry)) {
+				continue;
+			}
+			PIXALC_DYN_ARR_RESIZE(PieceBorderList,
+				pAlloc,
+				&pBorderCache->arr,
+				idx.border
+			);
+			PieceBorderList *pPieceBorder = pBorderCache->arr.pArr + idx.border;
+			PixtyRange range = {.start = 0, pPieceBorder->count};
+			I32 newIdx = 0;
+			PIXALC_DYN_ARR_ADD(PieceBorderEdge, pAlloc, pPieceBorder, newIdx);
+			if (!newIdx) {
+				pPieceBorder->pArr[0] = (PieceBorderEdge){.idx = idx.idx};
+				pPieceBorder->start.valid = true;
+				continue;
+			}
+			I32 rangeSize;
+			while ((rangeSize = range.end - range.start) / 2) {
+				I32 mid = range.start + rangeSize / 2;
+				PieceBorderEdge *pEdge = pPieceBorder->pArr + mid;
+				PIX_ERR_ASSERT("", idx.idx != pEdge->idx);
+				if (idx.idx > pEdge->idx) {
+					range.start = mid;
+				}
+				else {
+					range.end = mid;
+				}
+			};
+		}
+	} while(pEntry = pEntry->core.pNext);
 }
 
 static
@@ -1012,6 +1044,7 @@ V3_F32 getMapCornerPos(
 
 StucErr stucClipMapFace(
 	const MapToMeshBasic *pBasic,
+	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
@@ -1036,7 +1069,7 @@ StucErr stucClipMapFace(
 	);
 	getInPieceBounds(pBasic, pInPiece, &inFaceCache);
 
-	borderCacheInit(pBasic, pInPiece, &inFaceCache, pBorderCache);
+	borderCacheInit(pBasic, pClustArr, pInPiece, &inFaceCache, pBorderCache);
 
 	PlycutInput inInput = {.boundaries = pInPiece->borderArr.count};
 	inInput.pSizes = pBasic->pCtx->alloc.fpMalloc(inInput.boundaries * sizeof(I32));
@@ -1098,6 +1131,7 @@ StucErr inPieceGetFaces(
 
 StucErr stucAddMapFaceToBufMesh(
 	const MapToMeshBasic *pBasic,
+	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
@@ -1146,6 +1180,8 @@ StucErr stucAddMapFaceToBufMesh(
 
 typedef struct BufMeshInitJobArgs {
 	JobArgs core;
+	const IslandClustArr *pClustArr;
+	const InFaceMemArr *pInFaceArr;
 	StucErr (* fpAddPiece)(
 		const MapToMeshBasic *,
 		I32,
@@ -1174,6 +1210,7 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 		I32 inPieceIdx = pArgs->core.range.start + i;
 		pArgs->fpAddPiece(
 			pBasic,
+			pArgs->pClustArr,
 			inPieceIdx,
 			pArgs->pInPiecesSplit->pArr + inPieceIdx,
 			&pArgs->bufMesh,
@@ -1244,6 +1281,8 @@ SrcFaces stucGetSrcFacesForBufCorner(
 }
 
 typedef struct BufMeshJobInitInfo {
+	const InFaceMemArr *pInFaceArr;
+	const IslandClustArr *pClustArr;
 	InPieceArr *pInPiecesSplit;
 	StucErr (* fpAddPiece)(
 		const MapToMeshBasic *,
@@ -1267,6 +1306,8 @@ void bufMeshInitJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, vo
 	BufMeshJobInitInfo *pInitInfo = pInitInfoVoid;
 	pEntry->pInPiecesSplit = pInitInfo->pInPiecesSplit;
 	pEntry->fpAddPiece = pInitInfo->fpAddPiece;
+	pEntry->pInFaceArr = pInitInfo->pInFaceArr;
+	pEntry->pClustArr = pInitInfo->pClustArr;
 }
 
 
@@ -1286,6 +1327,8 @@ void bufMeshArrMoveToInPieces(
 StucErr stucInPieceArrInitBufMeshes(
 	MapToMeshBasic *pBasic,
 	I32 threadId,
+	const IslandClustArr *pClustArr,
+	const InFaceMemArr *pInFaceArr,
 	InPieceArr *pInPieces,
 	StucErr (* fpAddPiece)(
 		const MapToMeshBasic *,
@@ -1304,7 +1347,12 @@ StucErr stucInPieceArrInitBufMeshes(
 		pBasic->pCtx,
 		pBasic,
 		&jobCount, jobArgs, sizeof(BufMeshInitJobArgs),
-		&(BufMeshJobInitInfo) {.pInPiecesSplit = pInPieces, .fpAddPiece = fpAddPiece},
+		&(BufMeshJobInitInfo) {
+			.pInFaceArr = pInFaceArr,
+			.pClustArr = pClustArr,
+			.pInPiecesSplit = pInPieces,
+			.fpAddPiece = fpAddPiece
+		},
 		bufMeshInitJobsGetRange, bufMeshInitJobInit);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
