@@ -3,6 +3,7 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: Apache-2.0
 */
 
+#if false
 #include <string.h>
 
 #include <in_piece.h>
@@ -35,9 +36,9 @@ bool isEdgeInternal(
 	I32 edge
 ) {
 	const Mesh *pMesh = pMeshRaw;
-	I32 canIntersect = stucCouldInEdgeIntersectMapFace(pMesh, edge);
+	I32 cantIntersect = stucCouldInEdgeIntersectMapFace(pMesh, edge);
 	//if edge is preserve, and adj is pending remove, edge is internal, so ignore
-	return canIntersect == 1 || canIntersect == 2 && !pAdj->pendingRemove;
+	return cantIntersect == 1 || cantIntersect == 2 && !pAdj->pendingRemove;
 }
 
 typedef enum ReceiveStatus {
@@ -452,3 +453,4 @@ StucErr stucInPieceArrSplit(
 	pSplitAlloc->count = jobCount;
 	return err;
 }
+#endif

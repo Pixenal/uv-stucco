@@ -12,10 +12,10 @@ static
 I32 bufMeshArrGetVertCount(const BufMeshArr *pBufMeshes) {
 	I32 total = 0;
 	for (I32 i = 0; i < pBufMeshes->count; ++i) {
-		total += pBufMeshes->arr[i].inOrMapVerts.count;
-		total += pBufMeshes->arr[i].onEdgeVerts.count;
-		total += pBufMeshes->arr[i].overlapVerts.count;
-		total += pBufMeshes->arr[i].intersectVerts.count;
+		total += pBufMeshes->pArr[i].inOrMapVerts.count;
+		total += pBufMeshes->pArr[i].onEdgeVerts.count;
+		total += pBufMeshes->pArr[i].overlapVerts.count;
+		total += pBufMeshes->pArr[i].intersectVerts.count;
 	}
 	return total;
 }
@@ -133,11 +133,11 @@ static
 void mergeTableInitKey(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
+	I32 mapFace,
 	BufVertType type,
 	const MergeTableInitInfoVert *pInitInfoVert,
 	MergeTableKey *pKey
 ) {
-	I32 mapFace = pInPiece->pList->mapFace;
 	*pKey = (MergeTableKey) {
 		.type = type,
 		.tile = pInPiece->pList->tile
@@ -222,6 +222,7 @@ void stucMergeTableGetVertKey(
 	const MapToMeshBasic *pBasic,
 	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
+	I32 mapFace,
 	FaceCorner bufCorner,
 	MergeTableKey *pKey
 ) {
@@ -229,6 +230,7 @@ void stucMergeTableGetVertKey(
 	mergeTableInitKey(
 		pBasic,
 		pInPiece,
+		mapFace,
 		bufMeshGetType(pBufMesh, bufCorner),
 		&vertInfo,
 		pKey
@@ -244,7 +246,7 @@ void mergeTableAddVerts(
 	FaceCorner bufCorner,
 	PixuctHTable *pTable
 ) {
-	const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + bufMeshIdx;
+	const BufMesh *pBufMesh = pInPieces->pBufMeshes->pArr + bufMeshIdx;
 	const InPiece *pInPiece = bufFaceGetInPiece(pBufMesh, bufCorner.face, pInPieces);
 	I32 bufCornerIdx = pBufMesh->faces.pArr[bufCorner.face].start + bufCorner.corner;
 	VertMergeCorner initInfo = {
@@ -254,7 +256,8 @@ void mergeTableAddVerts(
 		.clipped = clipped
 	};
 	MergeTableKey key = {0};
-	stucMergeTableGetVertKey(pBasic, pInPiece, pBufMesh, bufCorner, &key);
+	I32 mapFace = pBufMesh->faces.pArr[bufCorner.face].mapFace;
+	stucMergeTableGetVertKey(pBasic, pInPiece, pBufMesh, mapFace, bufCorner, &key);
 	mergeTableAddVert(pTable, &key, &initInfo);
 }
 
@@ -265,7 +268,7 @@ void stucMergeVerts(
 	PixuctHTable *pTable
 ) {
 	for (I32 i = 0; i < pInPieces->pBufMeshes->count; ++i) {
-		const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + i;
+		const BufMesh *pBufMesh = pInPieces->pBufMeshes->pArr + i;
 		for (I32 j = 0; j < pBufMesh->faces.count; ++j) {
 			for (I32 k = 0; k < pBufMesh->faces.pArr[j].size; ++k) {
 				mergeTableAddVerts(

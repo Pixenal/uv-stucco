@@ -49,6 +49,7 @@ typedef struct BufFace {
 	I32 start;
 	I32 size;
 	I32 inPiece;
+	I32 mapFace;
 } BufFace;
 
 typedef struct InPiece {
@@ -173,11 +174,12 @@ typedef struct BufMesh {
 } BufMesh;
 
 typedef struct BufMeshArr {
-	BufMesh arr[PIXTH_MAX_SUB_MAPPING_JOBS];
+	BufMesh *pArr;
 	I32 count;
 } BufMeshArr;
 
 typedef struct InPieceArr {
+	struct InPieceArr *pNext;
 	BufMeshArr *pBufMeshes;
 	InPiece *pArr;
 	I32 size;
@@ -207,6 +209,61 @@ typedef struct StucBorderTable {
 	I32 idx;
 	I32 edge;
 } StucBorderTable;
+
+typedef struct BorderEdge {
+	FaceCorner corner;
+	I32 adjIsland;
+} BorderEdge;
+
+typedef struct BorderEdgeArr {
+	BorderEdge *pArr;
+	I32 size;
+	I32 count;
+} BorderEdgeArr;
+
+typedef struct Border {
+	BorderEdgeArr arr;
+	//I32 len;
+} Border;
+
+typedef struct BorderArr {
+	Border *pArr;
+	I32 size;
+	I32 count;
+	I32 outer;
+} BorderArr;
+
+typedef struct StucIsland {
+	BorderArr borders;
+	PixtyRange faces;
+} StucIsland;
+
+typedef struct StucSubIsland {
+	StucIsland core;
+} StucSubIsland;
+
+typedef struct StucSubIslandArr {
+	StucSubIsland *pArr;
+	I32 *pFaces;
+	I32 size;
+	I32 count;
+	I32 faceCount;
+} StucSubIslandArr;
+
+typedef struct StucInIsland {
+	StucIsland core;
+	StucSubIslandArr sub;
+	PixuctHTable borderTable;
+	ClutreBb bb;
+} StucInIsland;
+
+typedef struct StucInIslandArr {
+	I32 *pFaces;
+	StucInIsland *pArr;
+	I32 size;
+	I32 count;
+	I32 faceCount;
+} StucInIslandArr;
 
 typedef struct IslandClustArr {
 	const StucInIsland *pIsland;
@@ -249,6 +306,7 @@ typedef struct InFaceCacheEntry {
 	FaceRange face;
 	V2_F32 fMin;
 	V2_F32 fMax;
+	bool wind;
 } InFaceCacheEntry;
 
 struct HalfPlane;
@@ -284,15 +342,19 @@ typedef struct PieceBorderList {
 } PieceBorderList;
 
 typedef struct PieceBorders {
-	PieceBorderList *pArr;
+	PixuctAvl *pArr;
 	I32 size;
-	I32 count;
 } PieceBorders;
 
 //TODO probably rename, this isn't a cache anymore
 typedef struct BorderCache {
 	const InPiece *pInPiece;
+	const IslandClustArr *pClustArr;
+	PixuctAvlIter iter;
 	PieceBorders arr;
+	PixalcLinAlloc alloc;
+	I32 borderCount;
+	I32 activeBorder;
 } BorderCache;
 
 typedef struct SrcFaces {
@@ -340,7 +402,7 @@ StucErr stucAddMapFaceToBufMesh(
 );
 StucErr stucBufMeshInit(void *pArgsVoid);
 StucErr stucInPieceArrInit(
-	struct MapToMeshBasic *pBasic,
+	const struct MapToMeshBasic *pBasic,
 	I32 threadId,
 	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
@@ -352,9 +414,12 @@ StucErr stucInPieceArrInitBufMeshes(
 	struct MapToMeshBasic *pBasic,
 	I32 threadId,
 	const IslandClustArr *pClustArr,
+	const InFaceMemArr *pInFaceArr,
 	InPieceArr *pInPieces,
-	StucErr (* fpAddPiece)(
+	StucErr (* fpAddPiece)(//TODO large func ptrs like this should be typedef'd
 		const struct MapToMeshBasic *,
+		const InFaceMemArr *,
+		const IslandClustArr *,
 		I32,
 		const InPiece *,
 		BufMesh *,
@@ -421,7 +486,7 @@ bool stucIsInFaceOnBorder(
 	for (I32 i = 0; i < pInFace->size; ++i) {
 		const StucBorderTable *pEntry;
 		I32 edge = stucGetMeshEdge(
-			pInMesh,
+			&pInMesh->core,
 			(FaceCorner){.face = pInFace->idx, .corner = i}
 		);
 		SearchResult result = pixuctHTableGetConst(

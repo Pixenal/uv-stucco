@@ -111,7 +111,14 @@ void addBufFaceToOutMesh(
 	for (I32 i = 0; i < bufFace.size; ++i) {
 		FaceCorner bufCorner = {.face = faceIdx, .corner = i};
 		MergeTableKey key = {0};
-		stucMergeTableGetVertKey(pBasic, pInPiece, pBufMesh, bufCorner, &key);
+		stucMergeTableGetVertKey(
+			pBasic,
+			pInPiece,
+			pBufMesh,
+			bufFace.mapFace,
+			bufCorner,
+			&key
+		);
 		VertMerge *pEntry = NULL;
 		SearchResult result = pixuctHTableGet(
 			pMergeTable,
@@ -175,7 +182,9 @@ void addBufFaceToOutMesh(
 	if (pOutBuf->final.count < 3) {
 		return; //skip face
 	}
-	bool reverseWind = !pInPiece->pList->inFaces.pArr[0].wind && !inFaceOnly;
+	//TODO gen wind or store another way
+	//bool reverseWind = !pInPiece->pList->inFaces.pArr[0].wind && !inFaceOnly;
+	bool reverseWind = false;
 	I32 outFace = stucMeshAddFace(pBasic->pCtx, &pBasic->outMesh, NULL);
 	pBasic->outMesh.core.pFaces[outFace] = pBasic->outMesh.core.cornerCount;
 	for (I32 i = 0; i < pOutBuf->final.count; ++i) {
@@ -209,7 +218,7 @@ void stucAddFacesAndCornersToOutMesh(
 		BufOutRange *pRange = pBufOutTable->pArr + pBufOutTable->count;
 		pRange->bufMesh = i;
 		I32 cornerStart = pBasic->outMesh.core.cornerCount;
-		const BufMesh *pBufMesh = pInPieces->pBufMeshes->arr + i;
+		const BufMesh *pBufMesh = pInPieces->pBufMeshes->pArr + i;
 		for (I32 j = 0; j < pBufMesh->faces.count; ++j) {
 			addBufFaceToOutMesh(
 				pBasic,

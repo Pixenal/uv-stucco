@@ -134,7 +134,7 @@ bool encasedMapFaceCmp(
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
-	const EncasedMapFace *pEntry = pEntryRaw;
+	const EncasedMapFace *pEntry = (void *)pEntryRaw;
 	const InPieceKey *pKey = pKeyData;
 	return 
 		pEntry->cluster == pKey->cluster &&
@@ -319,7 +319,7 @@ bool isClustOnBorder(
 
 static
 PixErr inPieceAddFace(
-	PixalcFPtrs *pAlloc,
+	const PixalcFPtrs *pAlloc,
 	void *pInfoRaw,
 	I32 idx,
 	ClutreIntersect status,
@@ -327,7 +327,7 @@ PixErr inPieceAddFace(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	InPieceClust *pInfo = pInfoRaw;
-	err = addToEncasedFaces(
+	addToEncasedFaces(
 		pInfo->pArgs,
 		&pInfo->inFace,
 		pInfo->inFaceWind,
@@ -336,8 +336,25 @@ PixErr inPieceAddFace(
 		(V2_I16){(I16)tile.d[0], (I16)tile.d[1]},
 		pInfo->borderFace
 	);
-	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
+}
+
+typedef struct FaceInfo {
+	const Mesh *pMesh;
+	FaceRange face;
+} FaceInfo;
+
+static
+PixtyV2_F32 stucClustFacePos(const void *pFaceRaw, I32 localCorner) {
+	const FaceInfo *pFace = pFaceRaw;
+	I32 corner = pFace->face.start + localCorner;
+	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->pMesh->core.cornerCount);
+	I32 vert = pFace->pMesh->core.pCorners[corner];
+	PIX_ERR_ASSERT(
+		"",
+		pFace->pMesh->pPos && vert >= 0 && vert < pFace->pMesh->core.vertCount
+	);
+	return *(PixtyV2_F32 *)&pFace->pMesh->pPos[vert];
 }
 
 static
@@ -363,7 +380,7 @@ StucErr getEncasedFacesPerFace(
 	FaceMesh faceMesh = {.pMesh = pBasic->pInMesh, .range = *pInFace};
 	ClutreFace clustFace = {
 		.pUserData = &faceMesh,
-		.fpPos = stucClustPos,
+		.fpPos = stucClustFacePos,
 		.size = pInFace->size
 	};
 	InPieceClust clustInfo = {
@@ -418,24 +435,6 @@ StucErr getEncasedFacesPerTile(
 	return err;
 }
 #endif
-
-typedef struct FaceInfo {
-	const Mesh *pMesh;
-	FaceRange face;
-} FaceInfo;
-
-static
-PixtyV2_F32 stucClustPos(const void *pFaceRaw, I32 localCorner) {
-	const FaceInfo *pFace = pFaceRaw;
-	I32 corner = pFace->face.start + localCorner;
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->pMesh->core.cornerCount);
-	I32 vert = pFace->pMesh->core.pCorners[corner];
-	PIX_ERR_ASSERT(
-		"",
-		pFace->pMesh->pPos && vert >= 0 && vert < pFace->pMesh->core.vertCount
-	);
-	return *(PixtyV2_F32 *)&pFace->pMesh->pPos[vert];
-}
 
 static
 StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs) {
@@ -644,8 +643,8 @@ void linkEncasedTableEntries(
 	);
 
 	for (I32 i = 0; i < jobCount; ++i) {
-		iterAndAddJobPieces(pBasic, i, pJobArgs, pInPieceArr, &idxTable, 0);
-		iterAndAddJobPieces(pBasic, i, pJobArgs, pInPieceClipArr, &idxTable, 1);
+		iterAndAddJobPieces(i, pJobArgs, pInPieceArr, &idxTable, 0);
+		iterAndAddJobPieces(i, pJobArgs, pInPieceClipArr, &idxTable, 1);
 	}
 	pixuctHTableDestroy(&idxTable);
 	*pEmpty = false;
@@ -677,6 +676,7 @@ StucErr stucInPieceArrInit(
 	bool *pEmpty
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,
@@ -684,6 +684,8 @@ StucErr stucInPieceArrInit(
 		pClustArr,
 		encasedTableJobsGetRange, encasedTableJobsInitArg
 	);
+	pInPieces->pBufMeshes->pArr = pAlloc->fpCalloc(*pJobCount, sizeof(BufMesh));
+	pInPiecesClip->pBufMeshes->pArr = pAlloc->fpCalloc(*pJobCount, sizeof(BufMesh));
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
 		threadId,
