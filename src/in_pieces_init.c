@@ -207,22 +207,27 @@ typedef enum OverlapType {
 	STUC_FACE_OVERLAP_MAP_INSIDE_IN
 } OverlapType;
 
+//TODO put a generic void * to const void * struct in pixenals-types, & replace this
+typedef struct InCornerPtr {
+	const HalfPlane *pInCorners;
+} InCornerPtr;
+
 static
 V2_F32 getInCornerPos(
 	const void *pUserData,
-	const void *pMeshVoid,
+	void *pMeshVoid,
 	PlycutInput input,
 	I32 boundary,
 	I32 corner,
 	bool *pCantIntersect
 ) {
-	return ((HalfPlane *)pMeshVoid)[corner].uv;
+	return ((const HalfPlane *)((InCornerPtr *)pMeshVoid)->pInCorners)[corner].uv;
 }
 
 static
 V3_F32 getMapCornerPos(
 	const void *pUserData,
-	const void *pMeshVoid,
+	void *pMeshVoid,
 	PlycutInput input,
 	I32 boundary,
 	I32 corner,
@@ -248,7 +253,7 @@ OverlapType doInAndMapFacesOverlap(
 	PixErr err = plycutClip(
 		&pBasic->pCtx->alloc,
 		pBasic,
-		pInCorners, inInput, getInCornerPos,
+		&(InCornerPtr){.pInCorners = pInCorners}, inInput, getInCornerPos,
 		NULL, mapInput, getMapCornerPos,
 		NULL,
 		&overlaps,
@@ -284,7 +289,7 @@ bool isClustOnBorder(
 	PixtyRange faces = {0};
 	clutreFaceRangeGet(&pBasic->pMap->clustTree, cluster, &faces);
 	V2_I16 tile16 = {tile.d[0], tile.d[1]};
-	IslandClustArr *pArr = pArgs->pClustArr;
+	const IslandClustArr *pArr = pArgs->pClustArr;
 	PixtyRange tileRange = {0};
 	for (I32 i = 0; i < pArr->tiles.count; ++i) {
 		if (_(tile16 V2I16EQL pArr->tiles.pArr[i].tile)) {
@@ -345,16 +350,14 @@ typedef struct FaceInfo {
 } FaceInfo;
 
 static
-PixtyV2_F32 stucClustFacePos(const void *pFaceRaw, I32 localCorner) {
+PixtyV2_F32 stucClustFaceUv(const void *pFaceRaw, I32 localCorner) {
 	const FaceInfo *pFace = pFaceRaw;
 	I32 corner = pFace->face.start + localCorner;
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->pMesh->core.cornerCount);
-	I32 vert = pFace->pMesh->core.pCorners[corner];
 	PIX_ERR_ASSERT(
 		"",
-		pFace->pMesh->pPos && vert >= 0 && vert < pFace->pMesh->core.vertCount
+		pFace->pMesh->pUvs && corner >= 0 && corner < pFace->pMesh->core.cornerCount
 	);
-	return *(PixtyV2_F32 *)&pFace->pMesh->pPos[vert];
+	return pFace->pMesh->pUvs[corner];
 }
 
 static
@@ -380,7 +383,7 @@ StucErr getEncasedFacesPerFace(
 	FaceMesh faceMesh = {.pMesh = pBasic->pInMesh, .range = *pInFace};
 	ClutreFace clustFace = {
 		.pUserData = &faceMesh,
-		.fpPos = stucClustFacePos,
+		.fpPos = stucClustFaceUv,
 		.size = pInFace->size
 	};
 	InPieceClust clustInfo = {
@@ -493,8 +496,12 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 	return err;
 }
 
+typedef struct FindEncasedJobInit {
+	const IslandClustArr *pClustArr;
+} FindEncasedJobInit;
+
 static
-I32 encasedTableJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfo) {
+I32 encasedTableJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
 	return ((MapToMeshBasic *)pShared)->pInMesh->core.faceCount;
 }
 
@@ -653,8 +660,8 @@ void linkEncasedTableEntries(
 
 static
 void encasedTableJobsInitArg(
-	StucContext pCtx,
-	void *pShared,
+	const StucContext pCtx,
+	const void *pShared,
 	void *pInitInfoRaw,
 	void *pArgsRaw
 ) {
@@ -663,7 +670,7 @@ void encasedTableJobsInitArg(
 	*pArgs = (FindEncasedFacesJobArgs){0};
 	inFaces.count = 0;
 	pArgs->inFaces = inFaces;
-	pArgs->pClustArr = pInitInfoRaw;
+	pArgs->pClustArr = ((FindEncasedJobInit *)pInitInfoRaw)->pClustArr;
 }
 
 StucErr stucInPieceArrInit(
@@ -681,7 +688,7 @@ StucErr stucInPieceArrInit(
 		pBasic->pCtx,
 		pBasic,
 		pJobCount, pJobArgs, sizeof(FindEncasedFacesJobArgs),
-		pClustArr,
+		&(FindEncasedJobInit){.pClustArr = pClustArr},
 		encasedTableJobsGetRange, encasedTableJobsInitArg
 	);
 	pInPieces->pBufMeshes->pArr = pAlloc->fpCalloc(*pJobCount, sizeof(BufMesh));

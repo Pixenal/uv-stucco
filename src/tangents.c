@@ -324,12 +324,17 @@ void buildTPieces(
 }
 
 static
-I32 tangentJobGetRange(StucContext pCtx, const void *pShared, void *pInitInfo) {
+I32 tangentJobGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
 	return ((TPieceArr *)pInitInfo)->faceCount;
 }
 
 static
-void tangentJobInit(StucContext pCtx, void *pShared, void *pInitInfo, void *pEntryVoid) {
+void tangentJobInit(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfo,
+	void *pEntryVoid
+) {
 	TangentJobArgs *pEntry = pEntryVoid;
 	pEntry->pTPieces = (TPieceArr *)pInitInfo;
 }

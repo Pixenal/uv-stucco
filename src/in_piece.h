@@ -382,6 +382,7 @@ SrcFaces stucGetSrcFacesForBufCorner(
 );
 StucErr stucClipMapFace(
 	const struct MapToMeshBasic *pBasic,
+	const InFaceMemArr *pInFaceArr,
 	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
@@ -392,6 +393,7 @@ StucErr stucClipMapFace(
 );
 StucErr stucAddMapFaceToBufMesh(
 	const struct MapToMeshBasic *pBasic,
+	const InFaceMemArr *pInFaceArr,
 	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
@@ -411,7 +413,7 @@ StucErr stucInPieceArrInit(
 	bool *pEmpty
 );
 StucErr stucInPieceArrInitBufMeshes(
-	struct MapToMeshBasic *pBasic,
+	const struct MapToMeshBasic *pBasic,
 	I32 threadId,
 	const IslandClustArr *pClustArr,
 	const InFaceMemArr *pInFaceArr,
@@ -494,9 +496,7 @@ bool stucIsInFaceOnBorder(
 			0,
 			&edge,
 			&pEntry,
-			false,
-			NULL,
-			pixuctKeyFromI32, NULL, NULL, stucBorderTableCmp
+			pixuctKeyFromI32, stucBorderTableCmp
 		);
 		if (result == PIX_SEARCH_FOUND) {
 			PIX_ERR_ASSERT("", pEntry);//TODO move this check into pixuctHTableGet

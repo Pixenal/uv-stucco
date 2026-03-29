@@ -24,10 +24,10 @@ typedef struct JobArgsFoot {
 } JobArgsFoot;
 
 void stucMakeJobArgs(
-	StucContext pCtx,
-	void *pShared,
+	const StucContext pCtx,
+	const void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
-	I32 (* fpGetArrCount)(StucContext, const void *, void *),
-	void (* fpInitArgEntry)(StucContext, void *, void *, void *)
+	I32 (* fpGetArrCount)(const StucContext, const void *, void *),
+	void (* fpInitArgEntry)(const StucContext, const void *, void *, void *)
 );

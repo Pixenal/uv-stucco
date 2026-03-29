@@ -41,12 +41,12 @@ void divideArrAmongstJobs(I32 arrSize, I32 *pJobCount, Range *pRanges) {
 }
 
 void stucMakeJobArgs(
-	StucContext pCtx,
-	void *pShared,
+	const StucContext pCtx,
+	const void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
-	I32 (* fpGetArrCount)(StucContext, const void *, void *),
-	void (* fpInitArgEntry)(StucContext, void *, void *, void *)
+	I32 (* fpGetArrCount)(const StucContext, const void *, void *),
+	void (* fpInitArgEntry)(const StucContext, const void *, void *, void *)
 ) {
 	Range ranges[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	divideArrAmongstJobs(fpGetArrCount(pCtx, pShared, pInitInfo), pJobCount, ranges);

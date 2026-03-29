@@ -401,7 +401,7 @@ InsideStatus getFaceEncasingVert(
 			pCorner->pFace = pInFaceEntry;
 			return status;
 		}
-	} while(pEntry = pEntry->core.pNext);
+	} while(pEntry = (void *)pEntry->core.pNext);
 	return STUC_INSIDE_STATUS_OUTSIDE;
 }
 
@@ -470,7 +470,7 @@ InFaceCorner getInCornerFromPlycut(
 	const BorderCacheEdge *pNode = NULL;
 	pixuctAvlGet(
 		pBorderCache->arr.pArr + idx.boundary,
-		(void **)&pNode,
+		(void *)&pNode,
 		&idx.corner,
 		bstIdxCmp, bstIdxCmp
 	);
@@ -486,7 +486,7 @@ InFaceCorner getInCornerFromPlycut(
 static
 I32 addIntersectVert(
 	const MapToMeshBasic *pBasic,
-	const InFaceCorner *pInFaceArr,
+	PixuctHTable *pInFaceCache,
 	const BorderCache *pBorderCache,
 	BufMesh *pBufMesh,
 	const PlycutCorner *pCorner
@@ -496,7 +496,7 @@ I32 addIntersectVert(
 	InFaceCorner inCorner = getInCornerFromPlycut(
 		pBasic->pInMesh,
 		pBorderCache,
-		pInFaceArr,
+		pInFaceCache,
 		pInfo->clipCorner
 	);
 	pBufMesh->intersectVerts.pArr[vert] = (IntersectVert){
@@ -570,7 +570,7 @@ bool inCornerPredicate(
 	const BorderCacheEdge *pNode = NULL;
 	pixuctAvlGet(
 		pBorderCache->arr.pArr + idx.boundary,
-		(void **)&pNode,
+		(void *)&pNode,
 		&idx.corner,
 		bstIdxCmp, bstIdxCmp
 	);
@@ -580,7 +580,6 @@ bool inCornerPredicate(
 static
 void setIntersectBufVertInfo(
 	const MapToMeshBasic *pBasic,
-	const InFaceCorner *pInFaceArr,
 	const BorderCache *pBorderCache,
 	PixuctHTable *pInFaceCache,
 	BufMesh *pBufMesh,
@@ -593,7 +592,7 @@ void setIntersectBufVertInfo(
 		case PLYCUT_INTERSECT:
 			*pType = STUC_BUF_VERT_INTERSECT;
 			*pVert =
-				addIntersectVert(pBasic, pInFaceArr, pBorderCache, pBufMesh, pCorner);
+				addIntersectVert(pBasic, pInFaceCache, pBorderCache, pBufMesh, pCorner);
 			break;
 		case PLYCUT_ON_CLIP_EDGE: {
 			*pType = STUC_BUF_VERT_ON_EDGE;
@@ -852,7 +851,6 @@ StucErr bufMeshAddVert(
 		default:
 			setIntersectBufVertInfo(
 				pBasic,
-				pInFaceArr,
 				pBorderCache,
 				pInFaceCache,
 				pBufMesh,
@@ -1070,19 +1068,19 @@ PixErr borderCacheInit(
 			InFaceIdx idx = pInFaces->pArr[i];
 			const Border *pBorder = pClustArr->pIsland->core.borders.pArr + idx.border;
 			FaceCorner corner = pBorder->arr.pArr[idx.idx].corner;
-			FaceRange face = stucGetFaceRange(pBasic->pInMesh, corner.face);
+			FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, corner.face);
 			StucBorderTable *pEntry = NULL;
 			if (!stucIsInFaceOnBorder(pBasic->pInMesh, pClustArr, &face, &pEntry)) {
 				continue;
 			}
-			if (idx.border >= pCache->arr.size) {
+			if ((I32)idx.border >= pCache->arr.size) {
 				++pCache->borderCount;
 				I32 oldSize = pCache->arr.size;
 				PIXALC_DYN_ARR_RESIZE(
 					PixuctAvl,
 					pAlloc,
 					&pCache->arr,
-					idx.border
+					(I32)idx.border
 				);
 				memset(
 					pCache->arr.pArr + oldSize,
@@ -1100,21 +1098,21 @@ PixErr borderCacheInit(
 			PIX_ERR_RETURN_IFNOT(err, "");
 			pNode->idx = key;
 		}
-	} while(pEntry = pEntry->core.pNext);
+	} while(pEntry = (void *)pEntry->core.pNext);
 	for (I32 i = 0; i < pCache->borderCount; ++i) {
 		I32 fullCount = pClustArr->pIsland->core.borders.pArr[i].arr.count;
 		PixuctAvl *pBorder = pCache->arr.pArr + i;
 		PixuctAvlIter iter = {0};
 		pixuctAvlIterInit(pBorder, &iter);
-		BorderCacheEdge *pStart = pixuctAvlIterGetItem(&iter);
+		BorderCacheEdge *pStart = (void *)pixuctAvlIterGetItem(&iter);
 		for (; !pixuctAvlIterAtEnd(&iter); pixuctAvlIterInc(&iter)) {
-			BorderCacheEdge *pNode = pixuctAvlIterGetItem(&iter);
+			BorderCacheEdge *pNode = (void *)pixuctAvlIterGetItem(&iter);
 			if (pNode->cantIntersect) {
 				continue;
 			}
 			pixuctAvlIterInc(&iter);
-			BorderCacheEdge *pNext = pixuctAvlIterAtEnd(&iter) ?
-				pStart : pixuctAvlIterGetItem(&iter);
+			BorderCacheEdge *pNext = (void *)pixuctAvlIterAtEnd(&iter) ?
+				pStart : (void *)pixuctAvlIterGetItem(&iter);
 			PIX_ERR_ASSERT("", pNext->idx != pNode->idx > 0);
 			I32 gap = pNext->idx + (pNext->idx > pNode->idx ? 0 : fullCount) - pNode->idx;
 			if (gap == 1) {
@@ -1154,14 +1152,14 @@ void borderCacheDestroy(const StucAlloc *pAlloc, BorderCache *pCache) {
 static
 V2_F32 getBorderCornerPos(
 	const void *pUserData,
-	const void *pMesh,
+	void *pMesh,
 	PlycutInput input,
 	I32 boundary,
 	I32 corner,
 	bool *pCantIntersect
 ) {
 	const MapToMeshBasic *pBasic = pUserData;
-	const BorderCache *pCache = pMesh;
+	BorderCache *pCache = pMesh;
 	const IslandClustArr *pClustArr = pCache->pClustArr;
 	if (boundary != pCache->activeBorder) {
 		pixuctAvlIterInit(pCache->arr.pArr + pCache->activeBorder, &pCache->iter);
@@ -1173,7 +1171,7 @@ V2_F32 getBorderCornerPos(
 	BorderCacheEdge *pNode = (void *)pixuctAvlIterGetItem(&pCache->iter);
 	FaceCorner faceCorner =
 		pClustArr->pIsland->core.borders.pArr[boundary].arr.pArr[pNode->idx].corner;
-	FaceRange face = stucGetFaceRange(pBasic->pInMesh, faceCorner.face);
+	FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, faceCorner.face);
 	V2_F32 pos = stucGetUvPos(pBasic->pInMesh, &face, faceCorner.corner);
 	V2_I16 tile = pCache->pInPiece->pList->tile;
 	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
@@ -1183,7 +1181,7 @@ V2_F32 getBorderCornerPos(
 static
 V3_F32 getMapCornerPos(
 	const void *pUserData,
-	const void *pMeshVoid,
+	void *pMeshVoid,
 	PlycutInput input,
 	I32 boundary,
 	I32 corner,
@@ -1192,6 +1190,21 @@ V3_F32 getMapCornerPos(
 	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pMap->pMesh;
 	const FaceRange *pMapFace = input.pUserData;
 	return stucGetVertPos(pMesh, pMapFace, corner);
+}
+
+static
+StucErr inPieceGetFaces(
+	const StucMap pMap,
+	const InPiece *pInPiece,
+	ClutreFaceRange *pMapFaces
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	ClutreNode *pCluster = NULL;
+	err = clutreIdx(&pMap->clustTree, pInPiece->pList->cluster, &pCluster);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = clutreFacesGet(&pMap->clustTree, pCluster, pMapFaces);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 StucErr stucClipMapFace(
@@ -1222,7 +1235,7 @@ StucErr stucClipMapFace(
 	);
 	//getInPieceBounds(pBasic, pInPiece, &inFaceCache);
 
-	borderCacheInit(pBasic, pClustArr, pInPiece, &inFaceCache, pBorderCache);
+	borderCacheInit(pBasic, pClustArr, pInFaceArr, pInPiece, pBorderCache);
 
 	PlycutInput inInput = {.boundaries = pBorderCache->borderCount};
 	inInput.pSizes = pBasic->pCtx->alloc.fpMalloc(inInput.boundaries * sizeof(I32));
@@ -1230,13 +1243,13 @@ StucErr stucClipMapFace(
 		inInput.pSizes[i] = pBorderCache[i].arr.pArr[i].count;
 	}
 
-	PixtyI32Arr mapFaces = {0};
+	ClutreFaceRange mapFaces = {0};
 	err = inPieceGetFaces(pBasic->pMap, pInPiece, &mapFaces);
-	for (I32 i = 0; i < mapFaces.count; ++i) {
-		FaceRange mapFace = stucGetFaceRange(pBasic->pMap->pMesh, mapFaces.pArr[i]);
+	for (I32 i = 0; i < mapFaces.size; ++i) {
+		FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaces.pArr[i]);
 		PlycutInput mapInput = {.pSizes = &mapFace.size, .boundaries = 1, .pUserData = &mapFace};
 		PlycutFaceArr out = {0};
-		plycutClip(
+		err = plycutClip(
 			&pBasic->pCtx->alloc,
 			pBasic,
 			pBorderCache, inInput, getBorderCornerPos,
@@ -1245,6 +1258,7 @@ StucErr stucClipMapFace(
 			NULL,
 			pPlycutAlc
 		);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
 		if (out.count) {
 			addFacesToBufMesh(
 				pBasic,
@@ -1264,22 +1278,6 @@ StucErr stucClipMapFace(
 		plycutFaceArrDestroy(&pBasic->pCtx->alloc, &out);
 	}
 	inFaceCacheDestroy(pBasic, &inFaceCache);
-	return err;
-}
-
-static
-StucErr inPieceGetFaces(
-	const StucMap pMap,
-	const InPiece *pInPiece,
-	PixtyI32Arr *pMapFaces
-) {
-	StucErr err = PIX_ERR_SUCCESS;
-	ClutreNode *pCluster = NULL;
-	err = clutreIdx(&pMap->clustTree, pInPiece->pList->cluster, &pCluster);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	PixtyI32Arr mapFaces = {0};
-	err = clutreFacesGet(&pMap->clustTree, pCluster, &mapFaces);
-	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
@@ -1311,14 +1309,14 @@ StucErr stucAddMapFaceToBufMesh(
 		false
 	);
 	
-	PixtyI32Arr mapFaces = {0};
+	ClutreFaceRange mapFaces = {0};
 	err = inPieceGetFaces(pBasic->pMap, pInPiece, &mapFaces);
-	for (I32 i = 0; i < mapFaces.count; ++i) {
-		FaceRange mapFace = stucGetFaceRange(pBasic->pMap->pMesh, mapFaces.pArr[i]);
+	for (I32 i = 0; i < mapFaces.size; ++i) {
+		FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaces.pArr[i]);
 		err = addNonClipInPieceToBufMesh(
 			pBasic,
 			pInFaceArr,
-			&mapFaces,
+			&mapFace,
 			pBorderCache,
 			inPieceOffset,
 			pInPiece,
@@ -1457,12 +1455,17 @@ typedef struct BufMeshJobInitInfo {
 } BufMeshJobInitInfo;
 
 static
-I32 bufMeshInitJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 bufMeshInitJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
 	return ((BufMeshJobInitInfo *)pInitInfoVoid)->pInPiecesSplit->count;
 }
 
 static
-void bufMeshInitJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
+void bufMeshInitJobInit(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfoVoid,
+	void *pEntryVoid
+) {
 	BufMeshInitJobArgs *pEntry = pEntryVoid;
 	BufMeshJobInitInfo *pInitInfo = pInitInfoVoid;
 	pEntry->pInPiecesSplit = pInitInfo->pInPiecesSplit;
@@ -1486,13 +1489,13 @@ void bufMeshArrMoveToInPieces(
 }
 
 StucErr stucInPieceArrInitBufMeshes(
-	MapToMeshBasic *pBasic,
+	const MapToMeshBasic *pBasic,
 	I32 threadId,
 	const IslandClustArr *pClustArr,
 	const InFaceMemArr *pInFaceArr,
 	InPieceArr *pInPieces,
 	StucErr (* fpAddPiece)(
-		const MapToMeshBasic *,
+		const struct MapToMeshBasic *,
 		const InFaceMemArr *,
 		const IslandClustArr *,
 		I32,

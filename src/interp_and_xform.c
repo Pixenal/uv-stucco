@@ -888,12 +888,13 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 typedef struct XformVertsJobInitInfo {
 	const InPieceArr *pInPieces;
 	const InPieceArr *pInPiecesClip;
+	Mesh *pOutMesh;
 	PixuctHTable *pMergeTable;
 	I32 vertAllocIdx;
 } XformVertsJobInitInfo;
 
 static
-I32 xformVertsJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 xformVertsJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
 		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
@@ -901,13 +902,18 @@ I32 xformVertsJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInf
 }
 
 static
-void xformVertsJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
+void xformVertsJobInit(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfoVoid,
+	void *pEntryVoid
+) {
 	xformAndInterpVertsJobArgs *pEntry = pEntryVoid;
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
 		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
 	pEntry->pVertAlloc = pVertAlloc;
-	pEntry->pOutMesh = &((MapToMeshBasic *)pShared)->outMesh;
+	pEntry->pOutMesh = pInitInfo->pOutMesh;
 	pEntry->pInPieces = pInitInfo->pInPieces;
 	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
 	 //TODO again, make an enum or something for lin-alloc handles
@@ -932,6 +938,7 @@ StucErr stucXFormAndInterpVerts(
 		&(XformVertsJobInitInfo) {
 			.pInPieces = pInPieces,
 			.pInPiecesClip = pInPiecesClip,
+			.pOutMesh = &pBasic->outMesh,
 			.pMergeTable = pMergeTable,
 			.vertAllocIdx = vertAllocIdx
 		},
@@ -952,12 +959,13 @@ typedef struct InterpAttribsJobInitInfo {
 	const InPieceArr *pInPiecesClip;
 	const PixuctHTable *pMergeTable;
 	const BufOutRangeTable *pBufOutTable;
+	Mesh *pOutMesh;
 	const OutBufIdxArr *pOutBufIdxArr;
 	StucDomain domain;
 } InterpAttribsJobInitInfo;
 
 static
-I32 interpAttribsJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfo) {
+I32 interpAttribsJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
 	return stucDomainCountGetIntern(
 		&((MapToMeshBasic *)pShared)->outMesh.core,
 		((InterpAttribsJobInitInfo *)pInitInfo)->domain
@@ -965,10 +973,15 @@ I32 interpAttribsJobsGetRange(StucContext pCtx, const void *pShared, void *pInit
 }
 
 static
-void interpAttribsJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
+void interpAttribsJobInit(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfoVoid,
+	void *pEntryVoid
+) {
 	InterpAttribsJobArgs *pEntry = pEntryVoid;
 	InterpAttribsJobInitInfo *pInitInfo = pInitInfoVoid;
-	pEntry->pOutMesh = &((MapToMeshBasic *)pShared)->outMesh;
+	pEntry->pOutMesh = pInitInfo->pOutMesh;
 	pEntry->pInPieces = pInitInfo->pInPieces;
 	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
 	pEntry->pMergeTable = pInitInfo->pMergeTable;
@@ -997,6 +1010,7 @@ StucErr stucInterpAttribs(
 		&(InterpAttribsJobInitInfo) {
 			.pInPieces = pInPieces,
 			.pInPiecesClip = pInPiecesClip,
+			.pOutMesh = &pBasic->outMesh,
 			.pMergeTable = pMergeTable,
 			.pBufOutTable = pBufOutTable,
 			.pOutBufIdxArr = pOutBufIdxArr,

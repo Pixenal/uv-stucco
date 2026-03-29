@@ -300,14 +300,19 @@ typedef struct SnapJobInitInfo {
 } SnapJobInitInfo;
 
 static
-I32 snapJobsGetRange(StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 snapJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
 	const PixalcLinAlloc *pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
 	return pixalcLinAllocGetCount(pIntersectAlloc);
 }
 
 static
-void snapJobInit(StucContext pCtx, void *pShared, void *pInitInfoVoid, void *pEntryVoid) {
+void snapJobInit(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfoVoid,
+	void *pEntryVoid
+) {
 	SnapJobArgs *pEntry = pEntryVoid;
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
 	pEntry->pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
@@ -353,7 +358,8 @@ StucErr stucSnapIntersectVerts(
 			.pInPiecesClip = pInPiecesClip,
 			.pMergeTable = pMergeTable
 		},
-		snapJobsGetRange, snapJobInit);
+		snapJobsGetRange, snapJobInit
+	);
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
 		threadId,
