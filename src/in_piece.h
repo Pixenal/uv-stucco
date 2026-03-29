@@ -258,8 +258,9 @@ typedef struct StucInIsland {
 } StucInIsland;
 
 typedef struct StucInIslandArr {
-	I32 *pFaces;
 	StucInIsland *pArr;
+	I32 *pFaces;
+	I32 *pFaceTable;
 	I32 size;
 	I32 count;
 	I32 faceCount;
