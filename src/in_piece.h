@@ -480,19 +480,47 @@ bool stucBorderTableCmp(
 }
 
 static inline
+bool stucIsInCornerOnBorder(
+	const Mesh *pInMesh,
+	const IslandClustArr *pClustArr,
+	const FaceRange *pInFace,
+	I32 corner,
+	const StucBorderTable **ppEntry
+) {
+	const StucBorderTable *pEntry = NULL;
+	I32 edge = stucGetMeshEdge(
+		&pInMesh->core,
+		(FaceCorner){.face = pInFace->idx, .corner = corner}
+	);
+	SearchResult result = pixuctHTableGetConst(
+		&pClustArr->pIsland->borderTable,
+		0,
+		&edge,
+		&pEntry,
+		pixuctKeyFromI32, stucBorderTableCmp
+	);
+	if (ppEntry) {
+		*ppEntry = pEntry;
+	}
+	return result == PIX_SEARCH_FOUND;
+}
+
+static inline
 bool stucIsInFaceOnBorder(
 	const Mesh *pInMesh,
 	const IslandClustArr *pClustArr,
 	const FaceRange *pInFace,
 	const StucBorderTable **ppEntry
 ) {
+	const StucBorderTable *pEntry = NULL;
+	SearchResult result = 0;
+	PIX_ERR_ASSERT("", pInFace->size > 0);
 	for (I32 i = 0; i < pInFace->size; ++i) {
-		const StucBorderTable *pEntry;
 		I32 edge = stucGetMeshEdge(
 			&pInMesh->core,
 			(FaceCorner){.face = pInFace->idx, .corner = i}
 		);
-		SearchResult result = pixuctHTableGetConst(
+		result = pixuctHTableGetConst(
 			&pClustArr->pIsland->borderTable,
 			0,
 			&edge,
@@ -500,15 +528,11 @@ bool stucIsInFaceOnBorder(
 			pixuctKeyFromI32, stucBorderTableCmp
 		);
 		if (result == PIX_SEARCH_FOUND) {
-			PIX_ERR_ASSERT("", pEntry);//TODO move this check into pixuctHTableGet
-			if (ppEntry) {
-				*ppEntry = pEntry;
-			}
-			return true;
+			break;
 		}
 	}
 	if (ppEntry) {
-		*ppEntry = NULL;
+		*ppEntry = pEntry;
 	}
-	return false;
+	return result == PIX_SEARCH_FOUND;
 }

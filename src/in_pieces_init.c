@@ -301,7 +301,7 @@ bool isClustOnBorder(
 	PixtyRange range = tileRange;
 	I32 rangeSize;
 	while ((rangeSize = range.end - range.start) / 2) {
-		I32 mid = tileRange.start + rangeSize / 2;
+		I32 mid = range.start + rangeSize / 2;
 		PixtyRange midFaces = {0};
 		clutreFaceRangeGet(&pBasic->pMap->clustTree, pArr->pArr[mid].idx, &midFaces);
 		if (faces.start >= midFaces.start) {
@@ -361,11 +361,7 @@ PixtyV2_F32 stucClustFaceUv(const void *pFaceRaw, I32 localCorner) {
 }
 
 static
-StucErr getEncasedFacesPerFace(
-	FindEncasedFacesJobArgs *pArgs,
-	FaceRange *pInFace,
-	PlycutMem *pPlycutAlc
-) {
+StucErr getEncasedFacesPerFace(FindEncasedFacesJobArgs *pArgs, FaceRange *pInFace) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("", pInFace->size == 3 || pInFace->size == 4);
 	const MapToMeshBasic *pBasic = (const MapToMeshBasic *)pArgs->core.pShared;
@@ -403,7 +399,7 @@ StucErr getEncasedFacesPerFace(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	PIX_ERR_CATCH(0, err, ;);
-	return PIX_ERR_SUCCESS;
+	return err;
 }
 
 
@@ -443,30 +439,21 @@ static
 StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
-	PlycutMem plycutAlc = {0};
+	const StucInIsland *pIsland = pArgs->pClustArr->pIsland;
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
+		I32 face = pBasic->pInIslands->pFaces[pIsland->core.faces.start + i];
 		if (pBasic->maskIdx != -1 && pBasic->pInMesh->pMatIdx &&
-		    pBasic->pInMesh->pMatIdx[i] != pBasic->maskIdx) {
+		    pBasic->pInMesh->pMatIdx[face] != pBasic->maskIdx) {
 
 			continue;
 		}
-		FaceRange inFace = {0};
-		inFace.start = pBasic->pInMesh->core.pFaces[i];
-		inFace.end = pBasic->pInMesh->core.pFaces[i + 1];
-		inFace.size = inFace.end - inFace.start;
-		inFace.idx = i;
+		FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, face);
 		if (inFace.size <= 4) {
-			err = getEncasedFacesPerFace(
-				pArgs,
-				&inFace,
-				&plycutAlc
-			);
+			err = getEncasedFacesPerFace(pArgs, &inFace);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 	}
 	PIX_ERR_CATCH(0, err, ;);
-	pixalcLinAllocDestroy(&plycutAlc.root);
-	pixalcLinAllocDestroy(&plycutAlc.corner);
 	return err;
 }
 
@@ -501,8 +488,13 @@ typedef struct FindEncasedJobInit {
 } FindEncasedJobInit;
 
 static
-I32 encasedTableJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
-	return ((MapToMeshBasic *)pShared)->pInMesh->core.faceCount;
+I32 encasedTableJobsGetRange(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfo
+) {
+	Range faces = ((FindEncasedJobInit *)pInitInfo)->pClustArr->pIsland->core.faces;
+	return faces.end - faces.start;
 }
 
 typedef struct InPieceInitInfo {
