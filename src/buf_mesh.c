@@ -1114,8 +1114,9 @@ PixErr borderCacheInit(
 				continue;
 			}
 			pixuctAvlIterInc(&iter);
-			BorderCacheEdge *pNext = (void *)pixuctAvlIterAtEnd(&iter) ?
-				pStart : (void *)pixuctAvlIterGetItem(&iter);
+			BorderCacheEdge *pNext = (void *)(
+				pixuctAvlIterAtEnd(&iter) ? pStart : (void *)pixuctAvlIterGetItem(&iter)
+			);
 			PIX_ERR_ASSERT("", pNext->idx != pNode->idx > 0);
 			I32 gap = pNext->idx + (pNext->idx > pNode->idx ? 0 : fullCount) - pNode->idx;
 			if (gap == 1) {
@@ -1165,6 +1166,7 @@ V2_F32 getBorderCornerPos(
 	BorderCache *pCache = pMesh;
 	const IslandClustArr *pClustArr = pCache->pClustArr;
 	if (boundary != pCache->activeBorder) {
+		pCache->activeBorder = boundary;
 		pixuctAvlIterInit(pCache->arr.pArr + pCache->activeBorder, &pCache->iter);
 	}
 	else {
