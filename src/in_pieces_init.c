@@ -238,6 +238,7 @@ V3_F32 getMapCornerPos(
 	return stucGetVertPos(pMesh, pMapFace, corner);
 }
 
+#if false
 static
 OverlapType doInAndMapFacesOverlap(
 	const MapToMeshBasic *pBasic,
@@ -266,6 +267,7 @@ OverlapType doInAndMapFacesOverlap(
 	PIX_ERR_CATCH(0, err, ;);
 	return STUC_FACE_OVERLAP_NONE;
 }
+#endif
 
 typedef struct InPieceClust {
 	FindEncasedFacesJobArgs *pArgs;

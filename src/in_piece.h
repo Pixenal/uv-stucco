@@ -390,7 +390,8 @@ StucErr stucClipMapFace(
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
 	void *pHTableAlc,
-	void *pPlycutAlc
+	void *pPlycutAlc,
+	PixtyI32Arr *pOrderCache
 );
 StucErr stucAddMapFaceToBufMesh(
 	const struct MapToMeshBasic *pBasic,
@@ -401,7 +402,8 @@ StucErr stucAddMapFaceToBufMesh(
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
 	void *pHTableAlc,
-	void *pPlycutAlc
+	void *pPlycutAlc,
+	PixtyI32Arr *pOrderCache
 );
 StucErr stucBufMeshInit(void *pArgsVoid);
 StucErr stucInPieceArrInit(
@@ -428,7 +430,8 @@ StucErr stucInPieceArrInitBufMeshes(
 		BufMesh *,
 		BorderCache *,
 		void *,
-		void *
+		void *,
+		PixtyI32Arr *
 	)
 );
 void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
