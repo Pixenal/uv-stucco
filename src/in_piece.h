@@ -180,7 +180,7 @@ typedef struct BufMeshArr {
 
 typedef struct InPieceArr {
 	struct InPieceArr *pNext;
-	BufMeshArr *pBufMeshes;
+	BufMeshArr bufMeshes;
 	InPiece *pArr;
 	I32 size;
 	I32 count;
@@ -452,8 +452,10 @@ void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
 	if (pArr->pArr) {
 		pCtx->alloc.fpFree(pArr->pArr);
 	}
+	if (pArr->bufMeshes.pArr) {
+		stucBufMeshArrDestroy(pCtx, &pArr->bufMeshes);
+	}
 	*pArr = (InPieceArr) {0};
-	//bufmeshes are stored on stack, so we don't free that
 }
 
 static inline

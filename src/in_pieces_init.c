@@ -614,8 +614,6 @@ void linkEncasedTableEntries(
 	bool *pEmpty
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
-	*pInPieceArr = (InPieceArr){0};
-	*pInPieceClipArr = (InPieceArr){0};
 	for (I32 i = 0; i < jobCount; ++i) {
 		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
 		pInPieceArr->size += pixalcLinAllocGetCount(pAlloc);
@@ -685,8 +683,6 @@ StucErr stucInPieceArrInit(
 		&(FindEncasedJobInit){.pClustArr = pClustArr},
 		encasedTableJobsGetRange, encasedTableJobsInitArg
 	);
-	pInPieces->pBufMeshes->pArr = pAlloc->fpCalloc(*pJobCount, sizeof(BufMesh));
-	pInPiecesClip->pBufMeshes->pArr = pAlloc->fpCalloc(*pJobCount, sizeof(BufMesh));
 	err = stucDoJobInParallel(
 		pBasic->pCtx,
 		threadId,

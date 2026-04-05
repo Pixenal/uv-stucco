@@ -564,13 +564,15 @@ static
 bool inCornerPredicate(
 	const MapToMeshBasic *pBasic,
 	const BorderCache *pBorderCache,
-	PlycutCornerIdx idx
+	I32 boundary,
+	const PlycutCorner *pCorner
 ) {
 	const BorderCacheEdge *pNode = NULL;
+	I32 idx = (I32)pCorner->userData.clip;
 	pixuctAvlGet(
-		pBorderCache->arr.pArr + idx.boundary,
+		pBorderCache->arr.pArr + boundary,
 		(void *)&pNode,
-		&idx.corner,
+		&idx,
 		bstIdxCmp
 	);
 	return !pNode->cantIntersect;
@@ -611,7 +613,9 @@ void setIntersectBufVertInfo(
 		case PLYCUT_ON_SUBJECT_EDGE: {
 			*pType = STUC_BUF_VERT_ON_EDGE;
 			PlycutCornerIdx vertCorner = pCorner->info.onEdge.vertCorner;
-			if (!pCorner->cross && !inCornerPredicate(pBasic, pBorderCache, vertCorner)) {
+			if (!pCorner->cross &&
+				!inCornerPredicate(pBasic, pBorderCache, vertCorner.boundary, pCorner)
+			) {
 				break;
 			}
 			FaceCorner inCorner =
@@ -732,6 +736,10 @@ InsideStatus findEncasingInPieceFace(
 		V2_F32 dirUnit = _(_(uvNext V2SUB uv) V2DIVS pInCornerCache[corner].len);
 		*pAlpha = stucGetT(pos, uv, dirUnit, pInCornerCache[corner].len);
 	}
+	if (!inCorner.pFace) {
+		PIX_ERR_ASSERT("", status == STUC_INSIDE_STATUS_OUTSIDE);
+		return status;
+	}
 	*pCorner = (FaceCorner){.face = inCorner.pFace->face.idx, .corner = inCorner.corner};
 	return status;
 }
@@ -842,7 +850,12 @@ StucErr bufMeshAddVert(
 			break;
 		case PLYCUT_ORIGIN_CLIP: {
 			type = STUC_BUF_VERT_IN_OR_MAP;
-			if (!inCornerPredicate(pBasic, pBorderCache, pCorner->info.origin.corner)) {
+			if (!inCornerPredicate(
+				pBasic,
+				pBorderCache,
+				pCorner->info.origin.corner.boundary,
+				pCorner
+			)) {
 				break;
 			}
 			FaceCorner inCorner =
@@ -1055,6 +1068,11 @@ PixErr borderCacheInit(
 	PixErr err = PIX_ERR_SUCCESS;
 	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
 	if (pCache->alloc.valid) {
+		for (I32 i = 0; i < pCache->arr.size; ++i) {
+			if (pCache->arr.pArr[i].count) {
+				pixuctAvlClear(pCache->arr.pArr + i);
+			}
+		}
 		pixalcLinAllocClear(&pCache->alloc);
 	}
 	else {
@@ -1084,7 +1102,6 @@ PixErr borderCacheInit(
 				FaceCorner corner = pBorder->arr.pArr[pTableEntry->idx].corner;
 				PIX_ERR_ASSERT("", face.idx == corner.face && j == corner.corner);
 				if (pTableEntry->border >= pCache->arr.size) {
-					++pCache->borderCount;
 					I32 oldSize = pCache->arr.size;
 					PIXALC_DYN_ARR_RESIZE(
 						PixuctAvl,
@@ -1110,7 +1127,11 @@ PixErr borderCacheInit(
 			}
 		}
 	} while(pEntry = (void *)pEntry->core.pNext);
-	for (I32 i = 0; i < pCache->borderCount; ++i) {
+	for (I32 i = 0; i < pCache->arr.size; ++i) {
+		if (!pCache->arr.pArr[i].count) {
+			continue;
+		}
+		++pCache->borderCount;
 		I32 fullCount = pClustArr->pIsland->core.borders.pArr[i].arr.count;
 		PixuctAvl *pBorder = pCache->arr.pArr + i;
 		pOrderCache->count = 0;
@@ -1128,9 +1149,16 @@ PixErr borderCacheInit(
 		}
 		for (I32 j = 0; j < pOrderCache->count; ++j) {
 			I32 idx = pOrderCache->pArr[j];
-			I32 idxNext = pOrderCache->pArr[(j + 1) % pOrderCache->count];
-			PIX_ERR_ASSERT("", idx != idxNext > 0);
-			I32 gap = idxNext + (idxNext > idx ? 0 : fullCount) - idx;
+			I32 idxNext;
+			I32 gap;
+			if (pOrderCache->count == 1) {
+				idxNext = idx;
+				gap = fullCount;
+			}
+			else {
+				idxNext = pOrderCache->pArr[(j + 1) % pOrderCache->count];
+				gap = idxNext + (idxNext > idx ? 0 : fullCount) - idx;
+			}
 			if (gap == 1) {
 				continue;
 			}
@@ -1510,12 +1538,14 @@ void bufMeshInitJobInit(
 
 static
 void bufMeshArrMoveToInPieces(
-	const InPieceArr *pInPieces,
-	const BufMeshInitJobArgs *pJobArgs,
+	const PixalcFPtrs *pAlloc,
+	InPieceArr *pInPieces,
+	BufMeshInitJobArgs *pJobArgs,
 	I32 jobCount
 ) {
-	BufMeshArr *pBufMeshes = pInPieces->pBufMeshes;
+	BufMeshArr *pBufMeshes = &pInPieces->bufMeshes;
 	pBufMeshes->count = jobCount;
+	pBufMeshes->pArr = pAlloc->fpMalloc(pBufMeshes->count * sizeof(BufMesh));
 	for (I32 i = 0; i < jobCount; ++i) {
 		pBufMeshes->pArr[i] = pJobArgs[i].bufMesh;
 	}
@@ -1561,7 +1591,7 @@ StucErr stucInPieceArrInitBufMeshes(
 		stucBufMeshInit
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	bufMeshArrMoveToInPieces(pInPieces, jobArgs, jobCount);
+	bufMeshArrMoveToInPieces(&pBasic->pCtx->alloc, pInPieces, jobArgs, jobCount);
 	return err;
 }
 

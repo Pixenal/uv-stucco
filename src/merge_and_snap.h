@@ -135,7 +135,7 @@ void getBufMeshForVertMergeEntry(
 	const BufMesh **ppBufMesh
 ) {
 	const InPieceArr *pArr = pVert->bufCorner.clipped ? pInPiecesClip : pInPieces;
-	*ppBufMesh = pArr->pBufMeshes->pArr + pVert->bufCorner.bufMesh;
+	*ppBufMesh = pArr->bufMeshes.pArr + pVert->bufCorner.bufMesh;
 	I32 inPieceIdx = (*ppBufMesh)->faces.pArr[pVert->bufCorner.corner.face].inPiece;
 	*ppInPiece = pArr->pArr + inPieceIdx;
 }

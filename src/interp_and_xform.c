@@ -757,8 +757,8 @@ const VertMerge *getVertMergeEntry(
 ) {
 	BufOutRange *pRange = pArgs->pBufOutTable->pArr + rangeIdx;
 	*ppBufMesh = pRange->clip ?
-		pArgs->pInPiecesClip->pBufMeshes->pArr + pRange->bufMesh :
-		pArgs->pInPieces->pBufMeshes->pArr + pRange->bufMesh;
+		pArgs->pInPiecesClip->bufMeshes.pArr + pRange->bufMesh :
+		pArgs->pInPieces->bufMeshes.pArr + pRange->bufMesh;
 
 	//out-corner currently holds out-buf-idx-arr idx
 	OutBufIdx outBufIdx = pArgs->pOutBufIdxArr->pArr[
