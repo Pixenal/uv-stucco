@@ -173,7 +173,7 @@ void interpBufVertIn(
 			if (pInterpCache->cache.active != STUC_INTERP_CACHE_TRI_MAP) {
 				interpCacheUpdateTriMap(
 					pBasic,
-					pInPiece->pList->tile,
+					pInPiece->tile,
 					pInterpCache->domain,
 					pVert->in.inFace, pVert->in.inCorner,
 					mapFace, pVert->in.tri,
@@ -210,7 +210,7 @@ void interpBufVertMap(
 			if (pInterpCache->cache.active != STUC_INTERP_CACHE_TRI_IN) {
 				interpCacheUpdateTriIn(
 					pBasic,
-					pInPiece->pList->tile,
+					pInPiece->tile,
 					pInterpCache->domain,
 					mapFace, pVert->map.mapCorner,
 					pVert->map.inFace,

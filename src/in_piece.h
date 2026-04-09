@@ -56,6 +56,7 @@ typedef struct InPiece {
 	EncasedMapFace *pList;
 	//BorderArr borderArr;
 	I32 faceCount;
+	PixtyV2_I16 tile;
 } InPiece;
 
 typedef enum BufVertType {
@@ -175,6 +176,7 @@ typedef struct BufMesh {
 
 typedef struct BufMeshArr {
 	BufMesh *pArr;
+	I32 size;
 	I32 count;
 } BufMeshArr;
 

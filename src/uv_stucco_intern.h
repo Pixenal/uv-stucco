@@ -78,7 +78,11 @@ StucErr stucBuildTangentsForInPieces(
 StucErr stucBuildTangents(void *pArgs);
 StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh);
 
-StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 snappedVerts);
+StucErr stucInitOutMesh(
+	MapToMeshBasic *pBasic,
+	PixuctHTable *pMergeTable
+	//, I32 snappedVerts
+);
 void stucAddVertsToOutMesh(
 	MapToMeshBasic *pBasic,
 	PixuctHTable *pMergeTable,

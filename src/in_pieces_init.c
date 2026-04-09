@@ -525,6 +525,7 @@ void inPieceInit (
 	EncasedMapFace *pCluster = ((InPieceInitInfo *)pInitInfoVoid)->pCluster;
 	InPiece *pInPiece = pInPieceArr->pArr + pInPieceArr->count;
 	pInPiece->pList = pCluster;
+	pInPiece->tile = pKey->tile;
 	pInPiece->faceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count;
 	pInPieceArr->count++;
 }

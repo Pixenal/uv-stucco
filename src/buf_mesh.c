@@ -1451,7 +1451,7 @@ SrcFaces stucGetSrcFacesForBufCorner(
 ) {
 	BufFace bufFace = pBufMesh->faces.pArr[corner.face];
 	BufCorner bufCorner = pBufMesh->corners.pArr[bufFace.start + corner.corner];
-	SrcFaces faces = {.map = pInPiece->pList->cluster};
+	SrcFaces faces = {.map = bufFace.mapFace};
 	switch (bufCorner.type) {
 		case STUC_BUF_VERT_IN_OR_MAP: {
 			const InOrMapVert *pVert = pBufMesh->inOrMapVerts.pArr + bufCorner.vert;
@@ -1544,7 +1544,7 @@ void bufMeshArrMoveToInPieces(
 	I32 jobCount
 ) {
 	BufMeshArr *pBufMeshes = &pInPieces->bufMeshes;
-	pBufMeshes->count = jobCount;
+	pBufMeshes->count = pBufMeshes->size = jobCount;
 	pBufMeshes->pArr = pAlloc->fpMalloc(pBufMeshes->count * sizeof(BufMesh));
 	for (I32 i = 0; i < jobCount; ++i) {
 		pBufMeshes->pArr[i] = pJobArgs[i].bufMesh;

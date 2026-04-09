@@ -302,7 +302,7 @@ StucErr xformVertFromUvwToXyz(
 		mapUvw.d[2] *= inVertWScale;
 	}
 	PIX_ERR_RETURN_IFNOT(err, "");
-	V2_F32 fTileMin = {.d = {pInPiece->pList->tile.d[0], pInPiece->pList->tile.d[1]}};
+	V2_F32 fTileMin = {.d = {pInPiece->tile.d[0], pInPiece->tile.d[1]}};
 	_((V2_F32 *)&mapUvw V2SUBEQL fTileMin);
 	bool aboveCutoff = false;
 	UsgInFace *pUsgEntry = NULL;
@@ -867,6 +867,11 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 			pInPiece,
 			pBufMesh,
 			bufCorner
+		);
+		PIX_ERR_ASSERT(
+		"",
+		srcFaces.in >= 0 && srcFaces.in < pBasic->pInMesh->core.faceCount &&
+		srcFaces.map >= 0 && srcFaces.map < pBasic->pMap->pMesh->core.faceCount
 		);
 		//not actually interpolating faces,
 		//just copying

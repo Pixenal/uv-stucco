@@ -140,7 +140,7 @@ void mergeTableInitKey(
 ) {
 	*pKey = (MergeTableKey) {
 		.type = type,
-		.tile = pInPiece->pList->tile
+		.tile = pInPiece->tile
 	};
 	switch (type) {
 		case STUC_BUF_VERT_IN_OR_MAP:

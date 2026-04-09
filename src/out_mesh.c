@@ -8,7 +8,11 @@ SPDX-License-Identifier: Apache-2.0
 #include <attrib_utils.h>
 #include <merge_and_snap.h>
 
-StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 snappedVerts) {
+StucErr stucInitOutMesh(
+	MapToMeshBasic *pBasic,
+	PixuctHTable *pMergeTable
+	//, I32 snappedVerts
+) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	Mesh *pMesh = &pBasic->outMesh;
@@ -17,7 +21,7 @@ StucErr stucInitOutMesh(MapToMeshBasic *pBasic, PixuctHTable *pMergeTable, I32 s
 	PixalcLinAlloc *pIntersectVertAlloc = pixuctHTableAllocGet(pMergeTable, 1);
 	I32 bufVertTotal = pixalcLinAllocGetCount(pVertAlloc);
 	bufVertTotal += pixalcLinAllocGetCount(pIntersectVertAlloc);
-	bufVertTotal -= snappedVerts;
+	//bufVertTotal -= snappedVerts;
 	pMesh->faceBufSize = bufVertTotal;
 	pMesh->cornerBufSize = pMesh->faceBufSize * 2;
 	pMesh->edgeBufSize = pMesh->cornerBufSize;

@@ -211,6 +211,7 @@ void buildTPiecesForBufVerts(
 			&pBufMesh
 		);
 		SrcFaces srcFaces = stucGetSrcFacesForBufCorner(
+
 			pInPiece,
 			pBufMesh,
 			pEntry->bufCorner.corner
