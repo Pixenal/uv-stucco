@@ -132,7 +132,7 @@ void initOnEdgeKey(
 static
 void mergeTableInitKey(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	I32 mapFace,
 	BufVertType type,
 	const MergeTableInitInfoVert *pInitInfoVert,
@@ -140,7 +140,7 @@ void mergeTableInitKey(
 ) {
 	*pKey = (MergeTableKey) {
 		.type = type,
-		.tile = pInPiece->tile
+		.tile = tile
 	};
 	switch (type) {
 		case STUC_BUF_VERT_IN_OR_MAP:
@@ -220,7 +220,7 @@ void mergeTableAddVert(
 
 void stucMergeTableGetVertKey(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	I32 mapFace,
 	FaceCorner bufCorner,
@@ -229,7 +229,7 @@ void stucMergeTableGetVertKey(
 	MergeTableInitInfoVert vertInfo = mergeTableGetBufVert(pBufMesh, bufCorner);
 	mergeTableInitKey(
 		pBasic,
-		pInPiece,
+		tile,
 		mapFace,
 		bufMeshGetType(pBufMesh, bufCorner),
 		&vertInfo,
@@ -247,7 +247,6 @@ void mergeTableAddVerts(
 	PixuctHTable *pTable
 ) {
 	const BufMesh *pBufMesh = pInPieces->bufMeshes.pArr + bufMeshIdx;
-	const InPiece *pInPiece = bufFaceGetInPiece(pBufMesh, bufCorner.face, pInPieces);
 	I32 bufCornerIdx = pBufMesh->faces.pArr[bufCorner.face].start + bufCorner.corner;
 	VertMergeCorner initInfo = {
 		.pBufCorner = pBufMesh->corners.pArr + bufCornerIdx,
@@ -257,7 +256,8 @@ void mergeTableAddVerts(
 	};
 	MergeTableKey key = {0};
 	I32 mapFace = pBufMesh->faces.pArr[bufCorner.face].mapFace;
-	stucMergeTableGetVertKey(pBasic, pInPiece, pBufMesh, mapFace, bufCorner, &key);
+	V2_I16 tile = pBufMesh->faces.pArr[bufCorner.face].tile;
+	stucMergeTableGetVertKey(pBasic, tile, pBufMesh, mapFace, bufCorner, &key);
 	mergeTableAddVert(pTable, &key, &initInfo);
 }
 

@@ -100,7 +100,6 @@ static
 void addBufFaceToOutMesh(
 	MapToMeshBasic *pBasic,
 	OutCornerBuf *pOutBuf,
-	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
 	I32 bufMeshIdx,
 	bool clip,
@@ -117,7 +116,7 @@ void addBufFaceToOutMesh(
 		MergeTableKey key = {0};
 		stucMergeTableGetVertKey(
 			pBasic,
-			pInPiece,
+			bufFace.tile,
 			pBufMesh,
 			bufFace.mapFace,
 			bufCorner,
@@ -227,7 +226,6 @@ void stucAddFacesAndCornersToOutMesh(
 			addBufFaceToOutMesh(
 				pBasic,
 				&outBuf,
-				pInPieces->pArr + pBufMesh->faces.pArr[j].inPiece,
 				pBufMesh,
 				i,
 				clip,

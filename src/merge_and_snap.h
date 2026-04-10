@@ -110,7 +110,7 @@ void stucMergeVerts(
 );
 void stucMergeTableGetVertKey(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	I32 mapFace,
 	FaceCorner bufCorner,
@@ -131,13 +131,10 @@ void getBufMeshForVertMergeEntry(
 	const InPieceArr *pInPieces,
 	const InPieceArr *pInPiecesClip,
 	const VertMerge *pVert,
-	const InPiece **ppInPiece,
 	const BufMesh **ppBufMesh
 ) {
 	const InPieceArr *pArr = pVert->bufCorner.clipped ? pInPiecesClip : pInPieces;
 	*ppBufMesh = pArr->bufMeshes.pArr + pVert->bufCorner.bufMesh;
-	I32 inPieceIdx = (*ppBufMesh)->faces.pArr[pVert->bufCorner.corner.face].inPiece;
-	*ppInPiece = pArr->pArr + inPieceIdx;
 }
 
 static inline

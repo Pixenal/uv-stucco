@@ -48,8 +48,8 @@ typedef struct EncasedEntryIdx {
 typedef struct BufFace {
 	I32 start;
 	I32 size;
-	I32 inPiece;
 	I32 mapFace;
+	PixtyV2_I16 tile;
 } BufFace;
 
 typedef struct InPiece {
@@ -379,7 +379,6 @@ StucErr inPieceArrSplit(
 	SplitInPiecesAllocArr *pSplitAlloc
 );
 SrcFaces stucGetSrcFacesForBufCorner(
-	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
 	FaceCorner corner
 );
@@ -458,16 +457,6 @@ void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
 		stucBufMeshArrDestroy(pCtx, &pArr->bufMeshes);
 	}
 	*pArr = (InPieceArr) {0};
-}
-
-static inline
-const InPiece *bufFaceGetInPiece(
-	const BufMesh *pBufMesh,
-	I32 face,
-	const InPieceArr *pInPieces
-) {
-	I32 inPieceIdx = pBufMesh->faces.pArr[face].inPiece;
-	return pInPieces->pArr + inPieceIdx;
 }
 
 static inline

@@ -63,7 +63,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid);
 StucErr stucInterpFaceAttribs(void *pArgsVoid);
 void stucInterpBufAttrib(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner corner,
 	AttribCore *pDest, I32 iDest,

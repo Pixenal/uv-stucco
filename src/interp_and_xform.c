@@ -105,7 +105,7 @@ void getUsgEntry(
 static
 StucErr interpActiveAttrib(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
 	InterpCacheLimited *pInterpCache,
@@ -131,7 +131,7 @@ StucErr interpActiveAttrib(
 	PIX_ERR_RETURN_IFNOT_COND(err, pSrcAttrib, "active attrib not found");
 	stucInterpBufAttrib(
 		pBasic,
-		pInPiece,
+		tile,
 		pBufMesh,
 		bufCorner,
 		&attribWrap, 0,
@@ -144,7 +144,7 @@ StucErr interpActiveAttrib(
 static
 StucErr getInterpolatedTbn(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
 	InterpCacheLimited *pInInterpCache,
@@ -161,7 +161,7 @@ StucErr getInterpolatedTbn(
 	else {
 		err = interpActiveAttrib(
 			pBasic,
-			pInPiece,
+			tile,
 			pBufMesh,
 			bufCorner,
 			pInInterpCache,
@@ -173,7 +173,7 @@ StucErr getInterpolatedTbn(
 	}
 	err = interpActiveAttrib(
 		pBasic,
-		pInPiece,
+		tile,
 		pBufMesh,
 		bufCorner,
 		pInInterpCache,
@@ -184,7 +184,7 @@ StucErr getInterpolatedTbn(
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = interpActiveAttrib(
 		pBasic,
-		pInPiece,
+		tile,
 		pBufMesh,
 		bufCorner,
 		pInInterpCache,
@@ -203,7 +203,7 @@ StucErr getInterpolatedTbn(
 static
 StucErr mapUvwToXyzFlat(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
 	V3_F32 mapUvw,
@@ -214,7 +214,7 @@ StucErr mapUvwToXyzFlat(
 	StucErr err = PIX_ERR_SUCCESS;
 	err = getInterpolatedTbn(
 		pBasic,
-		pInPiece,
+		tile,
 		pBufMesh,
 		bufCorner,
 		pInInterpCache,
@@ -258,7 +258,7 @@ StucErr mapUvwToXyzFlat(
 static
 StucErr xformVertFromUvwToXyz(
 	const MapToMeshBasic *pBasic,
-	const InPiece *pInPiece,
+	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
 	InterpCaches *pInterpCaches,
@@ -274,7 +274,7 @@ StucErr xformVertFromUvwToXyz(
 	V3_F32 mapUvw = {0};
 	err = interpActiveAttrib(
 		pBasic,
-		pInPiece,
+		tile,
 		pBufMesh,
 		bufCorner,
 		&pInterpCaches->map,
@@ -290,7 +290,7 @@ StucErr xformVertFromUvwToXyz(
 		F32 inVertWScale = 1.0;
 		err = interpActiveAttrib(
 			pBasic,
-			pInPiece,
+			tile,
 			pBufMesh,
 			bufCorner,
 			&inVertInterpCache,
@@ -302,7 +302,7 @@ StucErr xformVertFromUvwToXyz(
 		mapUvw.d[2] *= inVertWScale;
 	}
 	PIX_ERR_RETURN_IFNOT(err, "");
-	V2_F32 fTileMin = {.d = {pInPiece->tile.d[0], pInPiece->tile.d[1]}};
+	V2_F32 fTileMin = {.d = {tile.d[0], tile.d[1]}};
 	_((V2_F32 *)&mapUvw V2SUBEQL fTileMin);
 	bool aboveCutoff = false;
 	UsgInFace *pUsgEntry = NULL;
@@ -318,7 +318,7 @@ StucErr xformVertFromUvwToXyz(
 	else {
 		err = mapUvwToXyzFlat(
 			pBasic,
-			pInPiece,
+			tile,
 			pBufMesh,
 			bufCorner,
 			mapUvw,
@@ -329,7 +329,7 @@ StucErr xformVertFromUvwToXyz(
 		PIX_ERR_RETURN_IFNOT(err, "");
 		err = interpActiveAttrib(
 			pBasic,
-			pInPiece,
+			tile,
 			pBufMesh,
 			bufCorner,
 			&inVertInterpCache,
@@ -447,7 +447,7 @@ void interpAndBlendAttribs(
 	Mesh *pOutMesh,
 	I32 dataIdx,
 	StucDomain domain,
-	const InPiece *pInPiece,//corners or verts
+	V2_I16 *pTile,//corners or verts
 	const BufMesh *pBufMesh,//corners or verts
 	const FaceCorner *pBufCorner,//corners or verts
 	InterpCaches *pInterpCaches,//corners or verts
@@ -459,7 +459,7 @@ void interpAndBlendAttribs(
 		PIX_ERR_ASSERT("", pSrcFaces);
 	}
 	else if (domain == STUC_DOMAIN_CORNER || domain == STUC_DOMAIN_VERT) {
-		PIX_ERR_ASSERT("", pInPiece && pBufMesh && pBufCorner && pInterpCaches);
+		PIX_ERR_ASSERT("", pBufMesh && pBufCorner && pInterpCaches);
 	}
 	else {
 		PIX_ERR_ASSERT("invalid domain for this func", false);
@@ -549,7 +549,7 @@ void interpAndBlendAttribs(
 			else {
 				stucInterpBufAttrib(
 					pBasic,
-					pInPiece,
+					*pTile,
 					pBufMesh,
 					*pBufCorner,
 					&inAttribWrap.core, 0,
@@ -572,7 +572,7 @@ void interpAndBlendAttribs(
 			else {
 				stucInterpBufAttrib(
 					pBasic,
-					pInPiece,
+					*pTile,
 					pBufMesh,
 					*pBufCorner,
 					&mapAttribWrap.core, 0,
@@ -650,21 +650,20 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 				continue; //vert was snapped to another - skip
 			}
 		}
-		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
 		getBufMeshForVertMergeEntry(
 			pArgs->pInPieces, pArgs->pInPiecesClip,
 			pEntry,
-			&pInPiece,
 			&pBufMesh
 		);
+		V2_I16 tile = pBufMesh->faces.pArr[pEntry->bufCorner.corner.face].tile;
 		InterpCaches interpCaches = {
 			.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
 			.map = {.domain = STUC_DOMAIN_VERT, .origin = STUC_ATTRIB_ORIGIN_MAP}
 		};
 		xformVertFromUvwToXyz(
 			pBasic,
-			pInPiece,
+			tile,
 			pBufMesh,
 			pEntry->bufCorner.corner,
 			&interpCaches,
@@ -677,7 +676,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			pArgs->pOutMesh,
 			pEntry->outVert,
 			STUC_DOMAIN_VERT,
-			pInPiece,
+			&tile,
 			pBufMesh,
 			&pEntry->bufCorner.corner,
 			&interpCaches,
@@ -751,7 +750,7 @@ const VertMerge *getVertMergeEntry(
 	const InterpAttribsJobArgs *pArgs,
 	I32 rangeIdx,
 	I32 corner,
-	const InPiece **ppInPiece,
+	V2_I16 *pTile,
 	const BufMesh **ppBufMesh,
 	FaceCorner *pBufCorner
 ) {
@@ -770,9 +769,7 @@ const VertMerge *getVertMergeEntry(
 	const VertMerge *pVertEntry =
 		getVertMergeFromBufCorner(pArgs, bufCorner.type, outBufIdx.mergedVert);
 
-	*ppInPiece = pRange->clip ?
-		pArgs->pInPiecesClip->pArr + bufFace.inPiece :
-		pArgs->pInPieces->pArr + bufFace.inPiece;
+	*pTile = bufFace.tile;
 	if (pBufCorner) {
 		*pBufCorner = outBufIdx.corner;
 	}
@@ -796,11 +793,11 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 			corner < pRange->outCorners.end && corner < pArgs->core.range.end;
 			++corner
 		) {
-			const InPiece *pInPiece = NULL;
 			const BufMesh *pBufMesh = NULL;
 			FaceCorner bufCorner = {0};
+			V2_I16 tile = {0};
 			const VertMerge *pVertEntry =
-				getVertMergeEntry(pArgs, i, corner, &pInPiece, &pBufMesh, &bufCorner);
+				getVertMergeEntry(pArgs, i, corner, &tile, &pBufMesh, &bufCorner);
 			InterpCaches interpCaches = {
 				.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
 				.map = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MAP}
@@ -812,7 +809,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				pArgs->pOutMesh,
 				corner,
 				STUC_DOMAIN_CORNER,
-				pInPiece,
+				&tile,
 				pBufMesh,
 				&bufCorner,
 				&interpCaches,
@@ -822,7 +819,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 			M3x3 tbn = {0};
 			getInterpolatedTbn(
 				pBasic,
-				pInPiece,
+				tile,
 				pBufMesh,
 				bufCorner,
 				&interpCaches.in,
@@ -856,15 +853,17 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
 		FaceCorner bufCorner = {0};
+		V2_I16 tile = {0};
 		getVertMergeEntry(
 			pArgs,
 			bufOutRange,
 			corner,
-			&pInPiece, &pBufMesh, &bufCorner
+			&tile,
+			&pBufMesh,
+			&bufCorner
 		);
 
 		SrcFaces srcFaces = stucGetSrcFacesForBufCorner(
-			pInPiece,
 			pBufMesh,
 			bufCorner
 		);

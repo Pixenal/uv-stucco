@@ -652,7 +652,7 @@ void setIntersectBufVertInfo(
 static
 void bufMeshAddFace(
 	const MapToMeshBasic *pBasic,
-	I32 inPieceOffset,
+	V2_I16 tile,
 	BufMesh *pBufMesh,
 	I32 start,
 	I32 faceSize,
@@ -663,8 +663,8 @@ void bufMeshAddFace(
 	PIX_ERR_ASSERT("", newIdx != -1);
 	pBufMesh->faces.pArr[newIdx].start = start;
 	pBufMesh->faces.pArr[newIdx].size = faceSize;
-	pBufMesh->faces.pArr[newIdx].inPiece = inPieceOffset;
 	pBufMesh->faces.pArr[newIdx].mapFace = mapFace;
+	pBufMesh->faces.pArr[newIdx].tile = tile;
 }
 
 static
@@ -922,7 +922,7 @@ StucErr addFaceToBufMesh(
 		PIX_ERR_RETURN_IFNOT(err, "");
 	} while(++i, pCorner = pCorner->pNext, pCorner);
 	I32 faceSize = pBufMesh->corners.count - faceStart;
-	bufMeshAddFace(pBasic, inPieceOffset, pBufMesh, faceStart, faceSize, pMapFace->idx);
+	bufMeshAddFace(pBasic, pInPiece->tile, pBufMesh, faceStart, faceSize, pMapFace->idx);
 	return err;
 }
 
@@ -1010,7 +1010,7 @@ StucErr addNonClipInPieceToBufMesh(
 	}
 	bufMeshAddFace(
 		pBasic,
-		inPieceOffset,
+		pInPiece->tile,
 		pBufMesh,
 		bufFaceStart,
 		pMapFace->size,
@@ -1207,6 +1207,8 @@ V2_F32 getBorderCornerPos(
 	const MapToMeshBasic *pBasic = pUserData;
 	BorderCache *pCache = pMesh;
 	const IslandClustArr *pClustArr = pCache->pClustArr;
+	boundary = ((I32 *)input.pUserData)[boundary];
+	PIX_ERR_ASSERT("", boundary >= 0 && boundary < pCache->arr.size);
 	if (boundary != pCache->activeBorder) {
 		pCache->activeBorder = boundary;
 		pixuctAvlIterInit(pCache->arr.pArr + pCache->activeBorder, &pCache->iter);
@@ -1289,9 +1291,29 @@ StucErr stucClipMapFace(
 	borderCacheInit(pBasic, pClustArr, pInFaceArr, pInPiece, pBorderCache, pOrderCache);
 
 	PlycutInput inInput = {.boundaries = pBorderCache->borderCount};
-	inInput.pSizes = pBasic->pCtx->alloc.fpMalloc(inInput.boundaries * sizeof(I32));
-	for (I32 i = 0; i < inInput.boundaries; ++i) {
-		inInput.pSizes[i] = pBorderCache[i].arr.pArr[i].count;
+	I32 boundaryRedir = 0;
+	I32 boundarySize = 0;
+	I32 *pInputMem = NULL;
+	if (pBorderCache->borderCount > 1) {
+		pInputMem = pBasic->pCtx->alloc.fpMalloc(inInput.boundaries * 2 * sizeof(I32));
+		inInput.pUserData = pInputMem;
+		inInput.pSizes = pInputMem + inInput.boundaries;
+	}
+	else {
+		inInput.pUserData = &boundaryRedir;
+		inInput.pSizes = &boundarySize;
+	}
+	{
+		I32 idx = 0;
+		for (I32 i = 0; i < pBorderCache->arr.size; ++i) {
+			if (!pBorderCache->arr.pArr[i].count) {
+				continue;
+			}
+			inInput.pSizes[idx] = pBorderCache->arr.pArr[i].count;
+			((I32 *)inInput.pUserData)[idx] = i;
+			++idx;
+		}
+		PIX_ERR_ASSERT("", idx == pBorderCache->borderCount);
 	}
 
 	ClutreFaceRange mapFaces = {0};
@@ -1332,6 +1354,13 @@ StucErr stucClipMapFace(
 		plycutFaceArrDestroy(&pBasic->pCtx->alloc, &out);
 	}
 	inFaceCacheDestroy(pBasic, &inFaceCache);
+	if (pBorderCache->borderCount > 1) {
+		PIX_ERR_ASSERT(
+			"",
+			inInput.pSizes != &boundarySize && inInput.pUserData != &boundaryRedir
+		);
+		pBasic->pCtx->alloc.fpFree(pInputMem);
+	}
 	return err;
 }
 
@@ -1446,7 +1475,6 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 
 
 SrcFaces stucGetSrcFacesForBufCorner(
-	const InPiece *pInPiece,
 	const BufMesh *pBufMesh,
 	FaceCorner corner
 ) {

@@ -202,17 +202,13 @@ void buildTPiecesForBufVerts(
 	pixalcLinAllocIterInit(pMergeAlloc, (Range) {0, INT32_MAX}, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
 		VertMerge *pEntry = pixalcLinAllocGetItem(&iter);
-		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
 		getBufMeshForVertMergeEntry(
 			pInPieces, pInPiecesClip,
 			pEntry,
-			&pInPiece,
 			&pBufMesh
 		);
 		SrcFaces srcFaces = stucGetSrcFacesForBufCorner(
-
-			pInPiece,
 			pBufMesh,
 			pEntry->bufCorner.corner
 		);
