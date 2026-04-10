@@ -1124,6 +1124,7 @@ PixErr borderCacheInit(
 				err = pixuctAvlAdd(pPieceBorder, (void **)&pNode, NULL, &key, bstIdxCmp);
 				PIX_ERR_RETURN_IFNOT(err, "");
 				pNode->idx = key;
+				pNode->cantIntersect = false;
 			}
 		}
 	} while(pEntry = (void *)pEntry->core.pNext);
@@ -1545,9 +1546,11 @@ void bufMeshArrMoveToInPieces(
 ) {
 	BufMeshArr *pBufMeshes = &pInPieces->bufMeshes;
 	pBufMeshes->count = pBufMeshes->size = jobCount;
-	pBufMeshes->pArr = pAlloc->fpMalloc(pBufMeshes->count * sizeof(BufMesh));
-	for (I32 i = 0; i < jobCount; ++i) {
-		pBufMeshes->pArr[i] = pJobArgs[i].bufMesh;
+	if (pBufMeshes->count) {
+		pBufMeshes->pArr = pAlloc->fpMalloc(pBufMeshes->count * sizeof(BufMesh));
+		for (I32 i = 0; i < jobCount; ++i) {
+			pBufMeshes->pArr[i] = pJobArgs[i].bufMesh;
+		}
 	}
 }
 

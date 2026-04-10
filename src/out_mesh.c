@@ -220,7 +220,7 @@ void stucAddFacesAndCornersToOutMesh(
 		pBasic->pCtx->alloc.fpMalloc(outBuf.final.size * sizeof(OutCornerBufCorner));
 	for (I32 i = 0; i < pInPieces->bufMeshes.count; ++i) {
 		BufOutRange *pRange = pBufOutTable->pArr + pBufOutTable->count;
-		pRange->bufMesh = i;
+		*pRange = (BufOutRange){.bufMesh = i, .clip = clip};
 		I32 cornerStart = pBasic->outMesh.core.cornerCount;
 		const BufMesh *pBufMesh = pInPieces->bufMeshes.pArr + i;
 		for (I32 j = 0; j < pBufMesh->faces.count; ++j) {
@@ -242,7 +242,6 @@ void stucAddFacesAndCornersToOutMesh(
 		}
 		pRange->outCorners.start = cornerStart;
 		pRange->outCorners.end = pBasic->outMesh.core.cornerCount;
-		pRange->clip = clip;
 		++pBufOutTable->count;
 	}
 	if (outBuf.buf.pArr) {

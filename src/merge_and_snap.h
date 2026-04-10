@@ -71,7 +71,7 @@ typedef union MergeTableInitInfoVert {
 typedef struct VertMergeCorner {
 	BufCorner *pBufCorner;
 	FaceCorner corner;
-	I8 bufMesh;
+	I32 bufMesh;
 	bool clipped;
 } VertMergeCorner;
 
