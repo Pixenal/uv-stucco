@@ -6,7 +6,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <poly_cutout.h>
 
 #include <in_piece.h>
-#include <quadtree.h>
 #include <map.h>
 #include <utils.h>
 

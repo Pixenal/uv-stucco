@@ -9,7 +9,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <cluster_tree_2d.h>
 
 #include <io.h>
-#include <quadtree.h>
 #include <mesh.h>
 #include <usg.h>
 

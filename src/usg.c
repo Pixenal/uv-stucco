@@ -9,7 +9,6 @@ SPDX-License-Identifier: Apache-2.0
 
 #include <pixenals_error_utils.h>
 
-#include <quadtree.h>
 #include <attrib_utils.h>
 #include <usg.h>
 #include <utils.h>
