@@ -11,8 +11,8 @@ SPDX-License-Identifier: Apache-2.0
 typedef struct xformAndInterpVertsJobArgs {
 	JobArgs core;
 	Mesh *pOutMesh;// outmesh in core.pBasic is const
-	const InPieceArr *pInPieces;
-	const InPieceArr *pInPiecesClip;
+	const BufMeshArr *pBufMeshArr;
+	const BufMeshArr *pBufMeshClipArr;
 	PixalcLinAlloc *pVertAlloc;
 	bool intersect;
 	JobArgsFoot foot;
@@ -21,8 +21,8 @@ typedef struct xformAndInterpVertsJobArgs {
 typedef struct InterpAttribsJobArgs {
 	JobArgs core;
 	Mesh *pOutMesh;
-	const InPieceArr *pInPieces;
-	const InPieceArr *pInPiecesClip;
+	const BufMeshArr *pBufMeshArr;
+	const BufMeshArr *pBufMeshClipArr;
 	const PixuctHTable *pMergeTable;
 	const BufOutRangeTable *pBufOutTable;
 	const OutBufIdxArr *pOutBufIdxArr;
@@ -652,7 +652,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 		}
 		const BufMesh *pBufMesh = NULL;
 		getBufMeshForVertMergeEntry(
-			pArgs->pInPieces, pArgs->pInPiecesClip,
+			pArgs->pBufMeshArr, pArgs->pBufMeshClipArr,
 			pEntry,
 			&pBufMesh
 		);
@@ -756,8 +756,8 @@ const VertMerge *getVertMergeEntry(
 ) {
 	BufOutRange *pRange = pArgs->pBufOutTable->pArr + rangeIdx;
 	*ppBufMesh = pRange->clip ?
-		pArgs->pInPiecesClip->bufMeshes.pArr + pRange->bufMesh :
-		pArgs->pInPieces->bufMeshes.pArr + pRange->bufMesh;
+		pArgs->pBufMeshClipArr->pArr + pRange->bufMesh :
+		pArgs->pBufMeshArr->pArr + pRange->bufMesh;
 
 	//out-corner currently holds out-buf-idx-arr idx
 	OutBufIdx outBufIdx = pArgs->pOutBufIdxArr->pArr[
@@ -890,8 +890,8 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 }
 
 typedef struct XformVertsJobInitInfo {
-	const InPieceArr *pInPieces;
-	const InPieceArr *pInPiecesClip;
+	const BufMeshArr *pBufMeshArr;
+	const BufMeshArr *pBufMeshClipArr;
 	Mesh *pOutMesh;
 	PixuctHTable *pMergeTable;
 	I32 vertAllocIdx;
@@ -918,8 +918,8 @@ void xformVertsJobInit(
 		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
 	pEntry->pVertAlloc = pVertAlloc;
 	pEntry->pOutMesh = pInitInfo->pOutMesh;
-	pEntry->pInPieces = pInitInfo->pInPieces;
-	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
+	pEntry->pBufMeshArr = pInitInfo->pBufMeshArr;
+	pEntry->pBufMeshClipArr = pInitInfo->pBufMeshClipArr;
 	 //TODO again, make an enum or something for lin-alloc handles
 	pEntry->intersect = pInitInfo->vertAllocIdx == 1;
 }
@@ -927,8 +927,8 @@ void xformVertsJobInit(
 StucErr stucXFormAndInterpVerts(
 	MapToMeshBasic *pBasic,
 	I32 threadId,
-	const InPieceArr *pInPieces,
-	const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr,
+	const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable,
 	I32 vertAllocIdx
 ) {
@@ -940,8 +940,8 @@ StucErr stucXFormAndInterpVerts(
 		pBasic,
 		&jobCount, jobArgs, sizeof(xformAndInterpVertsJobArgs),
 		&(XformVertsJobInitInfo) {
-			.pInPieces = pInPieces,
-			.pInPiecesClip = pInPiecesClip,
+			.pBufMeshArr = pBufMeshArr,
+			.pBufMeshClipArr = pBufMeshClipArr,
 			.pOutMesh = &pBasic->outMesh,
 			.pMergeTable = pMergeTable,
 			.vertAllocIdx = vertAllocIdx
@@ -959,8 +959,8 @@ StucErr stucXFormAndInterpVerts(
 }
 
 typedef struct InterpAttribsJobInitInfo {
-	const InPieceArr *pInPieces;
-	const InPieceArr *pInPiecesClip;
+	const BufMeshArr *pBufMeshArr;
+	const BufMeshArr *pBufMeshClipArr;
 	const PixuctHTable *pMergeTable;
 	const BufOutRangeTable *pBufOutTable;
 	Mesh *pOutMesh;
@@ -986,8 +986,8 @@ void interpAttribsJobInit(
 	InterpAttribsJobArgs *pEntry = pEntryVoid;
 	InterpAttribsJobInitInfo *pInitInfo = pInitInfoVoid;
 	pEntry->pOutMesh = pInitInfo->pOutMesh;
-	pEntry->pInPieces = pInitInfo->pInPieces;
-	pEntry->pInPiecesClip = pInitInfo->pInPiecesClip;
+	pEntry->pBufMeshArr = pInitInfo->pBufMeshArr;
+	pEntry->pBufMeshClipArr = pInitInfo->pBufMeshClipArr;
 	pEntry->pMergeTable = pInitInfo->pMergeTable;
 	pEntry->pBufOutTable = pInitInfo->pBufOutTable;
 	pEntry->pOutBufIdxArr = pInitInfo->pOutBufIdxArr;
@@ -996,8 +996,8 @@ void interpAttribsJobInit(
 StucErr stucInterpAttribs(
 	MapToMeshBasic *pBasic,
 	I32 threadId,
-	const InPieceArr *pInPieces,
-	const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr,
+	const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable,
 	const BufOutRangeTable *pBufOutTable,
 	const OutBufIdxArr *pOutBufIdxArr,
@@ -1012,8 +1012,8 @@ StucErr stucInterpAttribs(
 		pBasic,
 		&jobCount, jobArgs, sizeof(InterpAttribsJobArgs),
 		&(InterpAttribsJobInitInfo) {
-			.pInPieces = pInPieces,
-			.pInPiecesClip = pInPiecesClip,
+			.pBufMeshArr = pBufMeshArr,
+			.pBufMeshClipArr = pBufMeshClipArr,
 			.pOutMesh = &pBasic->outMesh,
 			.pMergeTable = pMergeTable,
 			.pBufOutTable = pBufOutTable,

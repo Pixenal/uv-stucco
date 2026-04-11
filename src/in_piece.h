@@ -183,8 +183,7 @@ typedef struct BufMeshArr {
 } BufMeshArr;
 
 typedef struct InPieceArr {
-	struct InPieceArr *pNext;
-	BufMeshArr bufMeshes;
+	BufMeshArr *pBufMeshes;
 	InPiece *pArr;
 	I32 size;
 	I32 count;
@@ -444,9 +443,6 @@ static inline
 void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
 	if (pArr->pArr) {
 		pCtx->alloc.fpFree(pArr->pArr);
-	}
-	if (pArr->bufMeshes.pArr) {
-		stucBufMeshArrDestroy(pCtx, &pArr->bufMeshes);
 	}
 	*pArr = (InPieceArr) {0};
 }

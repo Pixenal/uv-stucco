@@ -72,7 +72,7 @@ StucErr stucBuildTangentsForInPieces(
 	StucContext pCtx,
 	I32 threadId,
 	Mesh *pInMesh,
-	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable
 );
 StucErr stucBuildTangents(void *pArgs);
@@ -90,7 +90,7 @@ void stucAddVertsToOutMesh(
 );
 void stucAddFacesAndCornersToOutMesh(
 	MapToMeshBasic *pBasic,
-	const InPieceArr *pInPieces,
+	const BufMeshArr *pBufMeshArr,
 	PixuctHTable *pMergeTable,
 	OutBufIdxArr *pOutBufIdxArr,
 	BufOutRangeTable *pBufOutTable,

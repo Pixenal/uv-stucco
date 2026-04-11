@@ -98,13 +98,13 @@ typedef struct VertMergeIntersect {
 
 void stucVertMergeTableInit(
 	const MapToMeshBasic *pBasic,
-	const InPieceArr *pInPieces,
-	const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr,
+	const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pTable
 );
 void stucMergeVerts(
 	const MapToMeshBasic *pBasic,
-	const InPieceArr *pInPieces,
+	const BufMeshArr *pBufMeshArr,
 	bool clipped,
 	PixuctHTable *pTable
 );
@@ -128,13 +128,12 @@ StucErr stucSnapIntersectVerts(
 
 static inline
 void getBufMeshForVertMergeEntry(
-	const InPieceArr *pInPieces,
-	const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	const VertMerge *pVert,
 	const BufMesh **ppBufMesh
 ) {
-	const InPieceArr *pArr = pVert->bufCorner.clipped ? pInPiecesClip : pInPieces;
-	*ppBufMesh = pArr->bufMeshes.pArr + pVert->bufCorner.bufMesh;
+	const BufMeshArr *pArr = pVert->bufCorner.clipped ? pBufMeshClipArr : pBufMeshArr;
+	*ppBufMesh = pArr->pArr + pVert->bufCorner.bufMesh;
 }
 
 static inline

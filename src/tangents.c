@@ -192,7 +192,7 @@ static
 void buildTPiecesForBufVerts(
 	StucContext pCtx,
 	const Mesh *pInMesh,
-	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixalcLinAlloc *pMergeAlloc,
 	TPieceBufArr *pTPieces,
 	PixuctHTable *pVertTable,
@@ -204,7 +204,7 @@ void buildTPiecesForBufVerts(
 		VertMerge *pEntry = pixalcLinAllocGetItem(&iter);
 		const BufMesh *pBufMesh = NULL;
 		getBufMeshForVertMergeEntry(
-			pInPieces, pInPiecesClip,
+			pBufMeshArr, pBufMeshClipArr,
 			pEntry,
 			&pBufMesh
 		);
@@ -227,7 +227,7 @@ static
 void buildTPieces(
 	StucContext pCtx,
 	const Mesh *pInMesh,
-	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable,
 	TPieceArr *pTPieces
 ) {
@@ -249,7 +249,7 @@ void buildTPieces(
 	buildTPiecesForBufVerts(
 		pCtx,
 		pInMesh,
-		pInPieces, pInPiecesClip,
+		pBufMeshArr, pBufMeshClipArr,
 		pMergeAlloc,
 		&tPiecesBuf,
 		&vertTable,
@@ -258,7 +258,7 @@ void buildTPieces(
 	buildTPiecesForBufVerts(
 		pCtx,
 		pInMesh,
-		pInPieces, pInPiecesClip,
+		pBufMeshArr, pBufMeshClipArr,
 		pMergeAllocIntersect,
 		&tPiecesBuf,
 		&vertTable,
@@ -357,12 +357,12 @@ StucErr stucBuildTangentsForInPieces(
 	StucContext pCtx,
 	I32 threadId,
 	Mesh *pInMesh,
-	const InPieceArr *pInPieces, const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	TPieceArr tPieces = {0};
-	buildTPieces(pCtx, pInMesh, pInPieces, pInPiecesClip, pMergeTable, &tPieces);
+	buildTPieces(pCtx, pInMesh, pBufMeshArr, pBufMeshClipArr, pMergeTable, &tPieces);
 	PIX_ERR_ASSERT("", tPieces.pArr);
 	I32 jobCount = tPieces.count; //max jobs
 	TangentJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};

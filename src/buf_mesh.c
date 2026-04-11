@@ -1613,17 +1613,21 @@ void bufMeshInitJobInit(
 static
 void bufMeshArrMoveToInPieces(
 	const PixalcFPtrs *pAlloc,
-	InPieceArr *pInPieces,
+	BufMeshArr *pBufMeshArr,
 	BufMeshInitJobArgs *pJobArgs,
 	I32 jobCount
 ) {
-	BufMeshArr *pBufMeshes = &pInPieces->bufMeshes;
-	pBufMeshes->count = pBufMeshes->size = jobCount;
-	if (pBufMeshes->count) {
-		pBufMeshes->pArr = pAlloc->fpMalloc(pBufMeshes->count * sizeof(BufMesh));
+	if (jobCount) {
+		PIXALC_DYN_ARR_RESIZE(
+			BufMesh,
+			pAlloc,
+			pBufMeshArr,
+			pBufMeshArr->count + jobCount
+		);
 		for (I32 i = 0; i < jobCount; ++i) {
-			pBufMeshes->pArr[i] = pJobArgs[i].bufMesh;
+			pBufMeshArr->pArr[pBufMeshArr->count + i] = pJobArgs[i].bufMesh;
 		}
+		pBufMeshArr->count += jobCount;
 	}
 }
 
@@ -1667,7 +1671,11 @@ StucErr stucInPieceArrInitBufMeshes(
 		stucBufMeshInit
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	bufMeshArrMoveToInPieces(&pBasic->pCtx->alloc, pInPieces, jobArgs, jobCount);
+	bufMeshArrMoveToInPieces(
+		&pBasic->pCtx->alloc,
+		pInPieces->pBufMeshes,
+		jobArgs, jobCount
+	);
 	return err;
 }
 

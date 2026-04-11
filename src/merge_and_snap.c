@@ -22,12 +22,12 @@ I32 bufMeshArrGetVertCount(const BufMeshArr *pBufMeshes) {
 
 void stucVertMergeTableInit(
 	const MapToMeshBasic *pBasic,
-	const InPieceArr *pInPieces,
-	const InPieceArr *pInPiecesClip,
+	const BufMeshArr *pBufMeshArr,
+	const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pTable
 ) {
-	I32 vertTotal = bufMeshArrGetVertCount(&pInPieces->bufMeshes);
-	vertTotal += bufMeshArrGetVertCount(&pInPiecesClip->bufMeshes);
+	I32 vertTotal = bufMeshArrGetVertCount(pBufMeshArr);
+	vertTotal += bufMeshArrGetVertCount(pBufMeshClipArr);
 	PIX_ERR_ASSERT(
 		"mapToMesh should have returned before this func if empty",
 		vertTotal > 0
@@ -240,13 +240,13 @@ void stucMergeTableGetVertKey(
 static
 void mergeTableAddVerts(
 	const MapToMeshBasic *pBasic,
-	const InPieceArr *pInPieces,
+	const BufMeshArr *pBufMeshArr,
 	bool clipped,
 	I32 bufMeshIdx,
 	FaceCorner bufCorner,
 	PixuctHTable *pTable
 ) {
-	const BufMesh *pBufMesh = pInPieces->bufMeshes.pArr + bufMeshIdx;
+	const BufMesh *pBufMesh = pBufMeshArr->pArr + bufMeshIdx;
 	I32 bufCornerIdx = pBufMesh->faces.pArr[bufCorner.face].start + bufCorner.corner;
 	VertMergeCorner initInfo = {
 		.pBufCorner = pBufMesh->corners.pArr + bufCornerIdx,
@@ -263,17 +263,17 @@ void mergeTableAddVerts(
 
 void stucMergeVerts(
 	const MapToMeshBasic *pBasic,
-	const InPieceArr *pInPieces,
+	const BufMeshArr *pBufMeshArr,
 	bool clipped,
 	PixuctHTable *pTable
 ) {
-	for (I32 i = 0; i < pInPieces->bufMeshes.count; ++i) {
-		const BufMesh *pBufMesh = pInPieces->bufMeshes.pArr + i;
+	for (I32 i = 0; i < pBufMeshArr->count; ++i) {
+		const BufMesh *pBufMesh = pBufMeshArr->pArr + i;
 		for (I32 j = 0; j < pBufMesh->faces.count; ++j) {
 			for (I32 k = 0; k < pBufMesh->faces.pArr[j].size; ++k) {
 				mergeTableAddVerts(
 					pBasic,
-					pInPieces,
+					pBufMeshArr,
 					clipped,
 					i,
 					(FaceCorner) {.face = j, .corner = k},

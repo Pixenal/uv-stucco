@@ -512,20 +512,21 @@ void inPieceInit (
 	void *pInitInfoVoid,
 	I32 linIdx
 ) {
-	EncasedEntryIdx *pIdxEntry = (EncasedEntryIdx *)pIdxEntryCore;
 	InPieceInitInfo *pInitInfo = pInitInfoVoid;
 	InPieceArr *pInPieceArr = pInitInfo->pInPieceArr;
 	const InPieceKey *pKey = pKeyData;
-	pIdxEntry->cluster = pKey->cluster;
-	pIdxEntry->clip = pKey->clip;
-	pIdxEntry->tile = pKey->tile;
-	pIdxEntry->entryIdx = pInPieceArr->count;
-
+	*(EncasedEntryIdx *)pIdxEntryCore = (EncasedEntryIdx){
+		.cluster = pKey->cluster,
+		.clip = pKey->clip,
+		.tile = pKey->tile,
+		.entryIdx = pInPieceArr->count
+	};
 	EncasedMapFace *pCluster = ((InPieceInitInfo *)pInitInfoVoid)->pCluster;
-	InPiece *pInPiece = pInPieceArr->pArr + pInPieceArr->count;
-	pInPiece->pList = pCluster;
-	pInPiece->tile = pKey->tile;
-	pInPiece->faceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count;
+	pInPieceArr->pArr[pInPieceArr->count] = (InPiece){
+		.pList = pCluster,
+		.tile = pKey->tile,
+		.faceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count
+	};
 	pInPieceArr->count++;
 }
 
@@ -614,33 +615,30 @@ void linkEncasedTableEntries(
 	bool *pEmpty
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
+	I32 size = 0;
+	I32 sizeClip = 0;
 	for (I32 i = 0; i < jobCount; ++i) {
 		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
-		pInPieceArr->size += pixalcLinAllocGetCount(pAlloc);
+		size += pixalcLinAllocGetCount(pAlloc);
 		pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 1);
-		pInPieceClipArr->size += pixalcLinAllocGetCount(pAlloc);
+		sizeClip += pixalcLinAllocGetCount(pAlloc);
 	}
-	if (!pInPieceArr->size && !pInPieceClipArr->size) {
+	if (!size && !sizeClip) {
 		*pEmpty = true;
 		return;
 	}
-	if (pInPieceArr->size) {
-		pInPieceArr->pArr = pAlloc->fpCalloc(pInPieceArr->size, sizeof(InPiece));
-	}
-	if (pInPieceClipArr->size) {
-		pInPieceClipArr->pArr = pAlloc->fpCalloc(pInPieceClipArr->size, sizeof(InPiece));
-	}
+	PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceArr, size + sizeClip);
+	pInPieceClipArr->pArr = pInPieceArr->pArr + size;
 	PixuctHTable idxTable = {0};
 	pixuctHTableInit(
 		pAlloc,
 		&idxTable,
-		(pInPieceArr->size + pInPieceClipArr->size) / 4 + 1,
+		pInPieceArr->size / 4 + 1,
 		(I32Arr) {.pArr = (I32[]) {sizeof(EncasedEntryIdx)}, .count = 1},
 		NULL,
 		NULL,
 		true
 	);
-
 	for (I32 i = 0; i < jobCount; ++i) {
 		iterAndAddJobPieces(i, pJobArgs, pInPieceArr, &idxTable, 0);
 		iterAndAddJobPieces(i, pJobArgs, pInPieceClipArr, &idxTable, 1);
