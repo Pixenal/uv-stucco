@@ -48,14 +48,16 @@ typedef struct EncasedEntryIdx {
 typedef struct BufFace {
 	I32 start;
 	I32 size;
-	I32 mapFace;
+	U32 mapFace : 31;
+	U32 wind : 1;
 	PixtyV2_I16 tile;
 } BufFace;
 
 typedef struct InPiece {
 	EncasedMapFace *pList;
 	//BorderArr borderArr;
-	I32 faceCount;
+	U32 faceCount : 31;
+	U32 wind : 1;
 	PixtyV2_I16 tile;
 } InPiece;
 
@@ -257,6 +259,7 @@ typedef struct StucInIsland {
 	StucSubIslandArr sub;
 	PixuctHTable borderTable;
 	ClutreBb bb;
+	I32 wind;
 } StucInIsland;
 
 typedef struct StucInIslandArr {

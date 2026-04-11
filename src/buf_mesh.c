@@ -653,6 +653,7 @@ static
 void bufMeshAddFace(
 	const MapToMeshBasic *pBasic,
 	V2_I16 tile,
+	bool wind,
 	BufMesh *pBufMesh,
 	I32 start,
 	I32 faceSize,
@@ -665,6 +666,7 @@ void bufMeshAddFace(
 	pBufMesh->faces.pArr[newIdx].size = faceSize;
 	pBufMesh->faces.pArr[newIdx].mapFace = mapFace;
 	pBufMesh->faces.pArr[newIdx].tile = tile;
+	pBufMesh->faces.pArr[newIdx].wind = wind;
 }
 
 static
@@ -899,7 +901,8 @@ StucErr addFaceToBufMesh(
 	I32 inPieceOffset,
 	BufMesh *pBufMesh,
 	const FaceRange *pMapFace,
-	const PlycutFaceRoot *pFace
+	const PlycutFaceRoot *pFace,
+	bool wind
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 faceStart = pBufMesh->corners.count;
@@ -922,7 +925,7 @@ StucErr addFaceToBufMesh(
 		PIX_ERR_RETURN_IFNOT(err, "");
 	} while(++i, pCorner = pCorner->pNext, pCorner);
 	I32 faceSize = pBufMesh->corners.count - faceStart;
-	bufMeshAddFace(pBasic, pInPiece->tile, pBufMesh, faceStart, faceSize, pMapFace->idx);
+	bufMeshAddFace(pBasic, pInPiece->tile, wind, pBufMesh, faceStart, faceSize, pMapFace->idx);
 	return err;
 }
 
@@ -937,7 +940,8 @@ void addFacesToBufMesh(
 	PixuctHTable *pInFaceCache,
 	const PixtyI32Arr *pOrderCache,
 	const FaceRange *pMapFace,
-	const PlycutFaceArr *pFaces
+	const PlycutFaceArr *pFaces,
+	bool wind
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("", pFaces->count);
@@ -956,7 +960,8 @@ void addFacesToBufMesh(
 				inPieceOffset,
 				pBufMesh,
 				pMapFace,
-				pFaces->pArr + i
+				pFaces->pArr + i,
+				wind
 			);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 		PIX_ERR_CATCH(0, err, ;
@@ -980,7 +985,8 @@ StucErr addNonClipInPieceToBufMesh(
 	I32 inPieceOffset,
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
-	PixuctHTable *pInFaceCache
+	PixuctHTable *pInFaceCache,
+	bool wind
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const Mesh *pMapMesh = pBasic->pMap->pMesh;
@@ -1011,6 +1017,7 @@ StucErr addNonClipInPieceToBufMesh(
 	bufMeshAddFace(
 		pBasic,
 		pInPiece->tile,
+		wind,
 		pBufMesh,
 		bufFaceStart,
 		pMapFace->size,
@@ -1381,7 +1388,8 @@ StucErr stucClipMapFace(
 				&inFaceCache,
 				pOrderCache,
 				&mapFace,
-				&out
+				&out,
+				pClustArr->pIsland->wind
 			);
 		}
 		PIX_ERR_CATCH(0, err, 
@@ -1441,7 +1449,8 @@ StucErr stucAddMapFaceToBufMesh(
 			inPieceOffset,
 			pInPiece,
 			pBufMesh,
-			&inFaceCache
+			&inFaceCache,
+			pClustArr->pIsland->wind
 		);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
