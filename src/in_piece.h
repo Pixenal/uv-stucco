@@ -349,12 +349,17 @@ typedef struct PieceBorders {
 	I32 size;
 } PieceBorders;
 
+typedef struct Ordered {
+	PixtyValidIdxArr *pArr;
+	I32 size;
+} Ordered;
+
 //TODO probably rename, this isn't a cache anymore
 typedef struct BorderCache {
 	const InPiece *pInPiece;
 	const IslandClustArr *pClustArr;
-	PixuctAvlIter iter;
 	PieceBorders arr;
+	Ordered ordered;
 	PixalcLinAlloc alloc;
 	I32 borderCount;
 	I32 activeBorder;

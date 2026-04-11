@@ -842,7 +842,7 @@ StucErr bufMeshAddVert(
 				pMapFace, pCorner->info.origin.corner.corner,
 				&type
 			);
-			PIX_ERR_RETURN_IFNOT_COND(
+			PIX_ERR_RETURN_QUIET_IFNOT_COND(
 				err,
 				vert != -1,
 				"an exterior map corner shouldn't have been passed to this func"
@@ -1001,7 +1001,7 @@ StucErr addNonClipInPieceToBufMesh(
 			bufMeshAddCorner(pBasic, pBufMesh, type, vert);
 			continue;
 		}
-		PIX_ERR_RETURN_IFNOT_COND(
+		PIX_ERR_RETURN_QUIET_IFNOT_COND(
 			err,
 			!i,
 			"non-clipped map faces must be fully in or out"
@@ -1057,17 +1057,40 @@ StucErr borderCacheAddInGap(PixuctAvl *pBorder, I32 idx, I32 offset, I32 fullCou
 }
 
 static
+void arrFromAvl(
+	const PixalcFPtrs *pAlloc,
+	PixuctAvl *pAvl,
+	PixtyValidIdxArr *pArr,
+	bool intersectOnly
+) {
+	pArr->count = 0;
+	PixuctAvlIter iter = {0};
+	pixuctAvlIterInit(pAvl, &iter);
+	BorderCacheEdge *pStart = (void *)pixuctAvlIterGetItem(&iter);
+	for (; !pixuctAvlIterAtEnd(&iter); pixuctAvlIterInc(&iter)) {
+		BorderCacheEdge *pNode = (void *)pixuctAvlIterGetItem(&iter);
+		if (intersectOnly && pNode->cantIntersect) {
+			continue;
+		}
+		I32 newIdx = 0;
+		PIXALC_DYN_ARR_ADD(PixtyValidIdx, pAlloc, pArr, newIdx);
+		pArr->pArr[newIdx].idx = pNode->idx;
+		pArr->pArr[newIdx].valid = pNode->cantIntersect;
+	}
+}
+
+static
 PixErr borderCacheInit(
 	const MapToMeshBasic *pBasic,
 	const IslandClustArr *pClustArr,
 	const InFaceMemArr *pInFaceArr,
 	const InPiece *pInPiece,
-	BorderCache *pCache,
-	PixtyI32Arr *pOrderCache
+	BorderCache *pCache
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
 	if (pCache->alloc.valid) {
+		PIX_ERR_ASSERT("", pCache->arr.size > 0 && pCache->ordered.size > 0);
 		for (I32 i = 0; i < pCache->arr.size; ++i) {
 			if (pCache->arr.pArr[i].count) {
 				pixuctAvlClear(pCache->arr.pArr + i);
@@ -1128,36 +1151,41 @@ PixErr borderCacheInit(
 			}
 		}
 	} while(pEntry = (void *)pEntry->core.pNext);
+	{
+		I32 oldSize = pCache->ordered.size;
+		PIXALC_DYN_ARR_RESIZE(
+			PixtyValidIdxArr,
+			pAlloc,
+			&pCache->ordered,
+			pCache->arr.size
+		);
+		if (oldSize < pCache->ordered.size) {
+			memset(
+				pCache->ordered.pArr + oldSize,
+				0,
+				sizeof(PixtyValidIdxArr) * (pCache->ordered.size - oldSize)
+			);
+		}
+	}
 	for (I32 i = 0; i < pCache->arr.size; ++i) {
+		PixtyValidIdxArr *pOrdered = pCache->ordered.pArr + i;
 		if (!pCache->arr.pArr[i].count) {
 			continue;
 		}
 		++pCache->borderCount;
 		I32 fullCount = pClustArr->pIsland->core.borders.pArr[i].arr.count;
 		PixuctAvl *pBorder = pCache->arr.pArr + i;
-		pOrderCache->count = 0;
-		PixuctAvlIter iter = {0};
-		pixuctAvlIterInit(pBorder, &iter);
-		BorderCacheEdge *pStart = (void *)pixuctAvlIterGetItem(&iter);
-		for (; !pixuctAvlIterAtEnd(&iter); pixuctAvlIterInc(&iter)) {
-			BorderCacheEdge *pNode = (void *)pixuctAvlIterGetItem(&iter);
-			if (pNode->cantIntersect) {
-				continue;
-			}
-			I32 newIdx = 0;
-			PIXALC_DYN_ARR_ADD(I32, pAlloc, pOrderCache, newIdx);
-			pOrderCache->pArr[newIdx] = pNode->idx;
-		}
-		for (I32 j = 0; j < pOrderCache->count; ++j) {
-			I32 idx = pOrderCache->pArr[j];
+		arrFromAvl(pAlloc, pBorder, pOrdered, true);
+		for (I32 j = 0; j < pOrdered->count; ++j) {
+			I32 idx = pOrdered->pArr[j].idx;
 			I32 idxNext;
 			I32 gap;
-			if (pOrderCache->count == 1) {
+			if (pOrdered->count == 1) {
 				idxNext = idx;
 				gap = fullCount;
 			}
 			else {
-				idxNext = pOrderCache->pArr[(j + 1) % pOrderCache->count];
+				idxNext = pOrdered->pArr[(j + 1) % pOrdered->count].idx;
 				gap = idxNext + (idxNext > idx ? 0 : fullCount) - idx;
 			}
 			if (gap == 1) {
@@ -1178,17 +1206,25 @@ PixErr borderCacheInit(
 			err = borderCacheAddInGap(pBorder, idx, offset, fullCount);
 			PIX_ERR_RETURN_IFNOT(err, "");
 		}
+		arrFromAvl(pAlloc, pBorder, pOrdered, false);
 	}
 	return err;
 }
 
 static
 void borderCacheDestroy(const StucAlloc *pAlloc, BorderCache *pCache) {
-	if (!pCache->arr.pArr) {
-		PIX_ERR_ASSERT("", !pCache->alloc.valid);
+	for (I32 i = 0; i < pCache->arr.size; ++i) {
+		if (pCache->ordered.pArr[i].pArr) {
+			pAlloc->fpFree(pCache->ordered.pArr[i].pArr);
+		}
 	}
-	else {
+	if (pCache->arr.pArr) {
 		pAlloc->fpFree(pCache->arr.pArr);
+	}
+	if (pCache->ordered.pArr) {
+		pAlloc->fpFree(pCache->ordered.pArr);
+	}
+	if (pCache->alloc.valid) {
 		pixalcLinAllocDestroy(&pCache->alloc);
 	}
 	*pCache = (BorderCache){0};
@@ -1211,17 +1247,18 @@ V2_F32 getBorderCornerPos(
 	PIX_ERR_ASSERT("", boundary >= 0 && boundary < pCache->arr.size);
 	if (boundary != pCache->activeBorder) {
 		pCache->activeBorder = boundary;
-		pixuctAvlIterInit(pCache->arr.pArr + pCache->activeBorder, &pCache->iter);
+		//pixuctAvlIterInit(pCache->arr.pArr + pCache->activeBorder, &pCache->iter);
 	}
 	else {
-		PIX_ERR_ASSERT("", !pixuctAvlIterAtEnd(&pCache->iter));
-		pixuctAvlIterInc(&pCache->iter);
+		//PIX_ERR_ASSERT("", !pixuctAvlIterAtEnd(&pCache->iter));
+		//pixuctAvlIterInc(&pCache->iter);
 	}
-	BorderCacheEdge *pNode = (void *)pixuctAvlIterGetItem(&pCache->iter);
-	*pCornerUserData = (U32)pNode->idx;
-	*pCantIntersect = pNode->cantIntersect;
+	//BirderCacheEdge *pNode = (void *)pixuctAvlIterGetItem(&pCache->iter);
+	PixtyValidIdx idx = pCache->ordered.pArr[boundary].pArr[corner];
+	*pCornerUserData = idx.idx;
+	*pCantIntersect = idx.valid;
 	FaceCorner faceCorner =
-		pClustArr->pIsland->core.borders.pArr[boundary].arr.pArr[pNode->idx].corner;
+		pClustArr->pIsland->core.borders.pArr[boundary].arr.pArr[idx.idx].corner;
 	FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, faceCorner.face);
 	V2_F32 pos = stucGetUvPos(pBasic->pInMesh, &face, faceCorner.corner);
 	V2_I16 tile = pCache->pInPiece->pList->tile;
@@ -1288,7 +1325,7 @@ StucErr stucClipMapFace(
 	);
 	//getInPieceBounds(pBasic, pInPiece, &inFaceCache);
 
-	borderCacheInit(pBasic, pClustArr, pInFaceArr, pInPiece, pBorderCache, pOrderCache);
+	borderCacheInit(pBasic, pClustArr, pInFaceArr, pInPiece, pBorderCache);
 
 	PlycutInput inInput = {.boundaries = pBorderCache->borderCount};
 	I32 boundaryRedir = 0;
@@ -1322,7 +1359,6 @@ StucErr stucClipMapFace(
 		FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaces.pArr[i]);
 		PlycutInput mapInput = {.pSizes = &mapFace.size, .boundaries = 1, .pUserData = &mapFace};
 		PlycutFaceArr out = {0};
-		pBorderCache->iter = (PixuctAvlIter){0};
 		pBorderCache->activeBorder = -1;
 		err = plycutClip(
 			&pBasic->pCtx->alloc,
