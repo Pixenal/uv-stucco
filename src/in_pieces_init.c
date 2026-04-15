@@ -338,7 +338,7 @@ PixErr inPieceAddFace(
 		&pInfo->inFace,
 		pInfo->inFaceWind,
 		idx,
-		isClustOnBorder(pInfo->pArgs, idx, tile),
+		status == CLUTRE_ENCLOSING ? false : isClustOnBorder(pInfo->pArgs, idx, tile),
 		(V2_I16){(I16)tile.d[0], (I16)tile.d[1]},
 		pInfo->borderFace
 	);
@@ -442,7 +442,7 @@ StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs) {
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	const StucInIsland *pIsland = pArgs->pClustArr->pIsland;
 	for (I32 i = pArgs->core.range.start; i < pArgs->core.range.end; ++i) {
-		I32 face = pBasic->pInIslands->pFaces[pIsland->core.faces.start + i];
+		I32 face = pBasic->pInIslands->faces.pArr[pIsland->core.faces.start + i];
 		if (pBasic->maskIdx != -1 && pBasic->pInMesh->pMatIdx &&
 		    pBasic->pInMesh->pMatIdx[face] != pBasic->maskIdx) {
 
@@ -525,7 +525,7 @@ void inPieceInit (
 	pInPieceArr->pArr[pInPieceArr->count] = (InPiece){
 		.pList = pCluster,
 		.tile = pKey->tile,
-		.faceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count
+		.inFaceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count
 	};
 	pInPieceArr->count++;
 }
@@ -551,7 +551,7 @@ void appendEncasedEntryToInPiece(
 	EncasedEntryIdx *pIdxEntry,
 	InPieceArr *pInPieceArr
 ) {
-	pInPieceArr->pArr[pIdxEntry->entryIdx].faceCount +=
+	pInPieceArr->pArr[pIdxEntry->entryIdx].inFaceCount +=
 		pInFaces->pArr[pEntry->inFaces].count;
 	PixuctHTableEntryCore *pInPiece =
 		(PixuctHTableEntryCore *)pInPieceArr->pArr[pIdxEntry->entryIdx].pList;
@@ -611,8 +611,7 @@ void linkEncasedTableEntries(
 	I32 jobCount,
 	FindEncasedFacesJobArgs *pJobArgs,
 	InPieceArr *pInPieceArr,
-	InPieceArr *pInPieceClipArr,
-	bool *pEmpty
+	InPieceArr *pInPieceClipArr
 ) {
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	I32 size = 0;
@@ -624,7 +623,6 @@ void linkEncasedTableEntries(
 		sizeClip += pixalcLinAllocGetCount(pAlloc);
 	}
 	if (!size && !sizeClip) {
-		*pEmpty = true;
 		return;
 	}
 	PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceArr, size + sizeClip);
@@ -644,7 +642,6 @@ void linkEncasedTableEntries(
 		iterAndAddJobPieces(i, pJobArgs, pInPieceClipArr, &idxTable, 1);
 	}
 	pixuctHTableDestroy(&idxTable);
-	*pEmpty = false;
 }
 
 
@@ -669,8 +666,7 @@ StucErr stucInPieceArrInit(
 	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
 	InPieceArr *pInPiecesClip,
-	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
-	bool *pEmpty
+	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
@@ -693,8 +689,7 @@ StucErr stucInPieceArrInit(
 		pBasic,
 		*pJobCount, pJobArgs,
 		pInPieces,
-		pInPiecesClip,
-		pEmpty
+		pInPiecesClip
 	);
 	return err;
 }

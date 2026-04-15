@@ -56,8 +56,7 @@ typedef struct BufFace {
 typedef struct InPiece {
 	EncasedMapFace *pList;
 	//BorderArr borderArr;
-	U32 faceCount : 31;
-	U32 wind : 1;
+	I32 inFaceCount;
 	PixtyV2_I16 tile;
 } InPiece;
 
@@ -263,7 +262,8 @@ typedef struct StucInIsland {
 
 typedef struct StucInIslandArr {
 	StucInIsland *pArr;
-	I32 *pFaces;
+	PixuctHTableMem tableMem;
+	I32Arr faces;
 	I32 *pFaceTable;
 	I32 size;
 	I32 count;
@@ -311,10 +311,24 @@ typedef struct InFaceCacheEntry {
 	FaceRange face;
 	V2_F32 fMin;
 	V2_F32 fMax;
-	bool wind;
+	U32 cornersStart : 31;
+	U32 valid : 1;
+	I32 idx;
 } InFaceCacheEntry;
 
 struct HalfPlane;
+
+typedef struct HalfPlaneArr {
+	struct HalfPlane *pArr;
+	I32 size;
+	I32 count;
+} HalfPlaneArr;
+
+typedef struct InFaceCache {
+	PixuctHTable table;
+	HalfPlaneArr corners;
+	ClutreTree tree;
+} InFaceCache;
 
 typedef struct InFaceCacheEntryIntern {
 	InFaceCacheEntry faceEntry;
@@ -356,15 +370,22 @@ typedef struct Ordered {
 	I32 size;
 } Ordered;
 
+struct StucSplitMem;
+
 //TODO probably rename, this isn't a cache anymore
 typedef struct BorderCache {
 	const InPiece *pInPiece;
 	const IslandClustArr *pClustArr;
+	StucInIslandArr pieceIslands;
+	struct StucSplitMem *pSplitMem;
+	PixtyI32Arr borderSizes;
+	InFaceCache inFaceCache;
 	PieceBorders arr;
 	Ordered ordered;
 	PixalcLinAlloc alloc;
 	I32 borderCount;
 	I32 activeBorder;
+	I32 activeIsland;
 } BorderCache;
 
 typedef struct SrcFaces {
@@ -413,8 +434,7 @@ StucErr stucInPieceArrInit(
 	const IslandClustArr *pClustArr,
 	InPieceArr *pInPieces,
 	InPieceArr *pInPiecesClip,
-	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs,
-	bool *pEmpty
+	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs
 );
 StucErr stucInPieceArrInitBufMeshes(
 	const struct MapToMeshBasic *pBasic,
