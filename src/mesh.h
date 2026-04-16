@@ -13,8 +13,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <uv_stucco.h>
 #include <types.h>
 
-#define STUC_NGON_MAX_SIZE 256
-
 //is it worth just putting pData at the start of Attrib,
 //so you can just have pNormalAttrib and remove pNormal.
 //or would having to cast all the time be too annoying?
@@ -59,6 +57,7 @@ typedef struct MeshCounts {
 	I32 verts;
 } MeshCounts;
 
+//TODO replace start and end with PixtyRange
 typedef struct FaceRange {
 	I32 start;
 	I32 end;
@@ -153,38 +152,18 @@ V3_F32 stucGetVertPos(const Mesh *pMesh, const FaceRange *pFace, I32 corner) {
 	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->size);
 	return pMesh->pPos[pMesh->core.pCorners[pFace->start + corner]];
 }
+//TODO replace FaceRange with PixtyRange in these callbacks, for compatability with pixmsh
 static inline
-V2_F32 stucGetVertPosAsV2(const void *pMeshRaw, const FaceRange *pFace, I32 corner) {
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->size);
+V2_F32 stucGetVertPosAsV2(const void *pMeshRaw, PixtyRange face, I32 corner) {
+	PIX_ERR_ASSERT("", corner >= 0 && corner < face.end - face.start);
 	const Mesh *pMesh = pMeshRaw;
-	return *(V2_F32 *)&pMesh->pPos[pMesh->core.pCorners[pFace->start + corner]];
+	return *(V2_F32 *)&pMesh->pPos[pMesh->core.pCorners[face.start + corner]];
 }
 static inline
-V2_F32 stucVertPosXy(const void *pMeshRaw, const FaceRange *pFace, I32 corner) {
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->size);
+V2_F32 stucGetUvPos(const void *pMeshRaw, PixtyRange face, I32 corner) {
+	PIX_ERR_ASSERT("", corner >= 0 && corner < face.end - face.start);
 	const Mesh *pMesh = pMeshRaw;
-	V3_F32 pos = pMesh->pPos[pMesh->core.pCorners[pFace->start + corner]];
-	return (V2_F32){pos.d[0], pos.d[1]};
-}
-static inline
-V2_F32 stucVertPosXz(const void *pMeshRaw, const FaceRange *pFace, I32 corner) {
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->size);
-	const Mesh *pMesh = pMeshRaw;
-	V3_F32 pos = pMesh->pPos[pMesh->core.pCorners[pFace->start + corner]];
-	return (V2_F32){pos.d[0], pos.d[2]};
-}
-static inline
-V2_F32 stucVertPosYz(const void *pMeshRaw, const FaceRange *pFace, I32 corner) {
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->size);
-	const Mesh *pMesh = pMeshRaw;
-	V3_F32 pos = pMesh->pPos[pMesh->core.pCorners[pFace->start + corner]];
-	return (V2_F32){pos.d[1], pos.d[2]};
-}
-static inline
-V2_F32 stucGetUvPos(const void *pMeshRaw, const FaceRange *pFace, I32 corner) {
-	PIX_ERR_ASSERT("", corner >= 0 && corner < pFace->size);
-	const Mesh *pMesh = pMeshRaw;
-	return pMesh->pUvs[pFace->start + corner];
+	return pMesh->pUvs[face.start + corner];
 }
 static inline
 V3_F32 stucGetUvPosAsV3(const Mesh *pMesh, const FaceRange *pFace, I32 corner) {

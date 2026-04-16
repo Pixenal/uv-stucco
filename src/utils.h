@@ -10,6 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_thread_utils.h>
 #include <pixenals_math_utils.h>
 #include <pixenals_structs.h>
+#include <pixenals_mesh_utils.h>
 
 #include <uv_stucco_intern.h>
 
@@ -117,7 +118,6 @@ void initHalfPlaneLookup(
 	}
 }
 
-BBox stucBBoxGet(const Mesh *pMesh, FaceRange *pFace);
 static inline
 bool stucIsBBoxInBBox(BBox bboxA, BBox bboxB) {
 	V2_I32 inside = {0};
@@ -318,90 +318,13 @@ bool isMarkedSkip(I32Arr *pSkip, I32 idx) {
 	return false;
 }
 
-STUC_FORCE_INLINE
-I32 stucGetNonDegenBoundCorner(
-	const FaceRange *pFace,
-	const void *pMesh,
-	V2_F32 (* fpGetPoint) (const void *, const FaceRange *, I32),
-	bool useMin,
-	I32Arr *pExternSkip,
-	F32 *pDet
-) {
-	PIX_ERR_ASSERT("", pFace->start >= 0 && pFace->size >= 3);
-	I32 skipArr[STUC_NGON_MAX_SIZE] = {0};
-	I32Arr skip = {.pArr = skipArr};
-	do {
-		I32 corner = 0;
-		V2_F32 boundPos = {FLT_MAX, FLT_MAX};
-		boundPos = useMin ? boundPos : _(boundPos V2MULS -1.0f);
-		for (I32 i = 0; i < pFace->size; ++i) {
-			if (isMarkedSkip(&skip, i) || pExternSkip && isMarkedSkip(pExternSkip, i)) {
-				continue;
-			}
-			V2_F32 pos = fpGetPoint(pMesh, pFace, i);
-			if (useMin) {
-				if (pos.d[0] > boundPos.d[0] ||
-
-					pos.d[0] == boundPos.d[0] &&
-					pos.d[1] >= boundPos.d[1]
-				) {
-					continue;
-				}
-			}
-			else {
-				if (pos.d[0] < boundPos.d[0] ||
-
-					pos.d[0] == boundPos.d[0] &&
-					pos.d[1] <= boundPos.d[1]
-				) {
-					continue;
-				}
-			}
-			corner = i;
-			boundPos = pos;
-		}
-		I32 prev = corner == 0 ? pFace->size - 1 : corner - 1;
-		I32 next = (corner + 1) % pFace->size;
-		V2_F32 a = fpGetPoint(pMesh, pFace, prev);
-		V2_F32 b = fpGetPoint(pMesh, pFace, corner);
-		V2_F32 c = fpGetPoint(pMesh, pFace, next);
-		//alt formula for determinate,
-		//shorter and less likely to cause numerical error
-		F32 det =
-			(b.d[0] - a.d[0]) * (c.d[1] - a.d[1]) -
-			(c.d[0] - a.d[0]) * (b.d[1] - a.d[1]);
-		if (det) {
-			if (pDet) {
-				*pDet = det;
-			}
-			return corner;
-		}
-		//abc is degenerate, find another corner
-		skip.pArr[skip.count] = corner;
-		++skip.count;
-	} while(skip.count < pFace->size);
-	return -1;
-}
-
-//finds corner on convex hull of face, & determines wind direction from that
-//returns 0 for clockwise, 1 for counterclockwise, & 2 if degenerate
-STUC_FORCE_INLINE
-I32 stucCalcFaceWind(
-	const FaceRange *pFace,
-	const void *pMesh,
-	V2_F32 (* fpGetPoint) (const void *, const FaceRange *, I32)
-) {
-	F32 det = .0f;
-	I32 corner = stucGetNonDegenBoundCorner(pFace, pMesh, fpGetPoint, true, NULL, &det);
-	return corner != -1 ? det > .0f : 2;
+static inline
+I32 stucCalcFaceWindFromVerts(const PixtyRange face, const Mesh *pMesh) {
+	return pixmshCalcFaceWind(face, pMesh, stucGetVertPosAsV2);
 }
 static inline
-I32 stucCalcFaceWindFromVerts(const FaceRange *pFace, const Mesh *pMesh) {
-	return stucCalcFaceWind(pFace, pMesh, stucGetVertPosAsV2);
-}
-static inline
-I32 stucCalcFaceWindFromUvs(const FaceRange *pFace, const Mesh *pMesh) {
-	return stucCalcFaceWind(pFace, pMesh, stucGetUvPos);
+I32 stucCalcFaceWindFromUvs(const PixtyRange face, const Mesh *pMesh) {
+	return pixmshCalcFaceWind(face, pMesh, stucGetUvPos);
 }
 
 static
@@ -479,7 +402,7 @@ I32 axisBoundsMake(
 
 static inline
 void markSkip(I32Arr *pSkip, I32 idx) {
-	PIX_ERR_ASSERT("", pSkip->count < STUC_NGON_MAX_SIZE);
+	PIX_ERR_ASSERT("", pSkip->count < PIXMSH_NGON_MAX_SIZE);
 	pSkip->pArr[pSkip->count] = idx;
 	++pSkip->count;
 }
@@ -492,9 +415,9 @@ V3_F32 stucCalcFaceNormal(
 ) {
 	PIX_ERR_ASSERT(
 		"invalid face size",
-		pFace->start >= 0 && pFace->size >= 3 && pFace->size <= STUC_NGON_MAX_SIZE
+		pFace->start >= 0 && pFace->size >= 3 && pFace->size <= PIXMSH_NGON_MAX_SIZE
 	);
-	I32 skipArr[STUC_NGON_MAX_SIZE] = {0};
+	I32 skipArr[PIXMSH_NGON_MAX_SIZE] = {0};
 	I32Arr skip = {.pArr = skipArr};
 	AxisBounds bounds[3] = {0};
 	I32 axis = axisBoundsMake(pFace, pMesh, fpGetPoint, NULL, bounds);

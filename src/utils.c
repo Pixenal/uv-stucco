@@ -16,30 +16,6 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_error_utils.h>
 #include <pixenals_thread_utils.h>
 
-BBox stucBBoxGet(const Mesh *pMesh, FaceRange *pFace) {
-	BBox bbox = {.min = {.d = {FLT_MAX, FLT_MAX}}, .max = {.d = {-FLT_MAX, -FLT_MAX}}};
-	for (I32 i = 0; i < pFace->size; ++i) {
-		I32 vertIdx = pMesh->core.pCorners[pFace->start + i];
-		V3_F32 pos = pMesh->pPos[vertIdx];
-		if (pos.d[0] < bbox.min.d[0]) {
-			bbox.min.d[0] = pos.d[0];
-		}
-		if (pos.d[1] < bbox.min.d[1]) {
-			bbox.min.d[1] = pos.d[1];
-		}
-		if (pos.d[0] > bbox.max.d[0]) {
-			bbox.max.d[0] = pos.d[0];
-		}
-		if (pos.d[1] > bbox.max.d[1]) {
-			bbox.max.d[1] = pos.d[1];
-		}
-	}
-	//>= not >,
-	//because faces can be flat (they may be facing sideways in a map for instance)
-	PIX_ERR_ASSERT("", _(bbox.max V2GREATEQL bbox.min));
-	return bbox;
-}
-
 void stucGetInFaceBounds(FaceBounds *pBounds, const V2_F32 *pUvs, FaceRange face) {
 	PIX_ERR_ASSERT("", pBounds && pUvs);
 	PIX_ERR_ASSERT("", face.size >= 3 && face.start >= 0);

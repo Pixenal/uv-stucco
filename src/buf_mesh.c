@@ -1487,7 +1487,11 @@ V2_F32 getBorderCornerPos(
 	faceCorner.face = faceIdxInPiece(&pCache->inFaceCache, faceCorner.face);
 	FaceRange face = stucGetFaceRange(&pBasic->pInMesh->core, faceCorner.face);
 	*pCornerUserData = (U32)corner;
-	V2_F32 pos = stucGetUvPos(pBasic->pInMesh, &face, faceCorner.corner);
+	V2_F32 pos = stucGetUvPos(
+		pBasic->pInMesh,
+		(Range){.start = face.start, .end = face.end},
+		faceCorner.corner
+	);
 	V2_I16 tile = pCache->pInPiece->pList->tile;
 	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
 	return _(pos V2SUB fTile);

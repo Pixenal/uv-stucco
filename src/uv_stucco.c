@@ -150,7 +150,7 @@ void triCacheBuild(const StucAlloc *pAlloc, StucMap pMap) {
 	if (!ngons) {
 		return;
 	}
-	U8 triBuf[STUC_NGON_MAX_SIZE];
+	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
 	pMap->triCache.pArr =
 		pAlloc->fpCalloc(pMap->pMesh->core.faceCount, sizeof(FaceTriangulated));
 	pixalcLinAllocInit(pAlloc, &pMap->triCache.alloc, 3, 16, false);
@@ -223,7 +223,7 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 
 	bufMesh.faceCount = 0;
 	bufMesh.cornerCount = 0;
-	U8 triBuf[STUC_NGON_MAX_SIZE];
+	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pMesh, i);
 		if (face.size == 3) {
@@ -236,7 +236,7 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 		else {
 			PIX_ERR_ASSERT(
 				"invalid face size",
-				face.size > 4 && face.size <= STUC_NGON_MAX_SIZE
+				face.size > 4 && face.size <= PIXMSH_NGON_MAX_SIZE
 			);
 			I32 count = stucTriangulateFaceFromVerts(&pCtx->alloc, &face, &wrap, triBuf);
 			for (I32 i = 0; i < count; ++i) {
@@ -292,10 +292,14 @@ void triCacheDestroy(const StucAlloc *pAlloc, StucMap pMap) {
 static
 void buildFaceBBoxes(const StucAlloc *pAlloc, StucMap pMap) {
 	const Mesh *pMesh = pMap->pMesh;
-	pMap->pFaceBBoxes = pAlloc->fpMalloc(pMesh->core.faceCount * sizeof(BBox));
+	pMap->pFaceBBoxes = pAlloc->fpMalloc(pMesh->core.faceCount * sizeof(PixmshV2Bb));
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, i);
-		pMap->pFaceBBoxes[i] = stucBBoxGet(pMesh, &face);
+		pMap->pFaceBBoxes[i] = pixmshV2BbGet(
+			pMesh,
+			stucGetVertPosAsV2,
+			(Range){.start = face.start, .end = face.end}
+		);
 	}
 }
 

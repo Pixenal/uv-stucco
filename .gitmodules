@@ -28,3 +28,6 @@
 [submodule "extern/cluster-tree-2d"]
 	path = extern/cluster-tree-2d
 	url = https://github.com/Pixenal/cluster-tree-2d.git
+[submodule "extern/pixenals-mesh-utils"]
+	path = extern/pixenals-mesh-utils
+	url = https://github.com/Pixenal/pixenals-mesh-utils.git

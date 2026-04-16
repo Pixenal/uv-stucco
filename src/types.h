@@ -55,11 +55,6 @@ typedef PixtyM2x3 M2x3;
 
 typedef Stuc_String String;
 
-typedef struct BBox {
-	V2_F32 min;
-	V2_F32 max;
-} BBox;
-
 typedef struct FaceBounds {
 	V2_I32 min, max;
 	BBox fBBox;
