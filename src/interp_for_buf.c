@@ -17,7 +17,7 @@ void interpCacheUpdateCopyIn(
 ) {
 	pCache->active = STUC_INTERP_CACHE_COPY_IN;
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
-	pCache->copyIn.a = inFace.start + inCorner;
+	pCache->copyIn.a = inFace.range.start + inCorner;
 	if (domain == STUC_DOMAIN_VERT) {
 		pCache->copyIn.a = pBasic->pInMesh->core.pCorners[pCache->copyIn.a];
 	}
@@ -33,7 +33,7 @@ void interpCacheUpdateCopyMap(
 ) {
 	pCache->active = STUC_INTERP_CACHE_COPY_MAP;
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
-	pCache->copyMap.a = mapFace.start + mapCorner;
+	pCache->copyMap.a = mapFace.range.start + mapCorner;
 	if (domain == STUC_DOMAIN_VERT) {
 		pCache->copyMap.a = pBasic->pMap->pMesh->core.pCorners[pCache->copyMap.a];
 	}
@@ -50,8 +50,8 @@ void interpCacheUpdateLerpIn(
 ) {
 	pCache->active = STUC_INTERP_CACHE_LERP_IN;
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
-	pCache->lerpIn.a = inFace.start + inCorner;
-	pCache->lerpIn.b = inFace.start + stucGetCornerNext(inCorner, &inFace);
+	pCache->lerpIn.a = inFace.range.start + inCorner;
+	pCache->lerpIn.b = inFace.range.start + stucGetCornerNext(inCorner, &inFace);
 	if (domain == STUC_DOMAIN_VERT) {
 		pCache->lerpIn.a = pBasic->pInMesh->core.pCorners[pCache->lerpIn.a];
 		pCache->lerpIn.b = pBasic->pInMesh->core.pCorners[pCache->lerpIn.b];
@@ -69,9 +69,9 @@ void interpCacheUpdateLerpMap(
 ) {
 	pCache->active = STUC_INTERP_CACHE_LERP_MAP;
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
-	pCache->lerpMap.a = mapFace.start + mapCorner;
+	pCache->lerpMap.a = mapFace.range.start + mapCorner;
 	pCache->lerpMap.b =
-		mapFace.start + stucGetCornerNext(mapCorner, &mapFace);
+		mapFace.range.start + stucGetCornerNext(mapCorner, &mapFace);
 	if (domain == STUC_DOMAIN_VERT) {
 		pCache->lerpMap.a = pBasic->pMap->pMesh->core.pCorners[pCache->lerpMap.a];
 		pCache->lerpMap.b = pBasic->pMap->pMesh->core.pCorners[pCache->lerpMap.b];
@@ -92,7 +92,7 @@ void interpCacheUpdateTriIn(
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
 	V2_F32 mapVertPos = *(V2_F32 *)&pBasic->pMap->pMesh->pPos[
-		pBasic->pMap->pMesh->core.pCorners[mapFace.start + mapCorner]
+		pBasic->pMap->pMesh->core.pCorners[mapFace.range.start + mapCorner]
 	];
 	I8 tri[3] = {0};
 	pCache->triIn.bc = stucGetBarycentricInFaceFromUvs(
@@ -103,7 +103,7 @@ void interpCacheUpdateTriIn(
 		mapVertPos
 	);
 	for (I32 i = 0; i < 3; ++i) {
-		pCache->triIn.triReal[i] = inFace.start + tri[i];
+		pCache->triIn.triReal[i] = inFace.range.start + tri[i];
 		if (domain == STUC_DOMAIN_VERT) {
 			pCache->triIn.triReal[i] =
 				pBasic->pInMesh->core.pCorners[pCache->triIn.triReal[i]];
@@ -125,7 +125,7 @@ void interpCacheUpdateTriMap(
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
 	const U8 *pTri = stucTriGet(&pBasic->pMap->triCache, mapFace.idx, mapTri);
 	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
-	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.start + inCorner];
+	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.range.start + inCorner];
 	_(&inUv V2SUBEQL fTile);
 	I8 triBuf[3] = {0};
 	if (pTri) {
@@ -138,7 +138,7 @@ void interpCacheUpdateTriMap(
 		pTri = triBuf;
 	}
 	for (I32 i = 0; i < 3; ++i) {
-		pCache->triMap.triReal[i] = mapFace.start + pTri[i];
+		pCache->triMap.triReal[i] = mapFace.range.start + pTri[i];
 		if (domain == STUC_DOMAIN_VERT) {
 			pCache->triMap.triReal[i] =
 				pBasic->pMap->pMesh->core.pCorners[pCache->triMap.triReal[i]];

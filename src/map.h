@@ -21,11 +21,8 @@ typedef struct AttributeDesc {
 typedef struct StucMapInternal {
 	UsgArr usgArr;
 	Mesh *pMesh;
-	BBox *pFaceBBoxes;
+	PixmshV2Bb *pFaceBBoxes;
 	TriCache triCache;
-#ifdef STUC_QUADTREE_ENABLE
-	QuadTree quadTree;
-#endif
 	ClutreTree clustTree;
 	StucAttribIndexedArr indexedAttribs;
 	V2_F32 zBounds;

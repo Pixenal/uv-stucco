@@ -45,10 +45,9 @@ endif()
 message("BUILD_SHARED_LIBS is " ${BUILD_SHARED_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(${PROJECT} STATIC
-	src/uv_stucco.c src/io.c src/quadtree.c src/utils.c src/attrib_utils.c src/mesh.c
+	src/uv_stucco.c src/io.c src/utils.c src/attrib_utils.c src/mesh.c
 	src/usg.c src/interp_and_xform.c src/interp_for_buf.c src/in_pieces_init.c
-	src/in_piece_split.c src/merge_and_snap.c src/buf_mesh.c src/tangents.c src/job.c
-	src/out_mesh.c
+	src/merge_and_snap.c src/buf_mesh.c src/tangents.c src/job.c src/out_mesh.c
 	extern/MikkTSpace/mikktspace.c
 )
 target_include_directories(${PROJECT} PRIVATE include src extern/MikkTSpace)
@@ -68,8 +67,10 @@ else()
 endif()
 set(PLYCUT_PIX_PATH "../")
 set(CLUTRE2_PIX_PATH "../")
+set(MESH_PIX_PATH "../")
 add_subdirectory(extern/poly-cutout)
 add_subdirectory(extern/cluster-tree-2d)
+add_subdirectory(extern/pixenals-mesh-utils)
 if (NOT TARGET PixenalsAllocUtils)
 	add_subdirectory(extern/pixenals-alloc-utils)
 endif()
@@ -77,11 +78,13 @@ add_subdirectory(extern/pixenals-io-utils)
 if (NOT TARGET PixenalsMathUtils)
 	add_subdirectory(extern/pixenals-math-utils)
 endif()
+if (NOT TARGET PixenalsStructs)
+	add_subdirectory(extern/pixenals-structs)
+endif()
 add_subdirectory(extern/pixenals-thread-utils)
-add_subdirectory(extern/pixenals-structs)
 target_link_libraries(${PROJECT} PRIVATE
 	PolyCutout ClusterTree2d PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
-	PixenalsThreadUtils PixenalsStructs
+	PixenalsThreadUtils PixenalsStructs PixenalsMeshUtils
 )
 target_include_directories(${PROJECT} PUBLIC
 	extern/poly-cutout/include
@@ -89,5 +92,5 @@ target_include_directories(${PROJECT} PUBLIC
 	extern/pixenals-types/include extern/pixenals-error-utils/include
 	extern/pixenals-alloc-utils/include extern/pixenals-io-utils/include
 	extern/pixenals-math-utils/include extern/pixenals-thread-utils/include
-	extern/pixenals-structs/include
+	extern/pixenals-structs/include extern/pixenals-mesh-utils/include
 )

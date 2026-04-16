@@ -128,9 +128,9 @@ void getTri(
 	FaceRange *pFace,
 	I32 a, I32 b, I32 c
 ) {
-	pVerts[0] = pMesh->core.pCorners[pFace->start + a];
-	pVerts[1] = pMesh->core.pCorners[pFace->start + b];
-	pVerts[2] = pMesh->core.pCorners[pFace->start + c];
+	pVerts[0] = pMesh->core.pCorners[pFace->range.start + a];
+	pVerts[1] = pMesh->core.pCorners[pFace->range.start + b];
+	pVerts[2] = pMesh->core.pCorners[pFace->range.start + c];
 	pTri[0] = pMesh->pPos[pVerts[0]];
 	pTri[1] = pMesh->pPos[pVerts[1]];
 	pTri[2] = pMesh->pPos[pVerts[2]];
@@ -144,23 +144,23 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 	HitEdgeTable hitEdges = {0};
 	hitEdges.size = pMesh->core.edgeCount;
 	hitEdges.pTable = pAlloc->fpCalloc(hitEdges.size, sizeof(HitEdge));
-	U8 triBuf[STUC_NGON_MAX_SIZE];
+	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, i);
 		V3_F32 tri[3] = {0};
 		I32 triVerts[3] = {0};
-		if (face.size == 3) {
+		if (face.range.size == 3) {
 			getTri(tri, triVerts, pMesh, &face, 0, 1, 2);
 			wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 		}
-		else if (face.size == 4) {
+		else if (face.range.size == 4) {
 			getTri(tri, triVerts, pMesh, &face, 0, 1, 2);
 			wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 			getTri(tri, triVerts, pMesh, &face, 2, 3, 0);
 			wind += hitTestTri(pAlloc, pointV3, tri, triVerts, &hitEdges);
 		}
 		else {
-			PIX_ERR_ASSERT("invalid face size", face.size <= STUC_NGON_MAX_SIZE);
+			PIX_ERR_ASSERT("invalid face size", face.range.size <= PIXMSH_NGON_MAX_SIZE);
 			I32 triCount = stucTriangulateFaceFromVerts(pAlloc, &face, pMesh, triBuf);
 			for (I32 j = 0; j < triCount; ++j) {
 				I32 triStart = j * 3;
@@ -322,15 +322,15 @@ void assignUsgToVertsInFace(
 ) {
 	FaceRange mapFace = stucGetFaceRange(&pMap->pMesh->core, pCellFaces[faceIdx]);
 	//the uv of corners 0 and 2 can be treated and min and max for the bounding square
-	BBox bbox = {
-		.min = pSquares->pUvs[pSquaresFace->start],
-		.max = pSquares->pUvs[pSquaresFace->start + 2]
+	PixmshV2Bb bbox = {
+		.min = pSquares->pUvs[pSquaresFace->range.start],
+		.max = pSquares->pUvs[pSquaresFace->range.start + 2]
 	};
-	if (!stucIsBBoxInBBox(bbox, pMap->pFaceBBoxes[mapFace.idx])) {
+	if (!pixmshV2BbOverlap(&bbox, pMap->pFaceBBoxes + mapFace.idx)) {
 		return;
 	}
-	for (I32 l = 0; l < mapFace.size; ++l) {
-		I32 vertIdx = pMap->pMesh->core.pCorners[mapFace.start + l];
+	for (I32 l = 0; l < mapFace.range.size; ++l) {
+		I32 vertIdx = pMap->pMesh->core.pCorners[mapFace.range.start + l];
 		V3_F32 vert = pMap->pMesh->pPos[vertIdx];
 		if (stucIsPointInsideMesh(pAlloc, vert, pMesh)) {
 			pMap->pMesh->pUsg[vertIdx] = usgIdx + 1;
@@ -351,71 +351,12 @@ StucErr stucAssignUsgsToVerts(
 	StucUsg *pUsgArr
 ) {
 	const Mesh *pSquares = pMap->usgArr.pSquares;
-#ifdef STUC_QUADTREE_ENABLE
-	FaceCellsTable faceCellsTable = {0};
-#endif
 	I32 averageMapFacesPerFace = 0;
 	Range faceRange = {.start = 0, .end = pSquares->core.faceCount};
-#ifdef STUC_QUADTREE_ENABLE
-	stucGetEncasingCells(
-		pAlloc,
-		pMap,
-		pSquares,
-		-1,
-		faceRange,
-		&faceCellsTable,
-		&averageMapFacesPerFace
-	);
-#endif
 	for (I32 i = 0; i < pMap->usgArr.count; ++i) {
 		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
 		Mesh *pFlatCutoff = pMap->usgArr.pArr[i].pFlatCutoff + pUsgArr[i].flatCutoff.idx;
-#ifdef STUC_QUADTREE_ENABLE
-		FaceRange squaresFace = stucGetFaceRange(&pSquares->core, i);
-		FaceCells *pFaceCellsEntry = stucIdxFaceCells(&faceCellsTable, i, 0);
-		for (I32 j = 0; j < pFaceCellsEntry->cellSize; ++j) {
-			//put this cell stuff into a generic function
-			// v v v
-			I32 cellIdx = pFaceCellsEntry->pCells[j];
-			Cell *pCell = pMap->quadTree.cellTable.pArr + cellIdx;
-			PIX_ERR_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
-			PIX_ERR_ASSERT("", pCell->initialized % 2 == pCell->initialized);
-			I32 *pCellFaces;
-			Range range = {0};
-			if (pFaceCellsEntry->pCellType[j]) {
-				pCellFaces = pCell->pEdgeFaces;
-				range = pFaceCellsEntry->pRanges[j];
-			}
-			else if (pFaceCellsEntry->pCellType[j] != 1) {
-				pCellFaces = pCell->pFaces;
-				range.start = 0;
-				range.end = pCell->faceSize;
-			}
-			else {
-				continue;
-			}
-			// ^ ^ ^
-
-			for (I32 k = range.start; k < range.end; ++k) {
-				assignUsgToVertsInFace(
-					pAlloc,
-					pMap,
-					pMesh,
-					pSquares,
-					pFlatCutoff,
-					i,
-					k,
-					pCellFaces,
-					&squaresFace
-				);
-			}
-		}
-		stucDestroyFaceCellsEntry(pAlloc, stucIdxFaceCells(&faceCellsTable, i, 0));
-#endif
 	}
-#ifdef STUC_QUADTREE_ENABLE
-	stucDestroyFaceCellsTable(pAlloc, &faceCellsTable, faceRange);
-#endif
 	return PIX_ERR_SUCCESS;
 }
 
@@ -455,7 +396,6 @@ StucErr isFaceClosestToOrigin(
 	const Mesh *pInMesh,
 	V2_I32 tileMin,
 	FaceRange *pInFace,
-	FaceBounds *pFaceBounds,
 	V3_F32 *pClosestBc,
 	FaceRange *pClosestFace,
 	I8 *pClosestFaceCorners,
@@ -464,22 +404,6 @@ StucErr isFaceClosestToOrigin(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I8 triCorners[4] = {0};
-	/*
-	V2_F32 fTileMin = {(F32)tileMin.d[0], (F32)tileMin.d[1]};
-	V2_F32 triStuc[4] = {0};
-	for (I32 k = 0; k < pInFace->size; ++k) {
-		triStuc[k] = pInMesh->pUvs[pInFace->start + k];
-	}
-	//TODO move in stuc to 0 - 1 space if in another tile
-	//(don't move origin, conversion to barycentric causes problems if you do that).
-	//Determine how many uv tiles this face spans, then test barycentric for each tile
-	//make the tile rasterization in getEnclosingCells a generic function, and reuse it here.
-	I32 in = stucCheckIfFaceIsInsideTile(pInFace->size, triStuc, pFaceBounds, tileMin);
-	PIX_ERR_THROW_IFNOT_COND(err, in, "", 0);
-	for (I32 k = 0; k < pInFace->size; ++k) {
-		_(triStuc + k V2SUBEQL fTileMin);
-	}
-	*/
 	V3_F32 bc = stucGetBarycentricInFaceFromUvs(
 		pInMesh,
 		pInFace,
@@ -525,12 +449,9 @@ StucErr getClosestTriToOrigin(
 	StucErr err = PIX_ERR_SUCCESS;
 	for (I32 j = 0; j < pInFaceTable[i].count; ++j) {
 		FaceRange inFace = stucGetFaceRange(&pInMesh->core, pInFaceTable[i].pArr[j]);
-		FaceBounds faceBounds = {0};
-#ifdef STUC_QUADTREE_ENABLE
-		stucGetFaceBoundsForTileTest(&faceBounds, pInMesh, &inFace);
-#endif
-		V2_I32 minTile = faceBounds.min;
-		V2_I32 maxTile = faceBounds.max;
+		PixmshV2Bb faceBounds = {0};
+		V2_I32 minTile = {(I32)faceBounds.min.d[0], (I32)faceBounds.min.d[1]};
+		V2_I32 maxTile = {(I32)faceBounds.max.d[0], (I32)faceBounds.max.d[1]};
 		for (I32 l = minTile.d[1]; l <= maxTile.d[1]; ++l) {
 			for (I32 m = minTile.d[0]; m <= maxTile.d[0]; ++m) {
 				V2_I32 tileMin = {m, l};
@@ -540,7 +461,6 @@ StucErr getClosestTriToOrigin(
 					pInMesh,
 					tileMin,
 					&inFace,
-					&faceBounds,
 					pClosestBc,
 					pClosestFace,
 					pClosestFaceCorners,
@@ -585,9 +505,9 @@ StucErr stucSampleInAttribsAtUsgOrigins(
 			&closestDist
 		);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
-		pInFaceTable[i].tri[0] = closestFace.start + closestFaceCorners[0];
-		pInFaceTable[i].tri[1] = closestFace.start + closestFaceCorners[1];
-		pInFaceTable[i].tri[2] = closestFace.start + closestFaceCorners[2];
+		pInFaceTable[i].tri[0] = closestFace.range.start + closestFaceCorners[0];
+		pInFaceTable[i].tri[1] = closestFace.range.start + closestFaceCorners[1];
+		pInFaceTable[i].tri[2] = closestFace.range.start + closestFaceCorners[2];
 		pInFaceTable[i].tbn =
 			stucGetInterpolatedTbn(pInMesh, &closestFace, closestFaceCorners, closestBc);
 		pInFaceTable[i].normal = *(V3_F32 *)&pInFaceTable[i].tbn.d[2];
@@ -615,9 +535,9 @@ StucErr stucSampleInAttribsAtUsgOrigins(
 		V3_F32 a = pixmBarycentricToCartesian(tri, closestBc);
 		V3_F32 ab = pInFaceTable[i].normal;
 		F32 tMax = -FLT_MAX;
-		PIX_ERR_ASSERT("", face.start >= 0 && face.size >= 3);
-		for (I32 j = 0; j < face.size; ++j) {
-			I32 vert = pSquares->pCorners[face.start + j];
+		PIX_ERR_ASSERT("", face.range.start >= 0 && face.range.size >= 3);
+		for (I32 j = 0; j < face.range.size; ++j) {
+			I32 vert = pSquares->pCorners[face.range.start + j];
 			V3_F32 ac = _(squaresWrap.pPos[vert] V3SUB a);
 			F32 t = _(ab V3DOT ac);
 			if (t > tMax) {
@@ -643,7 +563,7 @@ void stucUsgVertTransform(
 	V2_F32 fTileMin,
 	M3x3 *pTbn
 ) {
-	BaseTriVerts usgTri = {
+	PixmshBaseTriVerts usgTri = {
 		.uv = {pInMesh->pUvs[pEntry->pEntry->tri[0]],
 		       pInMesh->pUvs[pEntry->pEntry->tri[1]],
 		       pInMesh->pUvs[pEntry->pEntry->tri[2]]},
@@ -674,7 +594,7 @@ UsgInFace *stucGetUsgForCorner(
 	bool *pAboveCutoff
 ) {
 	const Mesh *pMapMesh = pMap->pMesh;
-	I32 mapCorner = pMapMesh->core.pCorners[pMapFace->start + stucCorner];
+	I32 mapCorner = pMapMesh->core.pCorners[pMapFace->range.start + stucCorner];
 	I32 usg = pMapMesh->pUsg[mapCorner];
 	if (pAboveCutoff) {
 		*pAboveCutoff = usg < 0;

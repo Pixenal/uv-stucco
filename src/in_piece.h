@@ -370,14 +370,12 @@ typedef struct Ordered {
 	I32 size;
 } Ordered;
 
-struct StucSplitMem;
-
 //TODO probably rename, this isn't a cache anymore
 typedef struct BorderCache {
 	const InPiece *pInPiece;
 	const IslandClustArr *pClustArr;
 	StucInIslandArr pieceIslands;
-	struct StucSplitMem *pSplitMem;
+	PixmshSplitMem *pSplitMem;
 	PixtyI32Arr borderSizes;
 	InFaceCache inFaceCache;
 	PieceBorders arr;
@@ -518,8 +516,8 @@ bool stucIsInFaceOnBorder(
 ) {
 	const StucBorderTable *pEntry = NULL;
 	SearchResult result = 0;
-	PIX_ERR_ASSERT("", pInFace->size > 0);
-	for (I32 i = 0; i < pInFace->size; ++i) {
+	PIX_ERR_ASSERT("", pInFace->range.size > 0);
+	for (I32 i = 0; i < pInFace->range.size; ++i) {
 		I32 edge = stucGetMeshEdge(
 			&pInMesh->core,
 			(FaceCorner){.face = pInFace->idx, .corner = i}

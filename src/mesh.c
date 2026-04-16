@@ -488,9 +488,9 @@ StucErr stucValidateMesh(
 	I8 *pVertUsed = pAlloc->fpCalloc(pMesh->vertCount, 1);
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pMesh, i);
-		PIX_ERR_RETURN_IFNOT_COND(err, face.size >= 3, "");
-		for (I32 j = 0; j < face.size; ++j) {
-			I32 corner = face.start + j;
+		PIX_ERR_RETURN_IFNOT_COND(err, face.range.size >= 3, "");
+		for (I32 j = 0; j < face.range.size; ++j) {
+			I32 corner = face.range.start + j;
 			PIX_ERR_RETURN_IFNOT_COND(err, corner < pMesh->cornerCount, "");
 			PIX_ERR_RETURN_IFNOT_COND(err, pMesh->pCorners[corner] < pMesh->vertCount, "");
 			pCornerUsed[corner] = true;
@@ -605,7 +605,7 @@ bool stucGetIfMatBorderEdge(const Mesh *pMesh, I32 edge) {
 void stucGetAdjCorner(const Mesh *pMesh, FaceCorner corner, FaceCorner *pAdjCorner) {
 	PIX_ERR_ASSERT("", pMesh->pEdgeFaces);
 	FaceRange face = stucGetFaceRange(&pMesh->core, corner.face);
-	I32 edge = pMesh->core.pEdges[face.start + corner.corner];
+	I32 edge = pMesh->core.pEdges[face.range.start + corner.corner];
 	V2_I8 corners = pMesh->pEdgeCorners[edge];
 	V2_I32 faces = pMesh->pEdgeFaces[edge];
 	bool which = corners.d[0] == corner.corner && faces.d[0] == corner.face;
@@ -621,8 +621,8 @@ void stucGetAdjCorner(const Mesh *pMesh, FaceCorner corner, FaceCorner *pAdjCorn
 I32 stucGetMeshVert(const StucMesh *pMesh, FaceCorner corner) {
 	PIX_ERR_ASSERT("", pMesh && corner.face >= 0 && corner.face < pMesh->faceCount);
 	FaceRange face = stucGetFaceRange(pMesh, corner.face);
-	PIX_ERR_ASSERT("", corner.corner >= 0 && corner.corner < face.size);
-	I32 vert = pMesh->pCorners[face.start + corner.corner];
+	PIX_ERR_ASSERT("", corner.corner >= 0 && corner.corner < face.range.size);
+	I32 vert = pMesh->pCorners[face.range.start + corner.corner];
 	PIX_ERR_ASSERT("", vert >= 0 && vert < pMesh->vertCount);
 	return vert;
 }
@@ -630,8 +630,8 @@ I32 stucGetMeshVert(const StucMesh *pMesh, FaceCorner corner) {
 I32 stucGetMeshEdge(const StucMesh *pMesh, FaceCorner corner) {
 	PIX_ERR_ASSERT("", pMesh && corner.face >= 0 && corner.face < pMesh->faceCount);
 	FaceRange face = stucGetFaceRange(pMesh, corner.face);
-	PIX_ERR_ASSERT("", corner.corner >= 0 && corner.corner < face.size);
-	I32 edge = pMesh->pEdges[face.start + corner.corner];
+	PIX_ERR_ASSERT("", corner.corner >= 0 && corner.corner < face.range.size);
+	I32 edge = pMesh->pEdges[face.range.start + corner.corner];
 	PIX_ERR_ASSERT("", edge >= 0 && edge < pMesh->edgeCount);
 	return edge;
 }
@@ -639,7 +639,7 @@ I32 stucGetMeshEdge(const StucMesh *pMesh, FaceCorner corner) {
 bool checkForNgonsInMesh(const StucMesh *pMesh) {
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pMesh, i);
-		if (face.size > 4) {
+		if (face.range.size > 4) {
 			return true;
 		}
 	}

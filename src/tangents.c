@@ -102,7 +102,7 @@ void getLowestTPiece(
 	FaceRange *pFace,
 	I32 *pLowestTPiece
 ) {
-	for (I32 i = 0; i < pFace->size; ++i) {
+	for (I32 i = 0; i < pFace->range.size; ++i) {
 		if (pEntries[i].result != PIX_SEARCH_FOUND) {
 			continue;
 		}
@@ -127,7 +127,7 @@ void setVertsAndMergeTPieces(
 	FaceRange *pFace,
 	I32 tPiece
 ) {
-	for (I32 i = 0; i < pFace->size; ++i) {
+	for (I32 i = 0; i < pFace->range.size; ++i) {
 		if (pEntries[i].result == PIX_SEARCH_FOUND &&
 			pEntries[i].pEntry->tPiece != tPiece
 		) {
@@ -160,11 +160,11 @@ void addOrMergeFaceTPieces(
 	const StucMesh *pMesh = &pInMesh->core;
 	FaceRange face = stucGetFaceRange(&pInMesh->core, faceIdx);
 	TPieceVertSearch vertEntries[4] = {0};
-	for (I32 i = 0; i < face.size; ++i) {
+	for (I32 i = 0; i < face.range.size; ++i) {
 		vertEntries[i].result = pixuctHTableGet(
 			pVertTable,
 			0,
-			pMesh->pCorners + face.start + i,
+			pMesh->pCorners + face.range.start + i,
 			(void **)&vertEntries[i].pEntry,
 			add, NULL,
 			pixuctKeyFromI32, NULL, tPieceVertInit, tPieceVertCmp
@@ -277,12 +277,12 @@ void buildTPieces(
 	
 	for (I32 i = 0; i < pInCore->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pInCore, i);
-		for (I32 j = 0; j < face.size; ++j) {
+		for (I32 j = 0; j < face.range.size; ++j) {
 			TPieceVert *pEntry = NULL;
 			SearchResult result = pixuctHTableGet(
 				&vertTable,
 				0,
-				&pInCore->pCorners[face.start + j],
+				&pInCore->pCorners[face.range.start + j],
 				(void **)&pEntry,
 				false, NULL,
 				pixuctKeyFromI32, NULL, NULL, tPieceVertCmp
@@ -312,7 +312,7 @@ void buildTPieces(
 			);
 			PIX_ERR_ASSERT("", faceArrIdx != -1);
 			pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].idx = i;
-			pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].size = face.size;
+			pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].size = face.range.size;
 			pTPieces->faceCount++;
 		}
 	}
@@ -346,9 +346,10 @@ void copyTangentsFromJobFaces(
 		I32 jobFaceStart = pArgs->faces.pArr[i];
 		I32 inFaceIdx = pTPieces->pInFaces[pArgs->core.range.start + i];
 		FaceRange inFace = stucGetFaceRange(&pInMesh->core, inFaceIdx);
-		for (I32 j = 0; j < inFace.size; ++j) {
-			pInMesh->pTangents[inFace.start + j] = pArgs->pTangents[jobFaceStart + j];
-			pInMesh->pTSigns[inFace.start + j] = pArgs->pTSigns[jobFaceStart + j];
+		for (I32 j = 0; j < inFace.range.size; ++j) {
+			pInMesh->pTangents[inFace.range.start + j] =
+				pArgs->pTangents[jobFaceStart + j];
+			pInMesh->pTSigns[inFace.range.start + j] = pArgs->pTSigns[jobFaceStart + j];
 		}
 	}
 }
@@ -451,7 +452,8 @@ static
 int mikktGetNumVertsOfFace(const SMikkTSpaceContext *pCtx, const int iFace) {
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	I32 inFaceIdx = mikktGetInFace(pArgs, iFace);
-	return stucGetFaceRange(&((const Mesh *)pArgs->core.pShared)->core, inFaceIdx).size;
+	const Mesh *pMesh = pArgs->core.pShared;
+	return stucGetFaceRange(&pMesh->core, inFaceIdx).range.size;
 }
 
 static
