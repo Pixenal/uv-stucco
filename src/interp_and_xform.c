@@ -38,8 +38,8 @@ UsgInFace *findUsgForMapCorners(
 	Usg **ppUsg
 ) {
 	StucMap pMap = pBasic->pMap;
-	for (I32 i = 0; i < pMapFace->size; ++i) {
-		I32 mapVert = pMap->pMesh->core.pCorners[pMapFace->start + i];
+	for (I32 i = 0; i < pMapFace->range.size; ++i) {
+		I32 mapVert = pMap->pMesh->core.pCorners[pMapFace->range.start + i];
 		if (!pMap->pMesh->pUsg) {
 			continue;
 		}

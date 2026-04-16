@@ -156,7 +156,7 @@ void triCacheBuild(const StucAlloc *pAlloc, StucMap pMap) {
 	pixalcLinAllocInit(pAlloc, &pMap->triCache.alloc, 3, 16, false);
 	for (I32 i = 0; i < pMap->pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMap->pMesh->core, i);
-		if (face.size <= 4) {
+		if (face.range.size <= 4) {
 			continue;
 		}
 		FaceTriangulated *pTris = pMap->triCache.pArr + i;
@@ -178,11 +178,11 @@ void addTri(
 	const U8 *pTri
 ) {
 	for (I32 i = 0; i < 3; ++i) {
-		I32 vert = pMesh->pCorners[pFace->start + pTri[i]];
+		I32 vert = pMesh->pCorners[pFace->range.start + pTri[i]];
 		pBufMesh->pCorners[pBufMesh->cornerCount + i] = vert;
 		stucCopyAllAttribs(
 			&pBufMesh->cornerAttribs, pBufMesh->cornerCount + i,
-			&pMesh->cornerAttribs, pFace->start + pTri[i],
+			&pMesh->cornerAttribs, pFace->range.start + pTri[i],
 			true
 		);
 	}
@@ -226,17 +226,17 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pMesh, i);
-		if (face.size == 3) {
+		if (face.range.size == 3) {
 			addTri(&bufMesh, pMesh, &face, (U8[]){0, 1, 2});
 		}
-		else if (face.size == 4) {
+		else if (face.range.size == 4) {
 			addTri(&bufMesh, pMesh, &face, (U8[]){0, 1, 2});
 			addTri(&bufMesh, pMesh, &face, (U8[]){2, 3, 0});
 		}
 		else {
 			PIX_ERR_ASSERT(
 				"invalid face size",
-				face.size > 4 && face.size <= PIXMSH_NGON_MAX_SIZE
+				face.range.size > 4 && face.range.size <= PIXMSH_NGON_MAX_SIZE
 			);
 			I32 count = stucTriangulateFaceFromVerts(&pCtx->alloc, &face, &wrap, triBuf);
 			for (I32 i = 0; i < count; ++i) {
@@ -298,7 +298,7 @@ void buildFaceBBoxes(const StucAlloc *pAlloc, StucMap pMap) {
 		pMap->pFaceBBoxes[i] = pixmshV2BbGet(
 			pMesh,
 			stucGetVertPosAsV2,
-			(Range){.start = face.start, .end = face.end}
+			face.range
 		);
 	}
 }
@@ -496,6 +496,16 @@ void destroyMapOptsArr(const StucAlloc *pAlloc, ObjMapOptsArr *pArr) {
 	*pArr = (ObjMapOptsArr){0};
 }
 
+static inline
+PixtyRange stucClustFaceRange(const void *pMeshRaw, I32 face) {
+	const Mesh *pMesh = pMeshRaw;
+	PIX_ERR_ASSERT("", face >= 0 && face < pMesh->core.faceCount);
+	return (PixtyRange) {
+		.start = pMesh->core.pFaces[face],
+		.end = pMesh->core.pFaces[face + 1]
+	};
+}
+
 static
 StucErr stucMapFileLoadIntern(
 	StucContext pCtx,
@@ -653,13 +663,6 @@ StucErr stucMapFileLoadIntern(
 	triCacheBuild(&pCtx->alloc, pMap);
 	buildFaceBBoxes(&pCtx->alloc, pMap);
 
-#ifdef STUC_QUADTREE_ENABLE
-	//the quadtree is created before USGs are assigned to verts,
-	//as the tree's used to speed up the process
-	printf("File loaded. Creating quad tree\n");
-	err = stucCreateQuadTree(pCtx, &pMap->quadTree, pMap->pMesh, pMap->pFaceBBoxes);
-	PIX_ERR_THROW_IFNOT(err, "failed to create quadtree", 0);
-#endif
 	{
 		ClutreMesh clustMesh = {
 			.pUserData = pMapMesh,
@@ -996,7 +999,6 @@ StucErr stucMapFileLoad(StucMapLoad *pState) {
 }
 
 StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap) {
-	//stucDestroyQuadTree(pCtx, &pMap->quadTree);
 	clutreTreeDestroy(&pMap->clustTree);
 	if (pMap->pMesh) {
 		stucMeshDestroy(pCtx, (StucMesh *)&pMap->pMesh->core);
@@ -1149,8 +1151,8 @@ void buildEdgeAdj(Mesh *pMesh) {
 	memset(pMesh->pEdgeCorners, -1, sizeof(V2_I8) * pCore->edgeCount);
 	for (I32 i = 0; i < pCore->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, i);
-		for (I32 j = 0; j < face.size; ++j) {
-			I32 edge = pCore->pEdges[face.start + j];
+		for (I32 j = 0; j < face.range.size; ++j) {
+			I32 edge = pCore->pEdges[face.range.start + j];
 			bool which = pMesh->pEdgeFaces[edge].d[0] >= 0;
 			pMesh->pEdgeFaces[edge].d[which] = i;
 			pMesh->pEdgeCorners[edge].d[which] = j;
@@ -1239,7 +1241,11 @@ typedef struct ClustForIslandJobArgs {
 } ClustForIslandJobArgs;
 
 static
-I32 clustForIslandJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
+I32 clustForIslandJobsGetRange(
+	const StucContext pCtx,
+	const void *pShared,
+	void *pInitInfo
+) {
 	return ((MapToMeshBasic *)pShared)->pInIslands->count;
 }
 
@@ -1255,9 +1261,9 @@ PixtyV2_F32 stucBorderPos(const void *pBorderRaw, I32 idx) {
 	FaceRange faceRange = stucGetFaceRange(&pInfo->pMesh->core, corner.face);
 	PIX_ERR_ASSERT(
 		"",
-		pInfo->pMesh->pUvs && corner.corner >= 0 && corner.corner < faceRange.size
+		pInfo->pMesh->pUvs && corner.corner >= 0 && corner.corner < faceRange.range.size
 	);
-	return pInfo->pMesh->pUvs[faceRange.start + corner.corner];
+	return pInfo->pMesh->pUvs[faceRange.range.start + corner.corner];
 }
 
 static
@@ -2190,10 +2196,10 @@ I32 getEdge(const void *pMeshRaw, FaceCorner corner) {
 }
 
 static
-EdgeCorners getEdgeCorners(const void *pMeshRaw, I32 edge) {
+PixmshEdgeCorners getEdgeCorners(const void *pMeshRaw, I32 edge) {
 	const Mesh *pMesh = pMeshRaw;
 	PIX_ERR_ASSERT("", edge >= 0 && edge < pMesh->core.edgeCount);
-	return (EdgeCorners){.corners = {
+	return (PixmshEdgeCorners){.corners = {
 		{.face = pMesh->pEdgeFaces[edge].d[0], .corner = pMesh->pEdgeCorners[edge].d[0]},
 		{.face = pMesh->pEdgeFaces[edge].d[1], .corner = pMesh->pEdgeCorners[edge].d[1]}
 	}};
@@ -2247,12 +2253,12 @@ StucErr borderMarkAsOuter(
 	void *pIslandsRaw,
 	I32 island,
 	I32 border,
-	const ClutreBb *pBb
+	const PixmshV2Bb *pBb
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucInIslandArr *pIslandArr = pIslandsRaw;
 	pIslandArr->pArr[island].core.borders.outer = border;
-	pIslandArr->pArr[island].bb = *pBb;
+	pIslandArr->pArr[island].bb = (ClutreBb){.min = pBb->min, .max = pBb->max};
 	return err;
 }
 
@@ -2450,13 +2456,14 @@ bool isFaceInIsland(const StucInIsland *pIsland, I32 face) {
 }
 
 static
-PixtyRange subFaceRange(const void *pMeshRaw, I32 faceRaw) {
+PixmshFaceRange subFaceRange(const void *pMeshRaw, I32 faceRaw) {
 	const SubMesh *pMesh = pMeshRaw;
 	I32 face = pMesh->pIslands->faces.pArr[pMesh->range.start + faceRaw];
 	PIX_ERR_ASSERT("", face >= 0 && face < pMesh->pMesh->core.faceCount);
-	return (PixtyRange) {
-		.start = pMesh->pMesh->core.pFaces[face],
-		.end = pMesh->pMesh->core.pFaces[face + 1]
+	I32 start = pMesh->pMesh->core.pFaces[face];
+	return (PixmshFaceRange) {
+		.start = start,
+		.size = pMesh->pMesh->core.pFaces[face + 1] - start 
 	};
 }
 
@@ -2486,9 +2493,9 @@ I32 faceToIslandRange(Range range, I32 face) {
 }
 
 static
-EdgeCorners subGetEdgeCorners(const void *pMeshRaw, I32 edge) {
+PixmshEdgeCorners subGetEdgeCorners(const void *pMeshRaw, I32 edge) {
 	const SubMesh *pMesh = pMeshRaw;
-	EdgeCorners corners = getEdgeCorners(pMesh->pMesh, edge);
+	PixmshEdgeCorners corners = getEdgeCorners(pMesh->pMesh, edge);
 	PIX_ERR_ASSERT(
 		"edge is floating or invalid",
 		corners.corners[0].face != corners.corners[1].face
@@ -2544,9 +2551,9 @@ StucErr islandSplitToSub(void *pArgsRaw) {
 	PixtyRange range = pArgs->core.range;
 	I32 rangeSize = range.end - range.start;
 	StucSubIslandArr *pBuf = pCtx->alloc.fpCalloc(rangeSize, sizeof(StucSubIslandArr));
-	StucSplitMem splitMem = {0};
+	PixmshSplitMem splitMem = {0};
 	SubMesh subMesh = {.pMesh = pInMesh, .pIslands = pArgs->pIslands};
-	StucSplitMesh splitMesh = {
+	PixmshSplitIntfIn splitMesh = {
 		.pUserData = &subMesh,
 		.fpFaceRange = subFaceRange,
 		.fpEdge = subGetEdge,
@@ -2554,7 +2561,7 @@ StucErr islandSplitToSub(void *pArgsRaw) {
 		.fpEdgeCorners = subGetEdgeCorners,
 		.fpAdjCorner = subCallGetAdjCorner
 	};
-	StucIslands splitIslands = {
+	PixmshSplitIntfOut splitIslands = {
 		.fpBorderInit = borderInit,
 		.fpBorderAddEdge = borderAddEdge,
 		.fpFacesInit = islandFacesInit,
@@ -2567,7 +2574,7 @@ StucErr islandSplitToSub(void *pArgsRaw) {
 		splitIslands.pUserData = pBuf + i;
 		subMesh.range = pIsland->core.faces;
 		subMesh.island = range.start + i;
-		err = stucSplitToIslands(
+		err = pixmshSplitToIslands(
 			&pCtx->alloc,
 			&splitMem,
 			&splitMesh,
@@ -2580,7 +2587,7 @@ StucErr islandSplitToSub(void *pArgsRaw) {
 		pArgs->pIslands->pArr[range.start + i].sub = pBuf[i];
 	}
 	PIX_ERR_CATCH(0, err, ;);
-	stucSplitMemDestroy(&pCtx->alloc, &splitMem);
+	pixmshSplitMemDestroy(&pCtx->alloc, &splitMem);
 	pCtx->alloc.fpFree(pBuf);
 	return err;
 }
@@ -2591,7 +2598,7 @@ typedef struct BorderMesh {
 } BorderMesh;
 
 static
-V2_F32 borderPosGet(const void *pArgsRaw, const FaceRange *border, I32 idx) {
+V2_F32 borderPosGet(const void *pArgsRaw, PixmshFaceRange border, I32 idx) {
 	const BorderMesh *pArgs = pArgsRaw;
 	FaceCorner corner = pArgs->pBorder->pArr[idx].corner;
 	I32 faceStart = pArgs->pMesh->core.pFaces[corner.face];
@@ -2606,16 +2613,16 @@ StucErr splitInMeshToIslands(
 	StucInIslandArr *pIslands
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	StucSplitMesh splitMesh = {
+	PixmshSplitIntfIn splitMesh = {
 		.pUserData = pMeshIn,
 		.faceCount = pMeshIn->core.faceCount,
-		.fpFaceRange = stucClustFaceRange,
+		.fpFaceRange = stucPixmshFaceRange,
 		.fpEdge = getEdge,
 		.fpPos = stucClustUv,
 		.fpEdgeCorners = getEdgeCorners,
 		.fpAdjCorner = callGetAdjCorner
 	};
-	StucIslands splitIslands = {
+	PixmshSplitIntfOut splitIslands = {
 		.pUserData = pIslands,
 		.fpBorderInit = borderInit,
 		.fpBorderAddEdge = borderAddEdge,
@@ -2624,21 +2631,21 @@ StucErr splitInMeshToIslands(
 		.fpRangeSet = islandRangeSet,
 		.fpBorderMarkAsOuter = borderMarkAsOuter
 	};
-	StucSplitMem splitMem = {0};
-	err = stucSplitToIslands(
+	PixmshSplitMem splitMem = {0};
+	err = pixmshSplitToIslands(
 		&pCtx->alloc,
 		&splitMem,
 		&splitMesh,
 		&splitIslands,
 		splitPredicate
 	);
-	stucSplitMemDestroy(&pCtx->alloc, &splitMem);
+	pixmshSplitMemDestroy(&pCtx->alloc, &splitMem);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	for (I32 i = 0; i < pIslands->count; ++i) {
 		I32 outer = pIslands->pArr[i].core.borders.outer;
 		const BorderEdgeArr *pBorder = &pIslands->pArr[i].core.borders.pArr[outer].arr;
-		pIslands->pArr[i].wind = stucCalcFaceWind(
-			&(FaceRange){.size = pBorder->count, .start = 0, .end = pBorder->count},
+		pIslands->pArr[i].wind = pixmshCalcFaceWind(
+			(PixmshFaceRange){.start = 0, .size = pBorder->count},
 			&(BorderMesh){.pBorder = pBorder, .pMesh = pMeshIn},
 			borderPosGet
 		);
@@ -2744,15 +2751,6 @@ StucErr mapMapArrToMesh(
 			}
 			MapFile squares = { .pMesh = pMap->usgArr.pSquares };
 			buildFaceBBoxes(&pCtx->alloc, &squares);
-#ifdef STUC_QUADTREE_ENABLE
-			err = stucCreateQuadTree(
-				pCtx,
-				&squares.quadTree,
-				squares.pMesh,
-				squares.pFaceBBoxes
-			);
-			PIX_ERR_THROW_IFNOT(err, "failed to create usg quadtree", 0);
-#endif
 			ClutreMesh clustMesh = {
 				.pUserData = squares.pMesh,
 				.faceCount = squares.pMesh->core.faceCount,

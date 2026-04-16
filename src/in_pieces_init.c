@@ -23,51 +23,21 @@ typedef struct EncasedMapFaceTableState {
 
 static
 void initInTri(
-	BaseTriVerts *pInTri,
+	PixmshBaseTriVerts *pInTri,
 	const Mesh *pInMesh,
 	FaceRange *pInFace
 ) {
-	for (I32 i = 0; i < pInFace->size; ++i) {
-		I32 corner = pInFace->start + i;
+	for (I32 i = 0; i < pInFace->range.size; ++i) {
+		I32 corner = pInFace->range.start + i;
 		pInTri->uv[i] = pInMesh->pUvs[corner];
 		pInTri->xyz[i] = pInMesh->pPos[pInMesh->core.pCorners[corner]];
 	}
-	stucGetTriScale(pInFace->size, pInTri);
+	pixmshGetTriScale(pInFace->range.size, pInTri);
 }
 
-#ifdef STUC_QUADTREE_ENABLE
 static
-void getCellMapFaces(
-	const MapToMeshBasic *pBasic,
-	const FaceCells *pFaceCellsEntry,
-	I32 faceCellsIdx,
-	const I32 **ppCellFaces,
-	Range *pRange
-) {
-	I32 cellIdx = pFaceCellsEntry->pCells[faceCellsIdx];
-	const Cell *pCell = pBasic->pMap->quadTree.cellTable.pArr + cellIdx;
-	PIX_ERR_ASSERT("", pCell->localIdx >= 0 && pCell->localIdx < 4);
-	PIX_ERR_ASSERT("", pCell->initialized % 2 == pCell->initialized);
-	Range range = {0};
-	if (pFaceCellsEntry->pCellType[faceCellsIdx]) {
-		*ppCellFaces = pCell->pEdgeFaces;
-		range = pFaceCellsEntry->pRanges[faceCellsIdx];
-	}
-	else if (pFaceCellsEntry->pCellType[faceCellsIdx] != 1) {
-		*ppCellFaces = pCell->pFaces;
-		range.start = 0;
-		range.end = pCell->faceSize;
-	}
-	else {
-		*ppCellFaces = NULL;
-	}
-	*pRange = range;
-}
-#endif
-
-static
-bool isTriDegenerate(const BaseTriVerts *pTri, const FaceRange *pFace) {
-	if (pFace->size == 4) {
+bool isTriDegenerate(const PixmshBaseTriVerts *pTri, const FaceRange *pFace) {
+	if (pFace->range.size == 4) {
 		if (pixmV2F32DegenerateTri(pTri->uv[0], pTri->uv[2], pTri->uv[1], .0f) ||
 			pixmV3F32DegenerateTri(pTri->xyz[0], pTri->xyz[2], pTri->xyz[1], .0f) ||
 			pixmV2F32DegenerateTri(pTri->uv[1], pTri->uv[3], pTri->uv[2], .0f) ||
@@ -234,39 +204,8 @@ V3_F32 getMapCornerPos(
 ) {
 	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pMap->pMesh;
 	const FaceRange *pMapFace = input.pUserData;
-	return stucGetVertPos(pMesh, pMapFace, corner);
+	return stucGetVertPos(pMesh, pMapFace->range, corner);
 }
-
-#if false
-static
-OverlapType doInAndMapFacesOverlap(
-	const MapToMeshBasic *pBasic,
-	const HalfPlane *pInCorners, FaceRange *pInFace,
-	const Mesh *pMapMesh, FaceRange *pMapFace,
-	PlycutMem *pPlycutAlc
-) {
-	PlycutInput inInput =
-		{.pSizes = &pInFace->size, .boundaries = 1, .pUserData = pInFace};
-	PlycutInput mapInput =
-		{.pSizes = &pMapFace->size, .boundaries = 1, .pUserData = pMapFace};
-	bool overlaps = false;
-	PixErr err = plycutClip(
-		&pBasic->pCtx->alloc,
-		pBasic,
-		&(InCornerPtr){.pInCorners = pInCorners}, inInput, getInCornerPos,
-		NULL, mapInput, getMapCornerPos,
-		NULL,
-		&overlaps,
-		pPlycutAlc
-	);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	if (overlaps) {
-		return STUC_FACE_OVERLAP_INTERSECT;
-	}
-	PIX_ERR_CATCH(0, err, ;);
-	return STUC_FACE_OVERLAP_NONE;
-}
-#endif
 
 typedef struct InPieceClust {
 	FindEncasedFacesJobArgs *pArgs;
@@ -353,7 +292,7 @@ typedef struct FaceInfo {
 static
 PixtyV2_F32 stucClustFaceUv(const void *pFaceRaw, I32 localCorner) {
 	const FaceInfo *pFace = pFaceRaw;
-	I32 corner = pFace->face.start + localCorner;
+	I32 corner = pFace->face.range.start + localCorner;
 	PIX_ERR_ASSERT(
 		"",
 		pFace->pMesh->pUvs && corner >= 0 && corner < pFace->pMesh->core.cornerCount
@@ -364,15 +303,15 @@ PixtyV2_F32 stucClustFaceUv(const void *pFaceRaw, I32 localCorner) {
 static
 StucErr getEncasedFacesPerFace(FindEncasedFacesJobArgs *pArgs, FaceRange *pInFace) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_ASSERT("", pInFace->size == 3 || pInFace->size == 4);
+	PIX_ERR_ASSERT("", pInFace->range.size == 3 || pInFace->range.size == 4);
 	const MapToMeshBasic *pBasic = (const MapToMeshBasic *)pArgs->core.pShared;
 
-	BaseTriVerts inTri = {0};
+	PixmshBaseTriVerts inTri = {0};
 	initInTri(&inTri, pBasic->pInMesh, pInFace);
 	if (isTriDegenerate(&inTri, pInFace)) {
 		return err; //skip
 	}
-	I32 inFaceWind = stucCalcFaceWindFromUvs(pInFace, pBasic->pInMesh);
+	I32 inFaceWind = stucCalcFaceWindFromUvs(pInFace->range, pBasic->pInMesh);
 	if (inFaceWind == 2) {
 		//face is degenerate - skip
 		return err;
@@ -381,7 +320,7 @@ StucErr getEncasedFacesPerFace(FindEncasedFacesJobArgs *pArgs, FaceRange *pInFac
 	ClutreFace clustFace = {
 		.pUserData = &faceMesh,
 		.fpPos = stucClustFaceUv,
-		.size = pInFace->size
+		.size = pInFace->range.size
 	};
 	InPieceClust clustInfo = {
 		.pArgs = pArgs,
@@ -403,39 +342,6 @@ StucErr getEncasedFacesPerFace(FindEncasedFacesJobArgs *pArgs, FaceRange *pInFac
 	return err;
 }
 
-
-#ifdef STUC_QUADTREE_ENABLE
-static
-StucErr getEncasedFacesPerTile(
-	FindEncasedFacesJobArgs *pArgs,
-	FaceRange *pInFace,
-	FaceCellsTable *pFaceCellsTable,
-	I32 faceIdx,
-	PlycutMem *pPlycutAlc
-) {
-	StucErr err = PIX_ERR_SUCCESS;
-	FaceBounds *pFaceBounds = 
-		&stucIdxFaceCells(pFaceCellsTable, faceIdx, pArgs->core.range.start)->faceBounds;
-	for (I32 j = pFaceBounds->min.d[1]; j <= pFaceBounds->max.d[1]; ++j) {
-		for (I32 k = pFaceBounds->min.d[0]; k <= pFaceBounds->max.d[0]; ++k) {
-			if (j < INT16_MIN || j > INT16_MAX || k < INT16_MIN || k > INT16_MAX) {
-				continue;
-			}
-			V2_I16 tile = {k, j};
-			err = getEncasedFacesPerFace(
-				pArgs,
-				pFaceCellsTable,
-				tile,
-				pInFace,
-				pPlycutAlc
-			);
-			PIX_ERR_RETURN_IFNOT(err, "");
-		}
-	}
-	return err;
-}
-#endif
-
 static
 StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -449,7 +355,7 @@ StucErr getEncasedFaces(FindEncasedFacesJobArgs *pArgs) {
 			continue;
 		}
 		FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, face);
-		if (inFace.size <= 4) {
+		if (inFace.range.size <= 4) {
 			err = getEncasedFacesPerFace(pArgs, &inFace);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
