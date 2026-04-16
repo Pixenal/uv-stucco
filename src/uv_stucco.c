@@ -19,6 +19,8 @@ SPDX-License-Identifier: Apache-2.0
 #include <interp_and_xform.h>
 #include <merge_and_snap.h>
 
+//TODO a lot of these funcs can be moved out of this file
+
 //TODO add this as an option in ui?
 #define STUC_CLUTRE_MIN_FACES 12
 
