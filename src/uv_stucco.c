@@ -643,8 +643,14 @@ StucErr stucMapFileLoadIntern(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	{
 		V3_F32 offset = {.d = {.5f, .5f, .0f}};
+		pMap->zBounds = (V2_F32){FLT_MAX, -FLT_MAX};
 		for (I32 i = 0; i < pMapMesh->core.vertCount; ++i) {
-			pMapMesh->pPos[i] = _(_(pMapMesh->pPos[i] V3MULS .5f) V3ADD offset);
+			V3_F32 *pPos = pMapMesh->pPos + i;
+			*pPos = _(_(*pPos V3MULS .5f) V3ADD offset);
+			pMap->zBounds.d[0] = pPos->d[2] < pMap->zBounds.d[0] ?
+				pPos->d[2] : pMap->zBounds.d[0];
+			pMap->zBounds.d[1] = pPos->d[2] > pMap->zBounds.d[1] ?
+				pPos->d[2] : pMap->zBounds.d[1];
 		}
 	}
 

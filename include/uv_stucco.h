@@ -683,6 +683,9 @@ StucErr stucMeshAllocCopy(
 );
 STUC_EXPORT
 StucErr stucCopyMesh(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
+STUC_EXPORT
+//TODO should StucContext be const in helper funcs like this?
+StucErr stucMapZBoundsGet(StucContext pCtx, const StucMap pMap, PixtyV2_F32 *pZBounds);
 
 #ifdef STUC_DEBUG_UTILS
 static inline

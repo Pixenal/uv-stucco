@@ -676,3 +676,10 @@ bool stucQuickCmpObj(StucContext pCtx, const StucObject *pA, const StucObject *p
 	const StucMesh *pBMesh = (StucMesh *)pB->pData;
 	return stucQuickCmpMesh(pCtx, pAMesh, pBMesh);
 }
+
+StucErr stucMapZBoundsGet(StucContext pCtx, const StucMap pMap, PixtyV2_F32 *pZBounds) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMap && pZBounds, "");
+	*pZBounds = pMap->zBounds;
+	return err;
+}
