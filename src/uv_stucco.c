@@ -3120,7 +3120,7 @@ StucErr stucMeshDestroy(StucContext pCtx, StucMesh *pMesh) {
 	return PIX_ERR_SUCCESS;
 }
 
-StucErr stucGetAttribSize(StucAttribCore *pAttrib, I32 *pSize) {
+StucErr stucGetAttribSize(const StucAttribCore *pAttrib, I32 *pSize) {
 	*pSize = stucGetAttribSizeIntern(pAttrib->type);
 	return PIX_ERR_SUCCESS;
 }
