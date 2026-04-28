@@ -460,9 +460,9 @@ I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
 static inline
 void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
 	if (pArr->pArr) {
-		pCtx->alloc.fpFree(pArr->pArr);
+		//pCtx->alloc.fpFree(pArr->pArr);
 	}
-	*pArr = (InPieceArr) {0};
+	*pArr = (InPieceArr){0};
 }
 
 static inline

@@ -627,6 +627,13 @@ void xformNormals(StucMesh *pMesh, I32 idx, const M3x3 *pTbn, StucDomain domain)
 }
 
 static
+void attribCacheDestroy(const PixalcFPtrs *pAlloc, AttribCache *pCache) {
+	if (pCache->pArr) {
+		pAlloc->fpFree(pCache->pArr);
+	}
+}
+
+static
 StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	xformAndInterpVertsJobArgs *pArgs = pArgsVoid;
@@ -690,6 +697,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			STUC_DOMAIN_VERT
 		);
 	}
+	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
 	return err;
 }
 
@@ -835,6 +843,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
 		}
 	}
+	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
 	return err;
 }
 
@@ -886,6 +895,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		);
 		//TODO transforming face normals not supported atm
 	}
+	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
 	return err;
 }
 

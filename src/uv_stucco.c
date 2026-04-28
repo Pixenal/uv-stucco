@@ -1242,7 +1242,6 @@ typedef struct ClustForIslandJobArgs {
 	JobArgs core;
 	BufMeshArr bufMeshArr;
 	BufMeshArr bufMeshClipArr;
-	FindEncasedFacesJobArgs *pFindEncasedJobArgs;
 	I32 maxJobs;
 	bool empty;
 	JobArgsFoot foot;
@@ -1355,13 +1354,27 @@ bool bufMeshArrIsEmpty(const BufMeshArr *pBufMeshArr) {
 }
 
 static
+void clustArrDestroy(const PixalcFPtrs *pAlloc, IslandClustArr *pClustArr) {
+	if (pClustArr->start.arr.pArr) {
+		pAlloc->fpFree(pClustArr->start.arr.pArr);
+	}
+	if (pClustArr->pArr) {
+		pAlloc->fpFree(pClustArr->pArr);
+	}
+	if (pClustArr->tiles.pArr) {
+		pAlloc->fpFree(pClustArr->tiles.pArr);
+	}
+	*pClustArr = (IslandClustArr){0};
+}
+
+static
 StucErr clustForIsland(void *pArgsRaw) {
 	StucErr err = PIX_ERR_SUCCESS;
 	ClustForIslandJobArgs *pArgs = pArgsRaw;
 	I32 rangeSize = pArgs->core.range.end - pArgs->core.range.start;
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
 	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
-	pArgs->pFindEncasedJobArgs = pAlloc->fpCalloc(
+	FindEncasedFacesJobArgs *pFindEncasedJobArgs = pAlloc->fpCalloc(
 		PIXTH_MAX_SUB_MAPPING_JOBS,
 		sizeof(FindEncasedFacesJobArgs)
 	);
@@ -1444,7 +1457,7 @@ StucErr clustForIsland(void *pArgsRaw) {
 			&clustArr,
 			&inPieceArr,
 			&inPieceClipArr,
-			&findEncasedJobCount, pArgs->pFindEncasedJobArgs
+			&findEncasedJobCount, pFindEncasedJobArgs
 		);
 		//TODO return early if empty here
 		if (findEncasedJobCount > pArgs->maxJobs) {
@@ -1453,7 +1466,7 @@ StucErr clustForIsland(void *pArgsRaw) {
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 		InFaceMemArr inFaceArr = {.count = findEncasedJobCount};
 		for (I32 j = 0; j < findEncasedJobCount; ++j) {
-			inFaceArr.arr[j] = pArgs->pFindEncasedJobArgs[j].inFaces;
+			inFaceArr.arr[j] = pFindEncasedJobArgs[j].inFaces;
 		}
 
 		err = stucInPieceArrInitBufMeshes(
@@ -1479,12 +1492,10 @@ StucErr clustForIsland(void *pArgsRaw) {
 		bufMeshArrIsEmpty(&pArgs->bufMeshArr) &&
 		bufMeshArrIsEmpty(&pArgs->bufMeshClipArr);
 	PIX_ERR_CATCH(0, err, ;);
-	if (clustArr.start.arr.pArr) {
-		pBasic->pCtx->alloc.fpFree(clustArr.start.arr.pArr);
-	}
+	clustArrDestroy(pAlloc, &clustArr);
 	for (I32 j = 0; j < pArgs->maxJobs; ++j) {
-		pixuctHTableDestroy(&pArgs->pFindEncasedJobArgs[j].encasedFaces);
-		InFaceMem *pInFaces = &pArgs->pFindEncasedJobArgs[j].inFaces;
+		pixuctHTableDestroy(&pFindEncasedJobArgs[j].encasedFaces);
+		InFaceMem *pInFaces = &pFindEncasedJobArgs[j].inFaces;
 		for (I32 k = 0; k < pInFaces->initCount; ++k) {
 			PIX_ERR_ASSERT(
 				"within init-count but not initialised?",
@@ -1492,11 +1503,18 @@ StucErr clustForIsland(void *pArgsRaw) {
 			);
 			pAlloc->fpFree(pInFaces->pArr[k].pArr);
 		}
+		if (pInFaces->pArr) {
+			pAlloc->fpFree(pInFaces->pArr);
+		}
 	}
+	inPieceArrDestroy(pBasic->pCtx, &inPieceArr);
+	inPieceArrDestroy(pBasic->pCtx, &inPieceClipArr);
+	pAlloc->fpFree(pFindEncasedJobArgs);
 	return err;
 }
 
-static collapseInPieceArr(
+static
+void collapseInPieceArr(
 	const PixalcFPtrs *pAlloc,
 	BufMeshArr *pDest,
 	const ClustForIslandJobArgs *pJobArgs,
@@ -1507,15 +1525,20 @@ static collapseInPieceArr(
 	for (I32 i = 1; i < jobCount; ++i) {
 		count += clip ? pJobArgs[i].bufMeshClipArr.count : pJobArgs[i].bufMeshArr.count;
 	}
-	if (count > pDest->size) {
-		pDest->size = count;
-		pDest->pArr = pAlloc->fpRealloc(pDest->pArr, sizeof(BufMesh) * pDest->size);
+	if (!count) {
+		return;
 	}
+	PIXALC_DYN_ARR_RESIZE(BufMesh, pAlloc, pDest, count);
 	for (I32 i = 1; i < jobCount; ++i) {
 		const BufMeshArr *pSrc = clip ?
 			&pJobArgs[i].bufMeshClipArr : &pJobArgs[i].bufMeshArr;
+		if (!pSrc->count) {
+			continue;
+		}
+		PIX_ERR_ASSERT("", pSrc->pArr);
 		memcpy(pDest->pArr + pDest->count, pSrc->pArr, pSrc->count * sizeof(BufMesh));
 		pDest->count += pSrc->count;
+		pAlloc->fpFree(pSrc->pArr);
 	}
 	PIX_ERR_ASSERT("", pDest->count <= pDest->size);
 }
@@ -2695,23 +2718,37 @@ StucErr splitInMeshToIslands(
 }
 
 static
+void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr) {
+	if (pArr->pArr) {
+		for (I32 i = 0; i < pArr->count; ++i) {
+			if (pArr->pArr[i].arr.pArr) {
+				pCtx->alloc.fpFree(pArr->pArr[i].arr.pArr);
+			}
+		}
+		pCtx->alloc.fpFree(pArr->pArr);
+	}
+}
+
+static
 void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
 	if (pArr->faces.pArr) {
 		pCtx->alloc.fpFree(pArr->faces.pArr);
+	}
+	if (pArr->pFaceTable) {
+		pCtx->alloc.fpFree(pArr->pFaceTable);
 	}
 	if (!pArr->pArr) {
 		*pArr = (StucInIslandArr){0};
 		return;
 	}
 	for (I32 i = 0; i < pArr->count; ++i) {
-		if (pArr->pArr[i].core.borders.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].core.borders.pArr);
+		stucInIslandsBorderArrDestroy(pCtx, &pArr->pArr[i].core.borders);
+		if (pArr->pArr[i].borderTable.pTable) {
+			pixuctHTableDestroy(&pArr->pArr[i].borderTable);
 		}
 		StucSubIslandArr *pSub = &pArr->pArr[i].sub;
 		for (I32 j = 0; j < pSub->count; ++j) {
-			if (pSub->pArr[j].core.borders.pArr) {
-				pCtx->alloc.fpFree(pSub->pArr[j].core.borders.pArr);
-			}
+			stucInIslandsBorderArrDestroy(pCtx, &pSub->pArr[j].core.borders);
 		}
 		if (pSub->pFaces) {
 			pCtx->alloc.fpFree(pSub->pFaces);

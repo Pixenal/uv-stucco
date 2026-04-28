@@ -1894,23 +1894,37 @@ StucErr stucAddMapFaceToBufMesh(
 }
 
 static
+void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr) {
+	if (pArr->pArr) {
+		for (I32 i = 0; i < pArr->count; ++i) {
+			if (pArr->pArr[i].arr.pArr) {
+				pCtx->alloc.fpFree(pArr->pArr[i].arr.pArr);
+			}
+		}
+		pCtx->alloc.fpFree(pArr->pArr);
+	}
+}
+
+static
 void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
 	if (pArr->faces.pArr) {
 		pCtx->alloc.fpFree(pArr->faces.pArr);
+	}
+	if (pArr->pFaceTable) {
+		pCtx->alloc.fpFree(pArr->pFaceTable);
 	}
 	if (!pArr->pArr) {
 		*pArr = (StucInIslandArr){0};
 		return;
 	}
 	for (I32 i = 0; i < pArr->count; ++i) {
-		if (pArr->pArr[i].core.borders.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].core.borders.pArr);
+		stucInIslandsBorderArrDestroy(pCtx, &pArr->pArr[i].core.borders);
+		if (pArr->pArr[i].borderTable.pTable) {
+			pixuctHTableDestroy(&pArr->pArr[i].borderTable);
 		}
 		StucSubIslandArr *pSub = &pArr->pArr[i].sub;
 		for (I32 j = 0; j < pSub->count; ++j) {
-			if (pSub->pArr[j].core.borders.pArr) {
-				pCtx->alloc.fpFree(pSub->pArr[j].core.borders.pArr);
-			}
+			stucInIslandsBorderArrDestroy(pCtx, &pSub->pArr[j].core.borders);
 		}
 		if (pSub->pFaces) {
 			pCtx->alloc.fpFree(pSub->pFaces);
