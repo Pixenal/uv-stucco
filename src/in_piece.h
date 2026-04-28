@@ -455,7 +455,7 @@ StucErr stucInPieceArrInitBufMeshes(
 );
 void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
 //returns 1 if yes, and 2 if only due to preserve
-I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
+//I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
 
 static inline
 void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
@@ -498,7 +498,7 @@ bool stucIsInCornerOnBorder(
 		&pClustArr->pIsland->borderTable,
 		0,
 		&edge,
-		&pEntry,
+		(const void **)&pEntry,
 		pixuctKeyFromI32, stucBorderTableCmp
 	);
 	if (ppEntry) {
@@ -526,7 +526,7 @@ bool stucIsInFaceOnBorder(
 			&pClustArr->pIsland->borderTable,
 			0,
 			&edge,
-			&pEntry,
+			(const void **)&pEntry,
 			pixuctKeyFromI32, stucBorderTableCmp
 		);
 		if (result == PIX_SEARCH_FOUND) {
