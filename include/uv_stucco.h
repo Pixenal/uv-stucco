@@ -348,8 +348,8 @@ typedef PixioFileOpenType StucFileOpenType;
 
 typedef struct StucIo {
 	StucErr (*fpOpen)(void **, const char *, StucFileOpenType, const StucAlloc *);
-	StucErr (*fpWrite)(void *, const unsigned char *, int32_t);
-	StucErr (*fpRead)(void *, unsigned char *, int32_t);
+	StucErr (*fpWrite)(void *, const void *, int32_t);
+	StucErr (*fpRead)(void *, void *, int32_t);
 	StucErr (*fpClose)(void *);
 } StucIo;
 

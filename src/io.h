@@ -8,16 +8,11 @@ SPDX-License-Identifier: Apache-2.0
 #define MAP_FORMAT_NAME_MAX_LEN 19
 #define MAP_FORMAT_NAME "UV Stucco Map"
 
+#include <pixenals_io_utils.h>
+
 #include <uv_stucco.h>
 #include <types.h>
 #include <pixenals_structs.h>
-
-typedef struct ByteString {
-	unsigned char *pString;
-	I64 size;
-	I64 byteIdx;
-	I32 nextBitIdx;
-} ByteString;
 
 typedef struct StucHeader {
 	char format[MAP_FORMAT_NAME_MAX_LEN];
@@ -38,7 +33,7 @@ typedef struct StucMapExportIntern {
 	StucContext pCtx;
 	char *pPath;
 	StucHeader header;
-	ByteString data;
+	PixioByteArr data;
 	I32 cutoffIdxMax;
 	PixuctHTable mapTable;
 	StucAttribIndexedArr idxAttribs;
@@ -89,15 +84,6 @@ StucErr stucMapImport(
 
 void stucIoSetCustom(StucContext pCtx, StucIo *pIo);
 void stucIoSetDefault(StucContext pCtx);
-void stucEncodeValue(
-	const StucAlloc *pAlloc,
-	ByteString *byteString,
-	U8 *value,
-	I32 lengthInBits
-);
-void stucEncodeString(const StucAlloc *pAlloc, ByteString *byteString, const char *string);
-void stucDecodeValue(ByteString *byteString, U8 *value, I32 lengthInBits);
-void stucDecodeString(ByteString *byteString, char *string, I32 maxLen);
 const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen);
 void stucIoDataTagValidate();
 static inline void stucMapDepsDestroy(const StucAlloc *pAlloc, StucMapDeps *pDeps) {
