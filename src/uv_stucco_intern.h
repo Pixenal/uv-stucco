@@ -18,10 +18,15 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_structs.h>
 #include <in_piece.h>
 
+
+#ifdef NDEBUG
 #ifdef WIN32
 #define STUC_FORCE_INLINE __forceinline
 #else
 #define STUC_FORCE_INLINE __attribute__((always_inline)) static inline
+#endif
+#else
+#define STUC_FORCE_INLINE static inline
 #endif
 
 typedef struct MapToMeshBasic {
