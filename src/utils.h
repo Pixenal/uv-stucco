@@ -199,15 +199,55 @@ StucErr stucDoJobInParallel(
 	StucErr (* func)(void *)
 );
 
+/*
 typedef struct InPieceKey {
 	I32 cluster;
 	V2_I16 tile;
 	bool clip;
 } InPieceKey;
+*/
+
+typedef struct InPieceKey {
+	U8 key[9];
+} InPieceKey;
 
 static inline
-PixuctKey stucInPieceMakeKey(const void *pKeyData) {
-	return (PixuctKey){.pKey = pKeyData, .size = sizeof(InPieceKey)};
+I32 inPieceKeyGetClust(InPieceKey key) {
+	return *(I32 *)key.key;
+}
+
+static inline
+V2_I16 inPieceKeyGetTile(InPieceKey key) {
+	I32 offset = 4;
+	return (V2_I16){{*(I16 *)(key.key + offset), *(I16 *)(key.key + offset + 2)}};
+}
+
+static inline
+I32 inPieceKeyGetClip(InPieceKey key) {
+	return *(U8 *)(key.key + 8);
+}
+
+static inline
+void inPieceKeySetClust(InPieceKey *pKey, I32 clust) {
+	*(I32 *)pKey->key = clust;
+}
+
+static inline
+void inPieceKeySetTile(InPieceKey *pKey, V2_I16 tile) {
+	I32 offset = 4;
+	*(I16 *)(pKey->key + offset) = tile.d[0];
+	*(I16 *)(pKey->key + offset + 2) = tile.d[1];
+}
+
+static inline
+void inPieceKeySetClip(InPieceKey *pKey, bool clip) {
+	*(U8 *)(pKey->key + 8) = clip;
+}
+
+static inline
+PixuctKey stucInPieceMakeKey(const void *pKeyRaw) {
+	const InPieceKey *pKey = pKeyRaw;
+	return (PixuctKey){.pKey = pKey->key, .size = sizeof(pKey->key)};
 }
 
 void stucThreadPoolSetDefault(StucContext context);

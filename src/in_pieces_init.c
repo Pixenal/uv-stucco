@@ -73,10 +73,10 @@ void encasedMapFaceInit(
 	const InPieceKey *pKey = pKeyData;
 	EncasedMapFaceInitInfo *pInitInfo = pInitInfoVoid;
 	EncasedMapFace *pEntry = (EncasedMapFace *)pEntryCore;
-	pEntry->cluster = pKey->cluster;
+	pEntry->cluster = inPieceKeyGetClust(*pKey);
 	pEntry->job = pInitInfo->job;
-	pEntry->clip = pKey->clip;
-	pEntry->tile = pKey->tile;
+	pEntry->clip = inPieceKeyGetClip(*pKey);
+	pEntry->tile = inPieceKeyGetTile(*pKey);
 	pEntry->border = pInitInfo->border;
 	InFaceMem *pInFaces = pInitInfo->pInFaces;
 	PIXALC_DYN_ARR_ADD(InFaceIdxArr, pAlloc, pInFaces, pEntry->inFaces);
@@ -106,9 +106,9 @@ bool encasedMapFaceCmp(
 	const EncasedMapFace *pEntry = (void *)pEntryRaw;
 	const InPieceKey *pKey = pKeyData;
 	return 
-		pEntry->cluster == pKey->cluster &&
-		pEntry->clip == pKey->clip &&
-		_(pEntry->tile V2I16EQL pKey->tile);
+		pEntry->cluster == inPieceKeyGetClust(*pKey) &&
+		pEntry->clip == inPieceKeyGetClip(*pKey) &&
+		_(pEntry->tile V2I16EQL inPieceKeyGetTile(*pKey));
 }
 
 static
@@ -141,10 +141,14 @@ EncasedMapFace *addToEncasedFaces(
 	bool border
 ) {
 	EncasedMapFace *pEntry = NULL;
+	InPieceKey key = {0};
+	inPieceKeySetClust(&key, cluster);
+	inPieceKeySetTile(&key, tile);
+	inPieceKeySetClip(&key, clip);
 	SearchResult result = pixuctHTableGet(
 		&pArgs->encasedFaces,
 		clip,
-		&(InPieceKey) {.cluster = cluster, .clip = clip, .tile = tile},
+		&key,
 		(void**)&pEntry,
 		true,
 		&(EncasedMapFaceInitInfo) {
@@ -421,16 +425,17 @@ void inPieceInit (
 	InPieceInitInfo *pInitInfo = pInitInfoVoid;
 	InPieceArr *pInPieceArr = pInitInfo->pInPieceArr;
 	const InPieceKey *pKey = pKeyData;
+	V2_I16 tile = inPieceKeyGetTile(*pKey);
 	*(EncasedEntryIdx *)pIdxEntryCore = (EncasedEntryIdx){
-		.cluster = pKey->cluster,
-		.clip = pKey->clip,
-		.tile = pKey->tile,
+		.cluster = inPieceKeyGetClust(*pKey),
+		.clip = inPieceKeyGetClip(*pKey),
+		.tile = tile,
 		.entryIdx = pInPieceArr->count
 	};
 	EncasedMapFace *pCluster = ((InPieceInitInfo *)pInitInfoVoid)->pCluster;
 	pInPieceArr->pArr[pInPieceArr->count] = (InPiece){
 		.pList = pCluster,
-		.tile = pKey->tile,
+		.tile = tile,
 		.inFaceCount = pInitInfo->pInFaces->pArr[pCluster->inFaces].count
 	};
 	pInPieceArr->count++;
@@ -445,9 +450,9 @@ bool inPieceCmp(
 	const EncasedEntryIdx *pIdxEntry = (EncasedEntryIdx *)pIdxEntryCore;
 	const InPieceKey *pKey = pKeyData;
 	return
-		pIdxEntry->cluster == pKey->cluster &&
-		pIdxEntry->clip == pKey->clip &&
-		_(pIdxEntry->tile V2I16EQL pKey->tile);
+		pIdxEntry->cluster == inPieceKeyGetClust(*pKey) &&
+		pIdxEntry->clip == inPieceKeyGetClip(*pKey) &&
+		_(pIdxEntry->tile V2I16EQL inPieceKeyGetTile(*pKey));
 }
 
 static
@@ -475,12 +480,14 @@ void addEncasedEntryToInPieceArr(
 	EncasedMapFace *pCluster
 ) {
 	EncasedEntryIdx *pIdxEntry = NULL;
+	InPieceKey key = {0};
+	inPieceKeySetClust(&key, pCluster->cluster);
+	inPieceKeySetTile(&key, pCluster->tile);
+	inPieceKeySetClip(&key, pCluster->clip);
 	SearchResult result = pixuctHTableGet(
 		pIdxTable,
 		0,
-		&(InPieceKey) {
-			.cluster = pCluster->cluster, .clip = pCluster->clip, .tile = pCluster->tile
-		},
+		&key,
 		(void **)&pIdxEntry,
 		true,
 		&(InPieceInitInfo) {
