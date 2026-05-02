@@ -1916,7 +1916,10 @@ void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
 		*pArr = (StucInIslandArr){0};
 		return;
 	}
-	for (I32 i = 0; i < pArr->count; ++i) {
+	for (I32 i = 0; i < pArr->size; ++i) {
+		if (!pArr->pArr[i].core.faces.end) {
+			break;
+		}
 		stucInIslandsBorderArrDestroy(pCtx, &pArr->pArr[i].core.borders);
 		if (pArr->pArr[i].borderTable.pTable) {
 			pixuctHTableDestroy(&pArr->pArr[i].borderTable);
@@ -1932,6 +1935,7 @@ void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
 			pCtx->alloc.fpFree(pSub->pArr);
 		}
 	}
+	pixuctHTableMemDestroy(&pCtx->alloc, &pArr->tableMem);
 	pCtx->alloc.fpFree(pArr->pArr);
 	*pArr = (StucInIslandArr){0};
 }

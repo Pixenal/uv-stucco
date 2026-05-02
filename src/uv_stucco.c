@@ -532,9 +532,15 @@ StucErr stucMapFileLoadIntern(
 	MapDepEntry *pEntry
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pEntry->pName, "file name is too long");
+	PIX_ERR_RETURN_IFNOT_COND(err, pEntry->pName, "");
 	StucMap pMap = pCtx->alloc.fpCalloc(1, sizeof(MapFile));
-	pMap->pName = pEntry->pName;
+	{
+		I32 lenMax = pixioPathMaxGet();
+		I32 nameLen = strnlen(pEntry->pName, lenMax);
+		PIX_ERR_RETURN_IFNOT_COND(err, nameLen < lenMax, "");
+		pMap->pName = pCtx->alloc.fpMalloc(nameLen + 1);
+		memcpy(pMap->pName, pEntry->pName, nameLen + 1);
+	}
 	StucObjArr objArr = {0};
 	StucUsgArr usgArr = {0};
 	StucObjArr cutoffArr = {0};
@@ -2170,7 +2176,7 @@ typedef struct StucMapToMeshArgs {
 static
 StucErr mapToMeshFromJob(void *pArgsVoid, I32 threadId) {
 	StucMapToMeshArgs *pArgs = pArgsVoid;
-	return stucMapToMesh(
+	StucErr err = stucMapToMesh(
 		pArgs->pCtx,
 		threadId,
 		pArgs->pMapArr,
@@ -2183,6 +2189,8 @@ StucErr mapToMeshFromJob(void *pArgsVoid, I32 threadId) {
 		false,
 		pArgs->triangulate
 	);
+	pArgs->pCtx->alloc.fpFree(pArgs);
+	return err;
 }
 
 StucErr stucQueueMapToMesh(
@@ -2197,16 +2205,18 @@ StucErr stucQueueMapToMesh(
 	F32 receiveLen,
 	bool triangulate
 ) {
-	StucMapToMeshArgs *pArgs = pCtx->alloc.fpCalloc(1, sizeof(StucMapToMeshArgs));
-	pArgs->pCtx = pCtx;
-	pArgs->pMapArr = pMapArr;
-	pArgs->pMeshIn = pMeshIn;
-	pArgs->pInIndexedAttribs = pInIndexedAttribs;
-	pArgs->pMeshOut = pMeshOut;
-	pArgs->pOutIndexedAttribs = pOutIndexedAttribs;
-	pArgs->wScale = wScale;
-	pArgs->receiveLen = receiveLen;
-	pArgs->triangulate = triangulate;
+	StucMapToMeshArgs *pArgs = pCtx->alloc.fpMalloc(sizeof(StucMapToMeshArgs));
+	*pArgs = (StucMapToMeshArgs) {
+		.pCtx = pCtx,
+		.pMapArr = pMapArr,
+		.pMeshIn = pMeshIn,
+		.pInIndexedAttribs = pInIndexedAttribs,
+		.pMeshOut = pMeshOut,
+		.pOutIndexedAttribs = pOutIndexedAttribs,
+		.wScale = wScale,
+		.receiveLen = receiveLen,
+		.triangulate = triangulate
+	};
 	pixthJobsInit(pJobHandle, 1, mapToMeshFromJob, (void **)&pArgs);
 	pCtx->threadPool.pJobStackPushJobs(
 		&pCtx->threadPool.handle,
