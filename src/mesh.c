@@ -230,7 +230,6 @@ void bulkCopyAttribs(
 
 void stucAddToMeshCounts(
 	MeshCounts *pCounts,
-	MeshCounts *pBoundsCounts,
 	const Mesh *pMeshSrc
 ) {
 	//TODO maybe replace *Counts vars in Mesh to use MeshCounts,
@@ -345,7 +344,7 @@ StucErr stucMergeObjArr(
 	MeshCounts totalCount = {0};
 	for (I32 i = 0; i < pObjArr->count; ++i) {
 		ppSrcs[i] = (Mesh *)pObjArr->pArr[i].pData;
-		stucAddToMeshCounts(&totalCount, NULL, (Mesh *)pObjArr->pArr[i].pData);
+		stucAddToMeshCounts(&totalCount, (Mesh *)pObjArr->pArr[i].pData);
 	}
 	pMesh->faceBufSize = totalCount.faces + 1; //+1 for last face index
 	pMesh->cornerBufSize = totalCount.corners;

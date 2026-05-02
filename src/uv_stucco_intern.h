@@ -29,6 +29,8 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_FORCE_INLINE static inline
 #endif
 
+//#define STUC_USE_SUB_ISLANDS
+
 typedef struct MapToMeshBasic {
 	Mesh outMesh;
 	const StucContext pCtx;

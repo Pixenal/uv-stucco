@@ -180,36 +180,7 @@ typedef enum OverlapType {
 	STUC_FACE_OVERLAP_MAP_INSIDE_IN
 } OverlapType;
 
-//TODO put a generic void * to const void * struct in pixenals-types, & replace this
-typedef struct InCornerPtr {
-	const HalfPlane *pInCorners;
-} InCornerPtr;
-
-static
-V2_F32 getInCornerPos(
-	const void *pUserData,
-	void *pMeshVoid,
-	PlycutInput input,
-	I32 boundary,
-	I32 corner,
-	bool *pCantIntersect
-) {
-	return ((const HalfPlane *)((InCornerPtr *)pMeshVoid)->pInCorners)[corner].uv;
-}
-
-static
-V3_F32 getMapCornerPos(
-	const void *pUserData,
-	void *pMeshVoid,
-	PlycutInput input,
-	I32 boundary,
-	I32 corner,
-	bool *pCantIntersect
-) {
-	const Mesh *pMesh = ((MapToMeshBasic *)pUserData)->pMap->pMesh;
-	const FaceRange *pMapFace = input.pUserData;
-	return stucGetVertPos(pMesh, pMapFace->range, corner);
-}
+//TODO put a generic const void * wrapper struct in pixenals-types
 
 typedef struct InPieceClust {
 	FindEncasedFacesJobArgs *pArgs;
@@ -373,7 +344,6 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 	FindEncasedFacesJobArgs *pArgs = pArgsVoid;
 	PIX_ERR_ASSERT("", pArgs);
 	const MapToMeshBasic *pBasic = pArgs->core.pShared;
-	StucContext pCtx = pBasic->pCtx;
 	
 	EncasedMapFaceTableState tableState =  {.pBasic = pBasic};
 	pixuctHTableInit(
@@ -530,10 +500,10 @@ void linkEncasedTableEntries(
 	I32 size = 0;
 	I32 sizeClip = 0;
 	for (I32 i = 0; i < jobCount; ++i) {
-		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
-		size += pixalcLinAllocGetCount(pAlloc);
-		pAlloc = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 1);
-		sizeClip += pixalcLinAllocGetCount(pAlloc);
+		PixalcLinAlloc *pTableMem = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 0);
+		size += pixalcLinAllocGetCount(pTableMem);
+		pTableMem = pixuctHTableAllocGet(&pJobArgs[i].encasedFaces, 1);
+		sizeClip += pixalcLinAllocGetCount(pTableMem);
 	}
 	if (!size && !sizeClip) {
 		return;
@@ -582,7 +552,6 @@ StucErr stucInPieceArrInit(
 	I32 *pJobCount, FindEncasedFacesJobArgs *pJobArgs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	const PixalcFPtrs *pAlloc = &pBasic->pCtx->alloc;
 	stucMakeJobArgs(
 		pBasic->pCtx,
 		pBasic,

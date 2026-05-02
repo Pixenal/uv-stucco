@@ -77,11 +77,11 @@ typedef struct TriCache {
 } TriCache;
 
 static inline
-const U8 *stucTriGet(const TriCache *pCache, I32 face, I32 idx) {
+const I8 *stucTriGet(const TriCache *pCache, I32 face, I32 idx) {
 	if (!pCache->pArr || idx >= pCache->pArr[face].count) {
 		return NULL;
 	}
-	return (U8 *)pixalcLinAllocIdxConst(&pCache->alloc, pCache->pArr[face].idx) + idx * 3;
+	return (I8 *)pixalcLinAllocIdxConst(&pCache->alloc, pCache->pArr[face].idx) + idx * 3;
 }
 
 void stucCreateMesh(const StucContext pCtx, StucObject *pObj, StucObjectType type);
@@ -94,7 +94,6 @@ void stucMeshSetLastFace(const StucContext pCtx, Mesh *pMesh);
 bool stucCheckIfMesh(const StucObjectData type);
 void stucAddToMeshCounts(
 	MeshCounts *pCounts,
-	MeshCounts *pBoundsCounts,
 	const Mesh *pMeshSrc
 );
 void stucApplyObjTransform(StucObject *pObj);

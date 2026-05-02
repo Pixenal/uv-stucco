@@ -95,7 +95,7 @@ static inline
 V3_F32 stucGetBarycentricInTriFromVerts(
 	const Mesh *pMesh,
 	const FaceRange *pFace,
-	const U8 *pTriCorners,
+	const I8 *pTriCorners,
 	V2_F32 vert
 ) {
 	return
@@ -294,7 +294,7 @@ PixmshFaceRange stucPixmshFaceRange(const void *pMeshRaw, I32 face) {
 }
 
 //TODO move this out
-static
+static inline
 FaceCorner callGetAdjCorner(const void *pMeshRaw, FaceCorner corner) {
 	FaceCorner adj = {0};
 	stucGetAdjCorner(pMeshRaw, corner, &adj);

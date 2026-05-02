@@ -206,7 +206,6 @@ StucErr mapUvwToXyzFlat(
 	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
-	V3_F32 mapUvw,
 	InterpCacheLimited *pInInterpCache,
 	V3_F32 *pXyzFlat,
 	M3x3 *pTbn
@@ -321,7 +320,6 @@ StucErr xformVertFromUvwToXyz(
 			tile,
 			pBufMesh,
 			bufCorner,
-			mapUvw,
 			&pInterpCaches->in,
 			&xyzFlat,
 			&tbn
@@ -444,7 +442,6 @@ static
 void interpAndBlendAttribs(
 	const MapToMeshBasic *pBasic,
 	AttribCache *pCache,
-	Mesh *pOutMesh,
 	I32 dataIdx,
 	StucDomain domain,
 	V2_I16 *pTile,//corners or verts
@@ -454,7 +451,6 @@ void interpAndBlendAttribs(
 	const SrcFaces *pSrcFaces,//faces
 	V3_F32 *pNormal
 ) {
-	StucErr err = PIX_ERR_SUCCESS;
 	if (domain == STUC_DOMAIN_FACE) {
 		PIX_ERR_ASSERT("", pSrcFaces);
 	}
@@ -464,46 +460,6 @@ void interpAndBlendAttribs(
 	else {
 		PIX_ERR_ASSERT("invalid domain for this func", false);
 	}
-	/*
-	AttribArray *pOutAttribArr = stucGetAttribArrFromDomain(&pOutMesh->core, domain);
-	const AttribArray *pMapAttribArr =
-		stucGetAttribArrFromDomainConst(&pBasic->pMap->pMesh->core, domain);
-	const AttribArray *pInAttribArr =
-		stucGetAttribArrFromDomainConst(&pBasic->pInMesh->core, domain);
-	for (I32 i = 0; i < pOutAttribArr->count; ++i) {
-		Attrib *pOutAttrib = pOutAttribArr->pArr + i;
-		AttribType type = pOutAttrib->core.type;
-		AttribUse use = pOutAttrib->core.use;
-		PIX_ERR_ASSERT(
-			"string attribs are only for internal use. This needs to be caught earlier",
-			type != STUC_ATTRIB_STRING
-		);
-		if (pOutAttrib ==
-			stucGetActiveAttrib(pBasic->pCtx, &pOutMesh->core, STUC_ATTRIB_USE_POS)
-		) {
-			continue;
-		}
-		const StucAttrib *pInAttrib = NULL;
-		err = stucGetMatchingAttribConst(
-			pBasic->pCtx,
-			&pBasic->pInMesh->core, pInAttribArr,
-			&pOutMesh->core, pOutAttrib,
-			true,
-			false,
-			&pInAttrib
-		);
-		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
-		const StucAttrib *pMapAttrib = NULL;
-		stucGetMatchingAttribConst(
-			pBasic->pCtx,
-			&pBasic->pMap->pMesh->core, pMapAttribArr,
-			&pOutMesh->core, pOutAttrib,
-			true,
-			false,
-			&pMapAttrib
-		);
-		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
-		*/
 
 	for (I32 i = 0; i < pCache->count; ++i) {
 		AttribPair attribs = pCache->pArr[i];
@@ -680,7 +636,6 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 		interpAndBlendAttribs(
 			pBasic,
 			&attribs,
-			pArgs->pOutMesh,
 			pEntry->outVert,
 			STUC_DOMAIN_VERT,
 			&tile,
@@ -814,7 +769,6 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 			interpAndBlendAttribs(
 				pBasic,
 				&attribs,
-				pArgs->pOutMesh,
 				corner,
 				STUC_DOMAIN_CORNER,
 				&tile,
@@ -859,7 +813,6 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		I32 corner = pArgs->pOutMesh->core.pFaces[face];
 		I32 bufOutRange = bufOutTableGetStart(pArgs, corner);
 		
-		const InPiece *pInPiece = NULL;
 		const BufMesh *pBufMesh = NULL;
 		FaceCorner bufCorner = {0};
 		V2_I16 tile = {0};
@@ -886,7 +839,6 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		interpAndBlendAttribs(
 			pBasic,
 			&attribs,
-			pArgs->pOutMesh,
 			face,
 			STUC_DOMAIN_FACE,
 			NULL, NULL, NULL, NULL,

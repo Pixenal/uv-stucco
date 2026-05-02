@@ -50,7 +50,7 @@ typedef union InterpCache {
 
 typedef struct InterpCacheLimited {
 	const StucDomain domain;
-	const AttribOrigin origin;
+	const StucAttribOrigin origin;
 	InterpCache cache;
 } InterpCacheLimited;
 
@@ -66,8 +66,8 @@ void stucInterpBufAttrib(
 	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner corner,
-	AttribCore *pDest, I32 iDest,
-	const AttribCore *pSrc,
+	StucAttribCore *pDest, I32 iDest,
+	const StucAttribCore *pSrc,
 	InterpCacheLimited *pInterpCache
 );
 StucErr stucInterpAttribs(

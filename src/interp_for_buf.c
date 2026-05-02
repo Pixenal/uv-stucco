@@ -123,7 +123,7 @@ void interpCacheUpdateTriMap(
 	pCache->active = STUC_INTERP_CACHE_TRI_MAP;
 	FaceRange inFace = stucGetFaceRange(&pBasic->pInMesh->core, inFaceIdx);
 	FaceRange mapFace = stucGetFaceRange(&pBasic->pMap->pMesh->core, mapFaceIdx);
-	const U8 *pTri = stucTriGet(&pBasic->pMap->triCache, mapFace.idx, mapTri);
+	const I8 *pTri = stucTriGet(&pBasic->pMap->triCache, mapFace.idx, mapTri);
 	V2_F32 fTile = {.d = {(F32)tile.d[0], (F32)tile.d[1]}};
 	V2_F32 inUv = pBasic->pInMesh->pUvs[inFace.range.start + inCorner];
 	_(&inUv V2SUBEQL fTile);
@@ -339,7 +339,6 @@ void interpBufVertEdgeMap(
 static
 void interpBufVertOverlap(
 	const MapToMeshBasic *pBasic,
-	V2_I16 tile,
 	I32 mapFace,
 	OverlapVert *pVert,
 	AttribCore *pDest, I32 iDest,
@@ -379,7 +378,6 @@ void interpBufVertOverlap(
 static
 void interpBufVertIntersect(
 	const MapToMeshBasic *pBasic,
-	V2_I16 tile,
 	I32 mapFace,
 	IntersectVert *pVert,
 	AttribCore *pDest, I32 iDest,
@@ -510,7 +508,6 @@ void stucInterpBufAttrib(
 			OverlapVert *pVert = pBufMesh->overlapVerts.pArr + bufCorner.vert;
 			interpBufVertOverlap(
 				pBasic,
-				tile,
 				bufFace.mapFace,
 				pVert,
 				pDest, iDest,
@@ -523,7 +520,6 @@ void stucInterpBufAttrib(
 			IntersectVert *pVert = pBufMesh->intersectVerts.pArr + bufCorner.vert;
 			interpBufVertIntersect(
 				pBasic,
-				tile,
 				bufFace.mapFace,
 				pVert,
 				pDest, iDest,

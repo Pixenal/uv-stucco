@@ -6,6 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <pixenals_math_utils.h>
 #include <pixenals_alloc_utils.h>
+#include <mesh.h>
 
 #include <types.h>
 

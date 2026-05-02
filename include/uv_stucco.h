@@ -469,7 +469,7 @@ StucErr stucMapFileLoadInit(
 	const char *pFilepath,
 	double timestamp,
 	void *pUserData,
-	PixErr (* fpMapGet)(void *, const char *, char **, double *, StucMap * const),
+	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const),
 	PixErr (* fpMapStore)(
 		void *,
 		const char *,
@@ -497,7 +497,7 @@ STUC_EXPORT
 StucErr stucMapFileMeshGet(
 	StucContext pCtx,
 	StucMap pMap,
-	StucMesh **ppMesh,
+	const StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs
 );
 STUC_EXPORT

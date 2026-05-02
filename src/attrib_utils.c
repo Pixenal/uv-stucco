@@ -962,7 +962,6 @@ static BlendFuncs blendFuncs[STUC_BLEND_ENUM_COUNT] = {
 static
 void blendSwitch(
 	StucBlendConfig blendConfig,
-	UBitField32 blendFlags,
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA, bool normalizeA, I64 aMax,
 	const AttribCore *pB, I32 iB, bool normalizeB, I64 bMax,
@@ -1007,8 +1006,8 @@ void blendUseVec(
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB
 ) {
-	UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
-	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
+	//UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
+	blendSwitch(blendConfig, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
 }
 
 static
@@ -1026,8 +1025,8 @@ void blendUseIdx(
 	blendConfig.blend = STUC_BLEND_REPLACE;
 	//TODO replace literal bitflags with bitshifts enum expressions,
 	// these will break code when enum elements are moved around
-	UBitField32 blendFlags =  0xc1;  //only replace, lighten, and darken
-	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
+	//UBitField32 blendFlags =  0xc1;  //only replace, lighten, and darken
+	blendSwitch(blendConfig, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
 }
 
 static
@@ -1052,13 +1051,12 @@ void blendUseColor(
 		pFDest = &destBufAttrib;
 		iFDest = 0;
 	}
-	UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
+	//UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
 	//if attrib is float, we assume it's already normalized
 	bool normalizeA = !isAttribTypeFloat(pA->type);
 	bool normalizeB = !isAttribTypeFloat(pB->type);
 	blendSwitch(
 		blendConfig,
-		blendFlags,
 		pFDest, iFDest,
 		pA, iA, normalizeA, normalizeA ? getIntTypeMax(pA->type, false) : 0,
 		pB, iB, normalizeB, normalizeB ? getIntTypeMax(pB->type, false) : 0,
@@ -1089,8 +1087,8 @@ void blendUseScalar(
 	const AttribCore *pB, I32 iB
 ) {
 	//replace, multiply, divide, add, subtract, lighten, and darken
-	UBitField32 blendFlags = 0xdf;
-	blendSwitch(blendConfig, blendFlags, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
+	//UBitField32 blendFlags = 0xdf;
+	blendSwitch(blendConfig, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
 }
 
 

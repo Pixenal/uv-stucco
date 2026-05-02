@@ -101,8 +101,6 @@ void addBufFaceToOutMesh(
 	MapToMeshBasic *pBasic,
 	OutCornerBuf *pOutBuf,
 	const BufMesh *pBufMesh,
-	I32 bufMeshIdx,
-	bool clip,
 	PixuctHTable *pMergeTable,
 	OutBufIdxArr *pOutBufIdxArr,
 	I32 faceIdx
@@ -225,8 +223,6 @@ void stucAddFacesAndCornersToOutMesh(
 				pBasic,
 				&outBuf,
 				pBufMesh,
-				i,
-				clip,
 				pMergeTable,
 				pOutBufIdxArr,
 				j

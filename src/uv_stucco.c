@@ -217,10 +217,28 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 	StucMesh bufMesh = {.faceCount = triCount, .cornerCount = triCount * 3};
 	bufMesh.pCorners = pCtx->alloc.fpMalloc(sizeof(I32) * bufMesh.cornerCount);
 	StucDomain domain = STUC_DOMAIN_FACE;
-	err = stucAllocAttribs(pCtx, domain, triCount, &bufMesh, 1, &pMesh, 0, false, true, false, false);
+	err = stucAllocAttribs(
+		pCtx,
+		domain,
+		triCount,
+		&bufMesh,
+		1,
+		(const StucMesh *const *)&pMesh,
+		0,
+		false, true, false, false
+	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	domain = STUC_DOMAIN_CORNER;
-	err = stucAllocAttribs(pCtx, domain, triCount * 3, &bufMesh, 1, &pMesh, 0, false, true, false, false);
+	err = stucAllocAttribs(
+		pCtx,
+		domain,
+		triCount * 3,
+		&bufMesh,
+		1,
+		(const StucMesh *const *)&pMesh,
+		0,
+		false, true, false, false
+	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	bufMesh.faceCount = 0;
@@ -241,8 +259,8 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 				face.range.size > 4 && face.range.size <= PIXMSH_NGON_MAX_SIZE
 			);
 			I32 count = stucTriangulateFaceFromVerts(&pCtx->alloc, &face, &wrap, triBuf);
-			for (I32 i = 0; i < count; ++i) {
-				addTri(&bufMesh, pMesh, &face, triBuf + i * 3);
+			for (I32 j = 0; j < count; ++j) {
+				addTri(&bufMesh, pMesh, &face, triBuf + j * 3);
 			}
 		}
 	}
@@ -378,7 +396,7 @@ void mapDepInit(
 	void *pInitInfo,
 	I32 linIdx
 ) {
-	MapDepEntry *pEntry = (MapDepEntry *)pEntryCore;
+	//MapDepEntry *pEntry = (MapDepEntry *)pEntryCore;
 }
 
 static
@@ -728,7 +746,7 @@ typedef struct StucMapLoadIntern {
 	const char *pFilepath;
 	F64 timestamp;
 	void *pUserData;
-	PixErr (* fpMapGet)(void *, const char *, char **, double *, StucMap * const);
+	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const);
 	PixErr (* fpMapStore)(
 		void *,
 		const char *,
@@ -748,7 +766,7 @@ StucErr stucMapFileLoadInit(
 	const char *pFilepath,
 	F64 timestamp,
 	void *pUserData,
-	PixErr (* fpMapGet)(void *, const char *, char **, double *, StucMap * const),
+	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const),
 	PixErr (* fpMapStore)(
 		void *,
 		const char *,
@@ -792,11 +810,10 @@ StucErr getMapOrPath(StucMapLoad *pState, MapDepStack *pStack) {
 	}
 	else {
 		StucMap pMap = NULL;
-		double timestamp = .0;
 		StucErr mapErr = pState->fpMapGet(
 			pState->pUserData,
 			pStack->stack[pStack->ptr].pMap->pName,
-			&pPath,
+			(const char **)&pPath,
 			&pStack->stack[pStack->ptr].pMap->timestamp,
 			&pMap
 		);
@@ -919,7 +936,6 @@ StucErr walkMapDeps(StucMapLoad *pState) {
 	MapDepStack stack = {0};
 	addMapDepEntry(&pCtx->alloc, &pState->table, pState->pFilepath, &stack.stack[0].pMap);
 	stack.stack[0].pMap->timestamp = pState->timestamp;
-	I32 i = 0;
 	do {
 		MapDepStackEntry *pStackEntry = stack.stack + stack.ptr;
 		PIX_ERR_ASSERT("", pStackEntry->pMap);
@@ -948,7 +964,7 @@ StucErr walkMapDeps(StucMapLoad *pState) {
 		}
 		err = mapDepStackPop(&stack);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
-	} while(++i, stack.ptr >= 0);
+	} while(stack.ptr >= 0);
 	PIX_ERR_THROW_IFNOT_COND(
 	err,
 	!pState->depsPassDone || stack.stack[0].pMap->status == STUC_MAP_LOADED,
@@ -999,7 +1015,6 @@ StucErr stucMapFileLoad(StucMapLoad *pState) {
 		"deps not loaded, call stucMapFileLoadDeps first",
 		0
 	);
-	StucContext pCtx = pState->pCtx;
 	err = walkMapDeps(pState);
 
 	PIX_ERR_CATCH(0, err, stucMapLoadDestroy(pState););
@@ -1026,7 +1041,7 @@ StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap) {
 StucErr stucMapFileMeshGet(
 	StucContext pCtx,
 	StucMap pMap,
-	StucMesh **ppMesh,
+	const StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -2348,7 +2363,7 @@ StucErr borderAddEdge(
 	I32 newIdx = 0;
 	PIXALC_DYN_ARR_ADD(BorderEdge, pAlloc, &pBorder->arr, newIdx);
 	pBorder->arr.pArr[newIdx] = (BorderEdge){.corner = corner, .adjIsland = adjIsland};
-	SearchResult result = pixuctHTableGet(
+	pixuctHTableGet(
 		&pIsland->borderTable,
 		0,
 		&(BorderKey){.border = border, .edge = edge, .idx = newIdx},
@@ -2386,6 +2401,7 @@ StucErr islandRangeSet(void *pIslandsRaw, I32 island, PixtyRange range) {
 	return err;
 }
 
+#ifdef STUC_USE_SUB_ISLANDS
 static
 StucErr subIslandFacesInit(
 	const PixalcFPtrs *pAlloc,
@@ -2622,6 +2638,7 @@ StucErr islandSplitToSub(void *pArgsRaw) {
 	pCtx->alloc.fpFree(pBuf);
 	return err;
 }
+#endif
 
 typedef struct BorderMesh {
 	const BorderEdgeArr *pBorder;
@@ -2639,7 +2656,6 @@ V2_F32 borderPosGet(const void *pArgsRaw, PixmshFaceRange border, I32 idx) {
 static
 StucErr splitInMeshToIslands(
 	StucContext pCtx,
-	I32 threadId,
 	const Mesh *pMeshIn,
 	StucInIslandArr *pIslands
 ) {
@@ -2776,7 +2792,7 @@ StucErr mapMapArrToMesh(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucInIslandArr inIslands = {0};
-	err = splitInMeshToIslands(pCtx, threadId, pMeshIn, &inIslands);
+	err = splitInMeshToIslands(pCtx, pMeshIn, &inIslands);
 	PIX_ERR_RETURN_IFNOT(err, "");
 
 	Mesh *pOutBufArr = pCtx->alloc.fpCalloc(pMapArr->count, sizeof(Mesh));

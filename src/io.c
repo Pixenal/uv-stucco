@@ -485,9 +485,8 @@ void encodeBlendOpts(
 	StucMapExport *pHandle,
 	const StucMesh *pMesh,
 	StucMapArrEntry *pMapArrEntry,
-	const MatMapEntry *pMatMapEntry,
 	PixioByteArr *pBlendOptBuf,
-	bool blendOptOverride
+	bool *pBlendOptOverride
 ) {
 	const StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
@@ -516,7 +515,7 @@ void encodeBlendOpts(
 			}
 		}
 		if (count) {
-			blendOptOverride = true;
+			*pBlendOptOverride = true;
 		}
 		*(I16 *)&pBlendOptBuf->pArr[countBytePos] = count;
 	}
@@ -614,7 +613,6 @@ StucErr encodeMappingOpt(
 			pHandle,
 			&meshCpy,
 			pMapArr->pArr + i,
-			pEntry,
 			&blendOptBuf,
 			&blendOptOverride
 		);
@@ -635,11 +633,6 @@ StucErr encodeObj(
 	StucMapExport *pHandle,
 	const StucObject *pObj,
 	const StucIdxTableArr *pIdxTable,
-	bool mappingOpt,
-	const StucMapArr *pMapArr,
-	const AttribIndexedArr *pIdxAttribArr,
-	F32 wScale,
-	F32 receiveLen,
 	bool checkPosOnly
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -1072,17 +1065,7 @@ StucErr mapExportObjAdd(
 	if (!idxTable.hasRedirect) {
 		destroyIdxTableArr(&pHandle->pCtx->alloc, &idxTable);
 	}
-	err = encodeObj(
-		pHandle,
-		pObj,
-		&idxTable,
-		isTarget,
-		pMapArr,
-		pIndexedAttribs,
-		wScale,
-		receiveLen,
-		false
-	);
+	err = encodeObj(pHandle, pObj, &idxTable, false);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	++pHandle->header.objCount;
 	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
@@ -1119,7 +1102,7 @@ StucErr stucMapExportUsgAdd(
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	encodeDataTag(pAlloc, &pHandle->data, TAG_TYPE_USG);
-	err = encodeObj(pHandle, &pUsg->obj, NULL, false, NULL, NULL, .0f, .0f, true);
+	err = encodeObj(pHandle, &pUsg->obj, NULL, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pixioByteArrWrite(pAlloc, &pHandle->data, &pUsg->flatCutoff.enabled, 1);
 	if (pUsg->flatCutoff.enabled) {
@@ -1143,7 +1126,7 @@ StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutof
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	encodeDataTag(pAlloc, &pHandle->data, TAG_TYPE_USG_FLAT_CUTOFF);
-	err = encodeObj(pHandle, pFlatCutoff, NULL, false, NULL, NULL, .0f, .0f, true);
+	err = encodeObj(pHandle, pFlatCutoff, NULL, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	++pHandle->header.cutoffCount;
 	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
@@ -1278,6 +1261,9 @@ StucErr decodeStucHeader(
 				memcpy(pDeps->maps.pArr[newIdx].pStr, pBuf, len + 1);
 				break;
 			}
+			default:
+				//only handling maps for now, ignore
+				;
 		}
 	}
 	PIX_ERR_CATCH(0, err, stucMapDepsDestroy(&pCtx->alloc, pDeps););

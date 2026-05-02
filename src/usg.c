@@ -308,6 +308,7 @@ StucErr stucFillUsgSquaresMesh(
 	return PIX_ERR_SUCCESS;
 }
 
+/*
 static
 void assignUsgToVertsInFace(
 	const StucAlloc *pAlloc,
@@ -343,6 +344,7 @@ void assignUsgToVertsInFace(
 		}
 	}
 }
+*/
 
 //TODO reimplement with cluster tree
 StucErr stucAssignUsgsToVerts(
@@ -350,12 +352,12 @@ StucErr stucAssignUsgsToVerts(
 	StucMap pMap,
 	StucUsg *pUsgArr
 ) {
-	const Mesh *pSquares = pMap->usgArr.pSquares;
-	I32 averageMapFacesPerFace = 0;
-	Range faceRange = {.start = 0, .end = pSquares->core.faceCount};
+	//const Mesh *pSquares = pMap->usgArr.pSquares;
+	//I32 averageMapFacesPerFace = 0;
+	//Range faceRange = {.start = 0, .end = pSquares->core.faceCount};
 	for (I32 i = 0; i < pMap->usgArr.count; ++i) {
-		Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
-		Mesh *pFlatCutoff = pMap->usgArr.pArr[i].pFlatCutoff + pUsgArr[i].flatCutoff.idx;
+		//Mesh *pMesh = (Mesh *)pUsgArr[i].obj.pData;
+		//Mesh *pFlatCutoff = pMap->usgArr.pArr[i].pFlatCutoff + pUsgArr[i].flatCutoff.idx;
 	}
 	return PIX_ERR_SUCCESS;
 }
