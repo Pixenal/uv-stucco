@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_alloc_utils.h>
 #include <pixenals_io_utils.h>
 #include <pixenals_thread_utils.h>
+#include <pixenals_structs.h>
 
 #define STUC_DISABLE_EDGES_IN_BUF
 
@@ -36,7 +37,6 @@ SPDX-License-Identifier: Apache-2.0
 //TODO remove opaque strctures to allow external stack allocation
 typedef struct StucMapInternal *StucMap;
 typedef struct StucMapExportIntern StucMapExport;
-typedef struct StucMapLoadIntern StucMapLoad;
 
 //TODO unify naming. different structs and enums called "type", "attrib", "blend".
 //Make it consistent. They're attribute types;
@@ -404,7 +404,29 @@ typedef struct StucContextInternal {
 	StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT];
 	StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT];
 } StucContextInternal;
+//TODO remove this typedef, & drop 'internal' from struct
 typedef struct StucContextInternal *StucContext;
+
+//TODO unify naming of contexts like this.
+//this struct is currently missing a prefix, while stuc-context is called stucContext
+typedef struct StucMapLoad {
+	StucContext pCtx;
+	const char *pFilepath;
+	double timestamp;
+	void *pUserData;
+	StucErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const);
+	StucErr (* fpMapStore)(
+		void *,
+		const char *,
+		const char *,
+		double,
+		StucMap,
+		StucMapStatus,
+		const PixtyStrArr *
+	);
+	PixuctHTable table;
+	bool depsPassDone;
+} StucMapLoad;
 
 #ifdef __cplusplus
 extern "C" {
@@ -465,7 +487,7 @@ StucErr stucMapFileLoadForEdit(
 STUC_EXPORT
 StucErr stucMapFileLoadInit(
 	StucContext pCtx,
-	StucMapLoad **ppState,
+	StucMapLoad *pState,
 	const char *pFilepath,
 	double timestamp,
 	void *pUserData,

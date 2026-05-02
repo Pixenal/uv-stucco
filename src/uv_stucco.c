@@ -741,28 +741,9 @@ StucErr stucMapFileLoadIntern(
 	return err;
 }
 
-typedef struct StucMapLoadIntern {
-	StucContext pCtx;
-	const char *pFilepath;
-	F64 timestamp;
-	void *pUserData;
-	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const);
-	PixErr (* fpMapStore)(
-		void *,
-		const char *,
-		const char *,
-		double,
-		StucMap,
-		StucMapStatus,
-		const PixtyStrArr *
-	);
-	PixuctHTable table;
-	bool depsPassDone;
-} StucMapLoadIntern;
-
 StucErr stucMapFileLoadInit(
 	StucContext pCtx,
-	StucMapLoad **ppState,
+	StucMapLoad *pState,
 	const char *pFilepath,
 	F64 timestamp,
 	void *pUserData,
@@ -778,14 +759,15 @@ StucErr stucMapFileLoadInit(
 	)
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	StucMapLoad *pState = pCtx->alloc.fpCalloc(1, sizeof(StucMapLoad));
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pState && pFilepath, "");
-	pState->pCtx = pCtx;
-	pState->pFilepath = pFilepath;
-	pState->timestamp = timestamp;
-	pState->pUserData = pUserData;
-	pState->fpMapGet = fpMapGet;
-	pState->fpMapStore = fpMapStore;
+	*pState = (StucMapLoad) {
+		.pCtx = pCtx,
+		.pFilepath = pFilepath,
+		.timestamp = timestamp,
+		.pUserData = pUserData,
+		.fpMapGet = fpMapGet,
+		.fpMapStore = fpMapStore
+	};
 	pixuctHTableInit(
 		&pCtx->alloc,
 		&pState->table,
@@ -795,7 +777,6 @@ StucErr stucMapFileLoadInit(
 		NULL,
 		true
 	);
-	*ppState = pState;
 	return err;
 }
 
@@ -1002,7 +983,7 @@ StucErr stucMapFileLoadDeps(StucMapLoad *pState) {
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pState->depsPassDone = true;
 	
-	PIX_ERR_CATCH(0, err, stucMapLoadDestroy(pState););
+	PIX_ERR_CATCH(0, err, ;);
 	return err;
 }
 
@@ -1017,7 +998,7 @@ StucErr stucMapFileLoad(StucMapLoad *pState) {
 	);
 	err = walkMapDeps(pState);
 
-	PIX_ERR_CATCH(0, err, stucMapLoadDestroy(pState););
+	PIX_ERR_CATCH(0, err, ;);
 	return err;
 }
 
