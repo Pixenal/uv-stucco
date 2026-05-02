@@ -460,7 +460,7 @@ void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
 static inline
 void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
 	if (pArr->pArr) {
-		//pCtx->alloc.fpFree(pArr->pArr);
+		pCtx->alloc.fpFree(pArr->pArr);
 	}
 	*pArr = (InPieceArr){0};
 }

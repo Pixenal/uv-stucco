@@ -508,8 +508,12 @@ void linkEncasedTableEntries(
 	if (!size && !sizeClip) {
 		return;
 	}
-	PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceArr, size + sizeClip);
-	pInPieceClipArr->pArr = pInPieceArr->pArr + size;
+	if (size) {
+		PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceArr, size);
+	}
+	if (sizeClip) {
+		PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceClipArr, sizeClip);
+	}
 	PixuctHTable idxTable = {0};
 	pixuctHTableInit(
 		pAlloc,
