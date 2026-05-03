@@ -354,13 +354,14 @@ StucErr stucFindEncasedFaces(void *pArgsVoid) {
 			.pArr = (I32[]) {sizeof(EncasedMapFace), sizeof(EncasedMapFace)},
 			.count = 2
 		},
-		NULL,
+		&pArgs->encasedFacesMem,
 		&tableState,
 		true
 	);
 	err = getEncasedFaces(pArgs);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err, ;);
+	//skipping calling htable destroy, mem struct will be freed in a calling func
 	return err;
 }
 
@@ -540,11 +541,13 @@ void encasedTableJobsInitArg(
 	void *pArgsRaw
 ) {
 	FindEncasedFacesJobArgs *pArgs = pArgsRaw;
-	InFaceMem inFaces = pArgs->inFaces;
-	*pArgs = (FindEncasedFacesJobArgs){0};
-	inFaces.count = 0;
-	pArgs->inFaces = inFaces;
-	pArgs->pClustArr = ((FindEncasedJobInit *)pInitInfoRaw)->pClustArr;
+	*pArgs = (FindEncasedFacesJobArgs){
+		.inFaces = pArgs->inFaces,
+		.encasedFacesMem = pArgs->encasedFacesMem,
+		.pClustArr = ((FindEncasedJobInit *)pInitInfoRaw)->pClustArr
+	};
+	pArgs->inFaces.count = 0;
+	pixuctHTableMemClear(&pArgs->encasedFacesMem);
 }
 
 StucErr stucInPieceArrInit(

@@ -1551,8 +1551,10 @@ StucErr stucAllocAttribsFromMeshArr(
 			aliasData,
 			activeOnly
 		);
-		PIX_ERR_RETURN_IFNOT(err, "");
+		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
+	PIX_ERR_CATCH(0, err, ;);
+	pCtx->alloc.fpFree(ppMeshSrcsCore);
 	return err;
 }
 

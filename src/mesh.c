@@ -372,6 +372,7 @@ StucErr stucMergeObjArr(
 	PIX_ERR_CATCH(0, err,
 		stucMeshDestroy(pCtx, &pMesh->core);
 	);
+	pCtx->alloc.fpFree(ppSrcs);
 	return err;
 }
 

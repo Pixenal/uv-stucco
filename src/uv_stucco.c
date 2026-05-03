@@ -274,10 +274,10 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 		pMesh->edgeAttribs = (AttribArray){0};
 	}
 	*/
+	stucAttribArrDestroy(pCtx, &pMesh->faceAttribs);
+	stucAttribArrDestroy(pCtx, &pMesh->cornerAttribs);
 	pCtx->alloc.fpFree(pMesh->pFaces);
 	pCtx->alloc.fpFree(pMesh->pCorners);
-	pCtx->alloc.fpFree(pMesh->faceAttribs.pArr);
-	pCtx->alloc.fpFree(pMesh->cornerAttribs.pArr);
 	pMesh->pFaces = NULL;
 	pMesh->pCorners = bufMesh.pCorners;
 	pMesh->faceAttribs = bufMesh.faceAttribs;
@@ -289,12 +289,8 @@ StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
 		if (bufMesh.pCorners) {
 			pCtx->alloc.fpFree(bufMesh.pCorners);
 		}
-		if (bufMesh.faceAttribs.pArr) {
-			pCtx->alloc.fpFree(bufMesh.faceAttribs.pArr);
-		}
-		if (bufMesh.cornerAttribs.pArr) {
-			pCtx->alloc.fpFree(bufMesh.cornerAttribs.pArr);
-		}
+		stucAttribArrDestroy(pCtx, &bufMesh.faceAttribs);
+		stucAttribArrDestroy(pCtx, &bufMesh.cornerAttribs);
 	);
 	return err;
 }
@@ -1011,15 +1007,19 @@ StucErr stucMapFileLoad(StucMapLoad *pState) {
 StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap) {
 	clutreTreeDestroy(&pMap->clustTree);
 	if (pMap->pMesh) {
-		stucMeshDestroy(pCtx, (StucMesh *)&pMap->pMesh->core);
+		stucMeshDestroy(pCtx, &pMap->pMesh->core);
 		pCtx->alloc.fpFree((Mesh *)pMap->pMesh);
 	}
+	stucAttribIndexedArrDestroy(pCtx, &pMap->indexedAttribs);
 	triCacheDestroy(&pCtx->alloc, pMap);
 	if (pMap->pFaceBBoxes) {
 		pCtx->alloc.fpFree(pMap->pFaceBBoxes);
 	}
 	if (pMap->usgArr.pSquares) {
 		pCtx->alloc.fpFree((Mesh *)pMap->usgArr.pSquares);
+	}
+	if (pMap->pName) {
+		pCtx->alloc.fpFree(pMap->pName);
 	}
 	pCtx->alloc.fpFree(pMap);
 	return PIX_ERR_SUCCESS;
@@ -1095,12 +1095,11 @@ StucErr getCommonAttribs(
 		if (!pMapAttrib) {
 			continue;
 		}
-		I32 newIdx = 0;
-		PIXALC_DYN_ARR_ADD(StucBlendOpt, &pCtx->alloc, pOptArr, newIdx);
-		initBlendOpt(pCtx, pOptArr->pArr + newIdx, pAttrib, i);
+		PIX_ERR_THROW_IFNOT_COND(err, pOptArr->count < pOptArr->size, "", 0);
+		initBlendOpt(pCtx, pOptArr->pArr + pOptArr->count, pAttrib, i);
+		++pOptArr->count;
 	}
 	PIX_ERR_CATCH(0, err,
-		pCtx->alloc.fpFree(pOptArr->pArr);
 		*pOptArr = (StucBlendOptArr){0};
 	);
 	return err;
@@ -1131,12 +1130,11 @@ StucErr stucQueryCommonAttribs(
 		);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
-	PIX_ERR_CATCH(0, err,
-		stucDestroyBlendOptArr(pCtx, pOptArr);
-	);
+	PIX_ERR_CATCH(0, err, ;);
 	return err;
 }
 
+/*
 StucErr stucDestroyBlendOptArr(
 	StucContext pCtx,
 	StucBlendOptArr *pOptArr
@@ -1153,6 +1151,7 @@ StucErr stucDestroyBlendOptArr(
 	}
 	return err;
 }
+*/
 
 static
 void buildEdgeAdj(Mesh *pMesh) {
@@ -1370,6 +1369,29 @@ void clustArrDestroy(const PixalcFPtrs *pAlloc, IslandClustArr *pClustArr) {
 }
 
 static
+void findEncasedFacesJobArgsDestroy(
+	const PixalcFPtrs *pAlloc,
+	FindEncasedFacesJobArgs *pArgs,
+	I32 maxJobs
+) {
+	for (I32 i = 0; i < maxJobs; ++i) {
+		pixuctHTableMemDestroy(pAlloc, &pArgs[i].encasedFacesMem);
+		InFaceMem *pInFaces = &pArgs[i].inFaces;
+		for (I32 j = 0; j < pInFaces->initCount; ++j) {
+			PIX_ERR_ASSERT(
+				"within init-count but not initialised?",
+				pInFaces->pArr[j].pArr
+			);
+			pAlloc->fpFree(pInFaces->pArr[j].pArr);
+		}
+		if (pInFaces->pArr) {
+			pAlloc->fpFree(pInFaces->pArr);
+		}
+	}
+	pAlloc->fpFree(pArgs);
+}
+
+static
 StucErr clustForIsland(void *pArgsRaw) {
 	StucErr err = PIX_ERR_SUCCESS;
 	ClustForIslandJobArgs *pArgs = pArgsRaw;
@@ -1495,23 +1517,9 @@ StucErr clustForIsland(void *pArgsRaw) {
 		bufMeshArrIsEmpty(&pArgs->bufMeshClipArr);
 	PIX_ERR_CATCH(0, err, ;);
 	clustArrDestroy(pAlloc, &clustArr);
-	for (I32 j = 0; j < pArgs->maxJobs; ++j) {
-		pixuctHTableDestroy(&pFindEncasedJobArgs[j].encasedFaces);
-		InFaceMem *pInFaces = &pFindEncasedJobArgs[j].inFaces;
-		for (I32 k = 0; k < pInFaces->initCount; ++k) {
-			PIX_ERR_ASSERT(
-				"within init-count but not initialised?",
-				pInFaces->pArr[k].pArr
-			);
-			pAlloc->fpFree(pInFaces->pArr[k].pArr);
-		}
-		if (pInFaces->pArr) {
-			pAlloc->fpFree(pInFaces->pArr);
-		}
-	}
+	findEncasedFacesJobArgsDestroy(pAlloc, pFindEncasedJobArgs, pArgs->maxJobs);
 	inPieceArrDestroy(pBasic->pCtx, &inPieceArr);
 	inPieceArrDestroy(pBasic->pCtx, &inPieceClipArr);
-	pAlloc->fpFree(pFindEncasedJobArgs);
 	return err;
 }
 
@@ -1900,7 +1908,8 @@ StucErr getIndexedAttribInMaps(
 	const AttribIndexed ***pppOut
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	const AttribIndexed **ppAttribs = pCtx->alloc.fpCalloc(pMapArr->count, sizeof(void *));
+	const AttribIndexed **ppAttribs =
+		pCtx->alloc.fpCalloc(pMapArr->count, sizeof(void *));
 	bool found = false;
 	bool same = true;
 	StucMap pMapCache = NULL;
@@ -2130,7 +2139,7 @@ StucErr mergeIndexedAttribs(
 						j,
 						&ppMapAttribs
 					);
-					PIX_ERR_THROW_IFNOT_COND(err, ppMapAttribs, "", 0);
+					PIX_ERR_THROW_IFNOT_COND(err, ppMapAttribs, "", 1);
 					err = appendOutIndexedAttrib(
 						pCtx,
 						pMapArr,
@@ -2141,7 +2150,7 @@ StucErr mergeIndexedAttribs(
 						&pIndexedAttrib,
 						keepExisting
 					);
-					PIX_ERR_THROW_IFNOT(err, "", 0);
+					PIX_ERR_THROW_IFNOT(err, "", 1);
 					err = correctIdxIndices(
 						pCtx,
 						pAttrib->core.name,
@@ -2152,6 +2161,11 @@ StucErr mergeIndexedAttribs(
 						pIndexedAttrib,
 						j
 					);
+					PIX_ERR_THROW_IFNOT(err, "", 1);
+					PIX_ERR_CATCH(1, err, ;);
+					if (ppMapAttribs){
+						pAlloc->fpFree(ppMapAttribs);
+					}
 					PIX_ERR_THROW_IFNOT(err, "", 0);
 				}
 			}
@@ -3117,47 +3131,27 @@ StucErr stucUsgArrDestroy(StucContext pCtx, I32 count, StucUsg *pUsgArr) {
 	return err;
 }
 
+StucErr stucAttribArrDestroy(StucContext pCtx, StucAttribArray *pArr) {
+	//TODO put this check in more destroy funcs
+	PIX_ERR_ASSERT("", !(!pArr->pArr ^ !pArr->count));
+	for (I32 i = 0; i < pArr->count; ++i) {
+		if (pArr->pArr[i].core.pData) {
+			pCtx->alloc.fpFree(pArr->pArr[i].core.pData);
+		}
+	}
+	if (pArr->pArr) {
+		pCtx->alloc.fpFree(pArr->pArr);
+	}
+	*pArr = (StucAttribArray){0};
+	return PIX_ERR_SUCCESS;
+}
+
 StucErr stucMeshDestroy(StucContext pCtx, StucMesh *pMesh) {
-	for (I32 i = 0; i < pMesh->meshAttribs.count; ++i) {
-		if (pMesh->meshAttribs.pArr[i].core.pData) {
-			pCtx->alloc.fpFree(pMesh->meshAttribs.pArr[i].core.pData);
-		}
-	}
-	for (I32 i = 0; i < pMesh->faceAttribs.count; ++i) {
-		if (pMesh->faceAttribs.pArr[i].core.pData) {
-			pCtx->alloc.fpFree(pMesh->faceAttribs.pArr[i].core.pData);
-		}
-	}
-	for (I32 i = 0; i < pMesh->cornerAttribs.count; ++i) {
-		if (pMesh->cornerAttribs.pArr[i].core.pData) {
-			pCtx->alloc.fpFree(pMesh->cornerAttribs.pArr[i].core.pData);
-		}
-	}
-	for (I32 i = 0; i < pMesh->edgeAttribs.count; ++i) {
-		if (pMesh->edgeAttribs.pArr[i].core.pData) {
-			pCtx->alloc.fpFree(pMesh->edgeAttribs.pArr[i].core.pData);
-		}
-	}
-	for (I32 i = 0; i < pMesh->vertAttribs.count; ++i) {
-		if (pMesh->vertAttribs.pArr[i].core.pData) {
-			pCtx->alloc.fpFree(pMesh->vertAttribs.pArr[i].core.pData);
-		}
-	}
-	if (pMesh->meshAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->meshAttribs.pArr);
-	}
-	if (pMesh->faceAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->faceAttribs.pArr);
-	}
-	if (pMesh->edgeAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->edgeAttribs.pArr);
-	}
-	if (pMesh->cornerAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->cornerAttribs.pArr);
-	}
-	if (pMesh->vertAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->vertAttribs.pArr);
-	}
+	stucAttribArrDestroy(pCtx, &pMesh->meshAttribs);
+	stucAttribArrDestroy(pCtx, &pMesh->faceAttribs);
+	stucAttribArrDestroy(pCtx, &pMesh->cornerAttribs);
+	stucAttribArrDestroy(pCtx, &pMesh->edgeAttribs);
+	stucAttribArrDestroy(pCtx, &pMesh->vertAttribs);
 	if(pMesh->pFaces) {
 		pCtx->alloc.fpFree(pMesh->pFaces);
 	}
@@ -3389,6 +3383,7 @@ StucErr stucDomainCountGet(
 StucErr stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pArr, "");
+	PIX_ERR_ASSERT("", !(!pArr->pArr ^ !pArr->count));
 	if (pArr->pArr) {
 		for (I32 i = 0; i < pArr->count; ++i) {
 			if (pArr->pArr[i].core.pData) {
@@ -3405,9 +3400,11 @@ StucErr stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMapArr, "");
 	if (pMapArr->pArr) {
+		/*
 		for (I32 i = 0; i < pMapArr->count; ++i) {
 			stucDestroyBlendOptArr(pCtx, pMapArr->pArr[i].blendOptArr);
 		}
+		*/
 		pCtx->alloc.fpFree(pMapArr->pArr);
 	}
 	*pMapArr = (StucMapArr){0};

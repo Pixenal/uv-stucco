@@ -538,11 +538,13 @@ StucErr stucCommonBlendOptArrGetFromDomain(
 	StucDomain domain,
 	StucBlendOptArr **ppArr
 );
+/*
 STUC_EXPORT
 StucErr stucDestroyBlendOptArr(
 	StucContext pCtx,
 	StucBlendOptArr *pBlendOptArr
 );
+*/
 STUC_EXPORT
 StucErr stucQueueMapToMesh(
 	StucContext pCtx,
@@ -574,6 +576,8 @@ STUC_EXPORT
 StucErr stucObjArrDestroy(const StucContext pCtx, StucObjArr *pArr);
 STUC_EXPORT
 StucErr stucUsgArrDestroy(StucContext pCtx, int32_t count, StucUsg *pUsgArr);
+STUC_EXPORT
+StucErr stucAttribArrDestroy(StucContext pCtx, StucAttribArray *pArr);
 STUC_EXPORT
 StucErr stucMeshDestroy(StucContext pCtx, StucMesh *pMesh);
 STUC_EXPORT

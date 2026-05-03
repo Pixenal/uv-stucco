@@ -296,6 +296,7 @@ typedef struct FindEncasedFacesJobArgs {
 	const IslandClustArr *pClustArr;
 	InFaceMem inFaces;
 	PixuctHTable encasedFaces;
+	PixuctHTableMem encasedFacesMem;
 	InPieceArr inPiecesMono;
 	JobArgsFoot foot;
 } FindEncasedFacesJobArgs;
