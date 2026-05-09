@@ -532,7 +532,7 @@ StucErr stucMapFileLoadIntern(
 	StucMap pMap = pCtx->alloc.fpCalloc(1, sizeof(MapFile));
 	{
 		I32 lenMax = pixioPathMaxGet();
-		I32 nameLen = strnlen(pEntry->pName, lenMax);
+		I32 nameLen = (I32)strnlen(pEntry->pName, lenMax);
 		PIX_ERR_RETURN_IFNOT_COND(err, nameLen < lenMax, "");
 		pMap->pName = pCtx->alloc.fpMalloc(nameLen + 1);
 		memcpy(pMap->pName, pEntry->pName, nameLen + 1);
