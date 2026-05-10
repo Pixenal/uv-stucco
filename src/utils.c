@@ -776,8 +776,7 @@ bool splitPredicate(const void *pMeshRaw, I32 edge) {
 	return ret;
 }
 
-static
-StucErr islandFacesInit(
+StucErr stucInIslandFacesInit(
 	const PixalcFPtrs *pAlloc,
 	void *pIslandsRaw,
 	I32 count,
@@ -790,8 +789,7 @@ StucErr islandFacesInit(
 	return err;
 }
 
-static
-StucErr borderInit(const PixalcFPtrs *pAlloc, void *pIslandsRaw, I32 island, I32 *pIdx) {
+StucErr stucInIslandBorderInit(const PixalcFPtrs *pAlloc, void *pIslandsRaw, I32 island, I32 *pIdx) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucInIslandArr *pIslandArr = pIslandsRaw;
 	StucInIsland *pIsland = pIslandArr->pArr + island;
@@ -812,8 +810,7 @@ StucErr borderInit(const PixalcFPtrs *pAlloc, void *pIslandsRaw, I32 island, I32
 	return err;
 }
 
-static
-StucErr borderMarkAsOuter(
+StucErr stucInIslandBorderMarkAsOuter(
 	void *pIslandsRaw,
 	I32 island,
 	I32 border,
@@ -826,19 +823,11 @@ StucErr borderMarkAsOuter(
 	return err;
 }
 
-typedef struct BorderKey {
-	I32 border;
-	I32 edge;
-	I32 idx;
-} BorderKey;
-
-static
-PixuctKey borderMakeKey(const void *pKeyRaw) {
+PixuctKey inIslandBorderMakeKey(const void *pKeyRaw) {
 	return (PixuctKey){.pKey = &((BorderKey *)pKeyRaw)->edge, .size = sizeof(I32)};
 }
 
-static
-void borderInitEntry(
+void inIslandBorderInitEntry(
 	void *pUserData,
 	PixuctHTableEntryCore *pEntryCore,
 	const void *pKeyRaw,
@@ -852,8 +841,7 @@ void borderInitEntry(
 	pEntry->idx = pKey->idx;
 }
 
-static
-bool borderCmpEntry(
+bool inIslandBorderCmpEntry(
 	const PixuctHTableEntryCore *pEntryCore,
 	const void *pKeyRaw,
 	const void *pInitInfoRaw
@@ -863,9 +851,7 @@ bool borderCmpEntry(
 	return pKey->edge == pEntry->edge;
 }
 
-
-static
-StucErr borderAddEdge(
+StucErr stucInIslandBorderAddEdge(
 	const PixalcFPtrs *pAlloc,
 	void *pIslandsRaw,
 	I32 island,
@@ -888,31 +874,46 @@ StucErr borderAddEdge(
 		NULL,
 		true,
 		NULL,
-		borderMakeKey, NULL, borderInitEntry, borderCmpEntry
+		inIslandBorderMakeKey, NULL, inIslandBorderInitEntry, inIslandBorderCmpEntry
 	);
 	return err;
 }
 
-static
-StucErr islandAdd(const PixalcFPtrs *pAlloc, void *pIslandsRaw, I32 splitTotal, I32 *pIdx) {
+StucErr stucInIslandAdd(
+	const PixalcFPtrs *pAlloc,
+	void *pIslandsRaw,
+	I32 splitTotal,
+	I32 *pIdx
+) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucInIslandArr *pIslands = pIslandsRaw;
 	I32 newIdx = 0;
+	I32 oldSize = pIslands->size;
 	PIXALC_DYN_ARR_ADD(StucInIsland, pAlloc, pIslands, newIdx);
+	if (oldSize < pIslands->size) {
+		memset(
+			pIslands->pArr + oldSize,
+			0,
+			sizeof(StucInIsland) * (pIslands->size - oldSize)
+		);
+	}
 	*pIdx = newIdx;
-	pIslands->pArr[newIdx] = (StucInIsland){0};
+	StucInIsland *pIsland = pIslands->pArr + newIdx;
+	pIsland->core.borders.count = 0;
+	if (pIsland->borderTable.pTable) {
+		pixuctHTableDestroy(&pIsland->borderTable);
+	}
 	pixuctHTableInit(
 		pAlloc,
-		&pIslands->pArr[newIdx].borderTable,
+		&pIsland->borderTable,
 		splitTotal / 2 + 2,
 		(PixtyI32Arr){.pArr = (I32[]){sizeof(StucBorderTable)}, .count = 1},
-		NULL, NULL, false
+		&pIslands->tableMem, NULL, false
 	);
 	return err;
 }
 
-static
-StucErr islandRangeSet(void *pIslandsRaw, I32 island, PixtyRange range) {
+StucErr stucInIslandRangeSet(void *pIslandsRaw, I32 island, PixtyRange range) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucInIslandArr *pIslands = pIslandsRaw;
 	pIslands->pArr[island].core.faces = range;
@@ -1171,7 +1172,6 @@ V2_F32 borderPosGet(const void *pArgsRaw, PixmshFaceRange border, I32 idx) {
 	return pArgs->pMesh->pUvs[faceStart + corner.corner];
 }
 
-//TODO merge with dup funcs in utils and buf_mesh
 static
 PixtyV2_F32 clustUv(const void *pMeshRaw, I32 corner) {
 	const Mesh *pMesh = pMeshRaw;
@@ -1214,12 +1214,12 @@ StucErr StucSplitMeshToIslands(
 	};
 	PixmshSplitIntfOut splitIslands = {
 		.pUserData = pIslands,
-		.fpBorderInit = borderInit,
-		.fpBorderAddEdge = borderAddEdge,
-		.fpFacesInit = islandFacesInit,
-		.fpIslandAdd = islandAdd,
-		.fpRangeSet = islandRangeSet,
-		.fpBorderMarkAsOuter = borderMarkAsOuter
+		.fpBorderInit = stucInIslandBorderInit,
+		.fpBorderAddEdge = stucInIslandBorderAddEdge,
+		.fpFacesInit = stucInIslandFacesInit,
+		.fpIslandAdd = stucInIslandAdd,
+		.fpRangeSet = stucInIslandRangeSet,
+		.fpBorderMarkAsOuter = stucInIslandBorderMarkAsOuter
 	};
 	PixmshSplitMem splitMem = {0};
 	err = pixmshSplitToIslands(

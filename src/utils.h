@@ -253,6 +253,42 @@ StucErr StucSplitMeshToIslands(
 void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr);
 void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr);
 
+typedef struct BorderKey {
+	I32 border;
+	I32 edge;
+	I32 idx;
+} BorderKey;
+
+StucErr stucInIslandFacesInit(
+	const PixalcFPtrs *pAlloc,
+	void *pIslandsRaw,
+	I32 count,
+	I32 **ppOut
+);
+StucErr stucInIslandBorderInit(const PixalcFPtrs *pAlloc, void *pIslandsRaw, I32 island, I32 *pIdx);
+StucErr stucInIslandBorderMarkAsOuter(
+	void *pIslandsRaw,
+	I32 island,
+	I32 border,
+	const PixmshV2Bb *pBb
+);
+StucErr stucInIslandBorderAddEdge(
+	const PixalcFPtrs *pAlloc,
+	void *pIslandsRaw,
+	I32 island,
+	I32 adjIsland,
+	I32 border,
+	FaceCorner corner,
+	I32 edge
+);
+StucErr stucInIslandAdd(
+	const PixalcFPtrs *pAlloc,
+	void *pIslandsRaw,
+	I32 splitTotal,
+	I32 *pIdx
+);
+StucErr stucInIslandRangeSet(void *pIslandsRaw, I32 island, PixtyRange range);
+
 static inline
 PixtyV2_F32 stucClustUv(const void *pMeshRaw, I32 corner) {
 	const Mesh *pMesh = pMeshRaw;
