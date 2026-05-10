@@ -6,8 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <pixenals_math_utils.h>
 #include <pixenals_alloc_utils.h>
-#include <mesh.h>
 
+#include <mesh.h>
 #include <types.h>
 
 typedef struct Usg {
@@ -52,30 +52,30 @@ typedef struct UsgArr {
 } UsgArr;
 
 StucErr stucAllocUsgSquaresMesh(
-	StucContext pCtx,
-	const StucMap pMap,
+	StucCtx *pCtx,
+	const struct StucMap *pMap,
 	Mesh *pMesh
 );
 StucErr stucFillUsgSquaresMesh(
-	const StucMap pMap,
+	const struct StucMap *pMap,
 	const StucUsg *pUsgArr,
 	Mesh *pMesh
 );
 StucErr stucAssignUsgsToVerts(
 	const StucAlloc *pAlloc,
-	StucMap pMap,
+	struct StucMap *pMap,
 	StucUsg *pUsgArr
 );
 StucErr stucSampleInAttribsAtUsgOrigins(
-	StucContext pCtx,
-	const StucMap pMap,
+	StucCtx *pCtx,
+	const struct StucMap *pMap,
 	const Mesh *pInMesh,
 	StucMesh *pSquares,
 	InFaceArr *pInFaceTable
 );
 UsgInFace *stucGetUsgForCorner(
 	I32 stucCorner,
-	const StucMap pMap,
+	const struct StucMap *pMap,
 	const FaceRange *pMapFace,
 	I32 inFace,
 	bool *pAboveCutoff

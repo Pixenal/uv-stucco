@@ -24,7 +24,7 @@ typedef struct BufMeshDomain {
 	I32 *pBorderCount;
 } BufMeshDomain;
 
-void stucCreateMesh(const StucContext pCtx, StucObject *pObj, StucObjectType type) {
+void stucCreateMesh(const StucCtx *pCtx, StucObject *pObj, StucObjectType type) {
 	I32 size = 0;
 	switch (type) {
 		case STUC_OBJECT_DATA_MESH:
@@ -82,7 +82,7 @@ void getVertDomain(Mesh *pMesh, MeshDomain *pDomain) {
 }
 
 static
-void reallocMesh(StucContext pCtx, Mesh *pMesh, MeshDomain *pDomain) {
+void reallocMesh(const StucCtx *pCtx, Mesh *pMesh, MeshDomain *pDomain) {
 	*pDomain->pBufSize *= 2;
 	for (I32 i = 0; i < 2; ++i) {
 		if (!pDomain->ppList[i]) {
@@ -102,7 +102,7 @@ void reallocMesh(StucContext pCtx, Mesh *pMesh, MeshDomain *pDomain) {
 
 static
 I32 getNewMeshIdx(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pMesh,
 	MeshDomain *pDomain,
 	bool *pRealloced
@@ -125,31 +125,31 @@ I32 getNewMeshIdx(
 	return idx;
 }
 
-I32 stucMeshAddFace(const StucContext pCtx, Mesh *pMesh, bool *pRealloced) {
+I32 stucMeshAddFace(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced) {
 	MeshDomain domain = {0};
 	getFaceDomain(pMesh, &domain);
 	return getNewMeshIdx(pCtx, pMesh, &domain, pRealloced);
 }
 
-I32 stucMeshAddCorner(const StucContext pCtx, Mesh *pMesh, bool *pRealloced) {
+I32 stucMeshAddCorner(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced) {
 	MeshDomain domain = {0};
 	getCornerDomain(pMesh, &domain);
 	return getNewMeshIdx(pCtx, pMesh, &domain, pRealloced);
 }
 
-I32 stucMeshAddEdge(const StucContext pCtx, Mesh *pMesh, bool *pRealloced) {
+I32 stucMeshAddEdge(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced) {
 	MeshDomain domain = {0};
 	getEdgeDomain(pMesh, &domain);
 	return getNewMeshIdx(pCtx, pMesh, &domain, pRealloced);
 }
 
-I32 stucMeshAddVert(const StucContext pCtx, Mesh *pMesh, bool *pRealloced) {
+I32 stucMeshAddVert(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced) {
 	MeshDomain domain = {0};
 	getVertDomain(pMesh, &domain);
 	return getNewMeshIdx(pCtx, pMesh, &domain, pRealloced);
 }
 
-void stucReallocMeshToFit(const StucContext pCtx, Mesh *pMesh) {
+void stucReallocMeshToFit(const StucCtx *pCtx, Mesh *pMesh) {
 	StucMesh *pCore = &pMesh->core;
 	pMesh->faceBufSize = pCore->faceCount + 1;
 	I32 newLen = sizeof(I32) * pMesh->faceBufSize;
@@ -190,7 +190,7 @@ void stucReallocMeshToFit(const StucContext pCtx, Mesh *pMesh) {
 	);
 }
 
-void stucMeshSetLastFace(const StucContext pCtx, Mesh *pMesh) {
+void stucMeshSetLastFace(const StucCtx *pCtx, Mesh *pMesh) {
 	I32 lastFace = stucMeshAddFace(pCtx, pMesh, NULL);
 	pMesh->core.pFaces[lastFace] = pMesh->core.cornerCount;
 	//meshAddFace() increments this, so we need to undo that
@@ -243,7 +243,7 @@ void stucAddToMeshCounts(
 	pCounts->verts += pMeshSrc->core.vertCount;
 }
 
-StucErr stucCopyMesh(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc) {
+StucErr stucCopyMesh(StucCtx *pCtx, StucMesh *pDest, const StucMesh *pSrc) {
 	StucErr err = PIX_ERR_SUCCESS;
 	if (pSrc->type.type == STUC_OBJECT_DATA_NULL) {
 		//TODO why doesn't this return PIX_ERR_ERROR?
@@ -335,7 +335,7 @@ void stucApplyObjTransform(StucObject *pObj) {
 }
 
 StucErr stucMergeObjArr(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Mesh *pMesh,
 	const StucObjArr *pObjArr,
 	bool setCommon
@@ -378,7 +378,7 @@ StucErr stucMergeObjArr(
 }
 
 StucErr stucMeshAllocCopy(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pDest,
 	const StucMesh *pSrc,
 	bool activeOnly
@@ -431,7 +431,7 @@ StucErr stucMeshAllocCopy(
 	return err;
 }
 
-StucErr stucObjArrDestroy(const StucContext pCtx, StucObjArr *pArr) {
+StucErr stucObjArrDestroy(const StucCtx *pCtx, StucObjArr *pArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pArr, "");
 	for (I32 i = 0; i < pArr->count; ++i) {
@@ -647,7 +647,7 @@ bool checkForNgonsInMesh(const StucMesh *pMesh) {
 	return false;
 }
 
-bool stucQuickCmpMesh(StucContext pCtx, const StucMesh *pA, const StucMesh *pB) {
+bool stucQuickCmpMesh(StucCtx *pCtx, const StucMesh *pA, const StucMesh *pB) {
 	if (pA->vertCount != pB->vertCount ||
 		memcmp(
 			pA->activeAttribs,
@@ -669,7 +669,7 @@ bool stucQuickCmpMesh(StucContext pCtx, const StucMesh *pA, const StucMesh *pB) 
 	);
 }
 
-bool stucQuickCmpObj(StucContext pCtx, const StucObject *pA, const StucObject *pB) {
+bool stucQuickCmpObj(StucCtx *pCtx, const StucObject *pA, const StucObject *pB) {
 	if (memcmp(&pA->transform, &pB->transform, sizeof(Stuc_M4x4))) {
 		return false;
 	}
@@ -678,7 +678,7 @@ bool stucQuickCmpObj(StucContext pCtx, const StucObject *pA, const StucObject *p
 	return stucQuickCmpMesh(pCtx, pAMesh, pBMesh);
 }
 
-StucErr stucMapZBoundsGet(StucContext pCtx, const StucMap pMap, PixtyV2_F32 *pZBounds) {
+StucErr stucMapZBoundsGet(StucCtx *pCtx, const StucMap *pMap, PixtyV2_F32 *pZBounds) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMap && pZBounds, "");
 	*pZBounds = pMap->zBounds;

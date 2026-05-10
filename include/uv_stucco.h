@@ -34,9 +34,7 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_ATTRIB_NAME_MAX_LEN 96
 #define STUC_ATTRIB_STRING_MAX_LEN 64
 
-//TODO remove opaque strctures to allow external stack allocation
-typedef struct StucMapInternal *StucMap;
-typedef struct StucMapExportIntern StucMapExport;
+struct StucMap;
 
 //TODO unify naming. different structs and enums called "type", "attrib", "blend".
 //Make it consistent. They're attribute types;
@@ -275,7 +273,7 @@ typedef struct StucObjectData {
 } StucObjectData;
 
 typedef union StucMapOrIdx {
-	StucMap ptr;
+	struct StucMap *ptr;
 	int64_t idx;
 } StucMapOrIdx;
 
@@ -386,7 +384,7 @@ typedef struct StucStageReport {
 } StucStageReport;
 
 //TODO rename to StucCtx and remove redundant opaque ptr typedef
-typedef struct StucContextInternal {
+typedef struct StucCtx {
 	void *pCustom;
 	StucThreadPool threadPool;
 	StucAlloc alloc;
@@ -403,24 +401,22 @@ typedef struct StucContextInternal {
 	char spAttribNames[STUC_ATTRIB_USE_SP_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN];
 	StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT];
 	StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT];
-} StucContextInternal;
-//TODO remove this typedef, & drop 'internal' from struct
-typedef struct StucContextInternal *StucContext;
+} StucCtx;
 
 //TODO unify naming of contexts like this.
 //this struct is currently missing a prefix, while stuc-context is called stucContext
 typedef struct StucMapLoad {
-	StucContext pCtx;
+	StucCtx *pCtx;
 	const char *pFilepath;
 	double timestamp;
 	void *pUserData;
-	StucErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const);
+	StucErr (* fpMapGet)(void *, const char *, const char **, double *, struct StucMap ** const);
 	StucErr (* fpMapStore)(
 		void *,
 		const char *,
 		const char *,
 		double,
-		StucMap,
+		struct StucMap *,
 		StucMapStatus,
 		const PixtyStrArr *
 	);
@@ -428,15 +424,41 @@ typedef struct StucMapLoad {
 	bool depsPassDone;
 } StucMapLoad;
 
+#define STUC_MAP_FORMAT_NAME_MAX_LEN 19
+#define STUC_MAP_FORMAT_NAME "UV Stucco Map"
+
+typedef struct StucHeader {
+	char format[STUC_MAP_FORMAT_NAME_MAX_LEN];
+	int64_t dataSize;
+	int64_t dataSizeCompressed;
+	int32_t version;
+	int32_t idxAttribCount;
+	int32_t objCount;
+	int32_t usgCount;
+	int32_t cutoffCount;
+} StucHeader;
+
+typedef struct StucMapExport {
+	StucCtx *pCtx;
+	char *pPath;
+	StucHeader header;
+	PixioByteArr data;
+	int32_t cutoffIdxMax;
+	PixuctHTable mapTable;
+	StucAttribIndexedArr idxAttribs;
+	PixtyI8Arr matMapTable;
+	bool compress;
+} StucMapExport;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 STUC_EXPORT
 //TODO replace old param names, context should be pCtx
-StucErr stucThreadPoolSetCustom(StucContext context, const StucThreadPool *pThreadPool);
+StucErr stucThreadPoolSetCustom(StucCtx *context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
 StucErr stucContextInit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pTheadPool,
 	StucIo *pIo,
@@ -446,13 +468,13 @@ StucErr stucContextInit(
 );
 STUC_EXPORT
 StucErr stucMapExportInit(
-	StucContext pCtx,
-	StucMapExport **ppHandle,
+	StucCtx *pCtx,
+	StucMapExport *pHandle,
 	const char *pPath,
 	bool compress
 );
 STUC_EXPORT
-StucErr stucMapExportEnd(StucMapExport **ppHandle);
+StucErr stucMapExportEnd(StucMapExport *pHandle);
 STUC_EXPORT
 StucErr stucMapExportTargetAdd(
 	StucMapExport *pHandle,
@@ -474,7 +496,7 @@ STUC_EXPORT
 StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutoff);
 STUC_EXPORT
 StucErr stucMapFileLoadForEdit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *filePath,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
@@ -486,18 +508,18 @@ StucErr stucMapFileLoadForEdit(
 );
 STUC_EXPORT
 StucErr stucMapFileLoadInit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMapLoad *pState,
 	const char *pFilepath,
 	double timestamp,
 	void *pUserData,
-	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const),
+	PixErr (* fpMapGet)(void *, const char *, const char **, double *, struct StucMap ** const),
 	PixErr (* fpMapStore)(
 		void *,
 		const char *,
 		const char *,
 		double,
-		StucMap,
+		struct StucMap *,
 		StucMapStatus,
 		const PixtyStrArr *
 	)
@@ -511,29 +533,29 @@ StucErr stucMapFileLoadGetDepStatus(StucMapLoad *pState, StucMapStatus *pStatus)
 STUC_EXPORT
 StucErr stucMapLoadDestroy(StucMapLoad *pState);
 STUC_EXPORT
-StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap);
+StucErr stucMapFileUnload(StucCtx *pCtx, struct StucMap *pMap);
 //Use this to access the mesh contaned within a StucMap handle.
 //Objects are collapsed in map handles, so if you want the original geometry
 //call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
 STUC_EXPORT
 StucErr stucMapFileMeshGet(
-	StucContext pCtx,
-	StucMap pMap,
+	StucCtx *pCtx,
+	struct StucMap *pMap,
 	const StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs
 );
 STUC_EXPORT
-StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName);
+StucErr stucMapNameGet(StucCtx *pCtx, struct StucMap *pMap, const char **ppName);
 STUC_EXPORT
 StucErr stucQueryCommonAttribs(
-	StucContext pCtx,
-	const StucMap pMap,
+	StucCtx *pCtx,
+	const struct StucMap *pMap,
 	const StucMesh *pMesh,
 	StucBlendOptArr *pBlendOptArr
 );
 STUC_EXPORT
 StucErr stucCommonBlendOptArrGetFromDomain(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucBlendOptArr *pList,
 	StucDomain domain,
 	StucBlendOptArr **ppArr
@@ -541,13 +563,13 @@ StucErr stucCommonBlendOptArrGetFromDomain(
 /*
 STUC_EXPORT
 StucErr stucDestroyBlendOptArr(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucBlendOptArr *pBlendOptArr
 );
 */
 STUC_EXPORT
 StucErr stucQueueMapToMesh(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	PixthJob *pJobHandle,
 	StucMapArr *pMapArr,
 	StucMesh *pMeshIn,
@@ -560,7 +582,7 @@ StucErr stucQueueMapToMesh(
 );
 STUC_EXPORT
 StucErr stucMapToMesh(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	const StucMapArr *pMapArr,
 	const StucMesh *pMeshIn,
@@ -573,15 +595,15 @@ StucErr stucMapToMesh(
 	bool triangulate
 );
 STUC_EXPORT
-StucErr stucObjArrDestroy(const StucContext pCtx, StucObjArr *pArr);
+StucErr stucObjArrDestroy(const StucCtx *pCtx, StucObjArr *pArr);
 STUC_EXPORT
-StucErr stucUsgArrDestroy(StucContext pCtx, int32_t count, StucUsg *pUsgArr);
+StucErr stucUsgArrDestroy(const StucCtx *pCtx, int32_t count, StucUsg *pUsgArr);
 STUC_EXPORT
-StucErr stucAttribArrDestroy(StucContext pCtx, StucAttribArray *pArr);
+StucErr stucAttribArrDestroy(const StucCtx *pCtx, StucAttribArray *pArr);
 STUC_EXPORT
-StucErr stucMeshDestroy(StucContext pCtx, StucMesh *pMesh);
+StucErr stucMeshDestroy(const StucCtx *pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucErr stucContextDestroy(StucContext pCtx);
+StucErr stucContextDestroy(StucCtx *pCtx);
 STUC_EXPORT
 StucErr stucGetAttribSize(const StucAttribCore *pAttrib, int32_t *pSize);
 STUC_EXPORT
@@ -596,20 +618,20 @@ StucErr stucGetAttribIndexed(
 );
 STUC_EXPORT
 StucErr stucAttribActiveGet(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	StucAttribUse use,
 	StucAttrib **ppAttrib
 );
 STUC_EXPORT
 void stucMapIndexedAttribsGet(
-	StucContext pCtx,
-	StucMap pMap,
+	StucCtx *pCtx,
+	struct StucMap *pMap,
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
 StucErr stucWaitForJobs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	int32_t count,
 	PixthJob *pHandles,
 	bool wait,
@@ -617,24 +639,24 @@ StucErr stucWaitForJobs(
 );
 STUC_EXPORT
 StucErr stucJobGetErrs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	int32_t jobCount,
 	PixthJob *pJobHandles
 );
 STUC_EXPORT
-StucErr stucAttribSpTypesGet(StucContext pCtx, const StucAttribType **ppTypes);
+StucErr stucAttribSpTypesGet(StucCtx *pCtx, const StucAttribType **ppTypes);
 STUC_EXPORT
-StucErr stucAttribSpDomainsGet(StucContext pCtx, const StucDomain **ppDomains);
+StucErr stucAttribSpDomainsGet(StucCtx *pCtx, const StucDomain **ppDomains);
 STUC_EXPORT
 StucErr stucAttribSpIsValid(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucAttribCore *pCore,
 	StucDomain domain
 );
 //TODO replace 'AllDomains' funcs with single func that takes domains as bitflags
 STUC_EXPORT
 StucErr stucAttribGetAllDomains(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	const char *pName,
 	StucAttrib **ppAttrib,
@@ -643,7 +665,7 @@ StucErr stucAttribGetAllDomains(
 );
 STUC_EXPORT
 StucErr stucAttribGetAllDomainsConst(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMesh,
 	const char *pName,
 	const StucAttrib **ppAttrib,
@@ -652,70 +674,70 @@ StucErr stucAttribGetAllDomainsConst(
 );
 STUC_EXPORT
 StucErr stucAttribArrGet(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	StucDomain domain,
 	StucAttribArray **ppArr
 );
 STUC_EXPORT
 StucErr stucAttribArrGetConst(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMesh,
 	StucDomain domain,
 	const StucAttribArray **ppArr
 );
 STUC_EXPORT
 StucErr stucAttribGetCompType(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucAttribType type,
 	StucAttribType *pCompType
 );
 STUC_EXPORT
 StucErr stucAttribTypeGetVecSize(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucAttribType type,
 	int32_t *pSize
 );
 STUC_EXPORT
 StucErr stucDomainCountGet(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMesh,
 	StucDomain domain,
 	int32_t *pCount
 );
 STUC_EXPORT
-StucErr stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr);
+StucErr stucAttribIndexedArrDestroy(StucCtx *pCtx, StucAttribIndexedArr *pArr);
 STUC_EXPORT
-StucErr stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr);
+StucErr stucMapArrDestroy(StucCtx *pCtx, StucMapArr *pMapArr);
 STUC_EXPORT
 StucErr stucObjectInit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucObject *pObj,
 	StucMesh *pMesh,
 	const Stuc_M4x4 *pTransform
 );
 STUC_EXPORT
-StucErr stucMeshAttribsCornerToVert(StucContext pCtx, StucMesh *pMesh);
+StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucErr stucMeshBuildTangentsForTris(StucContext pCtx, StucMesh *pMesh);
+StucErr stucMeshBuildTangentsForTris(StucCtx *pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh);
+StucErr stucMeshTriangulate(StucCtx *pCtx, StucMesh *pMesh);
 STUC_EXPORT
 StucErr stucMeshAllocCopy(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pDest,
 	const StucMesh *pSrc,
 	bool activeOnly
 );
 STUC_EXPORT
-StucErr stucCopyMesh(StucContext pCtx, StucMesh *pDest, const StucMesh *pSrc);
+StucErr stucCopyMesh(StucCtx *pCtx, StucMesh *pDest, const StucMesh *pSrc);
 STUC_EXPORT
-//TODO should StucContext be const in helper funcs like this?
-StucErr stucMapZBoundsGet(StucContext pCtx, const StucMap pMap, PixtyV2_F32 *pZBounds);
+//TODO should StucCtx *be const in helper funcs like this?
+StucErr stucMapZBoundsGet(StucCtx *pCtx, const struct StucMap *pMap, PixtyV2_F32 *pZBounds);
 
 #ifdef STUC_DEBUG_UTILS
 static inline
-StucErr stucThreadPoolLogDump(StucContext pCtx, const char *pPath) {
+StucErr stucThreadPoolLogDump(StucCtx *pCtx, const char *pPath) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PixtyI8Arr log = {0};
 	err = pCtx->threadPool.fpLogDump(&pCtx->threadPool.handle, &log);

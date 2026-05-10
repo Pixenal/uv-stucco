@@ -37,7 +37,7 @@ UsgInFace *findUsgForMapCorners(
 	V3_F32 mapUvw,
 	Usg **ppUsg
 ) {
-	StucMap pMap = pBasic->pMap;
+	const StucMap *pMap = pBasic->pMap;
 	for (I32 i = 0; i < pMapFace->range.size; ++i) {
 		I32 mapVert = pMap->pMesh->core.pCorners[pMapFace->range.start + i];
 		if (!pMap->pMesh->pUsg) {
@@ -362,7 +362,7 @@ void blendCommonAttrib(
 		blendConfig = pOpts->blendConfig;
 	}
 	else {
-		StucTypeDefault *pDefault =
+		const StucTypeDefault *pDefault =
 			stucGetTypeDefaultConfig(&pBasic->pCtx->typeDefaults, pOutAttrib->core.type);
 		blendConfig = pDefault->blendConfig;
 	}
@@ -860,7 +860,7 @@ typedef struct XformVertsJobInitInfo {
 } XformVertsJobInitInfo;
 
 static
-I32 xformVertsJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 xformVertsJobsGetRange(const StucCtx *pCtx, const void *pShared, void *pInitInfoVoid) {
 	XformVertsJobInitInfo *pInitInfo = pInitInfoVoid;
 	PixalcLinAlloc *pVertAlloc =
 		pixuctHTableAllocGet(pInitInfo->pMergeTable, pInitInfo->vertAllocIdx);
@@ -869,7 +869,7 @@ I32 xformVertsJobsGetRange(const StucContext pCtx, const void *pShared, void *pI
 
 static
 void xformVertsJobInit(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfoVoid,
 	void *pEntryVoid
@@ -931,7 +931,7 @@ typedef struct InterpAttribsJobInitInfo {
 } InterpAttribsJobInitInfo;
 
 static
-I32 interpAttribsJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
+I32 interpAttribsJobsGetRange(const StucCtx *pCtx, const void *pShared, void *pInitInfo) {
 	return stucDomainCountGetIntern(
 		&((MapToMeshBasic *)pShared)->outMesh.core,
 		((InterpAttribsJobInitInfo *)pInitInfo)->domain
@@ -940,7 +940,7 @@ I32 interpAttribsJobsGetRange(const StucContext pCtx, const void *pShared, void 
 
 static
 void interpAttribsJobInit(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfoVoid,
 	void *pEntryVoid

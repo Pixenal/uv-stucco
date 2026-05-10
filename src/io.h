@@ -5,41 +5,16 @@ SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
-#define MAP_FORMAT_NAME_MAX_LEN 19
-#define MAP_FORMAT_NAME "UV Stucco Map"
-
 #include <pixenals_io_utils.h>
+#include <pixenals_structs.h>
 
 #include <uv_stucco.h>
 #include <types.h>
-#include <pixenals_structs.h>
-
-typedef struct StucHeader {
-	char format[MAP_FORMAT_NAME_MAX_LEN];
-	I64 dataSize;
-	I64 dataSizeCompressed;
-	I32 version;
-	I32 idxAttribCount;
-	I32 objCount;
-	I32 usgCount;
-	I32 cutoffCount;
-} StucHeader;
+#include <map.h>
 
 typedef struct StucMapDeps {
 	PixtyStrArr maps;
 } StucMapDeps;
-
-typedef struct StucMapExportIntern {
-	StucContext pCtx;
-	char *pPath;
-	StucHeader header;
-	PixioByteArr data;
-	I32 cutoffIdxMax;
-	PixuctHTable mapTable;
-	StucAttribIndexedArr idxAttribs;
-	I8Arr matMapTable;
-	bool compress;
-} StucMapExportIntern;
 
 typedef struct StucIdxTable {
 	PixtyI8Arr table;
@@ -75,7 +50,7 @@ typedef struct MapDepPtrArr {
 typedef struct MapDepEntry {
 	PixuctHTableEntryCore core;
 	MapDepPtrArr deps;
-	StucMap pMap;
+	StucMap *pMap;
 	double timestamp;
 	StucMapStatus status;
 	char *pName;
@@ -86,13 +61,13 @@ typedef struct MapDepEntry {
 
 
 StucErr stucMapImportGetDep(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *filePath,
 	StucMapDeps *pDeps
 );
 
 StucErr stucMapImport(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *filePath,
 	StucObjArr *pObjArr,
 	ObjMapOptsArr *pMapOptsArr,
@@ -103,11 +78,11 @@ StucErr stucMapImport(
 	bool correctIdxAttribs
 );
 
-void stucIoSetCustom(StucContext pCtx, StucIo *pIo);
-void stucIoSetDefault(StucContext pCtx);
+void stucIoSetCustom(StucCtx *pCtx, StucIo *pIo);
+void stucIoSetDefault(StucCtx *pCtx);
 const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen);
 void stucIoDataTagValidate();
-StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucContext, MapDepEntry *));
+StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucCtx *, MapDepEntry *));
 static inline void stucMapDepsDestroy(const StucAlloc *pAlloc, StucMapDeps *pDeps) {
 	if (pDeps->maps.pArr) {
 		for (I32 i = 0; i < pDeps->maps.count; ++i) {

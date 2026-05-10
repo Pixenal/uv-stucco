@@ -62,7 +62,7 @@ typedef struct TangentJobArgs {
 } TangentJobArgs;
 
 typedef struct TangentTris {
-	StucContext pCtx;
+	StucCtx *pCtx;
 	Mesh *pMesh;
 } TangentTris;
 
@@ -150,7 +150,7 @@ void setVertsAndMergeTPieces(
 
 static
 void addOrMergeFaceTPieces(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const Mesh *pInMesh,
 	TPieceBufArr *pTPieces,
 	PixuctHTable *pVertTable,
@@ -190,7 +190,7 @@ void addOrMergeFaceTPieces(
 
 static
 void buildTPiecesForBufVerts(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const Mesh *pInMesh,
 	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixalcLinAlloc *pMergeAlloc,
@@ -225,7 +225,7 @@ void buildTPiecesForBufVerts(
 
 static
 void buildTPieces(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const Mesh *pInMesh,
 	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable,
@@ -321,13 +321,13 @@ void buildTPieces(
 }
 
 static
-I32 tangentJobGetRange(const StucContext pCtx, const void *pShared, void *pInitInfo) {
+I32 tangentJobGetRange(const StucCtx *pCtx, const void *pShared, void *pInitInfo) {
 	return ((TPieceArr *)pInitInfo)->faceCount;
 }
 
 static
 void tangentJobInit(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfo,
 	void *pEntryVoid
@@ -355,7 +355,7 @@ void copyTangentsFromJobFaces(
 }
 
 StucErr stucBuildTangentsForInPieces(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	Mesh *pInMesh,
 	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
@@ -574,7 +574,7 @@ void mikktTrisSetTSpaceBasic(
 }
 
 static
-StucErr stucBuildTangentsIntern(StucContext pCtx, SMikkTSpaceContext *pMikktCtx) {
+StucErr stucBuildTangentsIntern(StucCtx *pCtx, SMikkTSpaceContext *pMikktCtx) {
 	StucErr err = PIX_ERR_SUCCESS;
 	if (!genTangSpaceDefault(pMikktCtx, &pCtx->threadPool.handle)) {
 		PIX_ERR_RETURN(err, "mikktspace func 'genTangSpaceDefault' returned error");
@@ -607,7 +607,7 @@ StucErr stucBuildTangents(void *pArgsVoid) {
 	return err;
 }
 
-StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh) {
+StucErr stucBuildTangentsForTris(StucCtx *pCtx, Mesh *pMesh) {
 	StucErr err = PIX_ERR_SUCCESS;
 	SMikkTSpaceInterface mikktInterface = {
 		.m_getNumFaces = mikktTrisGetNumFaces,

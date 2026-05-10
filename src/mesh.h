@@ -145,13 +145,13 @@ const I8 *stucTriGet(const TriCache *pCache, I32 face, I32 idx) {
 	return (I8 *)pixalcLinAllocIdxConst(&pCache->alloc, pCache->pArr[face].idx) + idx * 3;
 }
 
-void stucCreateMesh(const StucContext pCtx, StucObject *pObj, StucObjectType type);
-I32 stucMeshAddFace(const StucContext pCtx, Mesh *pMesh, bool *pRealloced);
-I32 stucMeshAddCorner(const StucContext pCtx, Mesh *pMesh, bool *pRealloced);
-I32 stucMeshAddEdge(const StucContext pCtx, Mesh *pMesh, bool *pRealloced);
-I32 stucMeshAddVert(const StucContext pCtx, Mesh *pMesh, bool *pRealloced);
-void stucReallocMeshToFit(const StucContext pCtx, Mesh *pMesh);
-void stucMeshSetLastFace(const StucContext pCtx, Mesh *pMesh);
+void stucCreateMesh(const StucCtx *pCtx, StucObject *pObj, StucObjectType type);
+I32 stucMeshAddFace(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced);
+I32 stucMeshAddCorner(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced);
+I32 stucMeshAddEdge(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced);
+I32 stucMeshAddVert(const StucCtx *pCtx, Mesh *pMesh, bool *pRealloced);
+void stucReallocMeshToFit(const StucCtx *pCtx, Mesh *pMesh);
+void stucMeshSetLastFace(const StucCtx *pCtx, Mesh *pMesh);
 bool stucCheckIfMesh(const StucObjectData type);
 void stucAddToMeshCounts(
 	MeshCounts *pCounts,
@@ -159,7 +159,7 @@ void stucAddToMeshCounts(
 );
 void stucApplyObjTransform(StucObject *pObj);
 StucErr stucMergeObjArr(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Mesh *pMesh,
 	const StucObjArr *pObjArr,
 	bool setCommon
@@ -229,5 +229,5 @@ V3_F32 stucGetUvPosAsV3(const void *pMeshRaw, PixmshFaceRange face, I32 corner) 
 I32 stucGetMeshVert(const StucMesh *pMesh, FaceCorner corner);
 I32 stucGetMeshEdge(const StucMesh *pMesh, FaceCorner corner);
 bool checkForNgonsInMesh(const StucMesh *pMesh);
-bool stucQuickCmpMesh(StucContext pCtx, const StucMesh *pA, const StucMesh *pB);
-bool stucQuickCmpObj(StucContext pCtx, const StucObject *pA, const StucObject *pB);
+bool stucQuickCmpMesh(StucCtx *pCtx, const StucMesh *pA, const StucMesh *pB);
+bool stucQuickCmpObj(StucCtx *pCtx, const StucObject *pA, const StucObject *pB);

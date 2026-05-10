@@ -1022,7 +1022,7 @@ V3_F32 getMapCornerPos(
 
 static
 StucErr inPieceGetFaces(
-	const StucMap pMap,
+	const StucMap *pMap,
 	const InPiece *pInPiece,
 	ClutreFaceRange *pMapFaces
 ) {
@@ -1304,54 +1304,6 @@ StucErr stucAddMapFaceToBufMesh(
 	return err;
 }
 
-static
-void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr) {
-	if (pArr->pArr) {
-		for (I32 i = 0; i < pArr->count; ++i) {
-			if (pArr->pArr[i].arr.pArr) {
-				pCtx->alloc.fpFree(pArr->pArr[i].arr.pArr);
-			}
-		}
-		pCtx->alloc.fpFree(pArr->pArr);
-	}
-}
-
-static
-void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
-	if (pArr->faces.pArr) {
-		pCtx->alloc.fpFree(pArr->faces.pArr);
-	}
-	if (pArr->pFaceTable) {
-		pCtx->alloc.fpFree(pArr->pFaceTable);
-	}
-	if (!pArr->pArr) {
-		*pArr = (StucInIslandArr){0};
-		return;
-	}
-	for (I32 i = 0; i < pArr->size; ++i) {
-		if (!pArr->pArr[i].core.faces.end) {
-			break;
-		}
-		stucInIslandsBorderArrDestroy(pCtx, &pArr->pArr[i].core.borders);
-		if (pArr->pArr[i].borderTable.pTable) {
-			pixuctHTableDestroy(&pArr->pArr[i].borderTable);
-		}
-		StucSubIslandArr *pSub = &pArr->pArr[i].sub;
-		for (I32 j = 0; j < pSub->count; ++j) {
-			stucInIslandsBorderArrDestroy(pCtx, &pSub->pArr[j].core.borders);
-		}
-		if (pSub->pFaces) {
-			pCtx->alloc.fpFree(pSub->pFaces);
-		}
-		if (pSub->pArr) {
-			pCtx->alloc.fpFree(pSub->pArr);
-		}
-	}
-	pixuctHTableMemDestroy(&pCtx->alloc, &pArr->tableMem);
-	pCtx->alloc.fpFree(pArr->pArr);
-	*pArr = (StucInIslandArr){0};
-}
-
 typedef struct BufMeshInitJobArgs {
 	JobArgs core;
 	const IslandClustArr *pClustArr;
@@ -1485,13 +1437,13 @@ typedef struct BufMeshJobInitInfo {
 } BufMeshJobInitInfo;
 
 static
-I32 bufMeshInitJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 bufMeshInitJobsGetRange(const StucCtx *pCtx, const void *pShared, void *pInitInfoVoid) {
 	return ((BufMeshJobInitInfo *)pInitInfoVoid)->pInPiecesSplit->count;
 }
 
 static
 void bufMeshInitJobInit(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfoVoid,
 	void *pEntryVoid
@@ -1574,7 +1526,7 @@ StucErr stucInPieceArrInitBufMeshes(
 	return err;
 }
 
-void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr) {
+void stucBufMeshArrDestroy(StucCtx *pCtx, BufMeshArr *pArr) {
 	if (!pArr->pArr) {
 		*pArr = (BufMeshArr){0};
 		return;

@@ -406,12 +406,12 @@ StucErr stucInPieceArrInitBufMeshes(
 	)
 );
 StucErr stucMapMeshForIsland(void *pArgsRaw);
-void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
+void stucBufMeshArrDestroy(StucCtx *pCtx, BufMeshArr *pArr);
 //returns 1 if yes, and 2 if only due to preserve
 //I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);
 
 static inline
-void inPieceArrDestroy(const StucContext pCtx, InPieceArr *pArr) {
+void inPieceArrDestroy(const StucCtx *pCtx, InPieceArr *pArr) {
 	if (pArr->pArr) {
 		pCtx->alloc.fpFree(pArr->pArr);
 	}

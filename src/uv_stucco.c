@@ -25,7 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_CLUTRE_MIN_FACES 12
 
 static
-void setDefaultStageReport(StucContext pCtx) {
+void setDefaultStageReport(StucCtx *pCtx) {
 	pCtx->stageReport.outOf = 50,
 	pCtx->stageReport.fpBegin = stucStageBegin;
 	pCtx->stageReport.fpProgress = stucStageProgress;
@@ -33,7 +33,7 @@ void setDefaultStageReport(StucContext pCtx) {
 }
 
 StucErr stucContextInit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pThreadPool,
 	StucIo *pIo,
@@ -97,17 +97,17 @@ StucErr stucContextInit(
 	return err;
 }
 
-StucErr stucContextDestroy(StucContext pCtx) {
+StucErr stucContextDestroy(StucCtx *pCtx) {
 	if (pCtx->threadPool.fpDestroy) {
 		pCtx->threadPool.fpDestroy(&pCtx->threadPool.handle);
 	}
-	*pCtx = (StucContextInternal){0};
+	*pCtx = (StucCtx){0};
 	return PIX_ERR_SUCCESS;
 }
 
 //TODO replace these with StucUsg and StucObj arr structs, that combine arr and count
 StucErr stucMapFileLoadForEdit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *filePath,
 	I32 *pObjCount,
 	StucObject **ppObjArr,
@@ -122,7 +122,7 @@ StucErr stucMapFileLoadForEdit(
 }
 
 static
-void triCacheBuild(const StucAlloc *pAlloc, StucMap pMap) {
+void triCacheBuild(const StucAlloc *pAlloc, StucMap *pMap) {
 	bool ngons = checkForNgonsInMesh(&pMap->pMesh->core);
 	if (!ngons) {
 		return;
@@ -148,7 +148,7 @@ void triCacheBuild(const StucAlloc *pAlloc, StucMap pMap) {
 }
 
 StucErr initFlatCutoff(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Usg *pUsg,
 	StucObject *pCutoffObj
 ) {
@@ -198,7 +198,7 @@ PixtyRange stucClustFaceRange(const void *pMeshRaw, I32 face) {
 }
 
 static
-void buildFaceBBoxes(const StucAlloc *pAlloc, StucMap pMap) {
+void buildFaceBBoxes(const StucAlloc *pAlloc, StucMap *pMap) {
 	const Mesh *pMesh = pMap->pMesh;
 	pMap->pFaceBBoxes = pAlloc->fpMalloc(pMesh->core.faceCount * sizeof(PixmshV2Bb));
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
@@ -213,12 +213,12 @@ void buildFaceBBoxes(const StucAlloc *pAlloc, StucMap pMap) {
 
 static
 StucErr stucMapFileLoadIntern(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	MapDepEntry *pEntry
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pEntry->pName, "");
-	StucMap pMap = pCtx->alloc.fpCalloc(1, sizeof(MapFile));
+	StucMap *pMap = pCtx->alloc.fpCalloc(1, sizeof(StucMap));
 	{
 		I32 lenMax = pixioPathMaxGet();
 		I32 nameLen = (I32)strnlen(pEntry->pName, lenMax);
@@ -433,18 +433,18 @@ StucErr stucMapFileLoadIntern(
 }
 
 StucErr stucMapFileLoadInit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMapLoad *pState,
 	const char *pFilepath,
 	F64 timestamp,
 	void *pUserData,
-	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap * const),
+	PixErr (* fpMapGet)(void *, const char *, const char **, double *, StucMap ** const),
 	PixErr (* fpMapStore)(
 		void *,
 		const char *,
 		const char *,
 		double,
-		StucMap,
+		StucMap *,
 		StucMapStatus,
 		const PixtyStrArr *
 	)
@@ -541,7 +541,7 @@ StucErr stucMapFileLoad(StucMapLoad *pState) {
 }
 
 static
-void triCacheDestroy(const StucAlloc *pAlloc, StucMap pMap) {
+void triCacheDestroy(const StucAlloc *pAlloc, StucMap *pMap) {
 	PIX_ERR_ASSERT("", !((pMap->triCache.pArr != NULL) ^ (pMap->triCache.alloc.valid)));
 	if (pMap->triCache.pArr) {
 		pAlloc->fpFree(pMap->triCache.pArr);
@@ -550,7 +550,7 @@ void triCacheDestroy(const StucAlloc *pAlloc, StucMap pMap) {
 	}
 }
 
-StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap) {
+StucErr stucMapFileUnload(StucCtx *pCtx, StucMap *pMap) {
 	clutreTreeDestroy(&pMap->clustTree);
 	if (pMap->pMesh) {
 		stucMeshDestroy(pCtx, &pMap->pMesh->core);
@@ -572,8 +572,8 @@ StucErr stucMapFileUnload(StucContext pCtx, StucMap pMap) {
 }
 
 StucErr stucMapFileMeshGet(
-	StucContext pCtx,
-	StucMap pMap,
+	StucCtx *pCtx,
+	StucMap *pMap,
 	const StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs
 ) {
@@ -592,7 +592,7 @@ StucErr stucMapFileMeshGet(
 	return err;
 }
 
-StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName) {
+StucErr stucMapNameGet(StucCtx *pCtx, StucMap *pMap, const char **ppName) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMap && ppName, "");
 	*ppName = pMap->pName;
@@ -601,12 +601,12 @@ StucErr stucMapNameGet(StucContext pCtx, StucMap pMap, const char **ppName) {
 
 static
 void initBlendOpt(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucBlendOpt *pEntry,
 	const StucAttrib *pAttrib,
 	I32 attribIdx
 ) {
-	StucTypeDefault *pDefault = 
+	const StucTypeDefault *pDefault = 
 		stucGetTypeDefaultConfig(&pCtx->typeDefaults, pAttrib->core.type);
 	pEntry->blendConfig = pDefault->blendConfig;
 	pEntry->attrib = attribIdx;
@@ -614,7 +614,7 @@ void initBlendOpt(
 
 static
 StucErr getCommonAttribs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMapMesh,
 	const AttribArray *pMapAttribs,
 	const StucMesh *pMesh,
@@ -654,8 +654,8 @@ StucErr getCommonAttribs(
 //TODO handle edge case, where attribute share the same name,
 //but have incompatible types. Such as a F32 and a string.
 StucErr stucQueryCommonAttribs(
-	StucContext pCtx,
-	const StucMap pMap,
+	StucCtx *pCtx,
+	const StucMap *pMap,
 	const StucMesh *pMesh,
 	StucBlendOptArr *pOptArr
 ) {
@@ -682,7 +682,7 @@ StucErr stucQueryCommonAttribs(
 
 /*
 StucErr stucDestroyBlendOptArr(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucBlendOptArr *pOptArr
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -731,7 +731,7 @@ void collapseInPieceArr(
 
 static
 I32 mapMeshForIslandJobsGetRange(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfo
 ) {
@@ -740,10 +740,10 @@ I32 mapMeshForIslandJobsGetRange(
 
 static
 StucErr mapToMeshInternal(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	const StucInIslandArr *pInIslands,
-	const StucMap pMap,
+	const StucMap *pMap,
 	Mesh *pMeshIn,
 	StucMesh *pOutMesh,
 	I8 maskIdx,
@@ -949,7 +949,7 @@ static
 void addEntryToInFaceTable(
 	const StucAlloc *pAlloc,
 	UsgInFace **ppHashTable,
-	StucMap pMap,
+	StucMap *pMap,
 	InFaceArr *pInFaceTable,
 	I32 squareIdx,
 	I32 inFaceIdx
@@ -976,7 +976,7 @@ void addEntryToInFaceTable(
 static
 void InFaceTableToHashTable(
 	const StucAlloc *pAlloc,
-	StucMap pMap,
+	StucMap *pMap,
 	I32 count,
 	InFaceArr *pInFaceTable
 ) {
@@ -992,7 +992,7 @@ void InFaceTableToHashTable(
 
 static
 StucErr getOriginIndexedAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Attrib *pAttrib,
 	I32 attribIdx,
 	const StucMapArr *pMapArr,
@@ -1018,7 +1018,7 @@ StucErr getOriginIndexedAttrib(
 				config = pOpts->blendConfig;
 			}
 			else {
-				StucTypeDefault *pDefaultConfig =
+				const StucTypeDefault *pDefaultConfig =
 					stucGetTypeDefaultConfig(&pCtx->typeDefaults, STUC_ATTRIB_STRING);
 				config = pDefaultConfig->blendConfig;
 			}
@@ -1033,7 +1033,7 @@ StucErr getOriginIndexedAttrib(
 
 static
 StucErr iterFacesAndCorrectIdxAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Attrib *pAttrib,
 	Mesh *pMesh,
 	AttribIndexed *pOutIndexedAttrib,
@@ -1085,7 +1085,7 @@ StucErr iterFacesAndCorrectIdxAttrib(
 
 static
 StucErr getIndexedAttribInMaps(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const Mesh *pMesh,
 	const StucMapArr *pMapArr,
 	const Attrib *pAttrib,
@@ -1097,9 +1097,9 @@ StucErr getIndexedAttribInMaps(
 		pCtx->alloc.fpCalloc(pMapArr->count, sizeof(void *));
 	bool found = false;
 	bool same = true;
-	StucMap pMapCache = NULL;
+	StucMap *pMapCache = NULL;
 	for (I32 i = 0; i < pMapArr->count; ++i) {
-		const StucMap pMap = pMapArr->pArr[i].map.ptr;
+		const StucMap *pMap = pMapArr->pArr[i].map.ptr;
 		const char *pName = NULL;
 		switch (pAttrib->origin) {
 			case STUC_ATTRIB_ORIGIN_MAP:
@@ -1149,7 +1149,7 @@ StucErr getIndexedAttribInMaps(
 
 static
 StucErr correctIdxIndices(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *pName,
 	Mesh *pMeshArr,
 	const StucMapArr *pMapArr,
@@ -1203,7 +1203,7 @@ StucErr correctIdxIndices(
 
 static
 StucErr appendOutIndexedAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMapArr *pMapArr,
 	const AttribIndexed **ppMapAttribs,
 	const Attrib *pAttrib,
@@ -1266,7 +1266,7 @@ StucErr appendOutIndexedAttrib(
 
 static
 StucErr mergeIndexedAttribs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Mesh *pMeshArr,
 	const StucMapArr *pMapArr,
 	const AttribIndexedArr *pInIndexedAttribs,
@@ -1361,7 +1361,7 @@ StucErr mergeIndexedAttribs(
 }
 
 typedef struct StucMapToMeshArgs {
-	StucContext pCtx;
+	StucCtx *pCtx;
 	StucMapArr *pMapArr;
 	StucMesh *pMeshIn;
 	StucAttribIndexedArr *pInIndexedAttribs;
@@ -1393,7 +1393,7 @@ StucErr mapToMeshFromJob(void *pArgsVoid, I32 threadId) {
 }
 
 StucErr stucQueueMapToMesh(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	PixthJob *pJobHandle,
 	StucMapArr *pMapArr,
 	StucMesh *pMeshIn,
@@ -1428,7 +1428,7 @@ StucErr stucQueueMapToMesh(
 
 static
 StucErr mapMapArrToMesh(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	const StucMapArr *pMapArr,
 	Mesh *pMeshIn,
@@ -1450,16 +1450,18 @@ StucErr mapMapArrToMesh(
 	outObjWrapArr.pArr = pCtx->alloc.fpCalloc(outObjWrapArr.size, sizeof(StucObject));
 	for (I32 i = 0; i < pMapArr->count; ++i) {
 		outObjWrapArr.pArr[i].pData = (StucObjectData *)&pOutBufArr[i];
-		const StucMap pMap = pMapArr->pArr[i].map.ptr;
+		const StucMap *pMap = pMapArr->pArr[i].map.ptr;
 		I8 matIdx = pMapArr->pArr[i].matIdx;
 		InFaceTable inFaceTable = {0};
+		//TODO uncomment when usg are reimplemented
+		/*
 		if (pMap->usgArr.count) {
 			//set preserve to null to prevent usg squares from being split
 			if (pMeshIn->pEdgePreserve || pMeshIn->pVertPreserve) {
 				pMeshIn->pEdgePreserve = NULL;
 				pMeshIn->pVertPreserve = NULL;
 			}
-			MapFile squares = { .pMesh = pMap->usgArr.pSquares };
+			StucMap squares = { .pMesh = pMap->usgArr.pSquares };
 			buildFaceBBoxes(&pCtx->alloc, &squares);
 			ClutreMesh clustMesh = {
 				.pUserData = squares.pMesh,
@@ -1506,6 +1508,7 @@ StucErr mapMapArrToMesh(
 				STUC_DOMAIN_NONE
 			);
 		}
+		*/
 		err = mapToMeshInternal(
 			pCtx,
 			threadId,
@@ -1521,12 +1524,6 @@ StucErr mapMapArrToMesh(
 		);
 		PIX_ERR_THROW_IFNOT(err, "map to mesh failed", 1);
 		PIX_ERR_CATCH(1, err, ;);
-		if (pMap->usgArr.count) {
-			pCtx->alloc.fpFree(pMap->usgArr.pInFaceTable);
-			pMap->usgArr.pInFaceTable = NULL;
-			pixalcLinAllocDestroy(&inFaceTable.alloc);
-			inFaceTable = (InFaceTable) {0};
-		}
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	pMeshOut->type.type = STUC_OBJECT_DATA_MESH;
@@ -1558,7 +1555,7 @@ StucErr mapMapArrToMesh(
 
 static
 StucErr appendSpAttribsToInMesh(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pWrap,
 	const StucMesh *pMeshIn,
 	UBitField32 flags
@@ -1591,7 +1588,7 @@ StucErr appendSpAttribsToInMesh(
 }
 
 static
-void destroyAppendedSpAttribs(StucContext pCtx, StucMesh *pMesh, UBitField32 flags) {
+void destroyAppendedSpAttribs(StucCtx *pCtx, StucMesh *pMesh, UBitField32 flags) {
 	for (I32 i = 1; i < STUC_ATTRIB_USE_SP_ENUM_COUNT; ++i) {
 		if (!(flags >> i & 0x1)) {
 			continue;
@@ -1624,7 +1621,7 @@ void destroyAppendedSpAttribs(StucContext pCtx, StucMesh *pMesh, UBitField32 fla
 
 static
 StucErr initMeshInWrap(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	Mesh *pWrap,
 	StucMesh meshIn, //passed by value so we can set active attrib domains if missing
 	UBitField32 spAttribsToAppend,
@@ -1696,7 +1693,7 @@ StucErr initMeshInWrap(
 }
 
 StucErr stucMapToMesh(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	const StucMapArr *pMapArr,
 	const StucMesh *pMeshIn,
@@ -1764,7 +1761,7 @@ StucErr stucMapToMesh(
 	return err;
 }
 
-StucErr stucUsgArrDestroy(StucContext pCtx, I32 count, StucUsg *pUsgArr) {
+StucErr stucUsgArrDestroy(const StucCtx *pCtx, I32 count, StucUsg *pUsgArr) {
 	StucErr err = PIX_ERR_NOT_SET;
 	for (I32 i = 0; i < count; ++i) {
 		err = stucMeshDestroy(pCtx, (StucMesh *)pUsgArr[i].obj.pData);
@@ -1775,7 +1772,7 @@ StucErr stucUsgArrDestroy(StucContext pCtx, I32 count, StucUsg *pUsgArr) {
 	return err;
 }
 
-StucErr stucAttribArrDestroy(StucContext pCtx, StucAttribArray *pArr) {
+StucErr stucAttribArrDestroy(const StucCtx *pCtx, StucAttribArray *pArr) {
 	//TODO put this check in more destroy funcs
 	PIX_ERR_ASSERT("", !(!pArr->pArr ^ !pArr->count));
 	for (I32 i = 0; i < pArr->count; ++i) {
@@ -1790,7 +1787,7 @@ StucErr stucAttribArrDestroy(StucContext pCtx, StucAttribArray *pArr) {
 	return PIX_ERR_SUCCESS;
 }
 
-StucErr stucMeshDestroy(StucContext pCtx, StucMesh *pMesh) {
+StucErr stucMeshDestroy(const StucCtx *pCtx, StucMesh *pMesh) {
 	stucAttribArrDestroy(pCtx, &pMesh->meshAttribs);
 	stucAttribArrDestroy(pCtx, &pMesh->faceAttribs);
 	stucAttribArrDestroy(pCtx, &pMesh->cornerAttribs);
@@ -1826,7 +1823,7 @@ StucErr stucAttribGetAsVoid(StucAttribCore *pAttrib, int32_t idx, void **ppOut) 
 }
 
 StucErr stucAttribActiveGet(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	StucAttribUse use,
 	Attrib **ppAttrib
@@ -1845,8 +1842,8 @@ StucErr stucGetAttribIndexed(
 }
 
 void stucMapIndexedAttribsGet(
-	StucContext pCtx,
-	StucMap pMap,
+	StucCtx *pCtx,
+	StucMap *pMap,
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
 	*pIndexedAttribs = pMap->indexedAttribs;
@@ -1854,7 +1851,7 @@ void stucMapIndexedAttribsGet(
 
 //this should not be called by a callback called from uv-stucco
 StucErr stucWaitForJobs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 count,
 	PixthJob *pHandles,
 	bool wait,
@@ -1871,7 +1868,7 @@ StucErr stucWaitForJobs(
 }
 
 StucErr stucJobGetErrs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 jobCount,
 	PixthJob *pJobHandles
 ) {
@@ -1891,14 +1888,14 @@ StucErr stucJobGetErrs(
 	return err;
 }
 
-StucErr stucAttribSpTypesGet(StucContext pCtx, const AttribType **ppTypes) {
+StucErr stucAttribSpTypesGet(StucCtx *pCtx, const AttribType **ppTypes) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && ppTypes, "");
 	*ppTypes = pCtx->spAttribTypes;
 	return err;
 }
 
-StucErr stucAttribSpDomainsGet(StucContext pCtx, const StucDomain **ppDomains) {
+StucErr stucAttribSpDomainsGet(StucCtx *pCtx, const StucDomain **ppDomains) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && ppDomains, "");
 	*ppDomains = pCtx->spAttribDomains;
@@ -1906,7 +1903,7 @@ StucErr stucAttribSpDomainsGet(StucContext pCtx, const StucDomain **ppDomains) {
 }
 
 StucErr stucAttribSpIsValid(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const AttribCore *pCore,
 	StucDomain domain
 ) {
@@ -1919,7 +1916,7 @@ StucErr stucAttribSpIsValid(
 
 //TODO move funcs like these out of uv-stucco.c. eg move this one into attrib_utils.c
 StucErr stucAttribGetAllDomains(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	const char *pName,
 	StucAttrib **ppAttrib,
@@ -1947,7 +1944,7 @@ StucErr stucAttribGetAllDomains(
 }
 
 StucErr stucAttribGetAllDomainsConst(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMesh,
 	const char *pName,
 	const StucAttrib **ppAttrib,
@@ -1965,7 +1962,7 @@ StucErr stucAttribGetAllDomainsConst(
 }
 
 StucErr stucAttribArrGet(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	StucDomain domain,
 	StucAttribArray **ppArr
@@ -1977,7 +1974,7 @@ StucErr stucAttribArrGet(
 }
 
 StucErr stucAttribArrGetConst(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMesh,
 	StucDomain domain,
 	const StucAttribArray **ppArr
@@ -1991,7 +1988,7 @@ StucErr stucAttribArrGetConst(
 }
 
 StucErr stucAttribGetCompType(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucAttribType type,
 	StucAttribType *pCompType
 ) {
@@ -2002,7 +1999,7 @@ StucErr stucAttribGetCompType(
 }
 
 StucErr stucAttribTypeGetVecSize(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucAttribType type,
 	I32 *pSize
 ) {
@@ -2013,7 +2010,7 @@ StucErr stucAttribTypeGetVecSize(
 }
 
 StucErr stucDomainCountGet(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucMesh *pMesh,
 	StucDomain domain,
 	int32_t *pCount
@@ -2024,7 +2021,7 @@ StucErr stucDomainCountGet(
 	return err;
 }
 
-StucErr stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr) {
+StucErr stucAttribIndexedArrDestroy(StucCtx *pCtx, StucAttribIndexedArr *pArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pArr, "");
 	PIX_ERR_ASSERT("", !(!pArr->pArr ^ !pArr->count));
@@ -2040,7 +2037,7 @@ StucErr stucAttribIndexedArrDestroy(StucContext pCtx, StucAttribIndexedArr *pArr
 	return err;
 }
 
-StucErr stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr) {
+StucErr stucMapArrDestroy(StucCtx *pCtx, StucMapArr *pMapArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMapArr, "");
 	if (pMapArr->pArr) {
@@ -2056,7 +2053,7 @@ StucErr stucMapArrDestroy(StucContext pCtx, StucMapArr *pMapArr) {
 }
 
 StucErr stucObjectInit(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucObject *pObj,
 	StucMesh *pMesh,
 	const Stuc_M4x4 *pTransform

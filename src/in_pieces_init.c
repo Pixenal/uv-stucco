@@ -371,7 +371,7 @@ typedef struct FindEncasedJobInit {
 
 static
 I32 encasedTableJobsGetRange(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfo
 ) {
@@ -534,7 +534,7 @@ void linkEncasedTableEntries(
 
 static
 void encasedTableJobsInitArg(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfoRaw,
 	void *pArgsRaw

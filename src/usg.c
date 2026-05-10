@@ -223,8 +223,8 @@ void getUsgBoundsSquare(Mesh *pMesh, const Mesh *pSrcMesh) {
 }
 
 StucErr stucAllocUsgSquaresMesh(
-	StucContext pCtx,
-	const StucMap pMap,
+	StucCtx *pCtx,
+	const StucMap *pMap,
 	Mesh *pMesh
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -297,7 +297,7 @@ StucErr stucAllocUsgSquaresMesh(
 }
 
 StucErr stucFillUsgSquaresMesh(
-	const StucMap pMap,
+	const StucMap *pMap,
 	const StucUsg *pUsgArr,
 	Mesh *pMesh
 ) {
@@ -349,7 +349,7 @@ void assignUsgToVertsInFace(
 //TODO reimplement with cluster tree
 StucErr stucAssignUsgsToVerts(
 	const StucAlloc *pAlloc,
-	StucMap pMap,
+	StucMap *pMap,
 	StucUsg *pUsgArr
 ) {
 	//const Mesh *pSquares = pMap->usgArr.pSquares;
@@ -482,8 +482,8 @@ StucErr getClosestTriToOrigin(
 }
 
 StucErr stucSampleInAttribsAtUsgOrigins(
-	StucContext pCtx,
-	const StucMap pMap,
+	StucCtx *pCtx,
+	const StucMap *pMap,
 	const Mesh *pInMesh,
 	StucMesh *pSquares,
 	InFaceArr *pInFaceTable
@@ -590,7 +590,7 @@ void stucUsgVertTransform(
 
 UsgInFace *stucGetUsgForCorner(
 	I32 stucCorner,
-	const StucMap pMap,
+	const StucMap *pMap,
 	const FaceRange *pMapFace,
 	I32 inFace,
 	bool *pAboveCutoff

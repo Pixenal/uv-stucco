@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 static
 void setJobArgsCore(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const void *pShared,
 	JobArgs *pCore,
 	Range *pRanges,
@@ -41,12 +41,12 @@ void divideArrAmongstJobs(I32 arrSize, I32 *pJobCount, Range *pRanges) {
 }
 
 void stucMakeJobArgs(
-	const StucContext pCtx,
+	StucCtx *pCtx,
 	const void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
-	I32 (* fpGetArrCount)(const StucContext, const void *, void *),
-	void (* fpInitArgEntry)(const StucContext, const void *, void *, void *)
+	I32 (* fpGetArrCount)(const StucCtx *, const void *, void *),
+	void (* fpInitArgEntry)(const StucCtx *, const void *, void *, void *)
 ) {
 	Range ranges[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	divideArrAmongstJobs(fpGetArrCount(pCtx, pShared, pInitInfo), pJobCount, ranges);

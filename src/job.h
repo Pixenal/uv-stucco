@@ -13,7 +13,7 @@ typedef struct JobArgs {
 	char padding[PIXTH_CACHELINE_SIZE / 2];
 	const void *pShared;
 	PixErr (*fpJob) (void *);
-	StucContext pCtx;
+	StucCtx *pCtx;
 	Range range;
 	I32 id;
 	I32 threadId;
@@ -24,10 +24,10 @@ typedef struct JobArgsFoot {
 } JobArgsFoot;
 
 void stucMakeJobArgs(
-	const StucContext pCtx,
+	StucCtx *pCtx,
 	const void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
-	I32 (* fpGetArrCount)(const StucContext, const void *, void *),
-	void (* fpInitArgEntry)(const StucContext, const void *, void *, void *)
+	I32 (* fpGetArrCount)(const StucCtx *, const void *, void *),
+	void (* fpInitArgEntry)(const StucCtx *, const void *, void *, void *)
 );

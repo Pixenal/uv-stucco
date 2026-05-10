@@ -129,23 +129,23 @@ typedef enum SpecialBufAttrib {
 	STUC_ATTRIB_SP_BUF_ENUM_COUNT
 } SpecialBufAttrib;
 
-void stucSetDefaultSpAttribNames(StucContext pCtx);
-void stucSetDefaultSpAttribDomains(StucContext pCtx);
-void stucSetDefaultSpAttribTypes(StucContext pCtx);
+void stucSetDefaultSpAttribNames(StucCtx *pCtx);
+void stucSetDefaultSpAttribDomains(StucCtx *pCtx);
+void stucSetDefaultSpAttribTypes(StucCtx *pCtx);
 StucErr stucAssignActiveAliases(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pMesh,
 	UBitField32 flags,
 	StucDomain domain
 );
-Attrib *stucGetActiveAttrib(StucContext pCtx, StucMesh *pMesh, StucAttribUse use);
+Attrib *stucGetActiveAttrib(const StucCtx *pCtx, StucMesh *pMesh, StucAttribUse use);
 const Attrib *stucGetActiveAttribConst(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	StucAttribUse use
 );
 bool stucIsAttribActive(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	const Attrib *pAttrib
 );
@@ -155,7 +155,7 @@ StucAttrib *stucGetAttribIntern(
 	const char *pName,
 	AttribArray *pAttribs,
 	bool excludeActive,
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	I32 *pIdx
 );
@@ -164,7 +164,7 @@ const Attrib *stucGetAttribInternConst(
 	const char *pName,
 	const AttribArray *pAttribs,
 	bool excludeActive,
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	I32 *pIdx
 );
@@ -174,15 +174,15 @@ void stucSetAttribIdxActive(
 	StucAttribUse use,
 	StucDomain domain
 );
-void stucSetTypeDefaultConfig(StucContext pCtx);
-StucTypeDefault *stucGetTypeDefaultConfig(
-	StucTypeDefaultConfig *pConfig,
+void stucSetTypeDefaultConfig(StucCtx *pCtx);
+const StucTypeDefault *stucGetTypeDefaultConfig(
+	const StucTypeDefaultConfig *pConfig,
 	AttribType type
 );
 AttribArray *stucGetAttribArrFromDomain(StucMesh *pMesh, StucDomain domain);
 const AttribArray *stucGetAttribArrFromDomainConst(const StucMesh *pMesh, StucDomain domain);
 StucErr stucGetMatchingAttrib(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucMesh *pDest, AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
@@ -190,7 +190,7 @@ StucErr stucGetMatchingAttrib(
 	Attrib **ppOut
 );
 StucErr stucGetMatchingAttribConst(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pDest, const AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
@@ -230,7 +230,7 @@ void stucBlendAttribs(
 );
 void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar);
 StucErr stucAllocAttribs(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucDomain domain,
 	I32 domainSize,
 	StucMesh *pDest,
@@ -249,21 +249,21 @@ void stucReallocAttrib(
 	const I32 newLen
 );
 void stucReallocAttribArr(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucDomain domain,
 	Mesh *pMesh,
 	AttribArray *pAttribArr,
 	I32 newLen
 );
 void stucSetAttribCopyOpt(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	StucAttribCopyOpt opt,
 	UBitField32 flags
 );
 void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin);
 StucErr stucAllocAttribsFromMeshArr(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pDest,
 	I32 srcCount,
 	const Mesh *const *ppMeshSrcs,
@@ -311,20 +311,20 @@ I32 stucGetIdxInIndexedAttrib(
 	I32 srcIdx
 );
 void stucAppendSpAttribsToMesh(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pMesh,
 	UBitField32 pFlags,
 	StucAttribOrigin origin
 );
 void stucQuerySpAttribs(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	UBitField32 toCheck,
 	UBitField32 *pHas
 );
 bool stucCheckAttribsAreCompatible(const Attrib *pA, const Attrib *pB);
 AttribIndexed *stucAppendIndexedAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	AttribIndexedArr *pIndexedAttribArr,
 	const char *pName,
 	I32 dataLen,
@@ -332,18 +332,18 @@ AttribIndexed *stucAppendIndexedAttrib(
 	StucAttribUse use
 );
 StucErr stucAppendAndCopyIdxAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const AttribIndexed *pSrc,
 	AttribIndexedArr *pDestArr
 );
 StucErr stucAppendAndCopyIdxAttribFromName(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *pName,
 	const AttribIndexedArr *pSrcArr,
 	AttribIndexedArr *pDestArr
 );
 void stucAppendToIndexedAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	AttribIndexed *pDest,
 	const AttribCore *pSrc,
 	I32 srcIdx
@@ -427,7 +427,7 @@ void stucCopyAllAttribs(
 }
 
 static inline
-void stucReallocVertAttribsIfNeeded(StucContext pCtx, StucMesh *pMesh, I32 *pVertSize) {
+void stucReallocVertAttribsIfNeeded(StucCtx *pCtx, StucMesh *pMesh, I32 *pVertSize) {
 	PIX_ERR_ASSERT("", pMesh->vertCount <= *pVertSize);
 	if (pMesh->vertCount == *pVertSize) {
 		*pVertSize *= 2;

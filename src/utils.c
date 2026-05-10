@@ -181,7 +181,7 @@ StucErr findEdges(StucMesh* pMesh, AdjBucket* pAdjTable) {
 	return err;
 }
 
-StucErr stucBuildEdgeList(StucContext pCtx, StucMesh *pMesh) {
+StucErr stucBuildEdgeList(StucCtx *pCtx, StucMesh *pMesh) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, !pMesh->pEdges, "");
 	const StucAlloc *pAlloc = &pCtx->alloc;
@@ -213,7 +213,7 @@ void stucProgressBarClear() {
 	printf("\x1b[2K");
 }
 
-void stucProgressBarPrint(StucContext pCtx, I32 progress) {
+void stucProgressBarPrint(StucCtx *pCtx, I32 progress) {
 	printf("	");
 	for (I32 i = 0u; i < pCtx->stageReport.outOf; ++i) {
 		char character;
@@ -245,7 +245,7 @@ void stucStageEnd(void *pCtx, StucStageReport *pReport) {
 	stucProgressBarClear();
 }
 
-void stucStageBeginWrap(StucContext pCtx, const char* pName, I32 max) {
+void stucStageBeginWrap(StucCtx *pCtx, const char* pName, I32 max) {
 	pCtx->stageReport.fpBegin(pCtx, &pCtx->stageReport, pName);
 	//Only needed if using default stage report functions,
 	//it's just used for the progress bar
@@ -253,7 +253,7 @@ void stucStageBeginWrap(StucContext pCtx, const char* pName, I32 max) {
 		1 : max / pCtx->stageReport.outOf;
 }
 
-void stucStageProgressWrap(StucContext pCtx, I32 progress) {
+void stucStageProgressWrap(StucCtx *pCtx, I32 progress) {
 	if (pCtx->stageInterval != 1 && progress % pCtx->stageInterval) {
 		return;
 	}
@@ -262,11 +262,11 @@ void stucStageProgressWrap(StucContext pCtx, I32 progress) {
 	pCtx->stageReport.fpProgress(pCtx, &pCtx->stageReport, normProgress);
 }
 
-void stucStageEndWrap(StucContext pCtx) {
+void stucStageEndWrap(StucCtx *pCtx) {
 	pCtx->stageReport.fpEnd(pCtx, &pCtx->stageReport);
 }
 
-void stucSetStageName(StucContext pCtx, const char* pName) {
+void stucSetStageName(StucCtx *pCtx, const char* pName) {
 	strncpy(pCtx->stageReport.stage, pName, STUC_STAGE_NAME_LEN);
 }
 
@@ -349,7 +349,7 @@ StucErr jobEntry(void *pArgs, I32 threadId) {
 
 static
 StucErr sendOffJobs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	I32 jobCount,
 	void *pJobArgs, I32 argStructSize,
@@ -373,7 +373,7 @@ StucErr sendOffJobs(
 }
 
 StucErr stucDoJobInParallel(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	I32 jobCount, void *pJobArgs, I32 argStructSize,
 	StucErr (* func)(void *)
@@ -429,7 +429,7 @@ InsideStatus stucIsPointInHalfPlane(
 }
 
 StucErr stucThreadPoolSetCustom(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucThreadPool *pThreadPool
 ) {
 	if (!pThreadPool->fpInit ||
@@ -447,7 +447,7 @@ StucErr stucThreadPoolSetCustom(
 	return PIX_ERR_SUCCESS;
 }
 
-void stucThreadPoolSetDefault(StucContext pCtx) {
+void stucThreadPoolSetDefault(StucCtx *pCtx) {
 	pCtx->threadPool.fpInit = pixthThreadPoolInit;
 	pCtx->threadPool.fpWaitForJobs = pixthWaitForJobs;
 	pCtx->threadPool.fpGetJobErr = pixthGetJobErr;
@@ -522,7 +522,7 @@ I32 isEdgeSeam(const Mesh *pMesh, I32 edge) {
 	return false;
 }
 
-void stucBuildEdgeLenList(StucContext pCtx, Mesh *pMesh) {
+void stucBuildEdgeLenList(StucCtx *pCtx, Mesh *pMesh) {
 	PIX_ERR_ASSERT("", pMesh->pEdgeLen);
 	V3_F32 *pPosCache = pCtx->alloc.fpMalloc(pMesh->core.edgeCount * sizeof(V3_F32));
 	I8 *pSet = pCtx->alloc.fpCalloc(pMesh->core.edgeCount, 1);
@@ -571,7 +571,7 @@ void addTri(
 	++pBufMesh->faceCount;
 }
 
-StucErr stucMeshTriangulate(StucContext pCtx, StucMesh *pMesh) {
+StucErr stucMeshTriangulate(StucCtx *pCtx, StucMesh *pMesh) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("", pMesh->pFaces && pMesh->pCorners);
 
@@ -990,18 +990,18 @@ typedef struct SubIslandJobArgs {
 } SubIslandJobArgs;
 
 typedef struct SubIslandJobShared {
-	StucContext pCtx;
+	StucCtx *pCtx;
 	const Mesh *pInMesh;
 } SubIslandJobShared;
 
 static
-I32 subIslandsJobGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 subIslandsJobGetRange(const StucCtx *pCtx, const void *pShared, void *pInitInfoVoid) {
 	return ((StucInIslandArr *)pInitInfoVoid)->count;
 }
 
 static
 void subIslandsJobInit(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfoVoid,
 	void *pEntryVoid
@@ -1113,7 +1113,7 @@ StucErr islandSplitToSub(void *pArgsRaw) {
 	StucErr err = PIX_ERR_SUCCESS;
 	SubIslandJobArgs *pArgs = pArgsRaw;
 	const Mesh *pInMesh = ((const SubIslandJobShared *)pArgs->core.pShared)->pInMesh;
-	StucContext pCtx = pArgs->core.pCtx;
+	StucCtx *pCtx = pArgs->core.pCtx;
 	PixtyRange range = pArgs->core.range;
 	I32 rangeSize = range.end - range.start;
 	StucSubIslandArr *pBuf = pCtx->alloc.fpCalloc(rangeSize, sizeof(StucSubIslandArr));
@@ -1198,7 +1198,7 @@ PixmshFaceRange stucPixmshFaceRange(const void *pMeshRaw, I32 face) {
 }
 
 StucErr StucSplitMeshToIslands(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const Mesh *pMesh,
 	StucInIslandArr *pIslands
 ) {
@@ -1276,7 +1276,7 @@ StucErr StucSplitMeshToIslands(
 	return err;
 }
 
-void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr) {
+void stucInIslandsBorderArrDestroy(const StucCtx *pCtx, BorderArr *pArr) {
 	if (pArr->pArr) {
 		for (I32 i = 0; i < pArr->count; ++i) {
 			if (pArr->pArr[i].arr.pArr) {
@@ -1287,7 +1287,7 @@ void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr) {
 	}
 }
 
-void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
+void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr) {
 	if (pArr->faces.pArr) {
 		pCtx->alloc.fpFree(pArr->faces.pArr);
 	}
@@ -1298,7 +1298,10 @@ void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
 		*pArr = (StucInIslandArr){0};
 		return;
 	}
-	for (I32 i = 0; i < pArr->count; ++i) {
+	for (I32 i = 0; i < pArr->size; ++i) {
+		if (!pArr->pArr[i].core.faces.end) {
+			break;
+		}
 		stucInIslandsBorderArrDestroy(pCtx, &pArr->pArr[i].core.borders);
 		if (pArr->pArr[i].borderTable.pTable) {
 			pixuctHTableDestroy(&pArr->pArr[i].borderTable);
@@ -1314,11 +1317,12 @@ void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr) {
 			pCtx->alloc.fpFree(pSub->pArr);
 		}
 	}
+	pixuctHTableMemDestroy(&pCtx->alloc, &pArr->tableMem);
 	pCtx->alloc.fpFree(pArr->pArr);
 	*pArr = (StucInIslandArr){0};
 }
 
-StucErr stucMeshAttribsCornerToVert(StucContext pCtx, StucMesh *pMesh) {
+StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 newSize = pMesh->vertAttribs.count + pMesh->cornerAttribs.count;
 	PIXALC_DYN_ARR_RESIZE(StucAttrib, &pCtx->alloc, &pMesh->vertAttribs, newSize);
@@ -1364,7 +1368,7 @@ StucErr stucMeshAttribsCornerToVert(StucContext pCtx, StucMesh *pMesh) {
 	return err;
 }
 
-StucErr stucMeshBuildTangentsForTris(StucContext pCtx, StucMesh *pMesh) {
+StucErr stucMeshBuildTangentsForTris(StucCtx *pCtx, StucMesh *pMesh) {
 	StucErr err = PIX_ERR_SUCCESS;
 	Mesh wrap = {0};
 	err = stucAttemptToSetMissingActiveDomains(pMesh);

@@ -33,10 +33,10 @@ SPDX-License-Identifier: Apache-2.0
 
 typedef struct MapToMeshBasic {
 	Mesh outMesh;
-	const StucContext pCtx;
+	StucCtx *pCtx;
 	const Mesh *pInMesh;
 	const StucInIslandArr *pInIslands;
-	const StucMap pMap;
+	const StucMap *pMap;
 	InFaceTable *pInFaceTable;
 	const StucBlendOptArr *pOptArr;
 	I32 inFaceSize;
@@ -76,14 +76,14 @@ typedef struct RangeArr {
 } RangeArr;
 
 StucErr stucBuildTangentsForInPieces(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	Mesh *pInMesh,
 	const BufMeshArr *pBufMeshArr, const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable
 );
 StucErr stucBuildTangents(void *pArgs);
-StucErr stucBuildTangentsForTris(StucContext pCtx, Mesh *pMesh);
+StucErr stucBuildTangentsForTris(StucCtx *pCtx, Mesh *pMesh);
 
 StucErr stucInitOutMesh(
 	MapToMeshBasic *pBasic,

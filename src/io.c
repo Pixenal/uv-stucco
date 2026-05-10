@@ -404,12 +404,12 @@ typedef struct MappingOpt {
 typedef struct MatMapEntry {
 	PixuctHTableEntryCore core;
 	I32 linIdx;
-	StucMap pMap;
+	StucMap *pMap;
 	MappingOpt opt;
 } MatMapEntry;
 
 typedef struct MatMapEntryInit {
-	StucMap pMap;
+	StucMap *pMap;
 	MappingOpt opt;
 } MatMapEntryInit;
 
@@ -725,8 +725,8 @@ void destroyMapExport(StucMapExport *pHandle) {
 }
 
 StucErr stucMapExportInit(
-	StucContext pCtx,
-	StucMapExport **ppHandle,
+	StucCtx *pCtx,
+	StucMapExport *pHandle,
 	const char *pPath,
 	bool compress
 ) {
@@ -736,7 +736,7 @@ StucErr stucMapExportInit(
 	I32 pathLen = (I32)strnlen(pPath, pixioPathMaxGet());
 	PIX_ERR_RETURN_IFNOT_COND(err, pathLen != pixioPathMaxGet(), "path is too long");
 	++pathLen;
-	StucMapExport *pHandle = pAlloc->fpCalloc(1, sizeof(StucMapExport));
+	*pHandle = (StucMapExport){0};
 	pHandle->pCtx = pCtx;
 	pHandle->pPath = pAlloc->fpCalloc(pathLen, 1);
 	memcpy(pHandle->pPath, pPath, pathLen);
@@ -754,22 +754,16 @@ StucErr stucMapExportInit(
 		true
 	);
 	pHandle->compress = compress;
-	*ppHandle = pHandle;
 	return err;
 }
 
-StucErr stucMapExportEnd(StucMapExport **ppHandle) {
+StucErr stucMapExportEnd(StucMapExport *pHandle) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(
-		err,
-		ppHandle && *ppHandle,
-		"invalid handle"
-	);
+	PIX_ERR_RETURN_IFNOT_COND(err, pHandle, "invalid handle");
 	PIX_ERR_ASSERT(
 		"invalid handle",
-		(*ppHandle)->pPath && (*ppHandle)->data.pArr
+		pHandle->pPath && pHandle->data.pArr
 	);
-	StucMapExport *pHandle = *ppHandle;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 
 	PixioByteArr header = {0};
@@ -829,7 +823,7 @@ StucErr stucMapExportEnd(StucMapExport **ppHandle) {
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	//encode header
-	const char *format = MAP_FORMAT_NAME;
+	const char *format = STUC_MAP_FORMAT_NAME;
 	header.size = 64;
 	header.pArr = pAlloc->fpCalloc(header.size, 1);
 	pixioByteArrWriteStr(pAlloc, &header, format);
@@ -1174,7 +1168,7 @@ StucErr decodeIndexedAttribMeta(PixioByteArr *pData, AttribIndexedArr *pAttribs)
 
 static
 void decodeAttribs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	PixioByteArr *pData,
 	AttribArray *pAttribs,
 	I32 dataLen
@@ -1199,7 +1193,7 @@ void decodeAttribs(
 
 static
 void decodeIndexedAttribs(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	PixioByteArr *pData,
 	AttribIndexedArr *pAttribs
 ) {
@@ -1223,13 +1217,13 @@ void decodeIndexedAttribs(
 
 static
 StucErr decodeStucHeader(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	PixioByteArr *pPixioByteArr,
 	StucHeader *pHeader,
 	StucMapDeps *pDeps
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	pixioByteArrReadStr(pPixioByteArr, pHeader->format, MAP_FORMAT_NAME_MAX_LEN);
+	pixioByteArrReadStr(pPixioByteArr, pHeader->format, STUC_MAP_FORMAT_NAME_MAX_LEN);
 	pixioByteArrRead(pPixioByteArr, &pHeader->version, 16);
 	pixioByteArrRead(pPixioByteArr, &pHeader->dataSizeCompressed, 64);;
 	pixioByteArrRead(pPixioByteArr, &pHeader->dataSize, 64);
@@ -1275,7 +1269,7 @@ StucErr decodeStucHeader(
 
 static
 PixErr loadActiveAttribs(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	AttribActive *pActiveAttribs,
 	PixioByteArr *pData
 ) {
@@ -1323,7 +1317,7 @@ StucErr loadIdxRedirects(
 
 static
 StucErr loadObj(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucObject *pObj,
 	PixioByteArr *pData,
 	bool checkIdxRedirects,
@@ -1449,7 +1443,7 @@ StucErr loadObj(
 
 static
 StucErr decodeBlendOpts(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucAlloc *pAlloc,
 	PixioByteArr *pData,
 	StucMapArrEntry *pEntry
@@ -1500,7 +1494,7 @@ StucErr decodeBlendOpts(
 
 static
 StucErr loadMapOverrides(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const StucAlloc *pAlloc,
 	PixioByteArr *pData,
 	ObjMapOptsArr *pMapOptsArr,
@@ -1548,7 +1542,7 @@ StucErr loadMapOverrides(
 }
 
 static
-void destroyUsgArrTemp(const StucContext pCtx, StucUsgArr *pArr) {
+void destroyUsgArrTemp(const StucCtx *pCtx, StucUsgArr *pArr) {
 	for (I32 i = 0; i < pArr->count; ++i) {
 		if (pArr->pArr[i].obj.pData) {
 			StucMesh *pMesh = (StucMesh *)pArr->pArr[i].obj.pData;
@@ -1562,7 +1556,7 @@ void destroyUsgArrTemp(const StucContext pCtx, StucUsgArr *pArr) {
 
 static
 StucErr loadDataByTag(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucHeader *pHeader,
 	PixioByteArr *pData,
 	StucObjArr *pObjArr,
@@ -1630,7 +1624,7 @@ StucErr loadDataByTag(
 
 static
 StucErr correctIdxAttribsOnLoad(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const AttribIndexedArr *pIdxAttribs,
 	const StucIdxTableArr *pIdxTableArr,
 	StucMesh *pMesh
@@ -1678,7 +1672,7 @@ StucErr correctIdxAttribsOnLoad(
 
 static
 StucErr decodeStucData(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucHeader *pHeader,
 	PixioByteArr *pData,
 	StucObjArr *pObjArr,
@@ -1750,7 +1744,7 @@ StucErr decodeStucData(
 }
 
 static
-StucErr openMapFile(StucContext pCtx, const char *pFilepath, void **ppFile) {
+StucErr openMapFile(StucCtx *pCtx, const char *pFilepath, void **ppFile) {
 	StucErr err = PIX_ERR_SUCCESS;
 	printf("Loading STUC file: %s\n", pFilepath);
 	err = pCtx->io.fpOpen(ppFile, pFilepath, 1, &pCtx->alloc);
@@ -1760,7 +1754,7 @@ StucErr openMapFile(StucContext pCtx, const char *pFilepath, void **ppFile) {
 
 static
 StucErr importMapHeader(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	void *pFile,
 	StucHeader *pHeader,
 	StucMapDeps *pDeps
@@ -1777,7 +1771,7 @@ StucErr importMapHeader(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_THROW_IFNOT_COND(
 		err,
-		!strncmp(pHeader->format, MAP_FORMAT_NAME, MAP_FORMAT_NAME_MAX_LEN),
+		!strncmp(pHeader->format, STUC_MAP_FORMAT_NAME, STUC_MAP_FORMAT_NAME_MAX_LEN),
 		"map file is corrupt",
 		0
 	);
@@ -1795,7 +1789,7 @@ StucErr importMapHeader(
 }
 
 StucErr stucMapImportGetDep(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *filePath,
 	StucMapDeps *pDeps
 ) {
@@ -1816,7 +1810,7 @@ StucErr stucMapImportGetDep(
 }
 
 StucErr stucMapImport(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *filePath,
 	StucObjArr *pObjArr,
 	ObjMapOptsArr *pMapOptsArr,
@@ -1894,7 +1888,7 @@ StucErr stucMapImport(
 	return err;
 }
 
-void stucIoSetCustom(StucContext pCtx, StucIo *pIo) {
+void stucIoSetCustom(StucCtx *pCtx, StucIo *pIo) {
 	if (!pIo->fpOpen || !pIo->fpClose || !pIo->fpWrite || !pIo->fpRead) {
 		printf("Failed to set custom IO. One or more functions were NULL");
 		abort();
@@ -1902,7 +1896,7 @@ void stucIoSetCustom(StucContext pCtx, StucIo *pIo) {
 	pCtx->io = *pIo;
 }
 
-void stucIoSetDefault(StucContext pCtx) {
+void stucIoSetDefault(StucCtx *pCtx) {
 	pCtx->io.fpOpen = pixioFileOpen;
 	pCtx->io.fpClose = pixioFileClose;
 	pCtx->io.fpWrite = pixioFileWrite;
@@ -2084,7 +2078,7 @@ StucErr getMapOrPath(StucMapLoad *pState, MapDepStack *pStack) {
 		pPath = pState->pFilepath;
 	}
 	else {
-		StucMap pMap = NULL;
+		StucMap *pMap = NULL;
 		StucErr mapErr = pState->fpMapGet(
 			pState->pUserData,
 			pStack->stack[pStack->ptr].pMap->pName,
@@ -2115,7 +2109,7 @@ StucErr finaliseMapLoad(
 	StucMapLoad *pState,
 	MapDepStack *pStack,
 	PixtyStrArr *pDepBuf,
-	StucErr(*fpLoad)(StucContext, MapDepEntry *)
+	StucErr(*fpLoad)(StucCtx *, MapDepEntry *)
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
@@ -2152,7 +2146,7 @@ StucErr finaliseMapLoad(
 static
 StucErr handleDeps(StucMapLoad *pState, MapDepStack *pStack) {
 	StucErr err = PIX_ERR_SUCCESS;
-	StucContext pCtx = pState->pCtx;
+	StucCtx *pCtx = pState->pCtx;
 	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
 	if (!pStackEntry->pMap->depsAdded) {
 		PIX_ERR_ASSERT("", pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD);
@@ -2182,9 +2176,9 @@ StucErr handleDeps(StucMapLoad *pState, MapDepStack *pStack) {
 	return err;
 }
 
-StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucContext, MapDepEntry *)) {
+StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucCtx *, MapDepEntry *)) {
 	StucErr err = PIX_ERR_SUCCESS;
-	StucContext pCtx = pState->pCtx;
+	StucCtx *pCtx = pState->pCtx;
 
 	PixtyStrArr depBuf = {0};
 	MapDepStack stack = {0};

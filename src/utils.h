@@ -125,16 +125,16 @@ V3_F32 stucGetBarycentricInFaceFromUvs(
 	);
 }
 
-StucErr stucBuildEdgeList(StucContext pCtx, StucMesh *pMesh);
+StucErr stucBuildEdgeList(StucCtx *pCtx, StucMesh *pMesh);
 void stucProgressBarClear();
-void stucProgressBarPrint(StucContext pCtx, I32 progress);
+void stucProgressBarPrint(StucCtx *pCtx, I32 progress);
 void stucStageBegin(void *pCtx, StucStageReport *pReport, const char *pName);
 void stucStageProgress(void *pCtx, StucStageReport *pReport, I32 progress);
 void stucStageEnd(void *pCtx, StucStageReport *pReport);
-void stucStageBeginWrap(StucContext pCtx, const char *pName, I32 max);
-void stucStageProgressWrap(StucContext pCtx, I32 progress);
-void stucStageEndWrap(StucContext pCtx);
-void stucSetStageName(StucContext pCtx, const char *pName);
+void stucStageBeginWrap(StucCtx *pCtx, const char *pName, I32 max);
+void stucStageProgressWrap(StucCtx *pCtx, I32 progress);
+void stucStageEndWrap(StucCtx *pCtx);
+void stucSetStageName(StucCtx *pCtx, const char *pName);
 F32 stucGetT(V2_F32 point, V2_F32 lineA, V2_F32 lineUnit, F32 lineLen);
 I32 stucIdxBitArray(UBitField8 *pArr, I32 idx, I32 len);
 void stucSetBitArr(UBitField8 *pArr, I32 idx, I32 value, I32 len);
@@ -181,7 +181,7 @@ M3x3 stucGetInterpolatedTbn(
 );
 
 StucErr stucDoJobInParallel(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	I32 threadId,
 	I32 jobCount, void *pJobArgs, I32 argStructSize,
 	StucErr (* func)(void *)
@@ -238,20 +238,20 @@ PixuctKey stucInPieceMakeKey(const void *pKeyRaw) {
 	return (PixuctKey){.pKey = pKey->key, .size = sizeof(pKey->key)};
 }
 
-void stucThreadPoolSetDefault(StucContext context);
+void stucThreadPoolSetDefault(StucCtx *context);
 void stucAllocSetCustom(PixalcFPtrs *pAlloc, PixalcFPtrs *pCustomAlloc);
 void stucAllocSetDefault(PixalcFPtrs *pAlloc);
-void stucBuildEdgeLenList(StucContext pCtx, Mesh *pMesh);
+void stucBuildEdgeLenList(StucCtx *pCtx, Mesh *pMesh);
 bool stucCheckIfNoFacesHaveMaskIdx(const Mesh *pMesh, I8 maskIdx);
 void stucBuildEdgeAdj(Mesh *pMesh);
 void stucBuildSeamAndPreserveTables(Mesh *pMesh);
 StucErr StucSplitMeshToIslands(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const Mesh *pMesh,
 	StucInIslandArr *pIslands
 );
-void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr);
-void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr);
+void stucInIslandsBorderArrDestroy(const StucCtx *pCtx, BorderArr *pArr);
+void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr);
 
 typedef struct BorderKey {
 	I32 border;

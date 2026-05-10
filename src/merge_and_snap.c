@@ -300,7 +300,7 @@ typedef struct SnapJobInitInfo {
 } SnapJobInitInfo;
 
 static
-I32 snapJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInfoVoid) {
+I32 snapJobsGetRange(const StucCtx *pCtx, const void *pShared, void *pInitInfoVoid) {
 	SnapJobInitInfo *pInitInfo = pInitInfoVoid;
 	const PixalcLinAlloc *pIntersectAlloc = pixuctHTableAllocGet(pInitInfo->pMergeTable, 1);
 	return pixalcLinAllocGetCount(pIntersectAlloc);
@@ -308,7 +308,7 @@ I32 snapJobsGetRange(const StucContext pCtx, const void *pShared, void *pInitInf
 
 static
 void snapJobInit(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const void *pShared,
 	void *pInitInfoVoid,
 	void *pEntryVoid

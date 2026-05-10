@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <attrib_utils.h>
 #include <mesh.h>
 
-void stucSetDefaultSpAttribNames(StucContext pCtx) {
+void stucSetDefaultSpAttribNames(StucCtx *pCtx) {
 	strcpy(pCtx->spAttribNames[1], "position");
 	strcpy(pCtx->spAttribNames[2], "UVMap");
 	strcpy(pCtx->spAttribNames[3], "normal");
@@ -38,7 +38,7 @@ void stucSetDefaultSpAttribNames(StucContext pCtx) {
 	strcpy(pCtx->spAttribNames[18], "StucVertNormals");
 }
 
-void stucSetDefaultSpAttribDomains(StucContext pCtx) {
+void stucSetDefaultSpAttribDomains(StucCtx *pCtx) {
 	pCtx->spAttribDomains[1] = STUC_DOMAIN_VERT;
 	pCtx->spAttribDomains[2] = STUC_DOMAIN_CORNER;
 	pCtx->spAttribDomains[3] = STUC_DOMAIN_CORNER;
@@ -59,7 +59,7 @@ void stucSetDefaultSpAttribDomains(StucContext pCtx) {
 	pCtx->spAttribDomains[18] = STUC_DOMAIN_VERT;
 }
 
-void stucSetDefaultSpAttribTypes(StucContext pCtx) {
+void stucSetDefaultSpAttribTypes(StucCtx *pCtx) {
 	pCtx->spAttribTypes[1] = STUC_ATTRIB_V3_F32;
 	pCtx->spAttribTypes[2] = STUC_ATTRIB_V2_F32;
 	pCtx->spAttribTypes[3] = STUC_ATTRIB_V3_F32;
@@ -251,7 +251,7 @@ void fBlendColorDodge(F64 *pDest, F64 a, F64 b) {
 }
 
 StucErr stucAssignActiveAliases(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pMesh,
 	UBitField32 flags,
 	StucDomain domain
@@ -329,7 +329,7 @@ StucErr stucAssignActiveAliases(
 	return err;
 }
 
-Attrib *stucGetActiveAttrib(StucContext pCtx, StucMesh *pMesh, StucAttribUse use) {
+Attrib *stucGetActiveAttrib(const StucCtx *pCtx, StucMesh *pMesh, StucAttribUse use) {
 	PIX_ERR_ASSERT("", use >= 0);
 	if (use == STUC_ATTRIB_USE_NONE ||
 		use == STUC_ATTRIB_USE_SP_ENUM_COUNT ||
@@ -347,7 +347,7 @@ Attrib *stucGetActiveAttrib(StucContext pCtx, StucMesh *pMesh, StucAttribUse use
 }
 
 const Attrib *stucGetActiveAttribConst(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	StucAttribUse use
 ) {
@@ -355,7 +355,7 @@ const Attrib *stucGetActiveAttribConst(
 }
 
 bool stucIsAttribActive(
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	const Attrib *pAttrib
 ) {
@@ -378,7 +378,7 @@ Attrib *stucGetAttribIntern(
 	const char *pName,
 	AttribArray *pAttribs,
 	bool excludeActive,
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	I32 *pIdx
 ) {
@@ -409,7 +409,7 @@ const Attrib *stucGetAttribInternConst(
 	const char *pName,
 	const AttribArray *pAttribs,
 	bool excludeActive,
-	const StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	I32 *pIdx
 ) {
@@ -433,7 +433,7 @@ void stucSetAttribIdxActive(
 	}
 }
 
-void stucSetTypeDefaultConfig(StucContext pCtx) {
+void stucSetTypeDefaultConfig(StucCtx *pCtx) {
 	StucTypeDefaultConfig config = {0};
 	config.i8.blendConfig.opacity = 1.0f;
 	config.i16.blendConfig.opacity = 1.0f;
@@ -463,8 +463,8 @@ void stucSetTypeDefaultConfig(StucContext pCtx) {
 	pCtx->typeDefaults = config;
 }
 
-StucTypeDefault *stucGetTypeDefaultConfig(
-	StucTypeDefaultConfig *pConfig,
+const StucTypeDefault *stucGetTypeDefaultConfig(
+	const StucTypeDefaultConfig *pConfig,
 	AttribType type
 ) {
 	switch (type) {
@@ -1269,7 +1269,7 @@ const AttribArray *stucGetAttribArrFromDomainConst(const StucMesh *pMesh, StucDo
 }
 
 StucErr stucGetMatchingAttrib(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucMesh *pDest, AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
@@ -1306,7 +1306,7 @@ StucErr stucGetMatchingAttrib(
 }
 
 StucErr stucGetMatchingAttribConst(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pDest, const AttribArray *pDestAttribArr,
 	const StucMesh *pSrc, const Attrib *pSrcAttrib,
 	bool searchActive,
@@ -1325,7 +1325,7 @@ StucErr stucGetMatchingAttribConst(
 
 static
 StucErr allocAttribsFromArr(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucMesh *pDest,
 	AttribArray *pDestAttribs,
 	const StucMesh *pSrc,
@@ -1411,7 +1411,7 @@ StucErr allocAttribsFromArr(
 }
 
 StucErr stucAllocAttribs(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucDomain domain,
 	I32 domainSize,
 	StucMesh *pDest,
@@ -1472,7 +1472,7 @@ void stucReallocAttrib(
 
 
 void stucReallocAttribArr(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	StucDomain domain,
 	Mesh *pMesh,
 	AttribArray *pAttribArr,
@@ -1490,7 +1490,7 @@ void stucReallocAttribArr(
 
 
 void stucSetAttribCopyOpt(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	StucMesh *pMesh,
 	StucAttribCopyOpt opt,
 	UBitField32 flags
@@ -1515,7 +1515,7 @@ void stucSetAttribOrigins(AttribArray *pAttribs, AttribOrigin origin) {
 }
 
 StucErr stucAllocAttribsFromMeshArr(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pDest,
 	I32 srcCount,
 	const Mesh *const *ppMeshSrcs,
@@ -1710,7 +1710,7 @@ I32 stucGetIdxInIndexedAttrib(
 }
 
 void stucAppendSpAttribsToMesh(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	Mesh *pMesh,
 	UBitField32 pFlags,
 	StucAttribOrigin origin
@@ -1741,7 +1741,7 @@ void stucAppendSpAttribsToMesh(
 }
 
 void stucQuerySpAttribs(
-	StucContext pCtx,
+	const StucCtx *pCtx,
 	const StucMesh *pMesh,
 	UBitField32 toCheck,
 	UBitField32 *pHas
@@ -1770,7 +1770,7 @@ bool stucCheckAttribsAreCompatible(const Attrib *pA, const Attrib *pB) {
 }
 
 AttribIndexed *stucAppendIndexedAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	AttribIndexedArr *pIndexedAttribArr,
 	const char *pName,
 	I32 dataLen,
@@ -1788,7 +1788,7 @@ AttribIndexed *stucAppendIndexedAttrib(
 }
 
 StucErr stucAppendAndCopyIdxAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const AttribIndexed *pSrc,
 	AttribIndexedArr *pDestArr
 ) {
@@ -1811,7 +1811,7 @@ StucErr stucAppendAndCopyIdxAttrib(
 }
 
 StucErr stucAppendAndCopyIdxAttribFromName(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	const char *pName,
 	const AttribIndexedArr *pSrcArr,
 	AttribIndexedArr *pDestArr
@@ -1824,7 +1824,7 @@ StucErr stucAppendAndCopyIdxAttribFromName(
 }
 
 void stucAppendToIndexedAttrib(
-	StucContext pCtx,
+	StucCtx *pCtx,
 	AttribIndexed *pDest,
 	const AttribCore *pSrc,
 	I32 srcIdx
