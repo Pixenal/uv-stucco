@@ -532,7 +532,6 @@ void linkEncasedTableEntries(
 	pixuctHTableDestroy(&idxTable);
 }
 
-
 static
 void encasedTableJobsInitArg(
 	const StucContext pCtx,

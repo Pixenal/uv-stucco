@@ -60,8 +60,6 @@ void initHalfPlaneLookup(
 }
 
 void stucGetInFaceBounds(PixmshV2Bb *pBb, const V2_F32 *pUvs, FaceRange face);
-I32 stucIsEdgeSeam(const Mesh *pMesh, I32 edge);
-bool stucGetIfPreserveEdge(const Mesh *pMesh, I32 edge);
 bool stucCheckIfVertIsPreserve(const Mesh *pMesh, I32 vert);
 bool stucCheckIfEdgeIsReceive(const Mesh *pMesh, I32 edge, F32 receiveLen);
 
@@ -79,16 +77,6 @@ I32 stucCalcFaceWindFromVerts(const PixmshFaceRange face, const Mesh *pMesh) {
 static inline
 I32 stucCalcFaceWindFromUvs(const PixmshFaceRange face, const Mesh *pMesh) {
 	return pixmshCalcFaceWind(face, pMesh, stucGetUvPos);
-}
-
-static inline
-I32 stucTriangulateFaceFromVerts(
-	const StucAlloc *pAlloc,
-	const FaceRange *pFace,
-	const Mesh *pMesh,
-	U8 *pTris
-) {
-	return pixmshTriangulateFace(pAlloc, pFace->range, pMesh, stucGetVertPos, pTris);
 }
 
 static inline
@@ -253,13 +241,17 @@ PixuctKey stucInPieceMakeKey(const void *pKeyRaw) {
 void stucThreadPoolSetDefault(StucContext context);
 void stucAllocSetCustom(PixalcFPtrs *pAlloc, PixalcFPtrs *pCustomAlloc);
 void stucAllocSetDefault(PixalcFPtrs *pAlloc);
-
-static inline
-I32 stucCouldInEdgeIntersectMapFace(const Mesh *pMesh, I32 edge) {
-	bool preserve = stucGetIfPreserveEdge(pMesh, edge);
-	bool ret = stucGetIfSeamEdge(pMesh, edge) || stucGetIfMatBorderEdge(pMesh, edge);
-	return preserve && !ret ? 2 : preserve || ret;
-}
+void stucBuildEdgeLenList(StucContext pCtx, Mesh *pMesh);
+bool stucCheckIfNoFacesHaveMaskIdx(const Mesh *pMesh, I8 maskIdx);
+void stucBuildEdgeAdj(Mesh *pMesh);
+void stucBuildSeamAndPreserveTables(Mesh *pMesh);
+StucErr StucSplitMeshToIslands(
+	StucContext pCtx,
+	const Mesh *pMesh,
+	StucInIslandArr *pIslands
+);
+void stucInIslandsBorderArrDestroy(StucContext pCtx, BorderArr *pArr);
+void stucInIslandsDestroy(StucContext pCtx, StucInIslandArr *pArr);
 
 static inline
 PixtyV2_F32 stucClustUv(const void *pMeshRaw, I32 corner) {
@@ -283,20 +275,27 @@ I32 stucClustVert(const void *pMeshRaw, I32 corner) {
 }
 
 static inline
-PixmshFaceRange stucPixmshFaceRange(const void *pMeshRaw, I32 face) {
-	const Mesh *pMesh = pMeshRaw;
-	PIX_ERR_ASSERT("", face >= 0 && face < pMesh->core.faceCount);
-	I32 start = pMesh->core.pFaces[face];
-	return (PixmshFaceRange) {
-		.start = start,
-		.size = pMesh->core.pFaces[face + 1] - start
-	};
+I32 stucTriangulateFaceFromVerts(
+	const StucAlloc *pAlloc,
+	const FaceRange *pFace,
+	const Mesh *pMesh,
+	U8 *pTris
+) {
+	return pixmshTriangulateFace(pAlloc, pFace->range, pMesh, stucGetVertPos, pTris);
 }
 
-//TODO move this out
 static inline
-FaceCorner callGetAdjCorner(const void *pMeshRaw, FaceCorner corner) {
-	FaceCorner adj = {0};
-	stucGetAdjCorner(pMeshRaw, corner, &adj);
-	return adj;
+bool stucGetIfPreserveEdge(const Mesh *pMesh, I32 edge) {
+	PIX_ERR_ASSERT("", pMesh && edge >= 0);
+	if (pMesh->pEdgePreserve) {
+		PIX_ERR_ASSERT("", pMesh->pEdgePreserve[edge] % 2 == pMesh->pEdgePreserve[edge]);
+	}
+	return pMesh->pEdgePreserve ? pMesh->pEdgePreserve[edge] : false;
+}
+
+static inline
+I32 stucCouldInEdgeIntersectMapFace(const Mesh *pMesh, I32 edge) {
+	bool preserve = stucGetIfPreserveEdge(pMesh, edge);
+	bool ret = stucGetIfSeamEdge(pMesh, edge) || stucGetIfMatBorderEdge(pMesh, edge);
+	return preserve && !ret ? 2 : preserve || ret;
 }

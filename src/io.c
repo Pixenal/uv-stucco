@@ -1937,3 +1937,296 @@ const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen) {
 	}
 	return pStr;
 }
+
+
+//map deps
+
+typedef struct MapDepStackEntry {
+	MapDepEntry *pMap;
+	I32 depIdx;
+	bool seen;
+} MapDepStackEntry;
+
+#define MAP_DEP_STACK_SIZE 64
+
+typedef struct MapDepStack {
+	MapDepStackEntry stack[MAP_DEP_STACK_SIZE];
+	I32 ptr;
+} MapDepStack;
+
+typedef struct StrWithLen {
+	const char *pStr;
+	I32 len;
+} StrWithLen;
+
+static
+void mapDepInit(
+	void *pUserData,
+	PixuctHTableEntryCore *pEntryCore,
+	const void *pKeyData,
+	void *pInitInfo,
+	I32 linIdx
+) {
+	//MapDepEntry *pEntry = (MapDepEntry *)pEntryCore;
+}
+
+static
+bool mapDepCmp(
+	const PixuctHTableEntryCore *pEntryCore,
+	const void *pKeyData,
+	const void *pInitInfo
+) {
+	const MapDepEntry *pEntry = (MapDepEntry *)pEntryCore;
+	const StrWithLen *pKey = pKeyData;
+	return !strncmp(pEntry->pName, pKey->pStr, pixioPathMaxGet());
+}
+
+static
+PixuctKey mapDepMakeKey(const void *pKeyData) {
+	const StrWithLen *pStr = pKeyData;
+	return (PixuctKey){.pKey = pStr->pStr, .size = pStr->len};
+}
+
+static
+ SearchResult addMapDepEntry(
+	 const StucAlloc *pAlloc,
+	 PixuctHTable *pTable,
+	 const char *pFilepath,
+	 MapDepEntry **ppEntry
+ ) {
+	I32 nameLen = 0;
+	I32 pathLen = 0;
+	const char *pName = stucGetBasename(pFilepath, &nameLen, &pathLen);
+	SearchResult result = pixuctHTableGet(
+		pTable,
+		0,
+		&(StrWithLen){.pStr = pName, .len = nameLen},
+		(void **)ppEntry,
+		true,
+		NULL,
+		mapDepMakeKey, NULL, mapDepInit, mapDepCmp
+	);
+	if (result == PIX_SEARCH_ADDED) {
+		(*ppEntry)->pName = pAlloc->fpMalloc(nameLen + 1);
+		memcpy((*ppEntry)->pName, pName, nameLen + 1);
+	}
+	return result;
+}
+
+static
+StucErr addMapEntryDeps(
+	const StucAlloc *pAlloc,
+	MapDepStack *pStack,
+	PixuctHTable *pTable,
+	MapDepEntry *pEntry,
+	StucMapDeps *pDeps
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	for (I32 i = 0; i < pDeps->maps.count; ++i) {
+		I32 idx = 0;
+		PIXALC_DYN_ARR_ADD(void *, pAlloc, &pEntry->deps, idx);
+		addMapDepEntry(
+			pAlloc,
+			pTable,
+			pDeps->maps.pArr[i].pStr,
+			pEntry->deps.pArr + idx
+		);
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			!pEntry->deps.pArr[idx]->onStack,
+			"circular map dependency"
+		);
+	}
+	return err;
+}
+
+static
+StucErr mapDepStackPush(MapDepStack *pStack, MapDepEntry *pEntry) {
+	StucErr err = PIX_ERR_SUCCESS;
+	pStack->stack[pStack->ptr].seen = true;
+	++pStack->ptr;
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		pStack->ptr < MAP_DEP_STACK_SIZE,
+		"too many map dependencies"
+	);
+	pStack->stack[pStack->ptr] = (MapDepStackEntry){.pMap = pEntry};
+	pEntry->onStack = true;
+	return err;
+}
+
+static
+StucErr mapDepStackPop(MapDepStack *pStack) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pStack->ptr >= 0, "");
+	MapDepStackEntry *pEntry = pStack->stack + pStack->ptr;
+	if (pEntry->pMap) {
+		for (I32 i = 0; i < pEntry->pMap->deps.count; ++i) {
+			MapDepEntry *pDep = pEntry->pMap->deps.pArr[0];
+			if (pDep->status != STUC_MAP_LOADED && pDep->status != STUC_MAP_PENDING_LOAD) {
+				pEntry->pMap->status = STUC_MAP_MISSING_DEP;
+				break;
+			}
+		}
+	}
+	pStack->stack[pStack->ptr].pMap->onStack = false;
+	--pStack->ptr;
+	return err;
+}
+
+static
+StucErr getMapOrPath(StucMapLoad *pState, MapDepStack *pStack) {
+	StucErr err = PIX_ERR_SUCCESS;
+	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
+	PIX_ERR_ASSERT("", !pStackEntry->seen);
+	const char *pPath = NULL;
+	if (!pStack->ptr) {
+		pPath = pState->pFilepath;
+	}
+	else {
+		StucMap pMap = NULL;
+		StucErr mapErr = pState->fpMapGet(
+			pState->pUserData,
+			pStack->stack[pStack->ptr].pMap->pName,
+			(const char **)&pPath,
+			&pStack->stack[pStack->ptr].pMap->timestamp,
+			&pMap
+		);
+		if (mapErr != PIX_ERR_SUCCESS || !pMap && !pPath) {
+			pStackEntry->pMap->status = STUC_MAP_ERROR;
+			return err;
+		}
+		if (pMap) {
+			pStackEntry->pMap->status = STUC_MAP_LOADED;
+			PIX_ERR_ASSERT("", !pStackEntry->pMap->pMap);
+			pStackEntry->pMap->pMap = pMap;
+			return err;
+		}
+	}
+	PIX_ERR_ASSERT("", !pStackEntry->pMap->pPath);
+	I32 pathLen = (I32)strnlen(pPath, PIXIO_PATH_MAX);
+	pStackEntry->pMap->pPath = pState->pCtx->alloc.fpMalloc(pathLen + 1);
+	memcpy(pStackEntry->pMap->pPath, pPath, pathLen + 1);
+	return err;
+}
+
+static
+StucErr finaliseMapLoad(
+	StucMapLoad *pState,
+	MapDepStack *pStack,
+	PixtyStrArr *pDepBuf,
+	StucErr(*fpLoad)(StucContext, MapDepEntry *)
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
+	if (pStackEntry->pMap->status != STUC_MAP_PENDING_LOAD) {
+		PIX_ERR_ASSERT("", pStackEntry->pMap->status == STUC_MAP_MISSING_DEP);
+	}
+	else if (fpLoad(pState->pCtx, pStackEntry->pMap) == PIX_ERR_SUCCESS) {
+		pStackEntry->pMap->status = STUC_MAP_LOADED;
+	}
+	else {
+		pStackEntry->pMap->status = STUC_MAP_ERROR;
+	}
+	I32 depCount = pStackEntry->pMap->deps.count;
+	if (depCount) {
+		PIXALC_DYN_ARR_RESIZE(void *, &pState->pCtx->alloc, pDepBuf, depCount);
+		for (I32 i = 0; i < depCount; ++i) {
+			pDepBuf->pArr[i].pStr = pStackEntry->pMap->deps.pArr[i]->pName;
+		}
+	}
+	pDepBuf->count = depCount;
+	err = pState->fpMapStore(
+		pState->pUserData,
+		pStackEntry->pMap->pName,
+		pStackEntry->pMap->pPath,
+		pStackEntry->pMap->timestamp,
+		pStackEntry->pMap->pMap,
+		pStackEntry->pMap->status,
+		pDepBuf
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+static
+StucErr handleDeps(StucMapLoad *pState, MapDepStack *pStack) {
+	StucErr err = PIX_ERR_SUCCESS;
+	StucContext pCtx = pState->pCtx;
+	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
+	if (!pStackEntry->pMap->depsAdded) {
+		PIX_ERR_ASSERT("", pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD);
+		pStackEntry->pMap->depsAdded = true;
+		StucMapDeps deps = {0};
+		StucErr mapErr = stucMapImportGetDep(pCtx, pStackEntry->pMap->pPath, &deps);
+		if (mapErr != PIX_ERR_SUCCESS) {
+			pStackEntry->pMap->status = STUC_MAP_ERROR;
+		}
+		else if (deps.maps.count) {
+			err = addMapEntryDeps(
+				&pCtx->alloc,
+				pStack,
+				&pState->table,
+				pStackEntry->pMap,
+				&deps
+			);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+	}
+	else if (
+		pStackEntry->seen &&
+		pStackEntry->depIdx < pStackEntry->pMap->deps.count
+	) {
+		++pStackEntry->depIdx;
+	}
+	return err;
+}
+
+StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucContext, MapDepEntry *)) {
+	StucErr err = PIX_ERR_SUCCESS;
+	StucContext pCtx = pState->pCtx;
+
+	PixtyStrArr depBuf = {0};
+	MapDepStack stack = {0};
+	addMapDepEntry(&pCtx->alloc, &pState->table, pState->pFilepath, &stack.stack[0].pMap);
+	stack.stack[0].pMap->timestamp = pState->timestamp;
+	do {
+		MapDepStackEntry *pStackEntry = stack.stack + stack.ptr;
+		PIX_ERR_ASSERT("", pStackEntry->pMap);
+		if (!pStackEntry->pMap->pPath &&
+			pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD
+		) {
+			err = getMapOrPath(pState, &stack);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+		}
+		if (pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD) {
+			err = handleDeps(pState, &stack);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->pMap->deps.count);
+			if (pStackEntry->depIdx != pStackEntry->pMap->deps.count) {
+				err = mapDepStackPush(
+					&stack,
+					pStackEntry->pMap->deps.pArr[pStackEntry->depIdx]
+				);
+				PIX_ERR_THROW_IFNOT(err, "", 0);
+				continue;
+			}
+			if (pState->depsPassDone) {
+				err = finaliseMapLoad(pState, &stack, &depBuf, fpLoad);
+				PIX_ERR_THROW_IFNOT(err, "", 0);
+			}
+		}
+		err = mapDepStackPop(&stack);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	} while(stack.ptr >= 0);
+	PIX_ERR_THROW_IFNOT_COND(
+	err,
+	!pState->depsPassDone || stack.stack[0].pMap->status == STUC_MAP_LOADED,
+	"", 0
+	);
+	PIX_ERR_CATCH(0, err, ;);
+	if (depBuf.pArr) {
+		pState->pCtx->alloc.fpFree(depBuf.pArr);
+	}
+	return err;
+}

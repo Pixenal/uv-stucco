@@ -212,64 +212,6 @@ typedef struct StucBorderTable {
 	I32 edge;
 } StucBorderTable;
 
-typedef struct BorderEdge {
-	FaceCorner corner;
-	I32 adjIsland;
-} BorderEdge;
-
-typedef struct BorderEdgeArr {
-	BorderEdge *pArr;
-	I32 size;
-	I32 count;
-} BorderEdgeArr;
-
-typedef struct Border {
-	BorderEdgeArr arr;
-	//I32 len;
-} Border;
-
-typedef struct BorderArr {
-	Border *pArr;
-	I32 size;
-	I32 count;
-	I32 outer;
-} BorderArr;
-
-typedef struct StucIsland {
-	BorderArr borders;
-	PixtyRange faces;
-} StucIsland;
-
-typedef struct StucSubIsland {
-	StucIsland core;
-} StucSubIsland;
-
-typedef struct StucSubIslandArr {
-	StucSubIsland *pArr;
-	I32 *pFaces;
-	I32 size;
-	I32 count;
-	I32 faceCount;
-} StucSubIslandArr;
-
-typedef struct StucInIsland {
-	StucIsland core;
-	StucSubIslandArr sub;
-	PixuctHTable borderTable;
-	ClutreBb bb;
-	I32 wind;
-} StucInIsland;
-
-typedef struct StucInIslandArr {
-	StucInIsland *pArr;
-	PixuctHTableMem tableMem;
-	I32Arr faces;
-	I32 *pFaceTable;
-	I32 size;
-	I32 count;
-	I32 faceCount;
-} StucInIslandArr;
-
 typedef struct IslandClustArr {
 	const StucInIsland *pIsland;
 	ClutreStart start;
@@ -397,6 +339,15 @@ typedef struct SplitInPiecesAllocArr {
 	I32 count;
 } SplitInPiecesAllocArr;
 
+typedef struct MapMeshForIslandJobArgs {
+	JobArgs core;
+	BufMeshArr bufMeshArr;
+	BufMeshArr bufMeshClipArr;
+	I32 maxJobs;
+	bool empty;
+	JobArgsFoot foot;
+} MapMeshForIslandJobArgs;
+
 StucErr stucFindEncasedFaces(void *pArgsVoid);
 SrcFaces stucGetSrcFacesForBufCorner(
 	const BufMesh *pBufMesh,
@@ -454,6 +405,7 @@ StucErr stucInPieceArrInitBufMeshes(
 		PixtyI32Arr *
 	)
 );
+StucErr stucMapMeshForIsland(void *pArgsRaw);
 void stucBufMeshArrDestroy(StucContext pCtx, BufMeshArr *pArr);
 //returns 1 if yes, and 2 if only due to preserve
 //I32 stucCouldInEdgeIntersectMapFace(const Mesh *pInMesh, I32 edge);

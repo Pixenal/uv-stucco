@@ -10,6 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_alloc_utils.h>
 #include <pixenals_math_utils.h>
 #include <pixenals_mesh_utils.h>
+#include <cluster_tree_2d.h>
 
 #include <uv_stucco.h>
 #include <types.h>
@@ -75,6 +76,66 @@ typedef struct TriCache {
 	FaceTriangulated *pArr;
 	PixalcLinAlloc alloc;
 } TriCache;
+
+//TODO add separator comments between unrelated types/ funcs/ etc
+
+typedef struct BorderEdge {
+	FaceCorner corner;
+	I32 adjIsland;
+} BorderEdge;
+
+typedef struct BorderEdgeArr {
+	BorderEdge *pArr;
+	I32 size;
+	I32 count;
+} BorderEdgeArr;
+
+typedef struct Border {
+	BorderEdgeArr arr;
+	//I32 len;
+} Border;
+
+typedef struct BorderArr {
+	Border *pArr;
+	I32 size;
+	I32 count;
+	I32 outer;
+} BorderArr;
+
+typedef struct StucIsland {
+	BorderArr borders;
+	PixtyRange faces;
+} StucIsland;
+
+typedef struct StucSubIsland {
+	StucIsland core;
+} StucSubIsland;
+
+typedef struct StucSubIslandArr {
+	StucSubIsland *pArr;
+	I32 *pFaces;
+	I32 size;
+	I32 count;
+	I32 faceCount;
+} StucSubIslandArr;
+
+typedef struct StucInIsland {
+	StucIsland core;
+	StucSubIslandArr sub;
+	PixuctHTable borderTable;
+	ClutreBb bb;
+	I32 wind;
+} StucInIsland;
+
+typedef struct StucInIslandArr {
+	StucInIsland *pArr;
+	PixuctHTableMem tableMem;
+	I32Arr faces;
+	I32 *pFaceTable;
+	I32 size;
+	I32 count;
+	I32 faceCount;
+} StucInIslandArr;
 
 static inline
 const I8 *stucTriGet(const TriCache *pCache, I32 face, I32 idx) {
