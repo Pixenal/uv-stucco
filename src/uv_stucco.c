@@ -262,14 +262,15 @@ StucErr stucMapFileLoadIntern(
 			AttribIndexedArr outIdxAttribArr = {0};
 			err = stucMapToMesh(
 				pCtx,
-				-1,
+				0,
 				pMapArr,
 				&pMesh->core,
 				&pMap->indexedAttribs,
 				&meshOut,
 				&outIdxAttribArr,
-				1.0f,//TODO replace with actual wScale an receiveLen vars
-				-1.0f,
+				//TODO wscale and receivelen are per target rn, so just using idx 0
+				pMapArr->pArr[0].wScale,
+				pMapArr->pArr[0].receiveLen,
 				false, //TODO should this be true? if not remove option from merge func,
 				false
 			);

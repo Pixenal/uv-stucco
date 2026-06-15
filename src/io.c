@@ -527,6 +527,7 @@ void optsFinalEncode(
 	MatMapEntry *pMatMapEntry,
 	I32 matIdx,
 	PixioByteArr *pBlendOpt,
+	const MappingOpt *pMappingOpt,
 	bool blendOptOverride,
 	bool wScaleOverride,
 	bool receiveOverride
@@ -546,10 +547,10 @@ void optsFinalEncode(
 		pAlloc->fpFree(pBlendOpt->pArr);
 	}
 	if (wScaleOverride) {
-		pixioByteArrWrite(pAlloc, pData, &pMatMapEntry->opt.wScale, 32);
+		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->wScale, 32);
 	}
 	if (receiveOverride) {
-		pixioByteArrWrite(pAlloc, pData, &pMatMapEntry->opt.receiveLen, 32);
+		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->receiveLen, 32);
 	}
 }
 
@@ -605,9 +606,9 @@ StucErr encodeMappingOpt(
 			&(MatMapEntryInit) {.pMap = pMapArr->pArr[i].map.ptr, .opt = mappingOpt},
 			keyFromPath, NULL, matMapEntryInit, matMapEntryCmp
 		);
-		bool wScaleOverride = pEntry->opt.wScale != wScale;
-		bool receiveOverride = pEntry->opt.receiveLen != receiveLen;
-		bool blendOptOverride = false;
+		bool wScaleOverride = wScale != 1.0f;
+		bool receiveOverride = receiveLen != -1.0f;
+		bool blendOptOverride = false;//TODO should this be true?
 		PixioByteArr blendOptBuf = {0};
 		encodeBlendOpts(
 			pHandle,
@@ -621,6 +622,7 @@ StucErr encodeMappingOpt(
 			pEntry,
 			pMapArr->pArr[i].matIdx,
 			&blendOptBuf,
+			&mappingOpt,
 			blendOptOverride, wScaleOverride, receiveOverride
 		);
 	}
