@@ -722,6 +722,9 @@ void stucBuildSeamAndPreserveTables(Mesh *pMesh) {
 		bool preserve = stucGetIfPreserveEdge(pMesh, i);
 		if (seam || preserve) {
 			V2_I32 faces = pMesh->pEdgeFaces[i];
+			if (faces.d[0] == -1 && faces.d[1] == -1) {
+				continue;//edge has no faces
+			}
 			V2_I8 corners = pMesh->pEdgeCorners[i];
 			I32 vert = stucGetMeshVert(
 				&pMesh->core,
