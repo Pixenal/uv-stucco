@@ -31,3 +31,6 @@
 [submodule "extern/pixenals-mesh-utils"]
 	path = extern/pixenals-mesh-utils
 	url = https://github.com/Pixenal/pixenals-mesh-utils.git
+[submodule "extern/cark-vis"]
+	path = extern/cark-vis
+	url = https://github.com/Pixenal/cark-vis.git

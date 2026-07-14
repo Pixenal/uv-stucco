@@ -22,12 +22,6 @@ typedef enum InsideStatus {
 	STUC_INSIDE_STATUS_ON_VERT
 } InsideStatus;
 
-typedef enum StucCompare {
-	STUC_COMPARE_LESS,
-	STUC_COMPARE_EQUAL,
-	STUC_COMPARE_GREAT
-} StucCompare;
-
 typedef struct HalfPlane {
 	V2_F32 uv;
 	V2_F32 dirUnit;
@@ -138,41 +132,6 @@ void stucSetStageName(StucCtx *pCtx, const char *pName);
 F32 stucGetT(V2_F32 point, V2_F32 lineA, V2_F32 lineUnit, F32 lineLen);
 I32 stucIdxBitArray(UBitField8 *pArr, I32 idx, I32 len);
 void stucSetBitArr(UBitField8 *pArr, I32 idx, I32 value, I32 len);
-STUC_FORCE_INLINE
-void stucInsertionSort(
-	I32 *pIdxArr,
-	I32 count,
-	const void *pData,
-	StucCompare (*fpCompare)(const void *, I32, I32)
-) {
-	bool order = fpCompare(pData, 0, 1) == STUC_COMPARE_LESS;
-	pIdxArr[0] = !order;
-	pIdxArr[1] = order;
-	I32 bufSize = 2;
-	for (I32 i = bufSize; i < count; ++i) {
-		bool insert = false;
-		I32 j;
-		for (j = bufSize - 1; j >= 0; --j) {
-			insert =
-				fpCompare(pData, i, pIdxArr[j]) == STUC_COMPARE_LESS &&
-				fpCompare(pData, i, pIdxArr[j - 1]) == STUC_COMPARE_GREAT;
-			if (insert) {
-				break;
-			}
-		}
-		if (!insert) {
-			pIdxArr[bufSize] = i;
-		}
-		else {
-			for (I32 m = bufSize; m > j; --m) {
-				pIdxArr[m] = pIdxArr[m - 1];
-				PIX_ERR_ASSERT("", m <= bufSize && m > j);
-			}
-			pIdxArr[j] = i;
-		}
-		bufSize++;
-	}
-}
 M3x3 stucGetInterpolatedTbn(
 	const Mesh *pMesh,
 	const FaceRange *pFace,
