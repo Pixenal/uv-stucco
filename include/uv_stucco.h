@@ -344,13 +344,6 @@ typedef struct StucThreadPool {
 
 typedef PixioFileOpenType StucFileOpenType;
 
-typedef struct StucIo {
-	StucErr (*fpOpen)(void **, const char *, StucFileOpenType, const StucAlloc *);
-	StucErr (*fpWrite)(void *, const void *, int32_t);
-	StucErr (*fpRead)(void *, void *, int32_t);
-	StucErr (*fpClose)(void *);
-} StucIo;
-
 typedef struct StucImage {
 	void *pData;
 	StucImageType type;
@@ -388,7 +381,7 @@ typedef struct StucCtx {
 	void *pCustom;
 	StucThreadPool threadPool;
 	StucAlloc alloc;
-	StucIo io;
+	PixioFPtrs io;
 	I32 threadCount;
 	StucTypeDefaultConfig typeDefaults;
 	StucStageReport stageReport;
@@ -461,7 +454,7 @@ StucErr stucContextInit(
 	StucCtx *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pTheadPool,
-	StucIo *pIo,
+	PixioFPtrs *pIo,
 	StucTypeDefaultConfig *pTypeDefaultConfig,
 	StucStageReport *pStageReport,
 	bool threadLogging

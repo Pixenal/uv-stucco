@@ -36,7 +36,7 @@ StucErr stucContextInit(
 	StucCtx *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pThreadPool,
-	StucIo *pIo,
+	PixioFPtrs *pIo,
 	StucTypeDefaultConfig *pTypeDefaultConfig,
 	StucStageReport *pStageReport,
 	bool threadLogging

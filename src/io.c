@@ -6,7 +6,6 @@ SPDX-License-Identifier: Apache-2.0
 //TODO these should be prefixed with STUC_
 #define VERT_ATTRIBUTE_AMOUNT 3
 #define LOOP_ATTRIBUTE_AMOUNT 3
-#define ENCODE_DECODE_BUFFER_LENGTH 34
 #define STUC_MAP_VERSION 101
 #define STUC_FLAT_CUTOFF_HEADER_SIZE 56
 #define STUC_WINDOW_BITS 31 //15 (+16 as using gzip)
@@ -149,6 +148,7 @@ void stucIoDataTagValidate() {
 	}
 }
 
+static
 PixErr checkZlibErr(I32 success, I32 zErr) {
 	PixErr err = PIX_ERR_SUCCESS;
 	if (zErr == success) {
@@ -197,7 +197,12 @@ void encodeAttribs(
 		else {
 			I32 attribSize = stucGetAttribSizeIntern(pAttribs->pArr[i].core.type) * 8;
 			for (I32 j = 0; j < dataLen; ++j) {
-				pixioByteArrWrite(pAlloc, pData, stucAttribAsVoid(&pAttribs->pArr[i].core, j), attribSize);
+				pixioByteArrWrite(
+					pAlloc,
+					pData,
+					stucAttribAsVoid(&pAttribs->pArr[i].core, j),
+					attribSize
+				);
 			}
 		}
 	}
@@ -770,7 +775,7 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 
 	PixioByteArr header = {0};
 	U8 *pCompressed = NULL;
-	void *pFile = NULL;
+	PixioFile file = {0};
 
 	PIX_ERR_THROW_IFNOT_COND(
 		err,
@@ -851,18 +856,18 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 
 	header.size = header.byteIdx + !!header.nextBitIdx;
 
-	err = pHandle->pCtx->io.fpOpen(&pFile, pHandle->pPath, 0, pAlloc);
+	err = pHandle->pCtx->io.fpOpen(&file, pHandle->pPath, 0);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(pFile, &header.size, 4);
+	err = pHandle->pCtx->io.fpWrite(&file, &header.size, 4);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(pFile, header.pArr, (I32)header.size);
+	err = pHandle->pCtx->io.fpWrite(&file, header.pArr, (I32)header.size);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(pFile, pCompressed, (I32)zStream.total_out);
+	err = pHandle->pCtx->io.fpWrite(&file, pCompressed, (I32)zStream.total_out);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	PIX_ERR_CATCH(0, err, ;);
-	if (pFile) {
-		err = pHandle->pCtx->io.fpClose(pFile);
+	if (file.pFile) {
+		err = pHandle->pCtx->io.fpClose(&file);
 	}
 	if (header.pArr) {
 		pAlloc->fpFree(header.pArr);
@@ -1746,10 +1751,10 @@ StucErr decodeStucData(
 }
 
 static
-StucErr openMapFile(StucCtx *pCtx, const char *pFilepath, void **ppFile) {
+StucErr openMapFile(StucCtx *pCtx, const char *pFilepath, PixioFile *pFile) {
 	StucErr err = PIX_ERR_SUCCESS;
 	printf("Loading STUC file: %s\n", pFilepath);
-	err = pCtx->io.fpOpen(ppFile, pFilepath, 1, &pCtx->alloc);
+	err = pCtx->io.fpOpen(pFile, pFilepath, 1);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
@@ -1757,7 +1762,7 @@ StucErr openMapFile(StucCtx *pCtx, const char *pFilepath, void **ppFile) {
 static
 StucErr importMapHeader(
 	StucCtx *pCtx,
-	void *pFile,
+	PixioFile *pFile,
 	StucHeader *pHeader,
 	StucMapDeps *pDeps
 ) {
@@ -1796,17 +1801,17 @@ StucErr stucMapImportGetDep(
 	StucMapDeps *pDeps
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	void *pFile = NULL;
+	PixioFile file = {0};
 	StucHeader header = {0};
 
-	err = openMapFile(pCtx, filePath, &pFile);
+	err = openMapFile(pCtx, filePath, &file);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = importMapHeader(pCtx, pFile, &header, pDeps);
+	err = importMapHeader(pCtx, &file, &header, pDeps);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	PIX_ERR_CATCH(0, err, stucMapDepsDestroy(&pCtx->alloc, pDeps););
-	if (pFile) {
-		pCtx->io.fpClose(pFile);
+	if (file.pFile) {
+		pCtx->io.fpClose(&file);
 	}
 	return err;
 }
@@ -1823,15 +1828,15 @@ StucErr stucMapImport(
 	bool correctIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	void *pFile = NULL;
+	PixioFile file = {0};
 	U8 *pDataRaw = NULL;
 	PixioByteArr dataPixioByteArr = {0};
 	StucHeader header = {0};
 	StucMapDeps deps = {0};
 
-	err = openMapFile(pCtx, filePath, &pFile);
+	err = openMapFile(pCtx, filePath, &file);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = importMapHeader(pCtx, pFile, &header, &deps);
+	err = importMapHeader(pCtx, &file, &header, &deps);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	//decompress data
@@ -1841,7 +1846,7 @@ StucErr stucMapImport(
 		.opaque = (void *)&pCtx->alloc
 	};
 	pDataRaw = pCtx->alloc.fpMalloc((I32)header.dataSizeCompressed);
-	err = pCtx->io.fpRead(pFile, pDataRaw, (I32)header.dataSizeCompressed);
+	err = pCtx->io.fpRead(&file, pDataRaw, (I32)header.dataSizeCompressed);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	zStream.next_in = pDataRaw;
 	err = checkZlibErr(Z_OK, inflateInit2(&zStream, STUC_WINDOW_BITS));
@@ -1878,8 +1883,8 @@ StucErr stucMapImport(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err, ;);
 	stucMapDepsDestroy(&pCtx->alloc, &deps);
-	if (pFile) {
-		pCtx->io.fpClose(pFile);
+	if (file.pFile) {
+		pCtx->io.fpClose(&file);
 	}
 	if (pDataRaw) {
 		pCtx->alloc.fpFree(pDataRaw);
@@ -1890,7 +1895,7 @@ StucErr stucMapImport(
 	return err;
 }
 
-void stucIoSetCustom(StucCtx *pCtx, StucIo *pIo) {
+void stucIoSetCustom(StucCtx *pCtx, PixioFPtrs *pIo) {
 	if (!pIo->fpOpen || !pIo->fpClose || !pIo->fpWrite || !pIo->fpRead) {
 		printf("Failed to set custom IO. One or more functions were NULL");
 		abort();
