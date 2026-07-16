@@ -32,7 +32,7 @@ void setDefaultStageReport(StucCtx *pCtx) {
 	pCtx->stageReport.fpEnd = stucStageEnd;
 }
 
-StucErr stucContextInit(
+StucErr stucInit(
 	StucCtx *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pThreadPool,

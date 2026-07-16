@@ -854,15 +854,17 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 		pixioByteArrWriteStr(pAlloc, &header, pEntry->pMap->pName);
 	}
 
-	header.size = header.byteIdx + !!header.nextBitIdx;
-
+	if (header.nextBitIdx) {
+		++header.byteIdx;
+		header.nextBitIdx = 0;
+	}
 	err = pHandle->pCtx->io.fpOpen(&file, pHandle->pPath, 0);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(&file, &header.size, 4);
+	err = pHandle->pCtx->io.fpWrite(&file, &header.byteIdx, 4);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(&file, header.pArr, (I32)header.size);
+	err = pHandle->pCtx->io.fpWrite(&file, header.pArr, header.byteIdx);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(&file, pCompressed, (I32)zStream.total_out);
+	err = pHandle->pCtx->io.fpWrite(&file, pCompressed, zStream.total_out);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	PIX_ERR_CATCH(0, err, ;);
@@ -1896,7 +1898,7 @@ StucErr stucMapImport(
 }
 
 void stucIoSetCustom(StucCtx *pCtx, PixioFPtrs *pIo) {
-	if (!pIo->fpOpen || !pIo->fpClose || !pIo->fpWrite || !pIo->fpRead) {
+	if (!pIo->fpOpen || !pIo->fpClose || !pIo->fpWrite || !pIo->fpRead || !pIo->fpPosSet) {
 		printf("Failed to set custom IO. One or more functions were NULL");
 		abort();
 	}
@@ -1908,6 +1910,7 @@ void stucIoSetDefault(StucCtx *pCtx) {
 	pCtx->io.fpClose = pixioFileClose;
 	pCtx->io.fpWrite = pixioFileWrite;
 	pCtx->io.fpRead = pixioFileRead;
+	pCtx->io.fpPosSet = pixioFilePosSet;
 }
 
 const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen) {

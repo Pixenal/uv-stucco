@@ -450,7 +450,7 @@ STUC_EXPORT
 //TODO replace old param names, context should be pCtx
 StucErr stucThreadPoolSetCustom(StucCtx *context, const StucThreadPool *pThreadPool);
 STUC_EXPORT
-StucErr stucContextInit(
+StucErr stucInit(
 	StucCtx *pCtx,
 	StucAlloc *pAlloc,
 	StucThreadPool *pTheadPool,
