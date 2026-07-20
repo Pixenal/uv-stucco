@@ -17,68 +17,76 @@ SPDX-License-Identifier: Apache-2.0
 #include <attrib_utils.h>
 #include <mesh.h>
 
-void stucSetDefaultSpAttribNames(StucCtx *pCtx) {
-	strcpy(pCtx->spAttribNames[1], "position");
-	strcpy(pCtx->spAttribNames[2], "UVMap");
-	strcpy(pCtx->spAttribNames[3], "normal");
-	strcpy(pCtx->spAttribNames[4], "StucPreserve");
-	strcpy(pCtx->spAttribNames[5], "StucPreserveReceive");
-	strcpy(pCtx->spAttribNames[6], "StucPreserveVert");
-	strcpy(pCtx->spAttribNames[7], "StucUsg");
-	strcpy(pCtx->spAttribNames[8], "StucTangent");
-	strcpy(pCtx->spAttribNames[9], "StucTSign");
-	strcpy(pCtx->spAttribNames[10], "StucWScale");
-	strcpy(pCtx->spAttribNames[11], "StucMaterialIndices");//TODO StucMatIdx is easier to type
-	strcpy(pCtx->spAttribNames[12], "StucEdgeLen");
-	strcpy(pCtx->spAttribNames[13], "StucSeamEdge");
-	strcpy(pCtx->spAttribNames[14], "StucSeamVert");
-	strcpy(pCtx->spAttribNames[15], "StucNumAdjPreserve");
-	strcpy(pCtx->spAttribNames[16], "StucEdgeFaces");
-	strcpy(pCtx->spAttribNames[17], "StucEdgeCorners");
-	strcpy(pCtx->spAttribNames[18], "StucVertNormals");
-}
 
-void stucSetDefaultSpAttribDomains(StucCtx *pCtx) {
-	pCtx->spAttribDomains[1] = STUC_DOMAIN_VERT;
-	pCtx->spAttribDomains[2] = STUC_DOMAIN_CORNER;
-	pCtx->spAttribDomains[3] = STUC_DOMAIN_CORNER;
-	pCtx->spAttribDomains[4] = STUC_DOMAIN_EDGE;
-	pCtx->spAttribDomains[5] = STUC_DOMAIN_EDGE;
-	pCtx->spAttribDomains[6] = STUC_DOMAIN_VERT;
-	pCtx->spAttribDomains[7] = STUC_DOMAIN_VERT;
-	pCtx->spAttribDomains[8] = STUC_DOMAIN_CORNER;
-	pCtx->spAttribDomains[9] = STUC_DOMAIN_CORNER;
-	pCtx->spAttribDomains[10] = STUC_DOMAIN_VERT;
-	pCtx->spAttribDomains[11] = STUC_DOMAIN_FACE;
-	pCtx->spAttribDomains[12] = STUC_DOMAIN_EDGE;
-	pCtx->spAttribDomains[13] = STUC_DOMAIN_EDGE;
-	pCtx->spAttribDomains[14] = STUC_DOMAIN_VERT;
-	pCtx->spAttribDomains[15] = STUC_DOMAIN_VERT;
-	pCtx->spAttribDomains[16] = STUC_DOMAIN_EDGE;
-	pCtx->spAttribDomains[17] = STUC_DOMAIN_EDGE;
-	pCtx->spAttribDomains[18] = STUC_DOMAIN_VERT;
-}
-
-void stucSetDefaultSpAttribTypes(StucCtx *pCtx) {
-	pCtx->spAttribTypes[1] = STUC_ATTRIB_V3_F32;
-	pCtx->spAttribTypes[2] = STUC_ATTRIB_V2_F32;
-	pCtx->spAttribTypes[3] = STUC_ATTRIB_V3_F32;
-	pCtx->spAttribTypes[4] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[5] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[6] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[7] = STUC_ATTRIB_I32;
-	pCtx->spAttribTypes[8] = STUC_ATTRIB_V3_F32;
-	pCtx->spAttribTypes[9] = STUC_ATTRIB_F32;
-	pCtx->spAttribTypes[10] = STUC_ATTRIB_F32;
-	pCtx->spAttribTypes[11] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[12] = STUC_ATTRIB_F32;
-	pCtx->spAttribTypes[13] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[14] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[15] = STUC_ATTRIB_I8;
-	pCtx->spAttribTypes[16] = STUC_ATTRIB_V2_I32;
-	pCtx->spAttribTypes[17] = STUC_ATTRIB_V2_I8;
-	pCtx->spAttribTypes[18] = STUC_ATTRIB_V3_F32;
-}
+//these are used only for special attribs
+// (ie, active attributes which are aliased internally for quick access).
+//Non active attribs, or active attributes outside the special range, are not limited
+//to these domains or types.
+// spAttribNames are defaults for internal special attrib creation.
+static
+const char spAttribNames[STUC_ATTRIB_USE_SP_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN] = {
+	"",
+	"position",
+	"UVMap",
+	"normal",
+	"StucPreserve",
+	"StucPreserveReceive",
+	"StucPreserveVert",
+	"StucUsg",
+	"StucTangent",
+	"StucTSign",
+	"StucWScale",
+	"StucMaterialIndices",//TODO StucMatIdx is easier to type
+	"StucEdgeLen",
+	"StucSeamEdge",
+	"StucSeamVert",
+	"StucNumAdjPreserve",
+	"StucEdgeFaces",
+	"StucEdgeCorners",
+	"StucVertNormals"
+};
+static const StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT] = {
+	STUC_ATTRIB_NONE,
+	STUC_ATTRIB_V3_F32,
+	STUC_ATTRIB_V2_F32,
+	STUC_ATTRIB_V3_F32,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_I32,
+	STUC_ATTRIB_V3_F32,
+	STUC_ATTRIB_F32,
+	STUC_ATTRIB_F32,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_F32,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_I8,
+	STUC_ATTRIB_V2_I32,
+	STUC_ATTRIB_V2_I8,
+	STUC_ATTRIB_V3_F32
+};
+static const StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT] = {
+	STUC_DOMAIN_NONE,
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_CORNER,
+	STUC_DOMAIN_CORNER,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_CORNER,
+	STUC_DOMAIN_CORNER,
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_FACE,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_EDGE,
+	STUC_DOMAIN_VERT
+};
 
 #define CLAMP(a, min, max) (a <= min ? min : (a > max ? max : a))
 
@@ -260,7 +268,7 @@ StucErr stucAssignActiveAliases(
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMesh, "");
 	for (I32 i = 1; i < STUC_ATTRIB_USE_SP_ENUM_COUNT; ++i) {
 		if (!(flags >> i & 0x1) ||
-			(domain != STUC_DOMAIN_NONE && domain != pCtx->spAttribDomains[i])) {
+			(domain != STUC_DOMAIN_NONE && domain != spAttribDomains[i])) {
 			continue;
 		}
 		Attrib *pAttrib = stucGetActiveAttrib(pCtx, &pMesh->core, i);
@@ -1719,7 +1727,7 @@ void stucAppendSpAttribsToMesh(
 		if (!(pFlags >> i & 0x1)) {
 			continue;
 		}
-		StucDomain domain = pCtx->spAttribDomains[i];
+		StucDomain domain = spAttribDomains[i];
 		AttribArray *pArr = stucGetAttribArrFromDomain(&pMesh->core, domain);
 		I32 dataLen = stucDomainCountGetIntern(&pMesh->core, domain);
 		PIX_ERR_ASSERT("", pArr);
@@ -1728,12 +1736,12 @@ void stucAppendSpAttribsToMesh(
 			&pCtx->alloc,
 			pArr,
 			&pAttrib,
-			pCtx->spAttribNames[i],
+			spAttribNames[i],
 			dataLen,
 			false,
 			origin,
 			STUC_ATTRIB_DONT_COPY,
-			pCtx->spAttribTypes[i],
+			spAttribTypes[i],
 			i
 		);
 		stucSetAttribIdxActive(&pMesh->core,  pArr->count - 1, i, domain);
@@ -1864,6 +1872,19 @@ UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count) {
 		field |= 0x1 << pArr[i];
 	}
 	return field;
+}
+
+const char *stucAttribSpNameGet(const StucCtx *pCtx, I32 idx) {
+	PIX_ERR_ASSERT("out or range", idx > 0 && idx < STUC_ATTRIB_USE_SP_ENUM_COUNT);
+	return spAttribNames[idx];
+}
+StucAttribType stucAttribSpTypeGet(const StucCtx *pCtx, I32 idx) {
+	PIX_ERR_ASSERT("out or range", idx > 0 && idx < STUC_ATTRIB_USE_SP_ENUM_COUNT);
+	return spAttribTypes[idx];
+}
+StucDomain stucAttribSpDomainGet(const StucCtx *pCtx, I32 idx) {
+	PIX_ERR_ASSERT("out or range", idx > 0 && idx < STUC_ATTRIB_USE_SP_ENUM_COUNT);
+	return spAttribDomains[idx];
 }
 
 StucErr stucAttemptToSetMissingActiveDomains(StucMesh *pMesh) {

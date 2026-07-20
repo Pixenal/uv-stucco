@@ -67,28 +67,33 @@ else()
 endif()
 set(PLYCUT_PIX_PATH "../")
 set(CLUTRE2_PIX_PATH "../")
+set(CARK_PIX_PATH "../")
 set(MESH_PIX_PATH "../")
 add_subdirectory(extern/poly-cutout)
 add_subdirectory(extern/cluster-tree-2d)
+add_subdirectory(extern/cark-vis)
 add_subdirectory(extern/pixenals-mesh-utils)
 if (NOT TARGET PixenalsAllocUtils)
 	add_subdirectory(extern/pixenals-alloc-utils)
 endif()
-add_subdirectory(extern/pixenals-io-utils)
 if (NOT TARGET PixenalsMathUtils)
 	add_subdirectory(extern/pixenals-math-utils)
+endif()
+if (NOT TARGET PixenalsIoUtils)
+	add_subdirectory(extern/pixenals-io-utils)
 endif()
 if (NOT TARGET PixenalsStructs)
 	add_subdirectory(extern/pixenals-structs)
 endif()
 add_subdirectory(extern/pixenals-thread-utils)
 target_link_libraries(${PROJECT} PRIVATE
-	PolyCutout ClusterTree2d PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
+	PolyCutout ClusterTree2d CarkVisIo PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
 	PixenalsThreadUtils PixenalsStructs PixenalsMeshUtils
 )
 target_include_directories(${PROJECT} PUBLIC
 	extern/poly-cutout/include
 	extern/cluster-tree-2d/include
+	extern/cark-vis/include
 	extern/pixenals-types/include extern/pixenals-error-utils/include
 	extern/pixenals-alloc-utils/include extern/pixenals-io-utils/include
 	extern/pixenals-math-utils/include extern/pixenals-thread-utils/include

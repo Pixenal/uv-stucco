@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_io_utils.h>
 #include <pixenals_thread_utils.h>
 #include <pixenals_structs.h>
+#include <cark_vis_io.h>
 
 #define STUC_DISABLE_EDGES_IN_BUF
 
@@ -375,6 +376,17 @@ typedef struct StucStageReport {
 	int32_t progress;
 	int32_t outOf;
 } StucStageReport;
+// v unrelated ^ TODO above is old and largely unused, overhaul or remove
+typedef enum StucStage {
+	STUC_STAGE_NONE,
+	STUC_STAGE_ISLAND_SPLIT,
+	STUC_STAGE_ENUM_COUNT
+} StucStage;
+
+typedef struct StucCark {
+	CarkOutCtx ctx;
+	int32_t stageHandleArr[STUC_STAGE_ENUM_COUNT];
+} StucCark;
 
 //TODO rename to StucCtx and remove redundant opaque ptr typedef
 typedef struct StucCtx {
@@ -384,16 +396,11 @@ typedef struct StucCtx {
 	PixioFPtrs io;
 	I32 threadCount;
 	StucTypeDefaultConfig typeDefaults;
+	StucCark cark;
+
+	//pretty much unused rn, this is old
 	StucStageReport stageReport;
 	I32 stageInterval;
-	//these are used only for special attribs
-	// (ie, active attributes which are aliased internally for quick access).
-	//Non active attribs, or active attributes outside the special range, are not limited
-	//to these domains or types.
-	// spAttribNames are defaults for internal special attrib creation.
-	char spAttribNames[STUC_ATTRIB_USE_SP_ENUM_COUNT][STUC_ATTRIB_NAME_MAX_LEN];
-	StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT];
-	StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT];
 } StucCtx;
 
 //TODO unify naming of contexts like this.
@@ -637,9 +644,11 @@ StucErr stucJobGetErrs(
 	PixthJob *pJobHandles
 );
 STUC_EXPORT
-StucErr stucAttribSpTypesGet(StucCtx *pCtx, const StucAttribType **ppTypes);
+const char *stucAttribSpNameGet(const StucCtx *pCtx, int32_t idx);
 STUC_EXPORT
-StucErr stucAttribSpDomainsGet(StucCtx *pCtx, const StucDomain **ppDomains);
+StucAttribType stucAttribSpTypeGet(const StucCtx *pCtx, int32_t idx);
+STUC_EXPORT
+StucDomain stucAttribSpDomainGet(const StucCtx *pCtx, int32_t idx);
 STUC_EXPORT
 StucErr stucAttribSpIsValid(
 	StucCtx *pCtx,

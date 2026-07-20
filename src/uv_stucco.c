@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <utils.h>
 #include <interp_and_xform.h>
 #include <merge_and_snap.h>
+#include <cark_stages.h>
 
 //TODO a lot of these funcs can be moved out of this file
 
@@ -32,6 +33,27 @@ void setDefaultStageReport(StucCtx *pCtx) {
 	pCtx->stageReport.fpEnd = stucStageEnd;
 }
 
+static
+StucErr initCarkOut(
+	const StucAlloc *pAlloc,
+	const PixioFPtrs *pIo,
+	I32 threadCount,
+	StucCark *pCark
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	err = carkOutInit(pAlloc, pIo, threadCount, &pCark->ctx);
+	PIX_ERR_RETURN_IFNOT(err, "");
+
+	err = carkOutStageInit(
+		&pCark->ctx,
+		"island split",
+		&STUC_STAGE_INFO_ISLAND_SPLIT,
+		pCark->stageHandleArr + STUC_STAGE_ISLAND_SPLIT
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
 StucErr stucInit(
 	StucCtx *pCtx,
 	StucAlloc *pAlloc,
@@ -41,6 +63,9 @@ StucErr stucInit(
 	StucStageReport *pStageReport,
 	bool threadLogging
 ) {
+	//TODO fix inconsistent use of PixErr & StucErr typedef
+	//TODO StucAlloc typedefs PixalcFPtrs, but no typedef for PixioFPtrs?
+	//inconsistent
 	StucErr err = PIX_ERR_SUCCESS;
 #ifndef NDEBUG
 	stucIoDataTagValidate();
@@ -86,10 +111,11 @@ StucErr stucInit(
 	else {
 		setDefaultStageReport(pCtx);
 	}
+
 	//TODO add ability to set custom specialAttrib names
-	stucSetDefaultSpAttribNames(pCtx);
-	stucSetDefaultSpAttribDomains(pCtx);
-	stucSetDefaultSpAttribTypes(pCtx);
+
+	err = initCarkOut(&pCtx->alloc, &pCtx->io, pCtx->threadCount, &pCtx->cark);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	PIX_ERR_CATCH(0, err,
 		stucContextDestroy(pCtx);
@@ -97,10 +123,12 @@ StucErr stucInit(
 	return err;
 }
 
+//TODO rename to stucDestroy
 StucErr stucContextDestroy(StucCtx *pCtx) {
 	if (pCtx->threadPool.fpDestroy) {
 		pCtx->threadPool.fpDestroy(&pCtx->threadPool.handle);
 	}
+	carkOutDestroy(&pCtx->cark.ctx);
 	*pCtx = (StucCtx){0};
 	return PIX_ERR_SUCCESS;
 }
@@ -1428,6 +1456,43 @@ StucErr stucQueueMapToMesh(
 }
 
 static
+StucErr logInMesh(StucCtx *pCtx, Mesh *pMesh) {
+	StucErr err = PIX_ERR_SUCCESS;
+	for (I32 i = 0; i < pMesh->core.cornerCount; ++i) {
+		CarkLog log = {0};
+		err = carkOutLogStart(&(pCtx->cark).ctx, 0, (pCtx->cark).stageHandleArr[STUC_STAGE_ISLAND_SPLIT], 1, i, &(log));
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 0, pMesh->core.pCorners + i);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogEnd(&log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+
+		err = CARK_LOG_START(pCtx->cark, 0, STUC_STAGE_ISLAND_SPLIT, 3, i, log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 0, pMesh->pUvs[i].d + 0);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 1, pMesh->pUvs[i].d + 1);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogEnd(&log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	for (I32 i = 0; i < pMesh->core.vertCount; ++i) {
+		CarkLog log = {0};
+		err = CARK_LOG_START(pCtx->cark, 0, STUC_STAGE_ISLAND_SPLIT, 2, i, log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 0, pMesh->pPos[i].d + 0);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 1, pMesh->pPos[i].d + 1);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 2, pMesh->pPos[i].d + 2);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogEnd(&log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	return err;
+}
+
+static
 StucErr mapMapArrToMesh(
 	StucCtx *pCtx,
 	I32 threadId,
@@ -1441,9 +1506,13 @@ StucErr mapMapArrToMesh(
 	bool keepExistingIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	err = logInMesh(pCtx, pMeshIn);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	StucInIslandArr inIslands = {0};
 	err = StucSplitMeshToIslands(pCtx, pMeshIn, &inIslands);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	err = CARK_STAGE_END(pCtx->cark, STUC_STAGE_ISLAND_SPLIT);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 
 	Mesh *pOutBufArr = pCtx->alloc.fpCalloc(pMapArr->count, sizeof(Mesh));
 	StucObjArr outObjWrapArr = {0};
@@ -1746,11 +1815,14 @@ StucErr stucMapToMesh(
 		receiveLen,
 		keepExistingIdxAttribs
 	);
-	PIX_ERR_THROW_IFNOT(err, "mapMapArrToMesh returned error", 0);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	if (triangulate) {
 		err = stucMeshTriangulate(pCtx, pMeshOut);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
+	const char *logPath = "C:/Users/scout/AppData/Local/Temp/Debug.cark";
+	err = carkOutFileSave(&pCtx->cark.ctx, logPath, true);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err, ;);
 	if (builtEdges && meshInWrap.core.pEdges) {
 		if (meshInWrap.core.pEdges) {
@@ -1759,6 +1831,7 @@ StucErr stucMapToMesh(
 		}
 	}
 	destroyAppendedSpAttribs(pCtx, &meshInWrap.core, spAttribsToAppend);
+	carkOutClear(&pCtx->cark.ctx);
 	return err;
 }
 
@@ -1889,20 +1962,6 @@ StucErr stucJobGetErrs(
 	return err;
 }
 
-StucErr stucAttribSpTypesGet(StucCtx *pCtx, const AttribType **ppTypes) {
-	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && ppTypes, "");
-	*ppTypes = pCtx->spAttribTypes;
-	return err;
-}
-
-StucErr stucAttribSpDomainsGet(StucCtx *pCtx, const StucDomain **ppDomains) {
-	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && ppDomains, "");
-	*ppDomains = pCtx->spAttribDomains;
-	return err;
-}
-
 StucErr stucAttribSpIsValid(
 	StucCtx *pCtx,
 	const AttribCore *pCore,
@@ -1911,8 +1970,8 @@ StucErr stucAttribSpIsValid(
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pCore, "");
 	return 
-		pCtx->spAttribTypes[pCore->use] == pCore->type &&
-		pCtx->spAttribDomains[pCore->use] == domain;
+		stucAttribSpTypeGet(pCtx, pCore->use) == pCore->type &&
+		stucAttribSpDomainGet(pCtx, pCore->use) == domain;
 }
 
 //TODO move funcs like these out of uv-stucco.c. eg move this one into attrib_utils.c

@@ -1235,13 +1235,25 @@ StucErr StucSplitMeshToIslands(
 	pixmshSplitMemDestroy(&pCtx->alloc, &splitMem);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	for (I32 i = 0; i < pIslands->count; ++i) {
-		I32 outer = pIslands->pArr[i].core.borders.outer;
-		const BorderEdgeArr *pBorder = &pIslands->pArr[i].core.borders.pArr[outer].arr;
+		StucIsland *pIsland = &pIslands->pArr[i].core;
+		I32 outer = pIsland->borders.outer;
+		const BorderEdgeArr *pBorder = &pIsland->borders.pArr[outer].arr;
 		pIslands->pArr[i].wind = pixmshCalcFaceWind(
 			(PixmshFaceRange){.start = 0, .size = pBorder->count},
 			&(BorderMesh){.pBorder = pBorder, .pMesh = pMesh},
 			borderPosGet
 		);
+		for (I32 j = pIsland->faces.start; j < pIsland->faces.end; ++j) {
+			CarkLog log = {0};
+			err = CARK_LOG_START(pCtx->cark, 0, STUC_STAGE_ISLAND_SPLIT, 0, j, log);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			err = carkOutLogComp(&log, 0, pMesh->core.pFaces + pIslands->faces.pArr[j]);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			err = carkOutLogComp(&log, 1, &i);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			err = carkOutLogEnd(&log);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+		}
 	}
 	pIslands->pFaceTable = pCtx->alloc.fpMalloc(sizeof(I32) * pMesh->core.faceCount);
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {

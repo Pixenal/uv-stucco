@@ -129,9 +129,6 @@ typedef enum SpecialBufAttrib {
 	STUC_ATTRIB_SP_BUF_ENUM_COUNT
 } SpecialBufAttrib;
 
-void stucSetDefaultSpAttribNames(StucCtx *pCtx);
-void stucSetDefaultSpAttribDomains(StucCtx *pCtx);
-void stucSetDefaultSpAttribTypes(StucCtx *pCtx);
 StucErr stucAssignActiveAliases(
 	const StucCtx *pCtx,
 	Mesh *pMesh,

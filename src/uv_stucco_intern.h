@@ -30,6 +30,17 @@ SPDX-License-Identifier: Apache-2.0
 #endif
 
 //#define STUC_USE_SUB_ISLANDS
+#define CARK_STAGE_END(cark, stage) \
+	carkOutStageEnd(&(cark).ctx, (cark).stageHandleArr[stage], true)
+#define CARK_LOG_START(cark, thread, stage, structIdx, idx, logHandle) \
+	carkOutLogStart(\
+		&(cark).ctx,\
+		thread,\
+		(cark).stageHandleArr[stage],\
+		structIdx,\
+		idx,\
+		&(logHandle)\
+	)
 
 typedef struct MapToMeshBasic {
 	Mesh outMesh;

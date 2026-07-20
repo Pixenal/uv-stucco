@@ -243,12 +243,12 @@ StucErr stucAllocUsgSquaresMesh(
 	stucInitAttrib(
 		&pCtx->alloc,
 		pPosAttrib,
-		pCtx->spAttribNames[STUC_ATTRIB_USE_POS],
+		stucAttribSpNameGet(pCtx, STUC_ATTRIB_USE_POS),
 		pMesh->vertBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
 		STUC_ATTRIB_COPY,
-		pCtx->spAttribTypes[STUC_ATTRIB_USE_POS],
+		stucAttribSpTypeGet(pCtx, STUC_ATTRIB_USE_POS),
 		STUC_ATTRIB_USE_POS
 	);
 	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_POS, STUC_DOMAIN_VERT);
@@ -258,12 +258,12 @@ StucErr stucAllocUsgSquaresMesh(
 	stucInitAttrib(
 		&pCtx->alloc,
 		pUvAttrib,
-		pCtx->spAttribNames[STUC_ATTRIB_USE_UV],
+		stucAttribSpNameGet(pCtx, STUC_ATTRIB_USE_UV),
 		pMesh->cornerBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
 		STUC_ATTRIB_COPY,
-		pCtx->spAttribTypes[STUC_ATTRIB_USE_UV],
+		stucAttribSpTypeGet(pCtx, STUC_ATTRIB_USE_UV),
 		STUC_ATTRIB_USE_UV
 	);
 	stucSetAttribIdxActive(pCore, 0, STUC_ATTRIB_USE_UV, STUC_DOMAIN_CORNER);
@@ -271,12 +271,12 @@ StucErr stucAllocUsgSquaresMesh(
 	stucInitAttrib(
 		&pCtx->alloc,
 		pNormalAttrib,
-		pCtx->spAttribNames[STUC_ATTRIB_USE_NORMAL],
+		stucAttribSpNameGet(pCtx, STUC_ATTRIB_USE_NORMAL),
 		pMesh->cornerBufSize,
 		true,
 		STUC_ATTRIB_ORIGIN_MAP,
 		STUC_ATTRIB_COPY,
-		pCtx->spAttribTypes[STUC_ATTRIB_USE_NORMAL],
+		stucAttribSpTypeGet(pCtx, STUC_ATTRIB_USE_NORMAL),
 		STUC_ATTRIB_USE_NORMAL
 	);
 	stucSetAttribIdxActive(pCore, 1, STUC_ATTRIB_USE_NORMAL, STUC_DOMAIN_CORNER);
