@@ -13,17 +13,12 @@
 					.name = "start",\
 					.desc = CARK_COMP_DESC_IDX,\
 					.type = CARK_TYPE_I32,\
-					.refCount = 2,\
+					.refCount = 1,\
 					.refArr = {\
 						{\
 							.stageIdx = -1,\
 							.structIdx = 1\
-						},\
-						{\
-							.stageIdx = -1,\
-							.structIdx = 3,\
-							.compIdx = -1\
-						}\
+						}/*TODO add uv ref back once supported in cark-vis*/\
 					}\
 				},\
 				{\
@@ -47,7 +42,7 @@
 						.stageIdx = -1,\
 						.structIdx = 2,\
 						.compIdx = -1\
-					}\
+					},\
 				}\
 			}\
 		},\
