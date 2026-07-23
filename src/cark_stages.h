@@ -7,7 +7,7 @@
 		{\
 			.name = "face",\
 			.desc = CARK_DESC_FACE,\
-			.compCount = 2,\
+			.compCount = 3,\
 			.pCompArr = (CarkCompInfo[]){\
 				{\
 					.name = "start",\
@@ -20,6 +20,11 @@
 							.structIdx = 1\
 						}/*TODO add uv ref back once supported in cark-vis*/\
 					}\
+				},\
+				{\
+					.name = "size",\
+					.desc = CARK_COMP_DESC_SIZE,\
+					.type = CARK_TYPE_I32\
 				},\
 				{\
 					.name = "island",\
