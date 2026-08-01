@@ -67,6 +67,7 @@ StucErr stucInit(
 	//TODO StucAlloc typedefs PixalcFPtrs, but no typedef for PixioFPtrs?
 	//inconsistent
 	StucErr err = PIX_ERR_SUCCESS;
+	stucIoInit();
 #ifndef NDEBUG
 	stucIoDataTagValidate();
 #endif
@@ -1506,16 +1507,17 @@ StucErr mapMapArrToMesh(
 	bool keepExistingIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	StucInIslandArr inIslands = {0};
+	Mesh *pOutBufArr = NULL;
+	StucObjArr outObjWrapArr = {0};
 	err = logInMesh(pCtx, pMeshIn);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	StucInIslandArr inIslands = {0};
 	err = StucSplitMeshToIslands(pCtx, pMeshIn, &inIslands);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = CARK_STAGE_END(pCtx->cark, STUC_STAGE_ISLAND_SPLIT);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 
-	Mesh *pOutBufArr = pCtx->alloc.fpCalloc(pMapArr->count, sizeof(Mesh));
-	StucObjArr outObjWrapArr = {0};
+	pOutBufArr = pCtx->alloc.fpCalloc(pMapArr->count, sizeof(Mesh));
 	outObjWrapArr.size = outObjWrapArr.count = pMapArr->count;
 	outObjWrapArr.pArr = pCtx->alloc.fpCalloc(outObjWrapArr.size, sizeof(StucObject));
 	for (I32 i = 0; i < pMapArr->count; ++i) {
@@ -1615,11 +1617,15 @@ StucErr mapMapArrToMesh(
 	);
 	stucInIslandsDestroy(pCtx, &inIslands);
 	//meshes are stored on an arr buf, which we can't call stucObjArrDestroy
-	for (I32 i = 0; i < pMapArr->count; ++i) {
-		stucMeshDestroy(pCtx, &pOutBufArr[i].core);
+	if (pOutBufArr) {
+		for (I32 i = 0; i < pMapArr->count; ++i) {
+			stucMeshDestroy(pCtx, &pOutBufArr[i].core);
+		}
+		pCtx->alloc.fpFree(pOutBufArr);
 	}
-	pCtx->alloc.fpFree(pOutBufArr);
-	pCtx->alloc.fpFree(outObjWrapArr.pArr);
+	if (outObjWrapArr.pArr) {
+		pCtx->alloc.fpFree(outObjWrapArr.pArr);
+	}
 	return err;
 }
 
