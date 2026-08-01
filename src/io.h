@@ -78,6 +78,7 @@ StucErr stucMapImport(
 	bool correctIdxAttribs
 );
 
+void stucIoInit();
 void stucIoSetCustom(StucCtx *pCtx, PixioFPtrs *pIo);
 void stucIoSetDefault(StucCtx *pCtx);
 const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen);

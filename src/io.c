@@ -138,6 +138,111 @@ static const U64 dataTagToKey[TAG_ENUM_COUNT] = {
 	TAG_STR_TYPE_USG_FLAT_CUTOFF
 };
 
+typedef enum FileSizeIdx {
+	FILE_NONE,
+	FILE_VERSION,
+	FILE_HEADER_SIZE,
+	FILE_DATA_SIZE_DEFL,
+	FILE_DATA_SIZE_INFL,
+	FILE_IDX_ATTRIB_COUNT,
+	FILE_USG_COUNT,
+	FILE_CUTOFF_COUNT,
+	FILE_CUTOFF_ENABLE,
+	FILE_CUTOFF_IDX,
+	FILE_DEP_COUNT,
+	FILE_IDX_TABLE_COUNT,
+	FILE_IDX_TABLE_IDX,
+	FILE_IDX_TABLE_ENTRY_COUNT,
+	FILE_IDX_TABLE_PAIR_COUNT,
+	FILE_IDX_TABLE_LOCAL,
+	FILE_IDX_TABLE_GLOBAL,
+	FILE_ACTIVE_ATTRIB_COUNT,
+	FILE_ACTIVE_ATTRIB_USE,
+	FILE_ACTIVE_ATTRIB_DOMAIN,
+	FILE_ACTIVE_ATTRIB_IDX,
+	FILE_XFORM_COMP,
+	FILE_OBJ_TYPE,
+	FILE_OBJ_COUNT,
+	FILE_ATTRIB_COUNT,
+	FILE_ATTRIB_TYPE,
+	FILE_ATTRIB_USE,
+	FILE_ATTRIB_INTERPOLATE,
+	FILE_MESH_COMP_COUNT,
+	FILE_MESH_IDX,
+	FILE_MAPPING_OPT_COUNT,
+	FILE_MAPPING_OPT_MAT_IDX,
+	FILE_MAPPING_OPT_HEADER,
+	FILE_MAPPING_OPT_IDX,
+	FILE_MAPPING_OPT_WSCALE,
+	FILE_MAPPING_OPT_RECEIVE_LEN,
+	FILE_BLEND_OPT_COUNT,
+	FILE_BLEND_OPT_ATTRIB,
+	FILE_BLEND_OPT_TYPE,
+	FILE_BLEND_OPT_FLAGS,
+	FILE_BLEND_OPT_BLEND,
+	FILE_BLEND_OPT_FMAX,
+	FILE_BLEND_OPT_FMIN,
+	FILE_BLEND_OPT_IMAX,
+	FILE_BLEND_OPT_IMIN,
+	FILE_BLEND_OPT_OPACITY,
+	FILE_BLEND_OPT_CLAMP,
+	FILE_BLEND_OPT_ORDER,
+	FILE_ENUM_COUNT
+} FileSizeIdx;
+
+static I8 fileSizeTable[FILE_ENUM_COUNT] = {0};
+#define BITLEN(a) (fileSizeTable[FILE_##a])
+
+void stucIoInit() {
+	BITLEN(VERSION) = 16;
+	BITLEN(HEADER_SIZE) = 32;
+	BITLEN(DATA_SIZE_DEFL) = 64;
+	BITLEN(DATA_SIZE_INFL) = 64;
+	BITLEN(IDX_ATTRIB_COUNT) = 32;
+	BITLEN(USG_COUNT) = 32;
+	BITLEN(CUTOFF_COUNT) = 32;
+	BITLEN(CUTOFF_ENABLE) = 1;
+	BITLEN(CUTOFF_IDX) = 32;
+	BITLEN(DEP_COUNT) = 32;
+	BITLEN(IDX_TABLE_COUNT) = 16;
+	BITLEN(IDX_TABLE_IDX) = 16;
+	BITLEN(IDX_TABLE_ENTRY_COUNT) = 8;
+	BITLEN(IDX_TABLE_PAIR_COUNT) = 8;
+	BITLEN(IDX_TABLE_LOCAL) = 8;
+	BITLEN(IDX_TABLE_GLOBAL) = 8;
+	BITLEN(ACTIVE_ATTRIB_COUNT) = 8;
+	BITLEN(ACTIVE_ATTRIB_USE) = 8;
+	BITLEN(ACTIVE_ATTRIB_DOMAIN) = 4;
+	BITLEN(ACTIVE_ATTRIB_IDX) = 16;
+	BITLEN(XFORM_COMP) = 32;
+	BITLEN(OBJ_TYPE) = 8;
+	BITLEN(OBJ_COUNT) = 32;
+	BITLEN(ATTRIB_COUNT) = 32;
+	BITLEN(ATTRIB_TYPE) = 8;
+	BITLEN(ATTRIB_USE) = 8;
+	BITLEN(ATTRIB_INTERPOLATE) = 1;
+	BITLEN(MESH_COMP_COUNT) = 32;
+	BITLEN(MESH_IDX) = 32;
+	BITLEN(MAPPING_OPT_COUNT) = 16;
+	BITLEN(MAPPING_OPT_MAT_IDX) = 16;
+	BITLEN(MAPPING_OPT_HEADER) = 8;
+	BITLEN(MAPPING_OPT_IDX) = 16;
+	BITLEN(MAPPING_OPT_WSCALE) = 32;
+	BITLEN(MAPPING_OPT_RECEIVE_LEN) = 32;
+	BITLEN(BLEND_OPT_COUNT) = 16;
+	BITLEN(BLEND_OPT_ATTRIB) = 16;
+	BITLEN(BLEND_OPT_TYPE) = 8;
+	BITLEN(BLEND_OPT_FLAGS) = 8;
+	BITLEN(BLEND_OPT_BLEND) = 8;
+	BITLEN(BLEND_OPT_FMAX) = 64;
+	BITLEN(BLEND_OPT_FMIN) = 64;
+	BITLEN(BLEND_OPT_IMAX) = 64;
+	BITLEN(BLEND_OPT_IMIN) = 64;
+	BITLEN(BLEND_OPT_OPACITY) = 32;
+	BITLEN(BLEND_OPT_CLAMP) = 1;
+	BITLEN(BLEND_OPT_ORDER) = 1;
+}
+
 void stucIoDataTagValidate() {
 	I8 flags[DATA_TAG_KEY_MAX] = {0};
 	for (I32 i = 1; i < TAG_ENUM_COUNT; ++i) {
@@ -227,7 +332,12 @@ void encodeIndexedAttribs(
 		else {
 			I32 attribSize = stucGetAttribSizeIntern(pAttrib->core.type) * 8;
 			for (I32 j = 0; j < pAttrib->count; ++j) {
-				pixioByteArrWrite(pAlloc, pData, stucAttribAsVoid(&pAttrib->core, j), attribSize);
+				pixioByteArrWrite(
+					pAlloc,
+					pData,
+					stucAttribAsVoid(&pAttrib->core, j),
+					attribSize
+				);
 			}
 		}
 	}
@@ -240,9 +350,10 @@ void encodeAttribMeta(
 	AttribArray *pAttribs
 ) {
 	for (I32 i = 0; i < pAttribs->count; ++i) {
-		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].core.type, 8);
-		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].core.use, 8);
-		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].interpolate, 1);
+		const Attrib *pAttrib = pAttribs->pArr + i;
+		pixioByteArrWrite(pAlloc, pData, &pAttrib->core.type, BITLEN(ATTRIB_TYPE));
+		pixioByteArrWrite(pAlloc, pData, &pAttrib->core.use, BITLEN(ATTRIB_USE));
+		pixioByteArrWrite(pAlloc, pData, &pAttrib->interpolate, BITLEN(ATTRIB_INTERPOLATE));
 		pixioByteArrWriteStr(pAlloc, pData, pAttribs->pArr[i].core.name);
 	}
 }
@@ -254,9 +365,9 @@ void encodeIndexedAttribMeta(
 	AttribIndexedArr *pAttribs
 ) {
 	for (I32 i = 0; i < pAttribs->count; ++i) {
-		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].core.type, 8);
-		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].core.use, 8);
-		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].count, 32);
+		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].core.type, BITLEN(ATTRIB_TYPE));
+		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].core.use, BITLEN(ATTRIB_USE));
+		pixioByteArrWrite(pAlloc, pData, &pAttribs->pArr[i].count, BITLEN(ATTRIB_COUNT));
 		pixioByteArrWriteStr(pAlloc, pData, pAttribs->pArr[i].core.name);
 	}
 }
@@ -337,14 +448,16 @@ PixErr encodeActiveAttribs(
 	for (I32 i = 0; i < STUC_ATTRIB_USE_ENUM_COUNT; ++i) {
 		count += pMesh->activeAttribs[i].active;
 	}
-	pixioByteArrWrite(pAlloc, pData, &count, 8);
+	pixioByteArrWrite(pAlloc, pData, &count, BITLEN(ACTIVE_ATTRIB_COUNT));
 	for (I32 i = 0; i < STUC_ATTRIB_USE_ENUM_COUNT; ++i) {
 		if (!pMesh->activeAttribs[i].active) {
 			continue;
 		}
-		pixioByteArrWrite(pAlloc, pData, &i, 8);
-		pixioByteArrWrite(pAlloc, pData, &pMesh->activeAttribs[i].domain, 4);
-		pixioByteArrWrite(pAlloc, pData, &pMesh->activeAttribs[i].idx, 16);
+		pixioByteArrWrite(pAlloc, pData, &i, BITLEN(ACTIVE_ATTRIB_USE));
+		I32 bitLen = BITLEN(ACTIVE_ATTRIB_DOMAIN);
+		pixioByteArrWrite(pAlloc, pData, &pMesh->activeAttribs[i].domain, bitLen);
+		bitLen = BITLEN(ACTIVE_ATTRIB_IDX);
+		pixioByteArrWrite(pAlloc, pData, &pMesh->activeAttribs[i].idx, bitLen);
 	}
 	return err;
 }
@@ -380,20 +493,22 @@ void encodeRedirectTable(
 	const StucIdxTableArr *pIdxTable
 ) {
 	encodeDataTag(pAlloc, pData, TAG_IDX_REDIRECTS);
-	pixioByteArrWrite(pAlloc, pData, &pIdxTable->count, 16);
+	pixioByteArrWrite(pAlloc, pData, &pIdxTable->count, BITLEN(IDX_TABLE_COUNT));
 	for (I32 i = 0; i < pIdxTable->count; ++i) {
 		StucIdxTable *pTable = pIdxTable->pArr + i;
-		pixioByteArrWrite(pAlloc, pData, &pTable->idx, 16);
-		pixioByteArrWrite(pAlloc, pData, &pTable->table.count, 8);
+		pixioByteArrWrite(pAlloc, pData, &pTable->idx, BITLEN(IDX_TABLE_IDX));
+		I32 bitLen = BITLEN(IDX_TABLE_ENTRY_COUNT);
+		pixioByteArrWrite(pAlloc, pData, &pTable->table.count, bitLen);
 		PIX_ERR_ASSERT("", !pData->nextBitIdx);
 		I64 countMem = pData->byteIdx;
-		pixioByteArrWrite(pAlloc, pData, &(U8){0}, 8);
+		pixioByteArrWrite(pAlloc, pData, &(U8){0}, BITLEN(IDX_TABLE_PAIR_COUNT));
 		I32 count = 0;
 		for (I32 j = 0; j < pTable->table.count; ++j) {
 			if (pTable->table.pArr[j] >= 0) {
 				++count;
-				pixioByteArrWrite(pAlloc, pData, &j, 8);//local
-				pixioByteArrWrite(pAlloc, pData, &pTable->table.pArr[j], 8);//global
+				pixioByteArrWrite(pAlloc, pData, &j, BITLEN(IDX_TABLE_LOCAL));
+				bitLen =  BITLEN(IDX_TABLE_GLOBAL);
+				pixioByteArrWrite(pAlloc, pData, &pTable->table.pArr[j], bitLen);
 			}
 		}
 		PIX_ERR_ASSERT("", count <= UINT8_MAX);
@@ -447,41 +562,41 @@ void encodeBlendConfigOverride(
 	const StucAlloc *pAlloc,
 	PixioByteArr *pCommonBuf,
 	const StucTypeDefault *pDefault,
-	const StucBlendConfig *pBlendConfig
+	const StucBlendConfig *pOpts
 ) {
 	UBitField8 flags =
-		(pBlendConfig->blend != pDefault->blendConfig.blend) |
-		(pBlendConfig->fMax != pDefault->blendConfig.fMax) << 1 |
-		(pBlendConfig->fMin != pDefault->blendConfig.fMin) << 2 |
-		(pBlendConfig->iMax != pDefault->blendConfig.iMax) << 3 |
-		(pBlendConfig->iMin != pDefault->blendConfig.iMin) << 4 |
-		(pBlendConfig->opacity != pDefault->blendConfig.opacity) << 5 |
-		(pBlendConfig->clamp != pDefault->blendConfig.clamp) << 6 |
-		(pBlendConfig->order != pDefault->blendConfig.order) << 7;
-	pixioByteArrWrite(pAlloc, pCommonBuf, &flags, 8);
+		(pOpts->blend != pDefault->blendConfig.blend) |
+		(pOpts->fMax != pDefault->blendConfig.fMax) << 1 |
+		(pOpts->fMin != pDefault->blendConfig.fMin) << 2 |
+		(pOpts->iMax != pDefault->blendConfig.iMax) << 3 |
+		(pOpts->iMin != pDefault->blendConfig.iMin) << 4 |
+		(pOpts->opacity != pDefault->blendConfig.opacity) << 5 |
+		(pOpts->clamp != pDefault->blendConfig.clamp) << 6 |
+		(pOpts->order != pDefault->blendConfig.order) << 7;
+	pixioByteArrWrite(pAlloc, pCommonBuf, &flags, BITLEN(BLEND_OPT_FLAGS));
 	if (flags & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->blend, 8);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->blend, BITLEN(BLEND_OPT_BLEND));
 	}
 	if (flags >> 1 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->fMax, 64);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->fMax, BITLEN(BLEND_OPT_FMAX));
 	}
 	if (flags >> 2 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->fMin, 64);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->fMin, BITLEN(BLEND_OPT_FMIN));
 	}
 	if (flags >> 3 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->iMax, 64);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->iMax, BITLEN(BLEND_OPT_IMAX));
 	}
 	if (flags >> 4 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->iMin, 64);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->iMin, BITLEN(BLEND_OPT_IMIN));
 	}
 	if (flags >> 5 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->opacity, 32);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->opacity, BITLEN(BLEND_OPT_OPACITY));
 	}
 	if (flags >> 6 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->clamp, 1);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->clamp, BITLEN(BLEND_OPT_CLAMP));
 	}
 	if (flags >> 7 & 0x1) {
-		pixioByteArrWrite(pAlloc, pCommonBuf, &pBlendConfig->order, 1);
+		pixioByteArrWrite(pAlloc, pCommonBuf, &pOpts->order, BITLEN(BLEND_OPT_ORDER));
 	}
 }
 
@@ -494,12 +609,17 @@ void encodeBlendOpts(
 	bool *pBlendOptOverride
 ) {
 	const StucAlloc *pAlloc = &pHandle->pCtx->alloc;
+	PIX_ERR_ASSERT("val is cast to i16 ptr, must match", BITLEN(BLEND_OPT_COUNT) == 16);
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
 		StucBlendOptArr *pArr = pMapArrEntry->blendOptArr + domain; 
 		const AttribArray *pAttribArr = stucGetAttribArrFromDomainConst(pMesh, domain);
 
+		if (pBlendOptBuf->nextBitIdx) {
+			++pBlendOptBuf->byteIdx;
+			pBlendOptBuf->nextBitIdx = 0;
+		}
 		I64 countBytePos = pBlendOptBuf->byteIdx;
-		pixioByteArrWrite(pAlloc, pBlendOptBuf, (U8[]){0, 0}, 16);
+		pixioByteArrWrite(pAlloc, pBlendOptBuf, (U8[]){0, 0}, BITLEN(BLEND_OPT_COUNT));
 		I32 count = 0;
 		for (I32 j = 0; j < pArr->count; ++j) {
 			const Attrib *pAttrib = pAttribArr->pArr + pArr->pArr[j].attrib;
@@ -508,16 +628,19 @@ void encodeBlendOpts(
 				pAttrib->core.type
 			);
 			BlendConfig *pBlendConfig = &pArr->pArr[j].blendConfig;
-			if (memcmp(
+			if (!memcmp(
 				pBlendConfig,
 				&pDefault->blendConfig,
 				sizeof(BlendConfig))
 			) {
-				pixioByteArrWrite(pAlloc, pBlendOptBuf, &pArr->pArr[j].attrib, 16);
-				pixioByteArrWrite(pAlloc, pBlendOptBuf, &pAttrib->core.type, 8);
-				encodeBlendConfigOverride(pAlloc, pBlendOptBuf, pDefault, pBlendConfig);
-				++count;
+				continue;
 			}
+			int32_t attrib = pArr->pArr[j].attrib;
+			StucAttribType type = pAttrib->core.type;
+			pixioByteArrWrite(pAlloc, pBlendOptBuf, &attrib, BITLEN(BLEND_OPT_ATTRIB));
+			pixioByteArrWrite(pAlloc, pBlendOptBuf, &type, BITLEN(BLEND_OPT_TYPE));
+			encodeBlendConfigOverride(pAlloc, pBlendOptBuf, pDefault, pBlendConfig);
+			++count;
 		}
 		if (count) {
 			*pBlendOptOverride = true;
@@ -540,22 +663,23 @@ void optsFinalEncode(
 	const StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	PixioByteArr *pData = &pHandle->data;
 	UBitField8 header = !!blendOptOverride | wScaleOverride << 1 | receiveOverride << 2;
-	pixioByteArrWrite(pAlloc, pData, &matIdx, 16);
-	pixioByteArrWrite(pAlloc, pData, &header, 8);
-	pixioByteArrWrite(pAlloc, pData, &pMatMapEntry->linIdx, 16);
+	pixioByteArrWrite(pAlloc, pData, &matIdx, BITLEN(MAPPING_OPT_MAT_IDX));
+	pixioByteArrWrite(pAlloc, pData, &header, BITLEN(MAPPING_OPT_HEADER));
+	pixioByteArrWrite(pAlloc, pData, &pMatMapEntry->linIdx, BITLEN(MAPPING_OPT_IDX));
 	if (blendOptOverride) {
-		pixioReallocByteArrIfNeeded(pAlloc, pData, (I64)pBlendOpt->byteIdx * 8);
-		memcpy(pData->pArr, pBlendOpt->pArr, pBlendOpt->byteIdx);
+		PIXALC_DYN_ARR_RESIZE(U8, pAlloc, pData, pData->byteIdx + pBlendOpt->byteIdx);
+		memcpy(pData->pArr + pData->byteIdx, pBlendOpt->pArr, pBlendOpt->byteIdx);
 		pData->byteIdx += pBlendOpt->byteIdx;
 	}
 	if (pBlendOpt->pArr) {
 		pAlloc->fpFree(pBlendOpt->pArr);
 	}
 	if (wScaleOverride) {
-		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->wScale, 32);
+		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->wScale, BITLEN(MAPPING_OPT_WSCALE));
 	}
 	if (receiveOverride) {
-		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->receiveLen, 32);
+		I32 bitLen = BITLEN(MAPPING_OPT_RECEIVE_LEN);
+		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->receiveLen, bitLen);
 	}
 }
 
@@ -586,7 +710,7 @@ StucErr encodeMappingOpt(
 		stucGetActiveAttribConst(pHandle->pCtx, &meshCpy, STUC_ATTRIB_USE_IDX);
 	encodeDataTag(pAlloc, pData, TAG_MAP_OVERRIDES);
 	I64 countDataPos = pData->byteIdx;
-	pixioByteArrWrite(pAlloc, pData, (U8[]){0, 0}, 16);
+	pixioByteArrWrite(pAlloc, pData, (U8[]){0, 0}, BITLEN(MAPPING_OPT_COUNT));
 	I32 count = 0;
 	const AttribIndexed *pMats =
 		stucGetAttribIndexedInternConst(pIdxAttribArr, pAttrib->core.name);
@@ -631,6 +755,7 @@ StucErr encodeMappingOpt(
 			blendOptOverride, wScaleOverride, receiveOverride
 		);
 	}
+	PIX_ERR_ASSERT("", BITLEN(MAPPING_OPT_COUNT) == 16);
 	*(I16 *)&pData->pArr[countDataPos] = count;
 	return err;
 }
@@ -664,28 +789,28 @@ StucErr encodeObj(
 	for (I32 i = 0; i < 16; ++i) {
 		I32 x = i % 4;
 		I32 y = i / 4;
-		pixioByteArrWrite(pAlloc, pData, &pObj->transform.d[y][x], 32);
+		pixioByteArrWrite(pAlloc, pData, &pObj->transform.d[y][x], BITLEN(XFORM_COMP));
 	}
 	encodeDataTag(pAlloc, pData, TAG_OBJECT_TYPE);
-	pixioByteArrWrite(pAlloc, pData, &pObj->pData->type, 8);
+	pixioByteArrWrite(pAlloc, pData, &pObj->pData->type, BITLEN(OBJ_TYPE));
 	if (!stucCheckIfMesh(*pObj->pData)) {
 		return err;
 	}
 	encodeDataTag(pAlloc, pData, TAG_MESH_HEADER);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->meshAttribs.count, 32);
+	pixioByteArrWrite(pAlloc, pData, &pMesh->meshAttribs.count, BITLEN(ATTRIB_COUNT));
 	encodeAttribMeta(pAlloc, pData, &pMesh->meshAttribs);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->faceAttribs.count, 32);
+	pixioByteArrWrite(pAlloc, pData, &pMesh->faceAttribs.count, BITLEN(ATTRIB_COUNT));
 	encodeAttribMeta(pAlloc, pData, &pMesh->faceAttribs);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->cornerAttribs.count, 32);
+	pixioByteArrWrite(pAlloc, pData, &pMesh->cornerAttribs.count, BITLEN(ATTRIB_COUNT));
 	encodeAttribMeta(pAlloc, pData, &pMesh->cornerAttribs);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->edgeAttribs.count, 32);
+	pixioByteArrWrite(pAlloc, pData, &pMesh->edgeAttribs.count, BITLEN(ATTRIB_COUNT));
 	encodeAttribMeta(pAlloc, pData, &pMesh->edgeAttribs);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->vertAttribs.count, 32);
+	pixioByteArrWrite(pAlloc, pData, &pMesh->vertAttribs.count, BITLEN(ATTRIB_COUNT));
 	encodeAttribMeta(pAlloc, pData, &pMesh->vertAttribs);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->faceCount, 32);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->cornerCount, 32);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->edgeCount, 32);
-	pixioByteArrWrite(pAlloc, pData, &pMesh->vertCount, 32);
+	pixioByteArrWrite(pAlloc, pData, &pMesh->faceCount, BITLEN(MESH_COMP_COUNT));
+	pixioByteArrWrite(pAlloc, pData, &pMesh->cornerCount, BITLEN(MESH_COMP_COUNT));
+	pixioByteArrWrite(pAlloc, pData, &pMesh->edgeCount, BITLEN(MESH_COMP_COUNT));
+	pixioByteArrWrite(pAlloc, pData, &pMesh->vertCount, BITLEN(MESH_COMP_COUNT));
 	//encode data
 	encodeDataTag(pAlloc, pData, TAG_MESH_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->meshAttribs, 1);
@@ -695,7 +820,7 @@ StucErr encodeObj(
 			pMesh->pFaces[i] >= 0 &&
 			pMesh->pFaces[i] < pMesh->cornerCount
 		);
-		pixioByteArrWrite(pAlloc, pData, &pMesh->pFaces[i], 32);
+		pixioByteArrWrite(pAlloc, pData, &pMesh->pFaces[i], BITLEN(MESH_IDX));
 	}
 	encodeDataTag(pAlloc, pData, TAG_FACE_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->faceAttribs, pMesh->faceCount);
@@ -705,12 +830,12 @@ StucErr encodeObj(
 			pMesh->pCorners[i] >= 0 &&
 			pMesh->pCorners[i] < pMesh->vertCount
 		);
-		pixioByteArrWrite(pAlloc, pData, &pMesh->pCorners[i], 32);
+		pixioByteArrWrite(pAlloc, pData, &pMesh->pCorners[i], BITLEN(MESH_IDX));
 		PIX_ERR_ASSERT("",
 			pMesh->pEdges[i] >= 0 &&
 			pMesh->pEdges[i] < pMesh->edgeCount
 		);
-		pixioByteArrWrite(pAlloc, pData, &pMesh->pEdges[i], 32);
+		pixioByteArrWrite(pAlloc, pData, &pMesh->pEdges[i], BITLEN(MESH_IDX));
 	}
 	encodeDataTag(pAlloc, pData, TAG_CORNER_ATTRIBS);
 	encodeAttribs(pAlloc, pData, &pMesh->cornerAttribs, pMesh->cornerCount);
@@ -835,17 +960,17 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 	header.pArr = pAlloc->fpCalloc(header.size, 1);
 	pixioByteArrWriteStr(pAlloc, &header, format);
 	I32 version = STUC_MAP_VERSION;
-	pixioByteArrWrite(pAlloc, &header, &version, 16);
-	pixioByteArrWrite(pAlloc, &header, &zStream.total_out, 64);
-	pixioByteArrWrite(pAlloc, &header, &dataSize, 64);
-	pixioByteArrWrite(pAlloc, &header, &pHandle->idxAttribs.count, 32);
-	pixioByteArrWrite(pAlloc, &header, &pHandle->header.objCount, 32);
-	pixioByteArrWrite(pAlloc, &header, &pHandle->header.usgCount, 32);
-	pixioByteArrWrite(pAlloc, &header, &pHandle->header.cutoffCount, 32);
+	pixioByteArrWrite(pAlloc, &header, &version, BITLEN(VERSION));
+	pixioByteArrWrite(pAlloc, &header, &zStream.total_out, BITLEN(DATA_SIZE_DEFL));
+	pixioByteArrWrite(pAlloc, &header, &dataSize, BITLEN(DATA_SIZE_INFL));
+	pixioByteArrWrite(pAlloc, &header, &pHandle->idxAttribs.count, BITLEN(IDX_ATTRIB_COUNT));
+	pixioByteArrWrite(pAlloc, &header, &pHandle->header.objCount, BITLEN(OBJ_COUNT));
+	pixioByteArrWrite(pAlloc, &header, &pHandle->header.usgCount, BITLEN(USG_COUNT));
+	pixioByteArrWrite(pAlloc, &header, &pHandle->header.cutoffCount, BITLEN(CUTOFF_COUNT));
 
 	encodeDataTag(pAlloc, &header, TAG_DEP);
 	PixalcLinAlloc *pTableAlloc = pixuctHTableAllocGet(&pHandle->mapTable, 0);
-	pixioByteArrWrite(pAlloc, &header, &pTableAlloc->linIdx, 32);
+	pixioByteArrWrite(pAlloc, &header, &pTableAlloc->linIdx, BITLEN(DEP_COUNT));
 	PixalcLinAllocIter iter = {0};
 	pixalcLinAllocIterInit(pTableAlloc, (PixtyRange){.start=0, .end=INT32_MAX}, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
@@ -860,7 +985,7 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 	}
 	err = pHandle->pCtx->io.fpOpen(&file, pHandle->pPath, 0);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = pHandle->pCtx->io.fpWrite(&file, &header.byteIdx, 4);
+	err = pHandle->pCtx->io.fpWrite(&file, &header.byteIdx, BITLEN(HEADER_SIZE) / 8);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = pHandle->pCtx->io.fpWrite(&file, header.pArr, header.byteIdx);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -1107,7 +1232,8 @@ StucErr stucMapExportUsgAdd(
 	encodeDataTag(pAlloc, &pHandle->data, TAG_TYPE_USG);
 	err = encodeObj(pHandle, &pUsg->obj, NULL, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	pixioByteArrWrite(pAlloc, &pHandle->data, &pUsg->flatCutoff.enabled, 1);
+	I32 bitLen = BITLEN(CUTOFF_ENABLE);
+	pixioByteArrWrite(pAlloc, &pHandle->data, &pUsg->flatCutoff.enabled, bitLen);
 	if (pUsg->flatCutoff.enabled) {
 		PIX_ERR_THROW_IFNOT_COND(
 			err,
@@ -1118,7 +1244,8 @@ StucErr stucMapExportUsgAdd(
 		if (pUsg->flatCutoff.idx > pHandle->cutoffIdxMax) {
 			pHandle->cutoffIdxMax = pUsg->flatCutoff.idx;
 		}
-		pixioByteArrWrite(pAlloc, &pHandle->data, &pUsg->flatCutoff.idx, 32);
+		bitLen = BITLEN(CUTOFF_IDX);
+		pixioByteArrWrite(pAlloc, &pHandle->data, &pUsg->flatCutoff.idx, bitLen);
 	}
 	++pHandle->header.usgCount;
 	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
@@ -1139,9 +1266,9 @@ StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutof
 static
 StucErr decodeAttribMeta(PixioByteArr *pData, AttribArray *pAttribs) {
 	for (I32 i = 0; i < pAttribs->count; ++i) {
-		pixioByteArrRead(pData, &pAttribs->pArr[i].core.type, 8);
-		pixioByteArrRead(pData, &pAttribs->pArr[i].core.use, 8);
-		pixioByteArrRead(pData, &pAttribs->pArr[i].interpolate, 1);
+		pixioByteArrRead(pData, &pAttribs->pArr[i].core.type, BITLEN(ATTRIB_TYPE));
+		pixioByteArrRead(pData, &pAttribs->pArr[i].core.use, BITLEN(ATTRIB_USE));
+		pixioByteArrRead(pData, &pAttribs->pArr[i].interpolate, BITLEN(ATTRIB_INTERPOLATE));
 		I32 maxNameLen = sizeof(pAttribs->pArr[i].core.name);
 		pixioByteArrReadStr(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
 		for (I32 j = 0; j < i; ++j) {
@@ -1159,16 +1286,16 @@ StucErr decodeAttribMeta(PixioByteArr *pData, AttribArray *pAttribs) {
 static
 StucErr decodeIndexedAttribMeta(PixioByteArr *pData, AttribIndexedArr *pAttribs) {
 	for (I32 i = 0; i < pAttribs->count; ++i) {
-		pixioByteArrRead(pData, &pAttribs->pArr[i].core.type, 16);
-		pixioByteArrRead(pData, &pAttribs->pArr[i].count, 32);
+		pixioByteArrRead(pData, &pAttribs->pArr[i].core.type, BITLEN(ATTRIB_TYPE));
+		pixioByteArrRead(pData, &pAttribs->pArr[i].core.use, BITLEN(ATTRIB_USE));
+		pixioByteArrRead(pData, &pAttribs->pArr[i].count, BITLEN(ATTRIB_COUNT));
 		I32 maxNameLen = sizeof(pAttribs->pArr[i].core.name);
 		pixioByteArrReadStr(pData, (char *)pAttribs->pArr[i].core.name, maxNameLen);
 		for (I32 j = 0; j < i; ++j) {
 			if (!strncmp(pAttribs->pArr[i].core.name, pAttribs->pArr[j].core.name,
-				STUC_ATTRIB_NAME_MAX_LEN)) {
-
-				//dup
-				return PIX_ERR_ERROR;
+			    STUC_ATTRIB_NAME_MAX_LEN
+			)) {
+				return PIX_ERR_ERROR;//dup
 			}
 		}
 	}
@@ -1232,24 +1359,25 @@ StucErr decodeStucHeader(
 	StucMapDeps *pDeps
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	char *pBuf = NULL;
 	pixioByteArrReadStr(pPixioByteArr, pHeader->format, STUC_MAP_FORMAT_NAME_MAX_LEN);
-	pixioByteArrRead(pPixioByteArr, &pHeader->version, 16);
-	pixioByteArrRead(pPixioByteArr, &pHeader->dataSizeCompressed, 64);;
-	pixioByteArrRead(pPixioByteArr, &pHeader->dataSize, 64);
-	pixioByteArrRead(pPixioByteArr, &pHeader->idxAttribCount, 32);
-	pixioByteArrRead(pPixioByteArr, &pHeader->objCount, 32);
-	pixioByteArrRead(pPixioByteArr, &pHeader->usgCount, 32);
-	pixioByteArrRead(pPixioByteArr, &pHeader->cutoffCount, 32);
+	pixioByteArrRead(pPixioByteArr, &pHeader->version, BITLEN(VERSION));
+	pixioByteArrRead(pPixioByteArr, &pHeader->dataSizeCompressed, BITLEN(DATA_SIZE_DEFL));
+	pixioByteArrRead(pPixioByteArr, &pHeader->dataSize, BITLEN(DATA_SIZE_INFL));
+	pixioByteArrRead(pPixioByteArr, &pHeader->idxAttribCount, BITLEN(IDX_ATTRIB_COUNT));
+	pixioByteArrRead(pPixioByteArr, &pHeader->objCount, BITLEN(OBJ_COUNT));
+	pixioByteArrRead(pPixioByteArr, &pHeader->usgCount, BITLEN(USG_COUNT));
+	pixioByteArrRead(pPixioByteArr, &pHeader->cutoffCount, BITLEN(CUTOFF_COUNT));
 
 	err = isDataTagInvalid(pPixioByteArr, TAG_DEP);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	I32 depCount = 0;
-	pixioByteArrRead(pPixioByteArr, &depCount, 32);
+	pixioByteArrRead(pPixioByteArr, &depCount, BITLEN(DEP_COUNT));
 	if (!depCount) {
 		return err;
 	}
 	I32 pathMax = pixioPathMaxGet();
-	char *pBuf = pCtx->alloc.fpMalloc(pathMax);
+	pBuf = pCtx->alloc.fpMalloc(pathMax);
 	for (I32 i = 0; i < depCount; ++i) {
 		DataTag type = decodeDataTag(pPixioByteArr, NULL);
 		switch (type) {
@@ -1284,12 +1412,12 @@ PixErr loadActiveAttribs(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	I32 count = 0;
-	pixioByteArrRead(pData, &count, 8);
+	pixioByteArrRead(pData, &count, BITLEN(ACTIVE_ATTRIB_COUNT));
 	for (I32 i = 0; i < count; ++i) {
 		I32 idx = 0;
-		pixioByteArrRead(pData, &idx, 8);
-		pixioByteArrRead(pData, &pActiveAttribs[idx].domain, 4);
-		pixioByteArrRead(pData, &pActiveAttribs[idx].idx, 16);
+		pixioByteArrRead(pData, &idx, BITLEN(ACTIVE_ATTRIB_USE));
+		pixioByteArrRead(pData, &pActiveAttribs[idx].domain, BITLEN(ACTIVE_ATTRIB_DOMAIN));
+		pixioByteArrRead(pData, &pActiveAttribs[idx].idx, BITLEN(ACTIVE_ATTRIB_IDX));
 		pActiveAttribs[idx].active = true;
 	}
 	return err;
@@ -1303,22 +1431,22 @@ StucErr loadIdxRedirects(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("", pIdxTableArr);
-	pixioByteArrRead(pData, &pIdxTableArr->count, 16);
+	pixioByteArrRead(pData, &pIdxTableArr->count, BITLEN(IDX_TABLE_COUNT));
 	pIdxTableArr->size = pIdxTableArr->count;
 	pIdxTableArr->pArr = pAlloc->fpCalloc(pIdxTableArr->size, sizeof(StucIdxTable));
 	for (I32 i = 0; i < pIdxTableArr->count; ++i) {
 		StucIdxTable *pTable = pIdxTableArr->pArr + i;
-		pixioByteArrRead(pData, &pTable->idx, 16);
-		pixioByteArrRead(pData, &pTable->table.count, 8);
+		pixioByteArrRead(pData, &pTable->idx, BITLEN(IDX_TABLE_IDX));
+		pixioByteArrRead(pData, &pTable->table.count, BITLEN(IDX_TABLE_ENTRY_COUNT));
 		pTable->table.size = pTable->table.count;
 		pTable->table.pArr = pAlloc->fpCalloc(pTable->table.size, 1);
 		I32 count = 0;
-		pixioByteArrRead(pData, &count, 8);
+		pixioByteArrRead(pData, &count, BITLEN(IDX_TABLE_PAIR_COUNT));
 		for (I32 j = 0; j < count; ++j) {
 			I32 idx = 0;
-			pixioByteArrRead(pData, &idx, 8);
+			pixioByteArrRead(pData, &idx, BITLEN(IDX_TABLE_LOCAL));
 			PIX_ERR_RETURN_IFNOT_COND(err, idx < pTable->table.count, "");
-			pixioByteArrRead(pData, &pTable->table.pArr[idx], 8);
+			pixioByteArrRead(pData, &pTable->table.pArr[idx], BITLEN(IDX_TABLE_GLOBAL));
 		}
 	}
 	return err;
@@ -1353,50 +1481,50 @@ StucErr loadObj(
 	for (I32 i = 0; i < 16; ++i) {
 		I32 x = i % 4;
 		I32 y = i / 4;
-		pixioByteArrRead(pData, &pObj->transform.d[y][x], 32);
+		pixioByteArrRead(pData, &pObj->transform.d[y][x], BITLEN(XFORM_COMP));
 	}
 	err = isDataTagInvalid(pData, TAG_OBJECT_TYPE);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	pixioByteArrRead(pData, &pObj->pData->type, 8);
+	pixioByteArrRead(pData, &pObj->pData->type, BITLEN(OBJ_TYPE));
 	if (!stucCheckIfMesh(*pObj->pData)) {
 		PIX_ERR_THROW(err, "Object is not a mesh", 0);
 	}
 	err = isDataTagInvalid(pData, TAG_MESH_HEADER);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	pixioByteArrRead(pData, &pMesh->meshAttribs.count, 32);
+	pixioByteArrRead(pData, &pMesh->meshAttribs.count, BITLEN(ATTRIB_COUNT));
 	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
 		pCtx->alloc.fpCalloc(pMesh->meshAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pData, &pMesh->meshAttribs);
 	PIX_ERR_THROW_IFNOT(err, "Failed to decode mesh attrib meta", 0);
 
-	pixioByteArrRead(pData, &pMesh->faceAttribs.count, 32);
+	pixioByteArrRead(pData, &pMesh->faceAttribs.count, BITLEN(ATTRIB_COUNT));
 	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
 		pCtx->alloc.fpCalloc(pMesh->faceAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pData, &pMesh->faceAttribs);
 	PIX_ERR_THROW_IFNOT(err, "Failed to decode face attrib meta", 0);
 
-	pixioByteArrRead(pData, &pMesh->cornerAttribs.count, 32);
+	pixioByteArrRead(pData, &pMesh->cornerAttribs.count, BITLEN(ATTRIB_COUNT));
 	pMesh->cornerAttribs.pArr = pMesh->cornerAttribs.count ?
 		pCtx->alloc.fpCalloc(pMesh->cornerAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pData, &pMesh->cornerAttribs);
 	PIX_ERR_THROW_IFNOT(err, "Failed to decode corner attrib meta", 0);
 
-	pixioByteArrRead(pData, &pMesh->edgeAttribs.count, 32);
+	pixioByteArrRead(pData, &pMesh->edgeAttribs.count, BITLEN(ATTRIB_COUNT));
 	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
 		pCtx->alloc.fpCalloc(pMesh->edgeAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pData, &pMesh->edgeAttribs);
 	PIX_ERR_THROW_IFNOT(err, "Failed to decode edge meta", 0);
 
-	pixioByteArrRead(pData, &pMesh->vertAttribs.count, 32);
+	pixioByteArrRead(pData, &pMesh->vertAttribs.count, BITLEN(ATTRIB_COUNT));
 	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
 		pCtx->alloc.fpCalloc(pMesh->vertAttribs.count, sizeof(StucAttrib)) : NULL;
 	err = decodeAttribMeta(pData, &pMesh->vertAttribs);
 	PIX_ERR_THROW_IFNOT(err, "Failed to decode vert attrib meta", 0);
 
-	pixioByteArrRead(pData, &pMesh->faceCount, 32);
-	pixioByteArrRead(pData, &pMesh->cornerCount, 32);
-	pixioByteArrRead(pData, &pMesh->edgeCount, 32);
-	pixioByteArrRead(pData, &pMesh->vertCount, 32);
+	pixioByteArrRead(pData, &pMesh->faceCount, BITLEN(MESH_COMP_COUNT));
+	pixioByteArrRead(pData, &pMesh->cornerCount, BITLEN(MESH_COMP_COUNT));
+	pixioByteArrRead(pData, &pMesh->edgeCount, BITLEN(MESH_COMP_COUNT));
+	pixioByteArrRead(pData, &pMesh->vertCount, BITLEN(MESH_COMP_COUNT));
 
 	err = isDataTagInvalid(pData, TAG_MESH_ATTRIBS);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -1405,7 +1533,7 @@ StucErr loadObj(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	pMesh->pFaces = pCtx->alloc.fpCalloc(pMesh->faceCount + 1, sizeof(I32));
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
-		pixioByteArrRead(pData, &pMesh->pFaces[i], 32);
+		pixioByteArrRead(pData, &pMesh->pFaces[i], BITLEN(MESH_IDX));
 		PIX_ERR_ASSERT("",
 			pMesh->pFaces[i] >= 0 &&
 			pMesh->pFaces[i] < pMesh->cornerCount
@@ -1421,12 +1549,12 @@ StucErr loadObj(
 	pMesh->pCorners = pCtx->alloc.fpCalloc(pMesh->cornerCount, sizeof(I32));
 	pMesh->pEdges = pCtx->alloc.fpCalloc(pMesh->cornerCount, sizeof(I32));
 	for (I32 i = 0; i < pMesh->cornerCount; ++i) {
-		pixioByteArrRead(pData, &pMesh->pCorners[i], 32);
+		pixioByteArrRead(pData, &pMesh->pCorners[i], BITLEN(MESH_IDX));
 		PIX_ERR_ASSERT("",
 			pMesh->pCorners[i] >= 0 &&
 			pMesh->pCorners[i] < pMesh->vertCount
 		);
-		pixioByteArrRead(pData, &pMesh->pEdges[i], 32);
+		pixioByteArrRead(pData, &pMesh->pEdges[i], BITLEN(MESH_IDX));
 		PIX_ERR_ASSERT("",
 			pMesh->pEdges[i] >= 0 &&
 			pMesh->pEdges[i] < pMesh->edgeCount
@@ -1460,41 +1588,53 @@ StucErr decodeBlendOpts(
 	StucErr err = PIX_ERR_SUCCESS;
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
 		StucBlendOptArr *pArr = pEntry->blendOptArr + domain;
-		pixioByteArrRead(pData, &pArr->count, 16);
+		if (pData->nextBitIdx) {
+			++pData->byteIdx;
+			pData->nextBitIdx = 0;
+		}
+		pixioByteArrRead(pData, &pArr->count, BITLEN(BLEND_OPT_COUNT));
 		pArr->size = pArr->count;
-		pArr->pArr = pAlloc->fpCalloc(pArr->size, sizeof(StucBlendOpt));
+		if (pArr->size) {
+			pArr->pArr = pAlloc->fpCalloc(pArr->size, sizeof(StucBlendOpt));
+		}
 		for (I32 i = 0; i < pArr->count; ++i) {
 			StucBlendOpt *pOpts = pArr->pArr + i;
-			pixioByteArrRead(pData, &pOpts->attrib, 16);
+			pixioByteArrRead(pData, &pOpts->attrib, BITLEN(BLEND_OPT_ATTRIB));
 			AttribType type = STUC_ATTRIB_NONE;
-			pixioByteArrRead(pData, &type, 16);
-			PIX_ERR_RETURN_IFNOT_COND(err, type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT, "");
-			pOpts->blendConfig = stucGetTypeDefaultConfig(&pCtx->typeDefaults, type)->blendConfig;
+			pixioByteArrRead(pData, &type, BITLEN(BLEND_OPT_TYPE));
+			PIX_ERR_RETURN_IFNOT_COND(
+				err,
+				type >= 0 && type < STUC_ATTRIB_TYPE_ENUM_COUNT,
+				""
+			);
+			pOpts->blendConfig =
+				stucGetTypeDefaultConfig(&pCtx->typeDefaults, type)->blendConfig;
+			StucBlendConfig *pConf = &pOpts->blendConfig;
 			UBitField8 flags = 0;
-			pixioByteArrRead(pData, &flags, 8);
+			pixioByteArrRead(pData, &flags, BITLEN(BLEND_OPT_FLAGS));
 			if (flags & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.blend, 8);
+				pixioByteArrRead(pData, &pConf->blend, BITLEN(BLEND_OPT_BLEND));
 			}
 			if (flags >> 1 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.fMax, 64);
+				pixioByteArrRead(pData, &pConf->fMax, BITLEN(BLEND_OPT_FMAX));
 			}
 			if (flags >> 2 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.fMin, 64);
+				pixioByteArrRead(pData, &pConf->fMin, BITLEN(BLEND_OPT_FMIN));
 			}
 			if (flags >> 3 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.iMax, 64);
+				pixioByteArrRead(pData, &pConf->iMax, BITLEN(BLEND_OPT_IMAX));
 			}
 			if (flags >> 4 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.iMin, 64);
+				pixioByteArrRead(pData, &pConf->iMin, BITLEN(BLEND_OPT_IMIN));
 			}
 			if (flags >> 5 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.opacity, 32);
+				pixioByteArrRead(pData, &pConf->opacity, BITLEN(BLEND_OPT_OPACITY));
 			}
 			if (flags >> 6 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.clamp, 1);
+				pixioByteArrRead(pData, &pConf->clamp, BITLEN(BLEND_OPT_CLAMP));
 			}
 			if (flags >> 7 & 0x1) {
-				pixioByteArrRead(pData, &pOpts->blendConfig.order, 1);
+				pixioByteArrRead(pData, &pConf->order, BITLEN(BLEND_OPT_ORDER));
 			}
 		}
 	}
@@ -1513,7 +1653,7 @@ StucErr loadMapOverrides(
 	err = isDataTagInvalid(pData, TAG_MAP_OVERRIDES);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	I32 count = 0;
-	pixioByteArrRead(pData, &count, 16);
+	pixioByteArrRead(pData, &count, BITLEN(MAPPING_OPT_COUNT));
 	if (!count) {
 		return err;
 	}
@@ -1522,26 +1662,28 @@ StucErr loadMapOverrides(
 	ObjMapOpts *pOpts = pMapOptsArr->pArr + newIdx;
 	pOpts->obj = objIdx;
 	pOpts->arr.size = pOpts->arr.count = count;
-	pOpts->arr.pArr = pAlloc->fpCalloc(pOpts->arr.size, sizeof(StucMapArrEntry));
+	if (pOpts->arr.size) {
+		pOpts->arr.pArr = pAlloc->fpCalloc(pOpts->arr.size, sizeof(StucMapArrEntry));
+	}
 	for (I32 i = 0; i < count; ++i) {
 		StucMapArrEntry *pEntry = pOpts->arr.pArr + i;
-		pixioByteArrRead(pData, &pEntry->matIdx, 16);
+		pixioByteArrRead(pData, &pEntry->matIdx, BITLEN(MAPPING_OPT_MAT_IDX));
 		UBitField8 header = 0;
-		pixioByteArrRead(pData, &header, 8);
-		pixioByteArrRead(pData, &pEntry->map.idx, 16);
+		pixioByteArrRead(pData, &header, BITLEN(MAPPING_OPT_HEADER));
+		pixioByteArrRead(pData, &pEntry->map.idx, BITLEN(MAPPING_OPT_IDX));
 		if (header & 0x1) {
 			err = decodeBlendOpts(pCtx, pAlloc, pData, pEntry);
 			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 		if (header >> 1 & 0x1) {
-			pixioByteArrRead(pData, &pEntry->wScale, 32);
+			pixioByteArrRead(pData, &pEntry->wScale, BITLEN(MAPPING_OPT_WSCALE));
 		}
 		else {
 			//TODO replace with default wscale
 			pEntry->wScale = 1.0f;
 		}
 		if (header >> 2 & 0x1) {
-			pixioByteArrRead(pData, &pEntry->receiveLen, 32);
+			pixioByteArrRead(pData, &pEntry->receiveLen, BITLEN(MAPPING_OPT_RECEIVE_LEN));
 		}
 		else {
 			pEntry->receiveLen = -1.0f;
@@ -1595,9 +1737,9 @@ StucErr loadDataByTag(
 			++pUsgArr->count;
 			err = loadObj(pCtx, &pUsg->obj, pData, false, NULL);
 			PIX_ERR_RETURN_IFNOT(err, "");
-			pixioByteArrRead(pData, &pUsg->flatCutoff.enabled, 1);
+			pixioByteArrRead(pData, &pUsg->flatCutoff.enabled, BITLEN(CUTOFF_ENABLE));
 			if (pUsg->flatCutoff.enabled) {
-				pixioByteArrRead(pData, &pUsg->flatCutoff.idx, 32);
+				pixioByteArrRead(pData, &pUsg->flatCutoff.idx, BITLEN(CUTOFF_IDX));
 				PIX_ERR_RETURN_IFNOT_COND(
 					err,
 					pUsg->flatCutoff.idx >= 0 &&
@@ -1771,7 +1913,7 @@ StucErr importMapHeader(
 	StucErr err = PIX_ERR_SUCCESS;
 	PixioByteArr headerPixioByteArr = {0};
 	I32 headerSize = 0;
-	err = pCtx->io.fpRead(pFile, &headerSize, 4);
+	err = pCtx->io.fpRead(pFile, &headerSize, BITLEN(HEADER_SIZE) / 8);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	headerPixioByteArr.pArr = pCtx->alloc.fpMalloc(headerSize);
 	err = pCtx->io.fpRead(pFile, headerPixioByteArr.pArr, headerSize);
@@ -2073,7 +2215,9 @@ StucErr mapDepStackPop(MapDepStack *pStack) {
 			}
 		}
 	}
-	pStack->stack[pStack->ptr].pMap->onStack = false;
+	MapDepEntry *pMapEntry = pStack->stack[pStack->ptr].pMap;
+	PIX_ERR_ASSERT("", pMapEntry);
+	pMapEntry->onStack = false;
 	--pStack->ptr;
 	return err;
 }
