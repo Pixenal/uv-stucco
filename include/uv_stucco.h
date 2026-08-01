@@ -736,6 +736,8 @@ StucErr stucCopyMesh(StucCtx *pCtx, StucMesh *pDest, const StucMesh *pSrc);
 STUC_EXPORT
 //TODO should StucCtx *be const in helper funcs like this?
 StucErr stucMapZBoundsGet(StucCtx *pCtx, const struct StucMap *pMap, PixtyV2_F32 *pZBounds);
+STUC_EXPORT
+void stucLogEnableSet(StucCtx *pCtx, bool value);
 
 #ifdef STUC_DEBUG_UTILS
 static inline

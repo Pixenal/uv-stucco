@@ -2129,3 +2129,7 @@ StucErr stucObjectInit(
 	}
 	return err;
 }
+
+void stucLogEnableSet(StucCtx *pCtx, bool value) {
+	carkOutEnableSet(&pCtx->cark.ctx, value);
+}
