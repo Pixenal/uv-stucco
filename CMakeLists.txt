@@ -72,6 +72,9 @@ set(MESH_PIX_PATH "../")
 add_subdirectory(extern/poly-cutout)
 add_subdirectory(extern/cluster-tree-2d)
 add_subdirectory(extern/cark-vis)
+if (NOT TARGET PixenalsThreadUtils)
+	add_subdirectory(extern/pixenals-thread-utils)
+endif()
 if (NOT TARGET PixenalsMeshUtils)
 	add_subdirectory(extern/pixenals-mesh-utils)
 endif()
@@ -87,7 +90,6 @@ endif()
 if (NOT TARGET PixenalsStructs)
 	add_subdirectory(extern/pixenals-structs)
 endif()
-add_subdirectory(extern/pixenals-thread-utils)
 target_link_libraries(${PROJECT} PRIVATE
 	PolyCutout ClusterTree2d CarkVisIo PixenalsAllocUtils PixenalsIoUtils PixenalsMathUtils
 	PixenalsThreadUtils PixenalsStructs PixenalsMeshUtils
