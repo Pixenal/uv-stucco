@@ -51,6 +51,19 @@ StucErr initCarkOut(
 		pCark->stageHandleArr + STUC_STAGE_ISLAND_SPLIT
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutStageInit(
+		&pCark->ctx,
+		"map",
+		&STUC_STAGE_INFO_ISLAND_SPLIT,
+		pCark->stageHandleArr + STUC_STAGE_MAP
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutStageInit(
+		&pCark->ctx,
+		"bufmesh init",
+		&STUC_STAGE_INFO_BUFMESH_INIT,
+		pCark->stageHandleArr + STUC_STAGE_BUFMESH_INIT
+	);
 	return err;
 }
 
@@ -823,6 +836,12 @@ StucErr mapToMeshInternal(
 		stucMapMeshForIsland
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutStageEnd(
+		&pCtx->cark.ctx,
+		pCtx->cark.stageHandleArr[STUC_STAGE_BUFMESH_INIT],
+		true
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	bool empty = true;
 	for (I32 i = 0; i < clustForIslandJobCount; ++i) {
 		if (!clustForIslandJobArgs[i].empty) {
@@ -1494,6 +1513,53 @@ StucErr logInMesh(StucCtx *pCtx, Mesh *pMesh) {
 }
 
 static
+PixErr logMapArr(const StucCtx *pCtx, const StucMapArr *pMapArr) {
+	PixErr err = PIX_ERR_SUCCESS;
+	StucStage stage = pCtx->cark.stageHandleArr[STUC_STAGE_MAP];
+	for (I32 i = 0; i  < pMapArr->count; ++i) {
+		const StucMap *pMap = pMapArr->pArr[i].map.ptr;
+		const Mesh *pMesh = pMap->pMesh;
+		for (I32 j = 0; j < pMesh->core.faceCount; ++j) {
+			CarkLog log = {0};
+			err = carkOutLogStart(pCtx, 0, stage, 0, i, j, &log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			I32 face = pMesh->core.pFaces[j];
+			err = carkOutLogComp(&log, 0, NULL, face);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogComp(&log, 1, NULL, pMesh->core.pFaces[j + 1] - face);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogComp(&log, 2, NULL, &(I32){0});
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogEnd(&log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+		for (I32 j = 0; j < pMesh->core.cornerCount; ++j) {
+			CarkLog log = {0};
+			err = carkOutLogStart(pCtx, 0, stage, 1, i, j, &log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogComp(&log, 0, NULL, pMesh->core.pCorners[j]);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogEnd(&log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+		for (I32 j = 0; j < pMesh->core.vertCount; ++j) {
+			CarkLog log = {0};
+			err = carkOutLogStart(pCtx, 0, stage, 2, i, j, &log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			for (I32 k = 0; k < 3; ++k) {
+				err = carkOutLogComp(&log, k, NULL, pMesh->pPos->d + k);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
+			err = carkOutLogEnd(&log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+	}
+	err = carkOutStageEnd(&pCtx->cark.ctx, stage, true);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+static
 StucErr mapMapArrToMesh(
 	StucCtx *pCtx,
 	I32 threadId,
@@ -1510,6 +1576,8 @@ StucErr mapMapArrToMesh(
 	StucInIslandArr inIslands = {0};
 	Mesh *pOutBufArr = NULL;
 	StucObjArr outObjWrapArr = {0};
+	err = logMapArr(pCtx, pMapArr);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = logInMesh(pCtx, pMeshIn);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = StucSplitMeshToIslands(pCtx, pMeshIn, &inIslands);

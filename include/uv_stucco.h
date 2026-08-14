@@ -380,6 +380,8 @@ typedef struct StucStageReport {
 typedef enum StucStage {
 	STUC_STAGE_NONE,
 	STUC_STAGE_ISLAND_SPLIT,
+	STUC_STAGE_MAP,
+	STUC_STAGE_BUFMESH_INIT,
 	STUC_STAGE_ENUM_COUNT
 } StucStage;
 

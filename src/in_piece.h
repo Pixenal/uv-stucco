@@ -354,7 +354,7 @@ SrcFaces stucGetSrcFacesForBufCorner(
 	FaceCorner corner
 );
 StucErr stucClipMapFace(
-	const struct MapToMeshBasic *pBasic,
+	JobArgs *pArgs,
 	const InFaceMemArr *pInFaceArr,
 	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
@@ -366,7 +366,7 @@ StucErr stucClipMapFace(
 	PixtyI32Arr *pOrderCache
 );
 StucErr stucAddMapFaceToBufMesh(
-	const struct MapToMeshBasic *pBasic,
+	JobArgs *pArgs,
 	const InFaceMemArr *pInFaceArr,
 	const IslandClustArr *pClustArr,
 	I32 inPieceOffset,
@@ -393,7 +393,7 @@ StucErr stucInPieceArrInitBufMeshes(
 	const InFaceMemArr *pInFaceArr,
 	InPieceArr *pInPieces,
 	StucErr (* fpAddPiece)(//TODO large func ptrs like this should be typedef'd
-		const struct MapToMeshBasic *,
+		JobArgs *,
 		const InFaceMemArr *,
 		const IslandClustArr *,
 		I32,
