@@ -614,10 +614,7 @@ void encodeBlendOpts(
 		StucBlendOptArr *pArr = pMapArrEntry->blendOptArr + domain; 
 		const AttribArray *pAttribArr = stucGetAttribArrFromDomainConst(pMesh, domain);
 
-		if (pBlendOptBuf->nextBitIdx) {
-			++pBlendOptBuf->byteIdx;
-			pBlendOptBuf->nextBitIdx = 0;
-		}
+		pixioByteArrAlign(pBlendOptBuf);
 		I64 countBytePos = pBlendOptBuf->byteIdx;
 		pixioByteArrWrite(pAlloc, pBlendOptBuf, (U8[]){0, 0}, BITLEN(BLEND_OPT_COUNT));
 		I32 count = 0;
@@ -979,10 +976,7 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 		pixioByteArrWriteStr(pAlloc, &header, pEntry->pMap->pName);
 	}
 
-	if (header.nextBitIdx) {
-		++header.byteIdx;
-		header.nextBitIdx = 0;
-	}
+	pixioByteArrAlign(&header);
 	err = pHandle->pCtx->io.fpOpen(&file, pHandle->pPath, 0);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = pHandle->pCtx->io.fpWrite(&file, &header.byteIdx, BITLEN(HEADER_SIZE) / 8);
@@ -1588,10 +1582,7 @@ StucErr decodeBlendOpts(
 	StucErr err = PIX_ERR_SUCCESS;
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
 		StucBlendOptArr *pArr = pEntry->blendOptArr + domain;
-		if (pData->nextBitIdx) {
-			++pData->byteIdx;
-			pData->nextBitIdx = 0;
-		}
+		pixioByteArrAlign(pData);
 		pixioByteArrRead(pData, &pArr->count, BITLEN(BLEND_OPT_COUNT));
 		pArr->size = pArr->count;
 		if (pArr->size) {
