@@ -139,7 +139,7 @@
 							.structIdx = 2,\
 							.compIdx = -1\
 						}\
-					}\
+					},\
 					.desc = CARK_COMP_DESC_IDX,\
 					.type = CARK_TYPE_I32\
 				}\

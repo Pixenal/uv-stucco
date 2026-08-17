@@ -1245,16 +1245,16 @@ StucErr StucSplitMeshToIslands(
 		);
 		for (I32 j = pIsland->faces.start; j < pIsland->faces.end; ++j) {
 			CarkLog log = {0};
-			err = CARK_LOG_START(pCtx->cark, 0, STUC_STAGE_ISLAND_SPLIT, 0, j, log);
+			err = CARK_LOG_START(pCtx->cark, 0, STUC_STAGE_ISLAND_SPLIT, 0, 0, j, log);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 			I32 realFaceIdx = pIslands->faces.pArr[j];
 			I32 faceStart = pMesh->core.pFaces[realFaceIdx];
-			err = carkOutLogComp(&log, 0, &faceStart);
+			err = carkOutLogComp(&log, 0, NULL, &faceStart);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 			I32 faceSize = pMesh->core.pFaces[realFaceIdx + 1] - faceStart;
-			err = carkOutLogComp(&log, 1, &faceSize);
+			err = carkOutLogComp(&log, 1, NULL, &faceSize);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
-			err = carkOutLogComp(&log, 2, &i);
+			err = carkOutLogComp(&log, 2, NULL, &i);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 			err = carkOutLogEnd(&log);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
