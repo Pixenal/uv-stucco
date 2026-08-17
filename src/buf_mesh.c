@@ -674,11 +674,19 @@ PixErr bufMeshAddFace(
 	pBufMesh->faces.pArr[newIdx].mapFace = mapFace;
 	pBufMesh->faces.pArr[newIdx].tile = tile;
 	pBufMesh->faces.pArr[newIdx].wind = wind;
+
 	StucCark *pCark = &pArgs->pCtx->cark;
-	I32 stage = pCark->stageHandleArr[STUC_STAGE_BUFMESH_INIT];
+	StucStage stage = STUC_STAGE_BUFMESH_INIT;
 	CarkLog log = {0};
-	err = carkOutLogStart(&pCark->ctx, pArgs->threadId, stage, 0, 0, newIdx, &log);
+	err = CARK_LOG_START(*pCark, pArgs->threadId, stage, 0, pArgs->id, newIdx, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 0, NULL, &start);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 1, NULL, &faceSize);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 2, NULL, &(I32){0});
+	PIX_ERR_RETURN_IFNOT(err, "");
+	carkOutLogEnd(&log);
 	return err;
 }
 
@@ -915,7 +923,7 @@ StucErr bufMeshAddVert(
 			pArgs->pCtx,
 			pArgs->threadId,
 			type,
-			0,
+			pArgs->id,
 			bufCorner,
 			vert,
 			pCorner->pos
@@ -1086,7 +1094,7 @@ StucErr addNonClipInPieceToBufMesh(
 			err = logBufCornerAndVert(
 				pArgs->pCtx,
 				pArgs->threadId,
-				0,
+				pArgs->id,
 				bufCorner,
 				vert,
 				pMapMesh->pPos[pMapMesh->core.pCorners[pMapFace->range.start + i]]

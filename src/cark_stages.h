@@ -92,7 +92,7 @@
 		}\
 	}\
 }
-#define STUC_STAGE_BUFMESH_INIT_STRUCTS 8
+#define STUC_STAGE_BUFMESH_INIT_STRUCTS 6
 #define STUC_STAGE_INFO_BUFMESH_INIT (CarkStructInfoArr){\
 	.size = STUC_STAGE_BUFMESH_INIT_STRUCTS,\
 	.pArr = (CarkStructInfo[STUC_STAGE_BUFMESH_INIT_STRUCTS]){\
@@ -170,58 +170,66 @@
 		{\
 			.name = "on-edge pos",\
 			.desc = CARK_DESC_POS,\
-			.compCount = 1,\
+			.compCount = 3,\
 			.pCompArr = (CarkCompInfo[]) {\
 				{\
-					.name = "idx",\
-					.refCount = 1,\
-					.refArr = {\
-						{\
-							.stageIdx = 0,\
-							.structIdx = 2,\
-							.compIdx = -1\
-						}\
-					}\
+					.name = "x",\
+					.desc = CARK_COMP_DESC_VEC_X,\
+					.type = CARK_TYPE_F32\
+				},\
+				{\
+					.name = "y",\
+					.desc = CARK_COMP_DESC_VEC_Y,\
+					.type = CARK_TYPE_F32\
+				},\
+				{\
+					.name = "z",\
+					.desc = CARK_COMP_DESC_VEC_Z,\
+					.type = CARK_TYPE_F32\
 				}\
 			}\
 		},\
 		{\
 			.name = "origin vert",\
 			.desc = CARK_DESC_POS,\
-			.compCount = 1,\
+			.compCount = 3,\
 			.pCompArr = (CarkCompInfo[]) {\
 				{\
-					.name = "idx",\
-					.refCount = 1,\
-					.refArr = {\
-						{\
-							.stageIdx = 0,\
-							.structIdx = 2,\
-							.compIdx = -1\
-						}\
-					},\
-					.desc = CARK_COMP_DESC_IDX,\
-					.type = CARK_TYPE_I32\
+					.name = "x",\
+					.desc = CARK_COMP_DESC_VEC_X,\
+					.type = CARK_TYPE_F32\
+				},\
+				{\
+					.name = "y",\
+					.desc = CARK_COMP_DESC_VEC_Y,\
+					.type = CARK_TYPE_F32\
+				},\
+				{\
+					.name = "z",\
+					.desc = CARK_COMP_DESC_VEC_Z,\
+					.type = CARK_TYPE_F32\
 				}\
 			}\
 		},\
 		{\
 			.name = "overlap vert",\
 			.desc = CARK_DESC_POS,\
-			.compCount = 1,\
+			.compCount = 3,\
 			.pCompArr = (CarkCompInfo[]) {\
 				{\
-					.name = "idx",\
-					.refCount = 1,\
-					.refArr = {\
-						{\
-							.stageIdx = 0,\
-							.structIdx = 2,\
-							.compIdx = -1\
-						}\
-					},\
-					.desc = CARK_COMP_DESC_IDX,\
-					.type = CARK_TYPE_I32\
+					.name = "x",\
+					.desc = CARK_COMP_DESC_VEC_X,\
+					.type = CARK_TYPE_F32\
+				},\
+				{\
+					.name = "y",\
+					.desc = CARK_COMP_DESC_VEC_Y,\
+					.type = CARK_TYPE_F32\
+				},\
+				{\
+					.name = "z",\
+					.desc = CARK_COMP_DESC_VEC_Z,\
+					.type = CARK_TYPE_F32\
 				}\
 			}\
 		},\
