@@ -17,6 +17,7 @@ typedef struct JobArgs {
 	Range range;
 	I32 id;
 	I32 threadId;
+	I32 logInst;
 } JobArgs;
 
 typedef struct JobArgsFoot {

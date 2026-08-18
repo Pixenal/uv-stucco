@@ -1416,3 +1416,20 @@ StucErr stucMeshBuildTangentsForTris(StucCtx *pCtx, StucMesh *pMesh) {
 	*pMesh = wrap.core;
 	return err;
 }
+
+void stucLogStageInstAdd(JobArgs *pJobArgs, StucStage stage) {
+	PIX_ERR_ASSERT(
+		"",
+		stage > STUC_STAGE_NONE && stage < STUC_STAGE_ENUM_COUNT &&
+		stucStageStructCountArr[stage] > 0
+	);
+	pJobArgs->logInst = -1;
+	for (I32 i = 0; i < stucStageStructCountArr[stage]; ++i) {
+		I32 inst = CARK_INST_ADD(pJobArgs->pCtx->cark, pJobArgs->threadId, stage, i);
+		if (pJobArgs->logInst == -1) {
+			pJobArgs->logInst = inst;
+			continue;
+		}
+		PIX_ERR_ASSERT("", inst == pJobArgs->logInst);
+	}
+}

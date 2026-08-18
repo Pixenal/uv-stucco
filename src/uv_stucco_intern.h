@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 #include <map.h>
 #include <pixenals_structs.h>
 #include <in_piece.h>
+#include <cark_stages.h>
 
 
 #ifdef NDEBUG
@@ -42,6 +43,15 @@ SPDX-License-Identifier: Apache-2.0
 		idx,\
 		&(logHandle)\
 	)
+#define CARK_INST_ADD(cark, thread, stage, structIdx) \
+	carkOutInstAdd(\
+		&(cark).ctx,\
+		thread,\
+		(cark).stageHandleArr[stage],\
+		structIdx\
+	)
+
+extern I32 stucStageStructCountArr[STUC_STAGE_ENUM_COUNT];
 
 typedef struct MapToMeshBasic {
 	Mesh outMesh;

@@ -678,7 +678,7 @@ PixErr bufMeshAddFace(
 	StucCark *pCark = &pArgs->pCtx->cark;
 	StucStage stage = STUC_STAGE_BUFMESH_INIT;
 	CarkLog log = {0};
-	err = CARK_LOG_START(*pCark, pArgs->threadId, stage, 0, pArgs->id, newIdx, log);
+	err = CARK_LOG_START(*pCark, pArgs->threadId, stage, 0, pArgs->logInst, newIdx, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogComp(&log, 0, NULL, &start);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -923,7 +923,7 @@ StucErr bufMeshAddVert(
 			pArgs->pCtx,
 			pArgs->threadId,
 			type,
-			pArgs->id,
+			pArgs->logInst,
 			bufCorner,
 			vert,
 			pCorner->pos
@@ -999,19 +999,18 @@ void addFacesToBufMesh(
 		if (pFaces->pArr[i].isHole) {
 			continue; //not adding holes
 		}
-		err =
-			addFaceToBufMesh(
-				pArgs,
-				pInFaceArr,
-				pInPiece,
-				pBorderCache,
-				pOrderCache,
-				inPieceOffset,
-				pBufMesh,
-				pMapFace,
-				pFaces->pArr + i,
-				wind
-			);
+		err = addFaceToBufMesh(
+			pArgs,
+			pInFaceArr,
+			pInPiece,
+			pBorderCache,
+			pOrderCache,
+			inPieceOffset,
+			pBufMesh,
+			pMapFace,
+			pFaces->pArr + i,
+			wind
+		);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 		PIX_ERR_CATCH(0, err, ;
 			err = PIX_ERR_SUCCESS; //reset err (skipping this face)
@@ -1094,7 +1093,7 @@ StucErr addNonClipInPieceToBufMesh(
 			err = logBufCornerAndVert(
 				pArgs->pCtx,
 				pArgs->threadId,
-				pArgs->id,
+				pArgs->logInst,
 				bufCorner,
 				vert,
 				pMapMesh->pPos[pMapMesh->core.pCorners[pMapFace->range.start + i]]
@@ -1499,6 +1498,9 @@ typedef struct BufMeshInitJobArgs {
 StucErr stucBufMeshInit(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	BufMeshInitJobArgs *pArgs = pArgsVoid;
+
+	//init new log instance for bufmesh
+	stucLogStageInstAdd(&pArgs->core, STUC_STAGE_BUFMESH_INIT);
 
 	PixmshSplitMem splitMem = {0};
 	BorderCache borderCache = {.pSplitMem = &splitMem};

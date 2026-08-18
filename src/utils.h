@@ -247,6 +247,7 @@ StucErr stucInIslandAdd(
 	I32 *pIdx
 );
 StucErr stucInIslandRangeSet(void *pIslandsRaw, I32 island, PixtyRange range);
+void stucLogStageInstAdd(JobArgs *pJobArgs, StucStage stage);
 
 static inline
 PixtyV2_F32 stucClustUv(const void *pMeshRaw, I32 corner) {
