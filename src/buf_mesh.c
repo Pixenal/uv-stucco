@@ -90,6 +90,7 @@ SearchResult inFaceCacheGet(
 		(void **)&pEntry,
 		addEntry,
 		NULL,
+		NULL,
 		pixuctKeyFromI32, NULL, inFaceCacheEntryInit, inFaceCacheEntryCmp
 	);
 	if (pEntry->valid) {
@@ -1043,6 +1044,7 @@ StucErr inFaceCacheBuild(
 				(void **)&pFaceEntry,
 				true,
 				NULL,
+				NULL,
 				pixuctKeyFromI32, NULL, inFaceCacheEntryInit, inFaceCacheEntryCmp
 			);
 			PIX_ERR_ASSERT("", result == PIX_SEARCH_ADDED);
@@ -1228,6 +1230,7 @@ void validateFaceInPiece(InFaceCache *pInFaceCache, FaceCorner *pCorner) {
 		&pCorner->face,
 		(void **)&pEntry,
 		false,
+		NULL,
 		NULL,
 		pixuctKeyFromI32, NULL, NULL, inFaceCacheEntryCmp
 	);

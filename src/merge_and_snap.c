@@ -209,7 +209,9 @@ void mergeTableAddVert(
 		pKey->type == STUC_BUF_VERT_INTERSECT,
 		pKey,
 		(void **)&pEntry,
-		true, pInitInfo,
+		true,
+		pInitInfo,
+		NULL,
 		mergeTableMakeKey, NULL, mergeTableEntryInit, mergeTableEntryCmp
 	);
 	PIX_ERR_ASSERT("", result == PIX_SEARCH_ADDED || result == PIX_SEARCH_FOUND);

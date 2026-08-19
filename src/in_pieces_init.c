@@ -158,6 +158,7 @@ EncasedMapFace *addToEncasedFaces(
 			.inFaceWind = inFaceWind,
 			.border = border
 		},
+		NULL,
 		stucInPieceMakeKey, NULL, encasedMapFaceInit, encasedMapFaceCmp
 	);
 	if (result == PIX_SEARCH_FOUND) {
@@ -464,6 +465,7 @@ void addEncasedEntryToInPieceArr(
 		&(InPieceInitInfo) {
 			.pInFaces = &pArgs->inFaces, .pCluster = pCluster, .pInPieceArr = pInPieceArr
 		},
+		NULL,
 		stucInPieceMakeKey, NULL, inPieceInit, inPieceCmp
 	);
 	if (result == PIX_SEARCH_FOUND) {

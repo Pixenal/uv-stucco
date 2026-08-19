@@ -730,6 +730,7 @@ StucErr encodeMappingOpt(
 			(void **)&pEntry,
 			true,
 			&(MatMapEntryInit) {.pMap = pMapArr->pArr[i].map.ptr, .opt = mappingOpt},
+			NULL,
 			keyFromPath, NULL, matMapEntryInit, matMapEntryCmp
 		);
 		bool wScaleOverride = wScale != 1.0f;
@@ -2140,6 +2141,7 @@ static
 		&(StrWithLen){.pStr = pName, .len = nameLen},
 		(void **)ppEntry,
 		true,
+		NULL,
 		NULL,
 		mapDepMakeKey, NULL, mapDepInit, mapDepCmp
 	);

@@ -166,7 +166,9 @@ void addOrMergeFaceTPieces(
 			0,
 			pMesh->pCorners + face.range.start + i,
 			(void **)&vertEntries[i].pEntry,
-			add, NULL,
+			add,
+			NULL,
+			NULL,
 			pixuctKeyFromI32, NULL, tPieceVertInit, tPieceVertCmp
 		);
 	}
@@ -284,7 +286,9 @@ void buildTPieces(
 				0,
 				&pInCore->pCorners[face.range.start + j],
 				(void **)&pEntry,
-				false, NULL,
+				false,
+				NULL,
+				NULL,
 				pixuctKeyFromI32, NULL, NULL, tPieceVertCmp
 			);
 			if (result == PIX_SEARCH_NOT_FOUND) {

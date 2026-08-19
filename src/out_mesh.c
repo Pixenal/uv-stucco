@@ -126,7 +126,9 @@ void addBufFaceToOutMesh(
 			0,
 			&key,
 			(void **)&pEntry,
-			false, NULL,
+			false,
+			NULL,
+			NULL,
 			mergeTableMakeKey, NULL, NULL, mergeTableEntryCmp
 		);
 		PIX_ERR_ASSERT("", pEntry && result == PIX_SEARCH_FOUND);

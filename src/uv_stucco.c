@@ -1566,7 +1566,7 @@ PixErr logMapArr(StucCtx *pCtx, const StucMapArr *pMapArr) {
 			err = CARK_LOG_START(pCtx->cark, 0, stage, 2, i, j, log);
 			PIX_ERR_RETURN_IFNOT(err, "");
 			for (I32 k = 0; k < 3; ++k) {
-				err = carkOutLogComp(&log, k, NULL, pMesh->pPos->d + k);
+				err = carkOutLogComp(&log, k, NULL, pMesh->pPos[j].d + k);
 				PIX_ERR_RETURN_IFNOT(err, "");
 			}
 			err = carkOutLogEnd(&log);

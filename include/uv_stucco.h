@@ -390,7 +390,6 @@ typedef struct StucCark {
 	int32_t stageHandleArr[STUC_STAGE_ENUM_COUNT];
 } StucCark;
 
-//TODO rename to StucCtx and remove redundant opaque ptr typedef
 typedef struct StucCtx {
 	void *pCustom;
 	StucThreadPool threadPool;
@@ -405,8 +404,6 @@ typedef struct StucCtx {
 	I32 stageInterval;
 } StucCtx;
 
-//TODO unify naming of contexts like this.
-//this struct is currently missing a prefix, while stuc-context is called stucContext
 typedef struct StucMapLoad {
 	StucCtx *pCtx;
 	const char *pFilepath;

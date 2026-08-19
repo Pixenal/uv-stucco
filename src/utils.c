@@ -877,6 +877,7 @@ StucErr stucInIslandBorderAddEdge(
 		NULL,
 		true,
 		NULL,
+		NULL,
 		inIslandBorderMakeKey, NULL, inIslandBorderInitEntry, inIslandBorderCmpEntry
 	);
 	return err;
