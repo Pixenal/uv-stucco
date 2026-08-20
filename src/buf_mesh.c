@@ -408,7 +408,8 @@ PixErr logBufCornerAndVert(
 	CarkLog log = {0};
 	err = CARK_LOG_START(*pCark, thread, STUC_STAGE_BUFMESH_INIT, 1, inst, corner, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	err = carkOutLogComp(&log, 0, NULL, &vert);
+	CarkRefOverride ref = {.structIdx = {.val = 4, .override = true}};
+	err = carkOutLogComp(&log, 0, &(CarkRefOverrideArr){.arr = {ref}, .count = 1}, &vert);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogEnd(&log);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -440,33 +441,29 @@ PixErr logBufClipCornerAndVert(
 	CarkLog log = {0};
 	err = CARK_LOG_START(*pCark, thread, STUC_STAGE_BUFMESH_INIT, 1, inst, corner, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	CarkRefOverride ref = {.stageIdx = {.val = -1, .override = true}};
 	I32 structIdx = 0;
+	CarkRefOverrideArr refArr = {.count = 1};
 	switch (type) {
 		case STUC_BUF_VERT_INTERSECT:
 			structIdx = 2;
-			ref.structIdx = (CarkOverride){.val = 3, .override = true};
-			ref.compIdx = (CarkOverride){.val = -1, .override = true};
+			refArr.count = 0;
 			break;
 		case STUC_BUF_VERT_ON_EDGE:
 			structIdx = 3;
-			ref.structIdx = (CarkOverride){.val = 4, .override = true};
-			ref.compIdx = (CarkOverride){.val = 0, .override = true};
+			refArr.arr[0].structIdx = (CarkOverride){.val = structIdx, .override = true};
 			break;
 		case STUC_BUF_VERT_IN_OR_MAP:
 			structIdx = 4;
-			ref.structIdx = (CarkOverride){.val = 5, .override = true};
-			ref.compIdx = (CarkOverride){.val = 0, .override = true};
+			refArr.arr[0].structIdx = (CarkOverride){.val = structIdx, .override = true};
 			break;
 		case STUC_BUF_VERT_OVERLAP:
 			structIdx = 5;
-			ref.structIdx = (CarkOverride){.val = 6, .override = true};
-			ref.compIdx = (CarkOverride){.val = 0, .override = true};
+			refArr.arr[0].structIdx = (CarkOverride){.val = structIdx, .override = true};
 			break;
 		default:
 			PIX_ERR_ASSERT("invalid buf-mesh vert type", false);
 	}
-	err = carkOutLogComp(&log, 0, &(CarkRefOverrideArr){.count = 1, .arr = {ref}}, &vert);
+	err = carkOutLogComp(&log, 0, &refArr, &vert);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogEnd(&log);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -1092,9 +1089,10 @@ StucErr addNonClipInPieceToBufMesh(
 			bufMeshAddCorner(pArgs, pBufMesh, type, vert, &bufCorner);
 			PixtyV3_F32 mapPosGet();
 			const Mesh *pMapMesh = pBasic->pMap->pMesh;
-			err = logBufCornerAndVert(
+			err = logBufClipCornerAndVert(
 				pArgs->pCtx,
 				pArgs->threadId,
+				type,
 				pArgs->logInst,
 				bufCorner,
 				vert,
