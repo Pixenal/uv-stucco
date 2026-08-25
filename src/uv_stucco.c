@@ -86,6 +86,14 @@ StucErr initCarkOut(
 		STUC_STAGE_BUFMESH_INIT,
 		true
 	);
+	err = logStageInit(
+		pCark,
+		"outmesh",
+		&STUC_STAGE_INFO_ISLAND_SPLIT,
+		STUC_STAGE_OUTMESH,
+		false
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
@@ -989,6 +997,8 @@ StucErr mapToMeshInternal(
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	//printf("I\n");
+	err = CARK_STAGE_END(pCtx->cark, STUC_STAGE_OUTMESH);
+	PIX_ERR_RETURN_IFNOT(err, "")
 
 	stucReallocMeshToFit(pCtx, &basic.outMesh);
 	*pOutMesh = basic.outMesh.core;
@@ -1008,7 +1018,6 @@ cleanUp:
 		stucBufMeshArrDestroy(pCtx, pBufMeshClipArr);
 	}
 	//printf("K\n");
-	PIX_ERR_CATCH(0, err, ;);
 	return err;
 }
 

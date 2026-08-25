@@ -256,15 +256,18 @@ StucErr mapUvwToXyzFlat(
 
 static
 StucErr xformVertFromUvwToXyz(
-	const MapToMeshBasic *pBasic,
+	xformAndInterpVertsJobArgs *pArgs,
 	V2_I16 tile,
 	const BufMesh *pBufMesh,
+	I32 vertIdx,
 	FaceCorner bufCorner,
 	InterpCaches *pInterpCaches,
-	V3_F32 *pPos,
 	M3x3 *pTbn
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	const MapToMeshBasic *pBasic = pArgs->core.pShared;
+	StucStage stage = STUC_STAGE_OUTMESH;
+	I32 thread = pArgs->core.threadId;
 	PIX_ERR_ASSERT(
 		"",
 		pInterpCaches->in.domain == STUC_DOMAIN_CORNER &&
@@ -337,8 +340,20 @@ StucErr xformVertFromUvwToXyz(
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
 	}
-	*pPos = _(xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale));
+	pArgs->pOutMesh->pPos[vertIdx] = _(
+		xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale)
+	);
 	*pTbn = tbn;
+
+	CarkLog log = {0};
+	err = CARK_LOG_START(pArgs->core.pCtx->cark, thread, stage, 2, 0, vertIdx, log);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	for (I32 i = 0; i < 3; ++i) {
+		err = carkOutLogComp(&log, i, NULL, pArgs->pOutMesh->pPos[vertIdx].d + i);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	err = carkOutLogEnd(&log);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
@@ -625,12 +640,12 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			.map = {.domain = STUC_DOMAIN_VERT, .origin = STUC_ATTRIB_ORIGIN_MAP}
 		};
 		xformVertFromUvwToXyz(
-			pBasic,
+			pArgs,
 			tile,
 			pBufMesh,
+			pEntry->outVert,
 			pEntry->bufCorner.corner,
 			&interpCaches,
-			pArgs->pOutMesh->pPos + pEntry->outVert,
 			&pEntry->transform.tbn
 		);
 		interpAndBlendAttribs(
@@ -746,6 +761,8 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 	AttribCache attribs = {0};
 	cacheAttribPairs(pBasic, pArgs->pOutMesh, STUC_DOMAIN_CORNER, &attribs);
 	I32 corner = pArgs->core.range.start;
+	StucStage stage = STUC_STAGE_OUTMESH;
+	StucCark *pCark = &pArgs->core.pCtx->cark;
 	for (
 		I32 i = bufOutTableGetStart(pArgs, corner);
 		!bufOutTableAtEnd(pArgs, i);
@@ -795,6 +812,14 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				STUC_DOMAIN_CORNER
 			);
 			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
+
+			CarkLog log = {0};
+			err = CARK_LOG_START(*pCark, pArgs->core.threadId, stage, 1, 0, corner, log);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogComp(&log, 0, NULL, &pVertEntry->outVert);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = carkOutLogEnd(&log);
+			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 	}
 	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);

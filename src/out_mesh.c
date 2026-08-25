@@ -97,7 +97,7 @@ typedef struct OutCornerBuf {
 } OutCornerBuf;
 
 static
-void addBufFaceToOutMesh(
+PixErr addBufFaceToOutMesh(
 	MapToMeshBasic *pBasic,
 	OutCornerBuf *pOutBuf,
 	const BufMesh *pBufMesh,
@@ -105,6 +105,7 @@ void addBufFaceToOutMesh(
 	OutBufIdxArr *pOutBufIdxArr,
 	I32 faceIdx
 ) {
+	PixErr err = PIX_ERR_SUCCESS;
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	pOutBuf->buf.count = 0;
 	BufFace bufFace = pBufMesh->faces.pArr[faceIdx];
@@ -183,11 +184,25 @@ void addBufFaceToOutMesh(
 		pOutBuf->final.count++;
 	}
 	if (pOutBuf->final.count < 3) {
-		return; //skip face
+		return err; //skip face
 	}
 	bool reverseWind = !bufFace.wind && !inFaceOnly;
 	I32 outFace = stucMeshAddFace(pBasic->pCtx, &pBasic->outMesh, NULL);
 	pBasic->outMesh.core.pFaces[outFace] = pBasic->outMesh.core.cornerCount;
+
+	CarkLog log = {0};
+	StucStage stage = STUC_STAGE_OUTMESH;
+	err = CARK_LOG_START(pBasic->pCtx->cark, 0, stage, 0, 0, outFace, log);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 0, NULL, &pBasic->outMesh.core.cornerCount);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 1, NULL, &pOutBuf->final.count);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 2, NULL, &(I32){0});
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogEnd(&log);
+	PIX_ERR_RETURN_IFNOT(err, "");
+
 	for (I32 i = 0; i < pOutBuf->final.count; ++i) {
 		I32 idx = reverseWind ? pOutBuf->final.count - i - 1 : i;
 		I32 outCorner = stucMeshAddCorner(pBasic->pCtx, &pBasic->outMesh, NULL);
@@ -200,6 +215,7 @@ void addBufFaceToOutMesh(
 		};
 		pBasic->outMesh.core.pCorners[outCorner] = newIdx;
 	}
+	return err;
 }
 
 void stucAddFacesAndCornersToOutMesh(
