@@ -2271,7 +2271,7 @@ StucErr finaliseMapLoad(
 	}
 	I32 depCount = pStackEntry->pMap->deps.count;
 	if (depCount) {
-		PIXALC_DYN_ARR_RESIZE(void *, &pState->pCtx->alloc, pDepBuf, depCount);
+		PIXALC_DYN_ARR_RESIZE(PixtyStr, &pState->pCtx->alloc, pDepBuf, depCount);
 		for (I32 i = 0; i < depCount; ++i) {
 			pDepBuf->pArr[i].pStr = pStackEntry->pMap->deps.pArr[i]->pName;
 		}
