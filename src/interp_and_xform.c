@@ -345,8 +345,11 @@ StucErr xformVertFromUvwToXyz(
 	);
 	*pTbn = tbn;
 
+	if (!pArgs->core.pCark->valid) {
+		return err;
+	}
 	CarkLog log = {0};
-	err = CARK_LOG_START(pArgs->core.pCtx->cark, thread, stage, 2, 0, vertIdx, log);
+	err = CARK_LOG_START(*pArgs->core.pCark, thread, stage, 2, 0, vertIdx, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	for (I32 i = 0; i < 3; ++i) {
 		err = carkOutLogComp(&log, i, NULL, pArgs->pOutMesh->pPos[vertIdx].d + i);
@@ -762,7 +765,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 	cacheAttribPairs(pBasic, pArgs->pOutMesh, STUC_DOMAIN_CORNER, &attribs);
 	I32 corner = pArgs->core.range.start;
 	StucStage stage = STUC_STAGE_OUTMESH;
-	StucCark *pCark = &pArgs->core.pCtx->cark;
+	StucCark *pCark = pArgs->core.pCark;
 	for (
 		I32 i = bufOutTableGetStart(pArgs, corner);
 		!bufOutTableAtEnd(pArgs, i);
@@ -812,14 +815,15 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				STUC_DOMAIN_CORNER
 			);
 			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
-
-			CarkLog log = {0};
-			err = CARK_LOG_START(*pCark, pArgs->core.threadId, stage, 1, 0, corner, log);
-			PIX_ERR_RETURN_IFNOT(err, "");
-			err = carkOutLogComp(&log, 0, NULL, &pVertEntry->outVert);
-			PIX_ERR_RETURN_IFNOT(err, "");
-			err = carkOutLogEnd(&log);
-			PIX_ERR_RETURN_IFNOT(err, "");
+			if (pCark->valid) {
+				CarkLog log = {0};
+				err = CARK_LOG_START(*pCark, pArgs->core.threadId, stage, 1, 0, corner, log);
+				PIX_ERR_RETURN_IFNOT(err, "");
+				err = carkOutLogComp(&log, 0, NULL, &pVertEntry->outVert);
+				PIX_ERR_RETURN_IFNOT(err, "");
+				err = carkOutLogEnd(&log);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
 		}
 	}
 	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
@@ -914,6 +918,7 @@ void xformVertsJobInit(
 StucErr stucXFormAndInterpVerts(
 	MapToMeshBasic *pBasic,
 	I32 threadId,
+	StucCark *pCark,
 	const BufMeshArr *pBufMeshArr,
 	const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable,
@@ -924,6 +929,7 @@ StucErr stucXFormAndInterpVerts(
 	xformAndInterpVertsJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
+		pCark,
 		pBasic,
 		&jobCount, jobArgs, sizeof(xformAndInterpVertsJobArgs),
 		&(XformVertsJobInitInfo) {
@@ -983,6 +989,7 @@ void interpAttribsJobInit(
 StucErr stucInterpAttribs(
 	MapToMeshBasic *pBasic,
 	I32 threadId,
+	StucCark *pCark,
 	const BufMeshArr *pBufMeshArr,
 	const BufMeshArr *pBufMeshClipArr,
 	PixuctHTable *pMergeTable,
@@ -996,6 +1003,7 @@ StucErr stucInterpAttribs(
 	InterpAttribsJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
+		pCark,
 		pBasic,
 		&jobCount, jobArgs, sizeof(InterpAttribsJobArgs),
 		&(InterpAttribsJobInitInfo) {

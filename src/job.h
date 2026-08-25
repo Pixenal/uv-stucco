@@ -14,6 +14,7 @@ typedef struct JobArgs {
 	const void *pShared;
 	PixErr (*fpJob) (void *);
 	StucCtx *pCtx;
+	StucCark *pCark;
 	Range range;
 	I32 id;
 	I32 threadId;
@@ -26,6 +27,7 @@ typedef struct JobArgsFoot {
 
 void stucMakeJobArgs(
 	StucCtx *pCtx,
+	StucCark *pCark,
 	const void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,

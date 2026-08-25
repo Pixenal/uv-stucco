@@ -1201,8 +1201,37 @@ PixmshFaceRange stucPixmshFaceRange(const void *pMeshRaw, I32 face) {
 	};
 }
 
+static
+PixErr logIslands(
+	StucCark *pCark, 
+	const Mesh *pMesh,
+	const StucInIslandArr *pIslands,
+	I32 islandIdx
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	const StucIsland *pIsland = &pIslands->pArr[islandIdx].core;
+	for (I32 i = pIsland->faces.start; i < pIsland->faces.end; ++i) {
+		CarkLog log = {0};
+		err = CARK_LOG_START(*pCark, 0, STUC_STAGE_ISLAND_SPLIT, 0, 0, i, log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		I32 realFaceIdx = pIslands->faces.pArr[i];
+		I32 faceStart = pMesh->core.pFaces[realFaceIdx];
+		err = carkOutLogComp(&log, 0, NULL, &faceStart);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		I32 faceSize = pMesh->core.pFaces[realFaceIdx + 1] - faceStart;
+		err = carkOutLogComp(&log, 1, NULL, &faceSize);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogComp(&log, 2, NULL, &islandIdx);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		err = carkOutLogEnd(&log);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	return err;
+}
+
 StucErr StucSplitMeshToIslands(
 	StucCtx *pCtx,
+	StucCark *pCark,
 	const Mesh *pMesh,
 	StucInIslandArr *pIslands
 ) {
@@ -1244,20 +1273,8 @@ StucErr StucSplitMeshToIslands(
 			&(BorderMesh){.pBorder = pBorder, .pMesh = pMesh},
 			borderPosGet
 		);
-		for (I32 j = pIsland->faces.start; j < pIsland->faces.end; ++j) {
-			CarkLog log = {0};
-			err = CARK_LOG_START(pCtx->cark, 0, STUC_STAGE_ISLAND_SPLIT, 0, 0, j, log);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
-			I32 realFaceIdx = pIslands->faces.pArr[j];
-			I32 faceStart = pMesh->core.pFaces[realFaceIdx];
-			err = carkOutLogComp(&log, 0, NULL, &faceStart);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
-			I32 faceSize = pMesh->core.pFaces[realFaceIdx + 1] - faceStart;
-			err = carkOutLogComp(&log, 1, NULL, &faceSize);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
-			err = carkOutLogComp(&log, 2, NULL, &i);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
-			err = carkOutLogEnd(&log);
+		if (pCark->valid) {
+			err = logIslands(pCark, pMesh, pIslands, i);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 	}
@@ -1426,7 +1443,7 @@ void stucLogStageInstAdd(JobArgs *pJobArgs, StucStage stage) {
 	);
 	pJobArgs->logInst = -1;
 	for (I32 i = 0; i < stucStageStructCountArr[stage]; ++i) {
-		I32 inst = CARK_INST_ADD(pJobArgs->pCtx->cark, pJobArgs->threadId, stage, i);
+		I32 inst = CARK_INST_ADD(*pJobArgs->pCark, pJobArgs->threadId, stage, i);
 		if (pJobArgs->logInst == -1) {
 			pJobArgs->logInst = inst;
 			continue;

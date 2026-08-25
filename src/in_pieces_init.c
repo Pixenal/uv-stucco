@@ -562,6 +562,7 @@ StucErr stucInPieceArrInit(
 	StucErr err = PIX_ERR_SUCCESS;
 	stucMakeJobArgs(
 		pBasic->pCtx,
+		NULL,
 		pBasic,
 		pJobCount, pJobArgs, sizeof(FindEncasedFacesJobArgs),
 		&(FindEncasedJobInit){.pClustArr = pClustArr},

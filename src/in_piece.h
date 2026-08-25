@@ -389,6 +389,7 @@ StucErr stucInPieceArrInit(
 StucErr stucInPieceArrInitBufMeshes(
 	const struct MapToMeshBasic *pBasic,
 	I32 threadId,
+	StucCark *pCark,
 	const IslandClustArr *pClustArr,
 	const InFaceMemArr *pInFaceArr,
 	InPieceArr *pInPieces,

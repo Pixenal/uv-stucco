@@ -119,6 +119,7 @@ void stucAddVertsToOutMesh(
 );
 void stucAddFacesAndCornersToOutMesh(
 	MapToMeshBasic *pBasic,
+	StucCark *pCark,
 	const BufMeshArr *pBufMeshArr,
 	PixuctHTable *pMergeTable,
 	OutBufIdxArr *pOutBufIdxArr,

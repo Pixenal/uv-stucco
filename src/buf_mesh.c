@@ -393,42 +393,9 @@ FaceCorner getInCornerFromPlycut(
 	return faceCorner;
 }
 
-
-static
-PixErr logBufCornerAndVert(
-	StucCtx *pCtx,
-	I32 thread,
-	I32 inst,
-	I32 corner,
-	I32 vert,
-	PixtyV3_F32 pos
-) {
-	PixErr err = PIX_ERR_SUCCESS;
-	StucCark *pCark = &pCtx->cark;
-	CarkLog log = {0};
-	err = CARK_LOG_START(*pCark, thread, STUC_STAGE_BUFMESH_INIT, 1, inst, corner, log);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	CarkRefOverride ref = {.structIdx = {.val = 4, .override = true}};
-	err = carkOutLogComp(&log, 0, &(CarkRefOverrideArr){.arr = {ref}, .count = 1}, &vert);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	err = carkOutLogEnd(&log);
-	PIX_ERR_RETURN_IFNOT(err, "");
-
-	err = CARK_LOG_START(*pCark, thread, STUC_STAGE_BUFMESH_INIT, 4, inst, vert, log);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	for (I32 i = 0; i < 3; ++i) {
-		err = carkOutLogComp(&log, i, NULL, pos.d + i);
-		PIX_ERR_RETURN_IFNOT(err, "");
-	}
-	err = carkOutLogEnd(&log);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	return err;
-
-}
-
 static
 PixErr logBufClipCornerAndVert(
-	StucCtx *pCtx,
+	StucCark *pCark,
 	I32 thread,
 	BufVertType type,
 	I32 inst,
@@ -437,7 +404,6 @@ PixErr logBufClipCornerAndVert(
 	PixtyV3_F32 pos
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	StucCark *pCark = &pCtx->cark;
 	CarkLog log = {0};
 	err = CARK_LOG_START(*pCark, thread, STUC_STAGE_BUFMESH_INIT, 1, inst, corner, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -673,10 +639,12 @@ PixErr bufMeshAddFace(
 	pBufMesh->faces.pArr[newIdx].tile = tile;
 	pBufMesh->faces.pArr[newIdx].wind = wind;
 
-	StucCark *pCark = &pArgs->pCtx->cark;
+	if (!pArgs->pCark->valid) {
+		return err;
+	}
 	StucStage stage = STUC_STAGE_BUFMESH_INIT;
 	CarkLog log = {0};
-	err = CARK_LOG_START(*pCark, pArgs->threadId, stage, 0, pArgs->logInst, newIdx, log);
+	err = CARK_LOG_START(*pArgs->pCark, pArgs->threadId, stage, 0, pArgs->logInst, newIdx, log);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogComp(&log, 0, NULL, &start);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -684,7 +652,8 @@ PixErr bufMeshAddFace(
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogComp(&log, 2, NULL, &(I32){0});
 	PIX_ERR_RETURN_IFNOT(err, "");
-	carkOutLogEnd(&log);
+	err = carkOutLogEnd(&log);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
@@ -917,16 +886,18 @@ StucErr bufMeshAddVert(
 	if (vert != -1) {
 		I32 bufCorner = 0;
 		bufMeshAddCorner(pArgs, pBufMesh, type, vert, &bufCorner);
-		err = logBufClipCornerAndVert(
-			pArgs->pCtx,
-			pArgs->threadId,
-			type,
-			pArgs->logInst,
-			bufCorner,
-			vert,
-			pCorner->pos
-		);
-		PIX_ERR_RETURN_IFNOT(err, "");
+		if (pArgs->pCark->valid) {
+			err = logBufClipCornerAndVert(
+				pArgs->pCark,
+				pArgs->threadId,
+				type,
+				pArgs->logInst,
+				bufCorner,
+				vert,
+				pCorner->pos
+			);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
 	}
 	return err;
 }
@@ -1087,18 +1058,18 @@ StucErr addNonClipInPieceToBufMesh(
 		if (vert != -1) {
 			I32 bufCorner = 0;
 			bufMeshAddCorner(pArgs, pBufMesh, type, vert, &bufCorner);
-			PixtyV3_F32 mapPosGet();
-			const Mesh *pMapMesh = pBasic->pMap->pMesh;
-			err = logBufClipCornerAndVert(
-				pArgs->pCtx,
-				pArgs->threadId,
-				type,
-				pArgs->logInst,
-				bufCorner,
-				vert,
-				pMapMesh->pPos[pMapMesh->core.pCorners[pMapFace->range.start + i]]
-			);
-			PIX_ERR_RETURN_IFNOT(err, "");
+			if (pArgs->pCark->valid) {
+				err = logBufClipCornerAndVert(
+					pArgs->pCark,
+					pArgs->threadId,
+					type,
+					pArgs->logInst,
+					bufCorner,
+					vert,
+					mapPosGet(pBasic->pMap, pMapFace, i)
+				);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
 			continue;
 		}
 		PIX_ERR_RETURN_QUIET_IFNOT_COND(
@@ -1500,8 +1471,10 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	BufMeshInitJobArgs *pArgs = pArgsVoid;
 
-	//init new log instance for bufmesh
-	stucLogStageInstAdd(&pArgs->core, STUC_STAGE_BUFMESH_INIT);
+	if (pArgs->core.pCark->valid) {
+		//init new log instance for bufmesh
+		stucLogStageInstAdd(&pArgs->core, STUC_STAGE_BUFMESH_INIT);
+	}
 
 	PixmshSplitMem splitMem = {0};
 	BorderCache borderCache = {.pSplitMem = &splitMem};
@@ -1655,6 +1628,7 @@ void bufMeshArrMoveToInPieces(
 StucErr stucInPieceArrInitBufMeshes(
 	const MapToMeshBasic *pBasic,
 	I32 threadId,
+	StucCark *pCark,
 	const IslandClustArr *pClustArr,
 	const InFaceMemArr *pInFaceArr,
 	InPieceArr *pInPieces,
@@ -1676,6 +1650,7 @@ StucErr stucInPieceArrInitBufMeshes(
 	BufMeshInitJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
+		pCark,
 		pBasic,
 		&jobCount, jobArgs, sizeof(BufMeshInitJobArgs),
 		&(BufMeshJobInitInfo) {
@@ -1968,6 +1943,7 @@ StucErr stucMapMeshForIsland(void *pArgsRaw) {
 		err = stucInPieceArrInitBufMeshes(
 			pBasic,
 			pArgs->core.threadId,
+			pArgs->core.pCark,
 			&clustArr,
 			&inFaceArr,
 			&inPieceClipArr,
@@ -1977,6 +1953,7 @@ StucErr stucMapMeshForIsland(void *pArgsRaw) {
 		err = stucInPieceArrInitBufMeshes(
 			pBasic,
 			pArgs->core.threadId,
+			pArgs->core.pCark,
 			&clustArr,
 			&inFaceArr,
 			&inPieceArr,

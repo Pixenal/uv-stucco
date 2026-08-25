@@ -389,6 +389,7 @@ typedef enum StucStage {
 typedef struct StucCark {
 	CarkOutCtx ctx;
 	int32_t stageHandleArr[STUC_STAGE_ENUM_COUNT];
+	bool valid;
 } StucCark;
 
 typedef struct StucCtx {
@@ -398,11 +399,12 @@ typedef struct StucCtx {
 	PixioFPtrs io;
 	I32 threadCount;
 	StucTypeDefaultConfig typeDefaults;
-	StucCark cark;
 
 	//pretty much unused rn, this is old
 	StucStageReport stageReport;
 	I32 stageInterval;
+
+	bool logEnabled;
 } StucCtx;
 
 typedef struct StucMapLoad {

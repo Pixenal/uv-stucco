@@ -373,6 +373,7 @@ StucErr stucBuildTangentsForInPieces(
 	TangentJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pCtx,
+		NULL,
 		pInMesh,
 		&jobCount,
 		jobArgs, sizeof(TangentJobArgs),

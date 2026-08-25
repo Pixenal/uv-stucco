@@ -11,12 +11,14 @@ SPDX-License-Identifier: Apache-2.0
 static
 void setJobArgsCore(
 	StucCtx *pCtx,
+	StucCark *pCark,
 	const void *pShared,
 	JobArgs *pCore,
 	Range *pRanges,
 	I32 jobIdx
 ) {
 	pCore->pCtx = pCtx;
+	pCore->pCark = pCark;
 	pCore->pShared = pShared;
 	pCore->range = pRanges[jobIdx];
 	pCore->id = jobIdx;
@@ -42,6 +44,7 @@ void divideArrAmongstJobs(I32 arrSize, I32 *pJobCount, Range *pRanges) {
 
 void stucMakeJobArgs(
 	StucCtx *pCtx,
+	StucCark *pCark,
 	const void *pShared,
 	I32 *pJobCount, void *pArgs, I32 argStructSize,
 	void *pInitInfo,
@@ -55,6 +58,6 @@ void stucMakeJobArgs(
 		if (fpInitArgEntry) {
 			fpInitArgEntry(pCtx, pShared, pInitInfo, pArgEntry);
 		}
-		setJobArgsCore(pCtx, pShared, (JobArgs *)pArgEntry, ranges, i);
+		setJobArgsCore(pCtx, pCark, pShared, (JobArgs *)pArgEntry, ranges, i);
 	}
 }

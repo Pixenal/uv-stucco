@@ -353,6 +353,7 @@ StucErr stucSnapIntersectVerts(
 	SnapJobArgs jobArgs[PIXTH_MAX_SUB_MAPPING_JOBS] = {0};
 	stucMakeJobArgs(
 		pBasic->pCtx,
+		NULL,
 		pBasic,
 		&jobCount, jobArgs, sizeof(SnapJobArgs),
 		&(SnapJobInitInfo) {

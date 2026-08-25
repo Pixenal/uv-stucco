@@ -206,6 +206,7 @@ void stucBuildEdgeAdj(Mesh *pMesh);
 void stucBuildSeamAndPreserveTables(Mesh *pMesh);
 StucErr StucSplitMeshToIslands(
 	StucCtx *pCtx,
+	StucCark *pCark,
 	const Mesh *pMesh,
 	StucInIslandArr *pIslands
 );
