@@ -339,6 +339,8 @@ StucErr xformVertFromUvwToXyz(
 			STUC_ATTRIB_USE_NORMALS_VERT
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
+		F32 vertNormalLen = pixmV3F32Len(*(PixtyV3_F32 *)&tbn.d[2]);
+		PIX_ERR_RETURN_IFNOT_COND(err, vertNormalLen > .9f && vertNormalLen < 1.1f, "");
 	}
 	pArgs->pOutMesh->pPos[vertIdx] = _(
 		xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale)
@@ -642,7 +644,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
 			.map = {.domain = STUC_DOMAIN_VERT, .origin = STUC_ATTRIB_ORIGIN_MAP}
 		};
-		xformVertFromUvwToXyz(
+		err = xformVertFromUvwToXyz(
 			pArgs,
 			tile,
 			pBufMesh,
@@ -651,6 +653,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			&interpCaches,
 			&pEntry->transform.tbn
 		);
+		PIX_ERR_RETURN_IFNOT(err, "");
 		interpAndBlendAttribs(
 			pBasic,
 			&attribs,
@@ -799,7 +802,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				&normal
 			);
 			M3x3 tbn = {0};
-			getInterpolatedTbn(
+			err = getInterpolatedTbn(
 				pBasic,
 				tile,
 				pBufMesh,
@@ -808,6 +811,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				&normal,
 				&tbn
 			);
+			PIX_ERR_RETURN_IFNOT(err, "");
 			xformNormals(
 				&pArgs->pOutMesh->core,
 				corner,
