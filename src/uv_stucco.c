@@ -1941,13 +1941,13 @@ StucErr stucMapToMesh(
 		keepExistingIdxAttribs
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	if (triangulate) {
-		err = stucMeshTriangulate(pCtx, pMeshOut);
-		PIX_ERR_THROW_IFNOT(err, "", 0);
-	}
 	if (cark.valid) {
 		const char *logPath = "C:/Users/scout/AppData/Local/Temp/Debug.cark";
 		err = carkOutFileSave(&cark.ctx, logPath, true);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	if (triangulate) {
+		err = stucMeshTriangulate(pCtx, pMeshOut);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	PIX_ERR_CATCH(0, err, ;);
