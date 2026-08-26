@@ -1862,7 +1862,8 @@ bool stucIsAttribUseRequired(StucAttribUse use) {
 		use == STUC_ATTRIB_USE_POS ||
 		use == STUC_ATTRIB_USE_UV ||
 		use == STUC_ATTRIB_USE_NORMAL ||
-		use == STUC_ATTRIB_USE_IDX;
+		use == STUC_ATTRIB_USE_IDX ||
+		use == STUC_ATTRIB_USE_NORMALS_VERT;
 }
 
 UBitField32 stucAttribUseField(const StucAttribUse *pArr, I32 count) {
