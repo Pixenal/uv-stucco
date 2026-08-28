@@ -1004,6 +1004,15 @@ void blendSwitch(
 			pBVal, bCompType, bVecSize, normalizeB, bMax,
 			isSigned
 		);
+		if (pDest->use == STUC_ATTRIB_USE_NORMAL ||
+		    pDest->use == STUC_ATTRIB_USE_NORMALS_VERT
+		) {
+			PIX_ERR_ASSERT(
+				"this should've been checked for prior",
+				pDest->type == STUC_ATTRIB_V3_F32
+			);
+			*(PixtyV3_F32 *)pDestVal = pixmV3F32Normalize(*(PixtyV3_F32 *)pDestVal);
+		}
 	}
 }
 

@@ -27,8 +27,8 @@ typedef struct InterpCacheCopy {
 
 typedef struct InterpCacheLerp {
 	InterpCacheActive active;
-	I32 a;
-	I32 b;
+	I32 a;//corner or vert
+	I32 b;// "
 	F32 t;
 } InterpCacheLerp;
 
@@ -49,7 +49,7 @@ typedef union InterpCache {
 } InterpCache;
 
 typedef struct InterpCacheLimited {
-	const StucDomain domain;
+	StucDomain domain;
 	const StucAttribOrigin origin;
 	InterpCache cache;
 } InterpCacheLimited;

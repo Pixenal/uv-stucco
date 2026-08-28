@@ -89,6 +89,7 @@ typedef enum StucAttribUse {
 	STUC_ATTRIB_USE_NUM_ADJ_PRESERVE,
 	STUC_ATTRIB_USE_EDGE_FACES,
 	STUC_ATTRIB_USE_EDGE_CORNERS,
+	//TODO remove _NORMALS_VERT and just used _NORMAL with a different active attrib
 	STUC_ATTRIB_USE_NORMALS_VERT,
 	STUC_ATTRIB_USE_SP_ENUM_COUNT,//denotes number of sp uses
 	STUC_ATTRIB_USE_COLOR,

@@ -339,8 +339,8 @@ StucErr xformVertFromUvwToXyz(
 			STUC_ATTRIB_USE_NORMALS_VERT
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
-		F32 vertNormalLen = pixmV3F32Len(*(PixtyV3_F32 *)&tbn.d[2]);
-		PIX_ERR_RETURN_IFNOT_COND(err, vertNormalLen > .9f && vertNormalLen < 1.1f, "");
+		*(V3_F32 *)&tbn.d[2] = pixmV3F32Normalize(*(V3_F32 *)&tbn.d[2]);
+		PIX_ERR_RETURN_IFNOT_COND(err, !_(*(V3_F32 *)&tbn.d[2] V3EQL (V3_F32){0}), "");
 	}
 	pArgs->pOutMesh->pPos[vertIdx] = _(
 		xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale)
@@ -426,12 +426,13 @@ void cacheAttribPairs(
 	PIXALC_DYN_ARR_RESIZE(AttribPair, &pBasic->pCtx->alloc, pCache, pOutAttribArr->count);
 	pCache->count = 0;
 	for (I32 i = 0; i < pOutAttribArr->count; ++i) {
-		pCache->pArr[i].pOut = pOutAttribArr->pArr + i;
+		AttribPair *pEntry = pCache->pArr + pCache->count;
+		pEntry->pOut = pOutAttribArr->pArr + i;
 		PIX_ERR_ASSERT(
 			"string attribs are only for internal use. This needs to be caught earlier",
-			pCache->pArr[i].pOut->core.type != STUC_ATTRIB_STRING
+			pEntry->pOut->core.type != STUC_ATTRIB_STRING
 		);
-		if (pCache->pArr[i].pOut ==
+		if (pEntry->pOut ==
 			stucGetActiveAttrib(pBasic->pCtx, &pOutMesh->core, STUC_ATTRIB_USE_POS)
 		) {
 			continue;
@@ -439,19 +440,19 @@ void cacheAttribPairs(
 		err = stucGetMatchingAttribConst(
 			pBasic->pCtx,
 			&pBasic->pInMesh->core, pInAttribArr,
-			&pOutMesh->core, pCache->pArr[i].pOut,
+			&pOutMesh->core, pEntry->pOut,
 			true,
 			false,
-			&pCache->pArr[i].pIn
+			&pEntry->pIn
 		);
 		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
 		stucGetMatchingAttribConst(
 			pBasic->pCtx,
 			&pBasic->pMap->pMesh->core, pMapAttribArr,
-			&pOutMesh->core, pCache->pArr[i].pOut,
+			&pOutMesh->core, pEntry->pOut,
 			true,
 			false,
-			&pCache->pArr[i].pMap
+			&pEntry->pMap
 		);
 		PIX_ERR_ASSERT("", err == PIX_ERR_SUCCESS);
 		++pCache->count;
@@ -610,6 +611,49 @@ void attribCacheDestroy(const PixalcFPtrs *pAlloc, AttribCache *pCache) {
 }
 
 static
+void interpCacheDomainCornerToVert(InterpCacheLimited *pCache, const StucMesh *pMesh) {
+	PIX_ERR_ASSERT("", pCache->domain == STUC_DOMAIN_CORNER);
+	pCache->domain = STUC_DOMAIN_VERT;
+
+	I32 *ptrs[3] = {0};
+	switch (pCache->cache.active) {
+		case STUC_INTERP_CACHE_COPY_IN:
+			ptrs[0] = &pCache->cache.copyIn.a;
+			break;
+		case STUC_INTERP_CACHE_COPY_MAP:
+			ptrs[0] = &pCache->cache.copyMap.a;
+			break;
+		case STUC_INTERP_CACHE_LERP_IN:
+			ptrs[0] = &pCache->cache.lerpIn.a;
+			ptrs[1] = &pCache->cache.lerpIn.b;
+			break;
+		case STUC_INTERP_CACHE_LERP_MAP:
+			ptrs[0] = &pCache->cache.lerpMap.a;
+			ptrs[1] = &pCache->cache.lerpMap.b;
+			break;
+		case STUC_INTERP_CACHE_TRI_IN:
+			ptrs[0] = pCache->cache.triIn.triReal + 0;
+			ptrs[1] = pCache->cache.triIn.triReal + 1;
+			ptrs[2] = pCache->cache.triIn.triReal + 2;
+			break;
+		case STUC_INTERP_CACHE_TRI_MAP:
+			ptrs[0] = pCache->cache.triMap.triReal + 0;
+			ptrs[1] = pCache->cache.triMap.triReal + 1;
+			ptrs[2] = pCache->cache.triMap.triReal + 2;
+			break;
+		default:
+			PIX_ERR_ASSERT("invalid interpolation cache", false);
+	}
+	for (I32 i = 0; i < 3; ++i) {
+		if (ptrs[i]) {
+			PIX_ERR_ASSERT("", *ptrs[i] < pMesh->cornerCount);
+			*ptrs[i] = pMesh->pCorners[*ptrs[i]];
+			PIX_ERR_ASSERT("", *ptrs[i] < pMesh->vertCount);
+		}
+	}
+}
+
+static
 StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 	StucErr err = PIX_ERR_SUCCESS;
 	xformAndInterpVertsJobArgs *pArgs = pArgsVoid;
@@ -640,6 +684,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			&pBufMesh
 		);
 		V2_I16 tile = pBufMesh->faces.pArr[pEntry->bufCorner.corner.face].tile;
+		//corner domain used for in-mesh in vert xform
 		InterpCaches interpCaches = {
 			.in = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MESH_IN},
 			.map = {.domain = STUC_DOMAIN_VERT, .origin = STUC_ATTRIB_ORIGIN_MAP}
@@ -654,6 +699,8 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			&pEntry->transform.tbn
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
+		//switch domain to vert for attrib interp/ blend/ copy
+		interpCacheDomainCornerToVert(&interpCaches.in, &pBasic->pInMesh->core);
 		interpAndBlendAttribs(
 			pBasic,
 			&attribs,
