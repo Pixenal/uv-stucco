@@ -398,6 +398,7 @@ typedef struct StucCtx {
 	StucThreadPool threadPool;
 	StucAlloc alloc;
 	PixioFPtrs io;
+	PixtyStrSized logPath;
 	I32 threadCount;
 	StucTypeDefaultConfig typeDefaults;
 
@@ -741,6 +742,8 @@ STUC_EXPORT
 StucErr stucMapZBoundsGet(StucCtx *pCtx, const struct StucMap *pMap, PixtyV2_F32 *pZBounds);
 STUC_EXPORT
 void stucLogEnableSet(StucCtx *pCtx, bool value);
+STUC_EXPORT
+StucErr stucLogPathSet(StucCtx *pCtx, const char *pPath);
 
 #ifdef STUC_DEBUG_UTILS
 static inline

@@ -171,6 +171,10 @@ StucErr stucContextDestroy(StucCtx *pCtx) {
 	if (pCtx->threadPool.fpDestroy) {
 		pCtx->threadPool.fpDestroy(&pCtx->threadPool.handle);
 	}
+	if (pCtx->logPath.pArr) {
+		PIX_ERR_ASSERT("", pCtx->logPath.size > 0);
+		pCtx->alloc.fpFree(pCtx->logPath.pArr);
+	}
 	*pCtx = (StucCtx){0};
 	return PIX_ERR_SUCCESS;
 }
@@ -1942,8 +1946,8 @@ StucErr stucMapToMesh(
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	if (cark.valid) {
-		const char *logPath = "C:/Users/scout/AppData/Local/Temp/Debug.cark";
-		err = carkOutFileSave(&cark.ctx, logPath, true);
+		PIX_ERR_THROW_IFNOT_COND(err, pCtx->logPath.pArr, "log path not set", 0);
+		err = carkOutFileSave(&cark.ctx, pCtx->logPath.pArr, true);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	if (triangulate) {
@@ -2261,4 +2265,14 @@ StucErr stucObjectInit(
 
 void stucLogEnableSet(StucCtx *pCtx, bool value) {
 	pCtx->logEnabled = value;
+}
+
+StucErr stucLogPathSet(StucCtx *pCtx, const char *pPath) {
+	StucErr err = PIX_ERR_SUCCESS;
+	I32 lenMax = pixioPathMaxGet();
+	I32 len = strnlen(pPath, lenMax);
+	PIX_ERR_RETURN_IFNOT_COND(err, len > 0 && len < lenMax, "invalid path")
+	PIXALC_DYN_ARR_RESIZE(char, &pCtx->alloc, &pCtx->logPath, len + 1);
+	memcpy(pCtx->logPath.pArr, pPath, len + 1);
+	return err;
 }
