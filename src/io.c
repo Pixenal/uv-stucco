@@ -9,6 +9,8 @@ SPDX-License-Identifier: Apache-2.0
 #define STUC_MAP_VERSION 101
 #define STUC_FLAT_CUTOFF_HEADER_SIZE 56
 #define STUC_WINDOW_BITS 31 //15 (+16 as using gzip)
+//TODO add this as an option in ui?
+#define STUC_CLUTRE_MIN_FACES 12
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -18,10 +20,12 @@ SPDX-License-Identifier: Apache-2.0
 #include <zlib.h>
 
 #include <pixenals_math_utils.h>
+#include <cluster_tree_2d.h>
 
 #include <io.h>
 #include <map.h>
 #include <attrib_utils.h>
+#include <utils.h>
 
 typedef enum DataTag {
 	TAG_NONE,
@@ -2080,9 +2084,9 @@ const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen) {
 //map deps
 
 typedef struct MapDepStackEntry {
-	MapDepEntry *pMap;
+	StucMapDepEntry *pMap;
+	StucMapDeps deps;
 	I32 depIdx;
-	bool seen;
 } MapDepStackEntry;
 
 #define MAP_DEP_STACK_SIZE 64
@@ -2090,6 +2094,7 @@ typedef struct MapDepStackEntry {
 typedef struct MapDepStack {
 	MapDepStackEntry stack[MAP_DEP_STACK_SIZE];
 	I32 ptr;
+	I32 ptrMax;
 } MapDepStack;
 
 typedef struct StrWithLen {
@@ -2098,23 +2103,12 @@ typedef struct StrWithLen {
 } StrWithLen;
 
 static
-void mapDepInit(
-	void *pUserData,
-	PixuctHTableEntryCore *pEntryCore,
-	const void *pKeyData,
-	void *pInitInfo,
-	I32 linIdx
-) {
-	//MapDepEntry *pEntry = (MapDepEntry *)pEntryCore;
-}
-
-static
 bool mapDepCmp(
 	const PixuctHTableEntryCore *pEntryCore,
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
-	const MapDepEntry *pEntry = (MapDepEntry *)pEntryCore;
+	const StucMapDepEntry *pEntry = (StucMapDepEntry *)pEntryCore;
 	const StrWithLen *pKey = pKeyData;
 	return !strncmp(pEntry->pName, pKey->pStr, pixioPathMaxGet());
 }
@@ -2130,7 +2124,7 @@ static
 	 const StucAlloc *pAlloc,
 	 PixuctHTable *pTable,
 	 const char *pFilepath,
-	 MapDepEntry **ppEntry
+	 StucMapDepEntry **ppEntry
  ) {
 	I32 nameLen = 0;
 	I32 pathLen = 0;
@@ -2143,7 +2137,7 @@ static
 		true,
 		NULL,
 		NULL,
-		mapDepMakeKey, NULL, mapDepInit, mapDepCmp
+		mapDepMakeKey, NULL, NULL, mapDepCmp
 	);
 	if (result == PIX_SEARCH_ADDED) {
 		(*ppEntry)->pName = pAlloc->fpMalloc(nameLen + 1);
@@ -2153,44 +2147,40 @@ static
 }
 
 static
-StucErr addMapEntryDeps(
-	const StucAlloc *pAlloc,
-	MapDepStack *pStack,
-	PixuctHTable *pTable,
-	MapDepEntry *pEntry,
-	StucMapDeps *pDeps
-) {
-	StucErr err = PIX_ERR_SUCCESS;
-	for (I32 i = 0; i < pDeps->maps.count; ++i) {
-		I32 idx = 0;
-		PIXALC_DYN_ARR_ADD(void *, pAlloc, &pEntry->deps, idx);
-		addMapDepEntry(
-			pAlloc,
-			pTable,
-			pDeps->maps.pArr[i].pStr,
-			pEntry->deps.pArr + idx
-		);
-		PIX_ERR_RETURN_IFNOT_COND(
-			err,
-			!pEntry->deps.pArr[idx]->onStack,
-			"circular map dependency"
-		);
-	}
-	return err;
+ void getMapDepEntry(
+	 const StucAlloc *pAlloc,
+	 PixuctHTable *pTable,
+	 const char *pName,
+	 StucMapDepEntry **ppEntry
+ ) {
+	I32 nameLen = strnlen(pName, pixioPathMaxGet());
+	SearchResult result = pixuctHTableGet(
+		pTable,
+		0,
+		&(StrWithLen){.pStr = pName, .len = nameLen},
+		(void **)ppEntry,
+		false,
+		NULL,
+		NULL,
+		mapDepMakeKey, NULL, NULL, mapDepCmp
+	);
+	PIX_ERR_ASSERT("", result == PIX_SEARCH_FOUND);
 }
 
 static
-StucErr mapDepStackPush(MapDepStack *pStack, MapDepEntry *pEntry) {
+StucErr mapDepStackPush(MapDepStack *pStack) {
 	StucErr err = PIX_ERR_SUCCESS;
-	pStack->stack[pStack->ptr].seen = true;
+	MapDepStackEntry *pEntry = pStack->stack + pStack->ptr;
 	++pStack->ptr;
+	if (pStack->ptr > pStack->ptrMax) {
+		pStack->ptrMax = pStack->ptr;
+	}
 	PIX_ERR_RETURN_IFNOT_COND(
 		err,
 		pStack->ptr < MAP_DEP_STACK_SIZE,
 		"too many map dependencies"
 	);
-	pStack->stack[pStack->ptr] = (MapDepStackEntry){.pMap = pEntry};
-	pEntry->onStack = true;
+	pStack->stack[pStack->ptr] = (MapDepStackEntry){0};
 	return err;
 }
 
@@ -2198,17 +2188,23 @@ static
 StucErr mapDepStackPop(MapDepStack *pStack) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pStack->ptr >= 0, "");
+	if (pStack->ptr) {
+		++pStack->stack[pStack->ptr - 1].depIdx;
+	}
 	MapDepStackEntry *pEntry = pStack->stack + pStack->ptr;
 	if (pEntry->pMap) {
 		for (I32 i = 0; i < pEntry->pMap->deps.count; ++i) {
-			MapDepEntry *pDep = pEntry->pMap->deps.pArr[0];
-			if (pDep->status != STUC_MAP_LOADED && pDep->status != STUC_MAP_PENDING_LOAD) {
+			StucMapDepEntry *pDep = pEntry->pMap->deps.pArr[0];
+			if (pDep->status != STUC_MAP_LOADED &&
+			    pDep->status != STUC_MAP_PENDING_LOAD
+			) {
 				pEntry->pMap->status = STUC_MAP_MISSING_DEP;
 				break;
 			}
 		}
 	}
-	MapDepEntry *pMapEntry = pStack->stack[pStack->ptr].pMap;
+	stucMapDepsClear(&pEntry->deps);
+	StucMapDepEntry *pMapEntry = pStack->stack[pStack->ptr].pMap;
 	PIX_ERR_ASSERT("", pMapEntry);
 	pMapEntry->onStack = false;
 	--pStack->ptr;
@@ -2216,158 +2212,691 @@ StucErr mapDepStackPop(MapDepStack *pStack) {
 }
 
 static
-StucErr getMapOrPath(StucMapLoad *pState, MapDepStack *pStack) {
+void markParentMapsPending(MapDepStack *pStack) {
+	for (I32 i = 0; i < pStack->ptr; ++i) {
+		StucMapDepEntry *pEntry = pStack->stack[i].pMap;
+		if (pEntry->status != STUC_MAP_PENDING_LOAD) {
+			PIX_ERR_ASSERT("", pEntry->status == STUC_MAP_LOADED);
+			pEntry->status = STUC_MAP_PENDING_LOAD;
+		}
+	}
+}
+
+static
+StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 	StucErr err = PIX_ERR_SUCCESS;
+	const PixalcFPtrs *pAlloc = &pLoadCtx->pCtx->alloc;
 	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
-	PIX_ERR_ASSERT("", !pStackEntry->seen);
 	const char *pPath = NULL;
-	if (!pStack->ptr) {
-		pPath = pState->pFilepath;
+	F64 timestamp = .0;
+	StucMap *pMap = NULL;
+	bool hasChanged = false;
+	MapDepStackEntry *pParent = pStack->ptr ? pStack->stack + pStack->ptr - 1 : NULL;
+	const char *pDepName = pParent ?
+		pParent->deps.maps.pArr[pParent->depIdx].pStr : pLoadCtx->pName;
+	StucErr mapErr = pLoadCtx->fpMapGet(
+		pLoadCtx->pUserData,
+		pParent ? pParent->pMap->pName : NULL,
+		pDepName,
+		(const char **)&pPath,
+		&timestamp,
+		&pMap,
+		&hasChanged
+	);
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		pParent || !hasChanged,
+		"'has changed' passed as true, but map is not a dependency?"
+	);
+
+	//TODO maps with the same name are treated as one, even if filepath differs
+	SearchResult result =
+		addMapDepEntry(pAlloc, &pLoadCtx->table, pPath, &pStackEntry->pMap);
+	if (result == PIX_SEARCH_ADDED) {
+		PIX_ERR_ASSERT("", !pStackEntry->pMap->pNameInFile);
+		if (!strncmp(pDepName, pStackEntry->pMap->pName, pixioPathMaxGet())) {
+			pStackEntry->pMap->pNameInFile = pStackEntry->pMap->pName;
+		}
+		else {
+			I32 nameLen = strnlen(pDepName, pixioPathMaxGet());
+			pStackEntry->pMap->pNameInFile = pAlloc->fpMalloc(nameLen + 1);
+			memcpy(pStackEntry->pMap->pNameInFile, pDepName, nameLen + 1);
+		}
+		pStackEntry->pMap->timestamp = timestamp;
+		I32 pathLen = (I32)strnlen(pPath, PIXIO_PATH_MAX);
+		pStackEntry->pMap->pPath = pLoadCtx->pCtx->alloc.fpMalloc(pathLen + 1);
+		memcpy(pStackEntry->pMap->pPath, pPath, pathLen + 1);
 	}
 	else {
-		StucMap *pMap = NULL;
-		StucErr mapErr = pState->fpMapGet(
-			pState->pUserData,
-			pStack->stack[pStack->ptr].pMap->pName,
-			(const char **)&pPath,
-			&pStack->stack[pStack->ptr].pMap->timestamp,
-			&pMap
+		PIX_ERR_ASSERT("", result == PIX_SEARCH_FOUND);
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			!pStackEntry->pMap->onStack,
+			"circular map dependency"
 		);
-		if (mapErr != PIX_ERR_SUCCESS || !pMap && !pPath) {
-			pStackEntry->pMap->status = STUC_MAP_ERROR;
-			return err;
-		}
-		if (pMap) {
-			pStackEntry->pMap->status = STUC_MAP_LOADED;
-			PIX_ERR_ASSERT("", !pStackEntry->pMap->pMap);
-			pStackEntry->pMap->pMap = pMap;
-			return err;
+	}
+
+	//TODO rn load errors are being both returned & passed back as enum, reconcile this
+	if (mapErr != PIX_ERR_SUCCESS || !pMap && !pPath) {
+		pStackEntry->pMap->status = STUC_MAP_ERROR;
+		return err;
+	}
+	if (pParent) {
+		I32 newIdx = 0;
+		PIXALC_DYN_ARR_ADD(void *, pAlloc, &pParent->pMap->deps, newIdx);
+		pParent->pMap->deps.pArr[newIdx] = pStackEntry->pMap;
+	}
+	if (pMap) {
+		pStackEntry->pMap->status = STUC_MAP_LOADED;
+		PIX_ERR_ASSERT("", !pStackEntry->pMap->pMap);
+		pStackEntry->pMap->pMap = pMap;
+		pPath = pMap->pPath;//ignore user path & use existing map path (likely the same)
+		if (hasChanged) {
+			markParentMapsPending(pStack);
 		}
 	}
-	PIX_ERR_ASSERT("", !pStackEntry->pMap->pPath);
-	I32 pathLen = (I32)strnlen(pPath, PIXIO_PATH_MAX);
-	pStackEntry->pMap->pPath = pState->pCtx->alloc.fpMalloc(pathLen + 1);
-	memcpy(pStackEntry->pMap->pPath, pPath, pathLen + 1);
 	return err;
 }
 
 static
-StucErr finaliseMapLoad(
-	StucMapLoad *pState,
-	MapDepStack *pStack,
-	PixtyStrArr *pDepBuf,
-	StucErr(*fpLoad)(StucCtx *, MapDepEntry *)
+void triCacheBuild(const StucAlloc *pAlloc, StucMap *pMap) {
+	bool ngons = checkForNgonsInMesh(&pMap->pMesh->core);
+	if (!ngons) {
+		return;
+	}
+	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
+	pMap->triCache.pArr =
+		pAlloc->fpCalloc(pMap->pMesh->core.faceCount, sizeof(FaceTriangulated));
+	pixalcLinAllocInit(pAlloc, &pMap->triCache.alloc, 3, 16, false);
+	for (I32 i = 0; i < pMap->pMesh->core.faceCount; ++i) {
+		FaceRange face = stucGetFaceRange(&pMap->pMesh->core, i);
+		if (face.range.size <= 4) {
+			continue;
+		}
+		FaceTriangulated *pTris = pMap->triCache.pArr + i;
+		pTris->count = stucTriangulateFaceFromVerts(pAlloc, &face, pMap->pMesh, triBuf);
+		if (!pTris->count) {
+			continue;
+		}
+		void *pTrisMem = NULL;
+		pTris->idx = pixalcLinAlloc(&pMap->triCache.alloc, &pTrisMem, pTris->count);
+		memcpy(pTrisMem, triBuf, pTris->count * 3);
+	}
+}
+
+static
+StucErr initFlatCutoff(
+	StucCtx *pCtx,
+	Usg *pUsg,
+	StucObject *pCutoffObj
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
-	if (pStackEntry->pMap->status != STUC_MAP_PENDING_LOAD) {
-		PIX_ERR_ASSERT("", pStackEntry->pMap->status == STUC_MAP_MISSING_DEP);
-	}
-	else if (fpLoad(pState->pCtx, pStackEntry->pMap) == PIX_ERR_SUCCESS) {
-		pStackEntry->pMap->status = STUC_MAP_LOADED;
-	}
-	else {
-		pStackEntry->pMap->status = STUC_MAP_ERROR;
-	}
-	I32 depCount = pStackEntry->pMap->deps.count;
-	if (depCount) {
-		PIXALC_DYN_ARR_RESIZE(PixtyStr, &pState->pCtx->alloc, pDepBuf, depCount);
-		for (I32 i = 0; i < depCount; ++i) {
-			pDepBuf->pArr[i].pStr = pStackEntry->pMap->deps.pArr[i]->pName;
+	pUsg->pFlatCutoff = pCtx->alloc.fpCalloc(1, sizeof(Mesh));
+	pUsg->pFlatCutoff->core = *(StucMesh *)pCutoffObj->pData;
+
+	err = stucAttemptToSetMissingActiveDomains(&pUsg->pFlatCutoff->core);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = stucAssignActiveAliases(
+		pCtx,
+		pUsg->pFlatCutoff,
+		0x1 << STUC_ATTRIB_USE_POS,
+		STUC_DOMAIN_NONE
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	stucApplyObjTransform(
+		&(StucObject){
+			.pData = (StucObjectData *)pUsg->pFlatCutoff,
+			.transform = pCutoffObj->transform
+		}
+	);
+	return err;
+}
+
+static
+void destroyMapOptsArr(const StucAlloc *pAlloc, ObjMapOptsArr *pArr) {
+	for (I32 i = 0; i < pArr->count; ++i) {
+		if (pArr->pArr[i].arr.pArr) {
+			pAlloc->fpFree(pArr->pArr[i].arr.pArr);
 		}
 	}
-	pDepBuf->count = depCount;
-	err = pState->fpMapStore(
-		pState->pUserData,
+	if (pArr->pArr) {
+		pAlloc->fpFree(pArr->pArr);
+	}
+	*pArr = (ObjMapOptsArr){0};
+}
+
+static inline
+PixtyRange stucClustFaceRange(const void *pMeshRaw, I32 face) {
+	const Mesh *pMesh = pMeshRaw;
+	PIX_ERR_ASSERT("", face >= 0 && face < pMesh->core.faceCount);
+	return (PixtyRange) {
+		.start = pMesh->core.pFaces[face],
+		.end = pMesh->core.pFaces[face + 1]
+	};
+}
+
+static
+void buildFaceBBoxes(const StucAlloc *pAlloc, StucMap *pMap) {
+	const Mesh *pMesh = pMap->pMesh;
+	pMap->pFaceBBoxes = pAlloc->fpMalloc(pMesh->core.faceCount * sizeof(PixmshV2Bb));
+	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
+		FaceRange face = stucGetFaceRange(&pMesh->core, i);
+		pMap->pFaceBBoxes[i] = pixmshV2BbGet(
+			pMesh,
+			stucGetVertPosAsV2,
+			face.range
+		);
+	}
+}
+
+static
+StucErr stucMapLoadIntern(StucCtx *pCtx, StucMapDepEntry *pEntry) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pEntry->pName, "");
+	StucMap *pMap = pCtx->alloc.fpCalloc(1, sizeof(StucMap));
+	PIX_ERR_ASSERT("", pEntry->pName && pEntry->pPath);
+	{
+		I32 lenMax = pixioPathMaxGet();
+		I32 nameLen = (I32)strnlen(pEntry->pName, lenMax);
+		PIX_ERR_RETURN_IFNOT_COND(err, nameLen < lenMax, "");
+		pMap->pName = pCtx->alloc.fpMalloc(nameLen + 1);
+		memcpy(pMap->pName, pEntry->pName, nameLen + 1);
+
+		lenMax = pixioPathMaxGet();
+		I32 pathLen = (I32)strnlen(pEntry->pPath, lenMax);
+		PIX_ERR_RETURN_IFNOT_COND(err, pathLen < lenMax, "");
+		pMap->pPath = pCtx->alloc.fpMalloc(pathLen + 1);
+		memcpy(pMap->pPath, pEntry->pPath, pathLen + 1);
+	}
+	StucObjArr objArr = {0};
+	StucUsgArr usgArr = {0};
+	StucObjArr cutoffArr = {0};
+	ObjMapOptsArr mapOptsArr = {0};
+	err = stucMapImport(
+		pCtx, pEntry->pPath,
+		&objArr,
+		&mapOptsArr,
+		&usgArr,
+		&cutoffArr,
+		NULL,
+		&pMap->indexedAttribs,
+		true
+	);
+	PIX_ERR_THROW_IFNOT(err, "failed to load file from disk", 0);
+
+	I32 targetIdx = 0;
+	for (I32 i = 0; i < objArr.count; ++i) {
+		Mesh *pMesh = (Mesh *)objArr.pArr[i].pData;
+		
+		err = stucAttemptToSetMissingActiveDomains(&pMesh->core);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+
+		if (targetIdx < mapOptsArr.count &&
+			mapOptsArr.pArr[targetIdx].obj == i
+		) {
+			StucMapArr *pMapArr = &mapOptsArr.pArr[targetIdx].arr;
+			for (I32 j = 0; j < pMapArr->count; ++j) {
+				StucMapArrEntry *pArrEntry = pMapArr->pArr + j;
+				pArrEntry->map.ptr = pEntry->deps.pArr[pArrEntry->map.idx]->pMap;
+				PIX_ERR_ASSERT("", pMapArr->pArr[j].map.ptr);
+			}
+			StucMesh meshOut = {0};
+			AttribIndexedArr outIdxAttribArr = {0};
+			err = stucMapToMesh(
+				pCtx,
+				0,
+				pMapArr,
+				&pMesh->core,
+				&pMap->indexedAttribs,
+				&meshOut,
+				&outIdxAttribArr,
+				//TODO wscale and receivelen are per target rn, so just using idx 0
+				pMapArr->pArr[0].wScale,
+				pMapArr->pArr[0].receiveLen,
+				false, //TODO should this be true? if not remove option from merge func,
+				false
+			);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			//TODO edge list returned from stucMapToMesh is broken, this is a temp fix
+			if (meshOut.pEdges) {
+				pCtx->alloc.fpFree(meshOut.pEdges);
+				meshOut.pEdges = NULL;
+			}
+			err = stucBuildEdgeList(pCtx, &meshOut);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			stucAttribIndexedArrDestroy(pCtx, &pMap->indexedAttribs);
+			pMap->indexedAttribs = outIdxAttribArr;
+			stucMeshDestroy(pCtx, &pMesh->core);
+			pMesh->core = meshOut;
+			++targetIdx;
+		}
+		err = stucAssignActiveAliases(
+			pCtx,
+			pMesh,
+			STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
+				STUC_ATTRIB_USE_POS,
+				STUC_ATTRIB_USE_UV,
+				STUC_ATTRIB_USE_NORMAL,
+				STUC_ATTRIB_USE_RECEIVE,
+				STUC_ATTRIB_USE_IDX
+			})),
+			STUC_DOMAIN_NONE
+		);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+		stucApplyObjTransform(objArr.pArr + i);
+	}
+	Mesh *pMapMesh = pCtx->alloc.fpCalloc(1, sizeof(Mesh));
+	pMapMesh->core.type.type = STUC_OBJECT_DATA_MESH_INTERN;
+	err = stucMergeObjArr(pCtx, pMapMesh, &objArr, false);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+
+	UBitField32 spToAppend = STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
+		STUC_ATTRIB_USE_EDGE_LEN
+	}));
+	stucAppendSpAttribsToMesh(
+		pCtx,
+		pMapMesh,
+		spToAppend | (usgArr.count ? 0x1 << STUC_ATTRIB_USE_USG : 0x0),
+		STUC_ATTRIB_ORIGIN_MAP
+	);
+
+	stucSetAttribOrigins(&pMapMesh->core.meshAttribs, STUC_ATTRIB_ORIGIN_MAP);
+	stucSetAttribOrigins(&pMapMesh->core.faceAttribs, STUC_ATTRIB_ORIGIN_MAP);
+	stucSetAttribOrigins(&pMapMesh->core.cornerAttribs, STUC_ATTRIB_ORIGIN_MAP);
+	stucSetAttribOrigins(&pMapMesh->core.edgeAttribs, STUC_ATTRIB_ORIGIN_MAP);
+	stucSetAttribOrigins(&pMapMesh->core.vertAttribs, STUC_ATTRIB_ORIGIN_MAP);
+
+	stucSetAttribCopyOpt(
+		pCtx,
+		&pMapMesh->core,
+		STUC_ATTRIB_DONT_COPY,
+		~STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) { //all except for
+			STUC_ATTRIB_USE_POS,
+			STUC_ATTRIB_USE_UV,
+			STUC_ATTRIB_USE_NORMAL,
+			STUC_ATTRIB_USE_IDX
+		}))
+	);
+	err = stucAssignActiveAliases(
+		pCtx,
+		pMapMesh,
+		STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
+			STUC_ATTRIB_USE_POS,
+			STUC_ATTRIB_USE_UV,
+			STUC_ATTRIB_USE_NORMAL,
+			STUC_ATTRIB_USE_RECEIVE,
+			STUC_ATTRIB_USE_USG,
+			STUC_ATTRIB_USE_IDX,
+			STUC_ATTRIB_USE_EDGE_LEN,
+			STUC_ATTRIB_USE_NONE
+		})),
+		STUC_DOMAIN_NONE
+	);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	{
+		V3_F32 offset = {.d = {.5f, .5f, .0f}};
+		pMap->zBounds = (V2_F32){FLT_MAX, -FLT_MAX};
+		for (I32 i = 0; i < pMapMesh->core.vertCount; ++i) {
+			V3_F32 *pPos = pMapMesh->pPos + i;
+			*pPos = _(_(*pPos V3MULS .5f) V3ADD offset);
+			pMap->zBounds.d[0] = pPos->d[2] < pMap->zBounds.d[0] ?
+				pPos->d[2] : pMap->zBounds.d[0];
+			pMap->zBounds.d[1] = pPos->d[2] > pMap->zBounds.d[1] ?
+				pPos->d[2] : pMap->zBounds.d[1];
+		}
+	}
+
+	stucBuildEdgeLenList(pCtx, pMapMesh);
+
+	//TODO some form of heap corruption when many objects
+	//test with address sanitizer on CircuitPieces.stuc
+	stucObjArrDestroy(pCtx, &objArr);
+
+	//set corner attribs to interpolate by default
+	//TODO make this an option in ui, even for non common attribs
+	for (I32 i = 0; i < pMapMesh->core.cornerAttribs.count; ++i) {
+		pMapMesh->core.cornerAttribs.pArr[i].interpolate = true;
+	}
+
+	pMap->pMesh = pMapMesh;
+
+	triCacheBuild(&pCtx->alloc, pMap);
+	buildFaceBBoxes(&pCtx->alloc, pMap);
+
+	{
+		ClutreMesh clustMesh = {
+			.pUserData = pMapMesh,
+			.faceCount = pMapMesh->core.faceCount,
+			.fpFaceRange = stucClustFaceRange,
+			.fpVert = stucClustVert,
+			.fpPos = stucClustPos
+		};
+		err = clutreTreeInit(&pCtx->alloc, &clustMesh, &pMap->clustTree, STUC_CLUTRE_MIN_FACES);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+
+	if (usgArr.count) {
+		pMap->usgArr.count = usgArr.count;
+		pMap->usgArr.pArr = pCtx->alloc.fpCalloc(pMap->usgArr.count, sizeof(Usg));
+		for (I32 i = 0; i < pMap->usgArr.count; ++i) {
+			Mesh *pUsgMesh = (Mesh *)usgArr.pArr[i].obj.pData;
+			err = stucAttemptToSetMissingActiveDomains(&pUsgMesh->core);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			err = stucAssignActiveAliases(
+				pCtx,
+				pUsgMesh,
+				0x1 << STUC_ATTRIB_USE_POS,
+				STUC_DOMAIN_NONE
+			);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			Usg *pUsg = pMap->usgArr.pArr + i;
+			pUsg->origin = *(V2_F32 *)&usgArr.pArr[i].obj.transform.d[3];
+			pUsg->pMesh = pUsgMesh;
+			stucApplyObjTransform(&usgArr.pArr[i].obj);
+			if (usgArr.pArr[i].flatCutoff.enabled) {
+				//TODO these shouldn't be duplicated for each usg,
+				//store cutoffs in a separate arr
+				I32 cutoffIdx = usgArr.pArr[i].flatCutoff.idx;
+				initFlatCutoff(pCtx, pUsg, cutoffArr.pArr + cutoffIdx);
+			}
+		}
+		Mesh *pSquares = pCtx->alloc.fpCalloc(1, sizeof(Mesh));
+		stucAllocUsgSquaresMesh(pCtx, pMap, pSquares);
+		stucFillUsgSquaresMesh(pMap, usgArr.pArr, pSquares);
+		pMap->usgArr.pSquares = pSquares;
+		stucAssignUsgsToVerts(&pCtx->alloc, pMap, usgArr.pArr);
+		pMap->usgArr.pMemArr = usgArr.pArr;
+	}
+
+	pEntry->pMap = pMap;
+	PIX_ERR_CATCH(0, err, stucMapUnload(pCtx, pMap);)
+	destroyMapOptsArr(&pCtx->alloc, &mapOptsArr);
+
+	return err;
+}
+
+static
+StucErr finaliseMapLoad(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
+	StucErr err = PIX_ERR_SUCCESS;
+	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
+	if (pStackEntry->pMap->status == STUC_MAP_LOADED) {
+		return err;
+	}
+	if (pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD) {
+		PixErr loadErr = stucMapLoadIntern(pLoadCtx->pCtx, pStackEntry->pMap);
+		pStackEntry->pMap->status = loadErr == PIX_ERR_SUCCESS ?
+			STUC_MAP_LOADED : STUC_MAP_ERROR;
+	}
+	err = pLoadCtx->fpMapStore(
+		pLoadCtx->pUserData,
 		pStackEntry->pMap->pName,
 		pStackEntry->pMap->pPath,
 		pStackEntry->pMap->timestamp,
 		pStackEntry->pMap->pMap,
 		pStackEntry->pMap->status,
-		pDepBuf
+		&pStackEntry->pMap->deps
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
 static
-StucErr handleDeps(StucMapLoad *pState, MapDepStack *pStack) {
+StucErr entryDepsLoad(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 	StucErr err = PIX_ERR_SUCCESS;
-	StucCtx *pCtx = pState->pCtx;
 	MapDepStackEntry *pStackEntry = pStack->stack + pStack->ptr;
-	if (!pStackEntry->pMap->depsAdded) {
-		PIX_ERR_ASSERT("", pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD);
-		pStackEntry->pMap->depsAdded = true;
-		StucMapDeps deps = {0};
-		StucErr mapErr = stucMapImportGetDep(pCtx, pStackEntry->pMap->pPath, &deps);
-		if (mapErr != PIX_ERR_SUCCESS) {
-			pStackEntry->pMap->status = STUC_MAP_ERROR;
-		}
-		else if (deps.maps.count) {
-			err = addMapEntryDeps(
-				&pCtx->alloc,
-				pStack,
-				&pState->table,
-				pStackEntry->pMap,
-				&deps
-			);
-			PIX_ERR_RETURN_IFNOT(err, "");
-		}
-	}
-	else if (
-		pStackEntry->seen &&
-		pStackEntry->depIdx < pStackEntry->pMap->deps.count
-	) {
-		++pStackEntry->depIdx;
+	PIX_ERR_ASSERT(
+		"",
+		pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD ||
+		pStackEntry->pMap->status == STUC_MAP_LOADED
+	);
+	pStackEntry->pMap->depsAdded = true;
+	StucErr mapErr =
+		stucMapImportGetDep(pLoadCtx->pCtx, pStackEntry->pMap->pPath, &pStackEntry->deps);
+	if (mapErr != PIX_ERR_SUCCESS) {
+		pStackEntry->pMap->status = STUC_MAP_ERROR;
 	}
 	return err;
 }
 
-StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucCtx *, MapDepEntry *)) {
-	StucErr err = PIX_ERR_SUCCESS;
-	StucCtx *pCtx = pState->pCtx;
+//TODO replace these with StucUsg and StucObj arr structs, that combine arr and count
+StucErr stucMapLoadForEdit(
+	StucCtx *pCtx,
+	const char *filePath,
+	I32 *pObjCount,
+	StucObject **ppObjArr,
+	I32 *pUsgCount,
+	StucUsg **ppUsgArr,
+	I32 *pFlatCutoffCount,
+	StucObject **ppFlatCutoffArr,
+	StucAttribIndexedArr *pIndexedAttribs
+) {
+	//TODO reimplement
+	return PIX_ERR_ERROR;
+}
 
-	PixtyStrArr depBuf = {0};
+StucErr stucMapLoadInit(
+	StucCtx *pCtx,
+	StucMapLoad *pLoadCtx,
+	const char *pName,
+	void *pUserData,
+	PixErr (* fpMapGet)(
+		void *,
+		const char *,
+		const char *,
+		const char **,
+		double *,
+		StucMap ** const,
+		bool *
+	),
+	PixErr (* fpMapStore)(
+		void *,
+		const char *,
+		const char *,
+		double,
+		StucMap *,
+		StucMapStatus,
+		const StucMapDepPtrArr *
+	)
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pLoadCtx && pName, "");
+	*pLoadCtx = (StucMapLoad) {
+		.pCtx = pCtx,
+		.pName = pName,
+		.pUserData = pUserData,
+		.fpMapGet = fpMapGet,
+		.fpMapStore = fpMapStore
+	};
+	pixuctHTableInit(
+		&pCtx->alloc,
+		&pLoadCtx->table,
+		64,
+		(I32Arr){.pArr = (I32[]){sizeof(StucMapDepEntry)}, .count = 1},
+		NULL,
+		NULL,
+		true
+	);
+	return err;
+}
+
+StucErr stucMapLoadDestroy(StucMapLoad *pLoadCtx) {
+	if (!pLoadCtx->table.pTable) {
+		return PIX_ERR_SUCCESS;
+	}
+	PixalcLinAlloc *pLinAlloc = pixuctHTableAllocGet(&pLoadCtx->table, 0);
+	PixalcLinAllocIter iter = {0}; 
+	pixalcLinAllocIterInit(pLinAlloc, (PixtyRange){0, INT32_MAX}, &iter);
+	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
+		StucMapDepEntry *pEntry = pixalcLinAllocGetItem(&iter);
+		if (pEntry->deps.pArr) {
+			pLoadCtx->pCtx->alloc.fpFree(pEntry->deps.pArr);
+		}
+		if (pEntry->pNameInFile != pEntry->pName) {
+			pLoadCtx->pCtx->alloc.fpFree(pEntry->pNameInFile);
+		}
+		if (pEntry->pName) {
+			pLoadCtx->pCtx->alloc.fpFree(pEntry->pName);
+		}
+		if (pEntry->pPath) {
+			pLoadCtx->pCtx->alloc.fpFree(pEntry->pPath);
+		}
+		*pEntry = (StucMapDepEntry){0};
+	}
+	pixuctHTableDestroy(&pLoadCtx->table);
+	*pLoadCtx = (StucMapLoad){0};
+	return PIX_ERR_SUCCESS;
+}
+
+StucErr stucMapLoadIterInit(StucMapLoad *pLoadCtx, PixalcLinAllocIter *pIter) {
+	PixalcLinAlloc *pLinAlloc = pixuctHTableAllocGet(&pLoadCtx->table, 0);
+	pixalcLinAllocIterInit(pLinAlloc, (PixtyRange){0, INT32_MAX}, pIter);
+	return PIX_ERR_SUCCESS;
+}
+
+I32 stucMapLoadIterAtEnd(PixalcLinAllocIter *pIter) {
+	return pixalcLinAllocIterAtEnd(pIter);
+}
+
+void stucMapLoadIterInc(PixalcLinAllocIter *pIter) {
+	pixalcLinAllocIterInc(pIter);
+}
+
+StucMapDepEntry *stucMapLoadIterGetMap(PixalcLinAllocIter *pIter) {
+	return pixalcLinAllocGetItem(pIter);
+}
+
+StucErr stucMapLoadDeps(StucMapLoad *pLoadCtx) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_THROW_IFNOT_COND(err, pLoadCtx, "", 0);
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		!pLoadCtx->depsPassDone,
+		"func already called",
+		0
+	);
+
+	err = stucWalkMapDeps(pLoadCtx);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	pLoadCtx->depsPassDone = true;
+	
+	PIX_ERR_CATCH(0, err, ;);
+	return err;
+}
+
+StucErr stucMapLoad(StucMapLoad *pLoadCtx) {
+	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_THROW_IFNOT_COND(err, pLoadCtx, "state not provided", 0);
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		pLoadCtx->depsPassDone,
+		"deps not loaded, call stucMapLoadDeps first",
+		0
+	);
+	const PixalcFPtrs *pAlloc = &pLoadCtx->pCtx->alloc;
 	MapDepStack stack = {0};
-	addMapDepEntry(&pCtx->alloc, &pState->table, pState->pFilepath, &stack.stack[0].pMap);
-	stack.stack[0].pMap->timestamp = pState->timestamp;
 	do {
 		MapDepStackEntry *pStackEntry = stack.stack + stack.ptr;
-		PIX_ERR_ASSERT("", pStackEntry->pMap);
-		if (!pStackEntry->pMap->pPath &&
-			pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD
-		) {
-			err = getMapOrPath(pState, &stack);
+		if (!pStackEntry->pMap) {
+			MapDepStackEntry *pParent = stack.ptr ? stack.stack + stack.ptr - 1 : NULL;
+			const char *pName = pParent ?
+				pParent->pMap->deps.pArr[pParent->depIdx]->pName : pLoadCtx->pName;
+			getMapDepEntry(pAlloc, &pLoadCtx->table, pName, &pStackEntry->pMap);
+		}
+		PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->pMap->deps.count);
+		if (pStackEntry->depIdx != pStackEntry->pMap->deps.count) {
+			err = mapDepStackPush(&stack);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			continue;
+		}
+		if (pLoadCtx->depsPassDone) {
+			err = finaliseMapLoad(pLoadCtx, &stack);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
-		if (pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD) {
-			err = handleDeps(pState, &stack);
+		err = mapDepStackPop(&stack);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	} while(stack.ptr >= 0);
+	PIX_ERR_THROW_IFNOT_COND(
+		err,
+		stack.stack[0].pMap->status == STUC_MAP_LOADED,
+		"",
+		0
+	);
+	PIX_ERR_CATCH(0, err, ;);
+	for (I32 i = 0; i <= stack.ptrMax; ++i) {
+		stucMapDepsDestroy(&pLoadCtx->pCtx->alloc, &stack.stack[i].deps);
+	}
+	return err;
+}
+
+StucErr stucWalkMapDeps(StucMapLoad *pLoadCtx) {
+	StucErr err = PIX_ERR_SUCCESS;
+	StucCtx *pCtx = pLoadCtx->pCtx;
+
+	MapDepStack stack = {0};
+	do {
+		MapDepStackEntry *pStackEntry = stack.stack + stack.ptr;
+		if (!pStackEntry->pMap) {
+			err = getMapOrPath(pLoadCtx, &stack);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
-			PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->pMap->deps.count);
-			if (pStackEntry->depIdx != pStackEntry->pMap->deps.count) {
-				err = mapDepStackPush(
-					&stack,
-					pStackEntry->pMap->deps.pArr[pStackEntry->depIdx]
-				);
-				PIX_ERR_THROW_IFNOT(err, "", 0);
-				continue;
-			}
-			if (pState->depsPassDone) {
-				err = finaliseMapLoad(pState, &stack, &depBuf, fpLoad);
-				PIX_ERR_THROW_IFNOT(err, "", 0);
-			}
+		}
+		PIX_ERR_ASSERT("", pStackEntry->pMap);
+		if (!pStackEntry->pMap->depsAdded) {
+			err = entryDepsLoad(pLoadCtx, &stack);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+		}
+		PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->deps.maps.count);
+		if (pStackEntry->depIdx != pStackEntry->deps.maps.count) {
+			err = mapDepStackPush(&stack);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			continue;
 		}
 		err = mapDepStackPop(&stack);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	} while(stack.ptr >= 0);
 	PIX_ERR_THROW_IFNOT_COND(
 	err,
-	!pState->depsPassDone || stack.stack[0].pMap->status == STUC_MAP_LOADED,
+	!pLoadCtx->depsPassDone || stack.stack[0].pMap->status == STUC_MAP_LOADED,
 	"", 0
 	);
 	PIX_ERR_CATCH(0, err, ;);
-	if (depBuf.pArr) {
-		pState->pCtx->alloc.fpFree(depBuf.pArr);
+	for (I32 i = 0; i <= stack.ptrMax; ++i) {
+		stucMapDepsDestroy(&pLoadCtx->pCtx->alloc, &stack.stack[i].deps);
 	}
 	return err;
+}
+
+static
+void triCacheDestroy(const StucAlloc *pAlloc, StucMap *pMap) {
+	PIX_ERR_ASSERT("", !((pMap->triCache.pArr != NULL) ^ (pMap->triCache.alloc.valid)));
+	if (pMap->triCache.pArr) {
+		pAlloc->fpFree(pMap->triCache.pArr);
+		pixalcLinAllocDestroy(&pMap->triCache.alloc);
+		pMap->triCache = (TriCache) {0};
+	}
+}
+
+//TODO rename to stucMapDestroy
+//also rename mapload to mapimport to be consistent with mapexport?
+StucErr stucMapUnload(StucCtx *pCtx, StucMap *pMap) {
+	clutreTreeDestroy(&pMap->clustTree);
+	if (pMap->pMesh) {
+		stucMeshDestroy(pCtx, &pMap->pMesh->core);
+		pCtx->alloc.fpFree((Mesh *)pMap->pMesh);
+	}
+	stucAttribIndexedArrDestroy(pCtx, &pMap->indexedAttribs);
+	triCacheDestroy(&pCtx->alloc, pMap);
+	if (pMap->pFaceBBoxes) {
+		pCtx->alloc.fpFree(pMap->pFaceBBoxes);
+	}
+	if (pMap->usgArr.pSquares) {
+		pCtx->alloc.fpFree((Mesh *)pMap->usgArr.pSquares);
+	}
+	if (pMap->pName) {
+		pCtx->alloc.fpFree(pMap->pName);
+	}
+	if (pMap->pPath) {
+		pCtx->alloc.fpFree(pMap->pPath);
+	}
+	pCtx->alloc.fpFree(pMap);
+	return PIX_ERR_SUCCESS;
 }

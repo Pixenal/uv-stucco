@@ -39,27 +39,6 @@ typedef struct ObjMapOptsArr {
 	I32 count;
 } ObjMapOptsArr;
 
-struct MapDepEntry;
-
-typedef struct MapDepPtrArr {
-	struct MapDepEntry **pArr;
-	I32 size;
-	I32 count;
-} MapDepPtrArr;
-
-typedef struct MapDepEntry {
-	PixuctHTableEntryCore core;
-	MapDepPtrArr deps;
-	StucMap *pMap;
-	double timestamp;
-	StucMapStatus status;
-	char *pName;
-	char *pPath;
-	bool onStack;
-	bool depsAdded;
-} MapDepEntry;
-
-
 StucErr stucMapImportGetDep(
 	StucCtx *pCtx,
 	const char *filePath,
@@ -83,7 +62,10 @@ void stucIoSetCustom(StucCtx *pCtx, PixioFPtrs *pIo);
 void stucIoSetDefault(StucCtx *pCtx);
 const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen);
 void stucIoDataTagValidate();
-StucErr stucWalkMapDeps(StucMapLoad *pState, StucErr(*fpLoad)(StucCtx *, MapDepEntry *));
+StucErr stucWalkMapDeps(StucMapLoad *pLoadCtx);
+static inline void stucMapDepsClear(StucMapDeps *pDeps) {
+	pDeps->maps.count = 0;
+}
 static inline void stucMapDepsDestroy(const StucAlloc *pAlloc, StucMapDeps *pDeps) {
 	if (pDeps->maps.pArr) {
 		for (I32 i = 0; i < pDeps->maps.count; ++i) {

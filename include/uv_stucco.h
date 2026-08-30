@@ -409,25 +409,6 @@ typedef struct StucCtx {
 	bool logEnabled;
 } StucCtx;
 
-typedef struct StucMapLoad {
-	StucCtx *pCtx;
-	const char *pFilepath;
-	double timestamp;
-	void *pUserData;
-	StucErr (* fpMapGet)(void *, const char *, const char **, double *, struct StucMap ** const);
-	StucErr (* fpMapStore)(
-		void *,
-		const char *,
-		const char *,
-		double,
-		struct StucMap *,
-		StucMapStatus,
-		const PixtyStrArr *
-	);
-	PixuctHTable table;
-	bool depsPassDone;
-} StucMapLoad;
-
 #define STUC_MAP_FORMAT_NAME_MAX_LEN 19
 #define STUC_MAP_FORMAT_NAME "UV Stucco Map"
 
@@ -453,6 +434,54 @@ typedef struct StucMapExport {
 	PixtyI8Arr matMapTable;
 	bool compress;
 } StucMapExport;
+
+struct StucMapDepEntry;
+
+typedef struct StucMapDepPtrArr {
+	struct StucMapDepEntry **pArr;
+	int32_t size;
+	int32_t count;
+} StucMapDepPtrArr;
+
+typedef struct StucMapDepEntry {
+	PixuctHTableEntryCore core;
+	StucMapDepPtrArr deps;
+	struct StucMap *pMap;
+	double timestamp;
+	char *pNameInFile;
+	char *pName;
+	char *pPath;
+	StucMapStatus status;
+	bool onStack;
+	bool depsAdded;
+} StucMapDepEntry;
+
+typedef struct StucMapLoad {
+	StucCtx *pCtx;
+	const char *pName;
+	void *pUserData;
+	StucErr (* fpMapGet)(
+		void *,
+		const char *,
+		const char *,
+		const char **,
+		double *,
+		struct StucMap ** const,
+		bool *
+	);
+	StucErr (* fpMapStore)(
+		void *,
+		const char *,
+		const char *,
+		double,
+		struct StucMap *,
+		StucMapStatus,
+		const StucMapDepPtrArr *
+	);
+	PixuctHTable table;
+	bool depsPassDone;
+} StucMapLoad;
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -499,7 +528,7 @@ StucErr stucMapExportUsgAdd(StucMapExport *pHandle, StucUsg *pUsg);
 STUC_EXPORT
 StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutoff);
 STUC_EXPORT
-StucErr stucMapFileLoadForEdit(
+StucErr stucMapLoadForEdit(
 	StucCtx *pCtx,
 	const char *filePath,
 	int32_t *pObjCount,
@@ -511,13 +540,20 @@ StucErr stucMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
-StucErr stucMapFileLoadInit(
+StucErr stucMapLoadInit(
 	StucCtx *pCtx,
-	StucMapLoad *pState,
-	const char *pFilepath,
-	double timestamp,
+	StucMapLoad *pLoadCtx,
+	const char *pName,
 	void *pUserData,
-	PixErr (* fpMapGet)(void *, const char *, const char **, double *, struct StucMap ** const),
+	PixErr (* fpMapGet)(
+		void *,
+		const char *,
+		const char *,
+		const char **,
+		double *,
+		struct StucMap ** const,
+		bool *
+	),
 	PixErr (* fpMapStore)(
 		void *,
 		const char *,
@@ -525,24 +561,30 @@ StucErr stucMapFileLoadInit(
 		double,
 		struct StucMap *,
 		StucMapStatus,
-		const PixtyStrArr *
+		const StucMapDepPtrArr *
 	)
 );
 STUC_EXPORT
-StucErr stucMapFileLoadDeps(StucMapLoad *pState);
+StucErr stucMapLoadDeps(StucMapLoad *pLoadCtx);
 STUC_EXPORT
-StucErr stucMapFileLoad(StucMapLoad *pState);
+StucErr stucMapLoad(StucMapLoad *pLoadCtx);
 STUC_EXPORT
-StucErr stucMapFileLoadGetDepStatus(StucMapLoad *pState, StucMapStatus *pStatus);
+StucErr stucMapLoadIterInit(StucMapLoad *pLoadCtx, PixalcLinAllocIter *pIter);
 STUC_EXPORT
-StucErr stucMapLoadDestroy(StucMapLoad *pState);
+int32_t stucMapLoadIterAtEnd(PixalcLinAllocIter *pIter);
 STUC_EXPORT
-StucErr stucMapFileUnload(StucCtx *pCtx, struct StucMap *pMap);
+void stucMapLoadIterInc(PixalcLinAllocIter *pIter);
+STUC_EXPORT
+StucMapDepEntry *stucMapLoadIterGetMap(PixalcLinAllocIter *pIter);
+STUC_EXPORT
+StucErr stucMapLoadDestroy(StucMapLoad *pLoadCtx);
+STUC_EXPORT
+StucErr stucMapUnload(StucCtx *pCtx, struct StucMap *pMap);
 //Use this to access the mesh contaned within a StucMap handle.
 //Objects are collapsed in map handles, so if you want the original geometry
-//call stucMapFileLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
+//call stucMapLoadForEdit instead. The latter will also include usg and flat-cutoff objects.
 STUC_EXPORT
-StucErr stucMapFileMeshGet(
+StucErr stucMapMeshGet(
 	StucCtx *pCtx,
 	struct StucMap *pMap,
 	const StucMesh **ppMesh,
