@@ -47,7 +47,7 @@ StucErr stucMapImportGetDep(
 
 StucErr stucMapImport(
 	StucCtx *pCtx,
-	const char *filePath,
+	const char *pFilepath,
 	StucObjArr *pObjArr,
 	ObjMapOptsArr *pMapOptsArr,
 	StucUsgArr *pUsgArr,
@@ -60,7 +60,6 @@ StucErr stucMapImport(
 void stucIoInit();
 void stucIoSetCustom(StucCtx *pCtx, PixioFPtrs *pIo);
 void stucIoSetDefault(StucCtx *pCtx);
-const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen);
 void stucIoDataTagValidate();
 StucErr stucWalkMapDeps(StucMapLoad *pLoadCtx);
 static inline void stucMapDepsClear(StucMapDeps *pDeps) {

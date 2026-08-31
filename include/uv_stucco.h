@@ -786,6 +786,8 @@ STUC_EXPORT
 void stucLogEnableSet(StucCtx *pCtx, bool value);
 STUC_EXPORT
 StucErr stucLogPathSet(StucCtx *pCtx, const char *pPath);
+STUC_EXPORT
+const char *stucNameFromPath(const char *pStr, I32 *pNameLen, I32 *pPathLen);
 
 #ifdef STUC_DEBUG_UTILS
 static inline

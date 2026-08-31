@@ -1893,7 +1893,6 @@ StucErr decodeStucData(
 static
 StucErr openMapFile(StucCtx *pCtx, const char *pFilepath, PixioFile *pFile) {
 	StucErr err = PIX_ERR_SUCCESS;
-	printf("Loading STUC file: %s\n", pFilepath);
 	err = pCtx->io.fpOpen(pFile, pFilepath, 1);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
@@ -1958,7 +1957,7 @@ StucErr stucMapImportGetDep(
 
 StucErr stucMapImport(
 	StucCtx *pCtx,
-	const char *filePath,
+	const char *pFilepath,
 	StucObjArr *pObjArr,
 	ObjMapOptsArr *pMapOptsArr,
 	StucUsgArr *pUsgArr,
@@ -1974,7 +1973,8 @@ StucErr stucMapImport(
 	StucHeader header = {0};
 	StucMapDeps deps = {0};
 
-	err = openMapFile(pCtx, filePath, &file);
+	printf("Loading STUC file: %s\n", pFilepath);
+	err = openMapFile(pCtx, pFilepath, &file);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err = importMapHeader(pCtx, &file, &header, &deps);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -2007,7 +2007,6 @@ StucErr stucMapImport(
 	);
 	dataPixioByteArr.size = header.dataSize;
 
-	printf("Decoding data\n");
 	err = decodeStucData(
 		pCtx,
 		&header,
@@ -2051,7 +2050,7 @@ void stucIoSetDefault(StucCtx *pCtx) {
 	pCtx->io.fpPosSet = pixioFilePosSet;
 }
 
-const char *stucGetBasename(const char *pStr, I32 *pNameLen, I32 *pPathLen) {
+const char *stucNameFromPath(const char *pStr, I32 *pNameLen, I32 *pPathLen) {
 	I32 pathMax = pixioPathMaxGet();
 	I32 len = (I32)strnlen(pStr, pathMax);
 	if (len > pathMax) {
@@ -2124,11 +2123,18 @@ static
 	 const StucAlloc *pAlloc,
 	 PixuctHTable *pTable,
 	 const char *pFilepath,
+	 bool pathIsName,
 	 StucMapDepEntry **ppEntry
  ) {
 	I32 nameLen = 0;
-	I32 pathLen = 0;
-	const char *pName = stucGetBasename(pFilepath, &nameLen, &pathLen);
+	const char *pName;
+	if (pathIsName) {
+		pName = pFilepath;
+		nameLen = strnlen(pName, pixioPathMaxGet());
+	}
+	else {
+		pName = stucNameFromPath(pFilepath, &nameLen, NULL);
+	}
 	SearchResult result = pixuctHTableGet(
 		pTable,
 		0,
@@ -2234,7 +2240,7 @@ StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 	MapDepStackEntry *pParent = pStack->ptr ? pStack->stack + pStack->ptr - 1 : NULL;
 	const char *pDepName = pParent ?
 		pParent->deps.maps.pArr[pParent->depIdx].pStr : pLoadCtx->pName;
-	StucErr mapErr = pLoadCtx->fpMapGet(
+	err = pLoadCtx->fpMapGet(
 		pLoadCtx->pUserData,
 		pParent ? pParent->pMap->pName : NULL,
 		pDepName,
@@ -2243,17 +2249,29 @@ StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 		&pMap,
 		&hasChanged
 	);
+
+	SearchResult result;
+	{
+		const char *pNameOrPath = pMap ? pMap->pName : pPath;
+		//TODO maps with the same name are treated as one, even if filepath differs
+		result = addMapDepEntry(
+			pAlloc,
+			&pLoadCtx->table,
+			pNameOrPath ? pNameOrPath : pDepName,
+			pMap,
+			&pStackEntry->pMap
+		);
+	}
+	PIX_ERR_RETURN_IFNOT(err, "");//delay check so entry can be marked if error
+	PIX_ERR_RETURN_IFNOT_COND(err, pMap || pPath, "both map and path are null");
 	PIX_ERR_RETURN_IFNOT_COND(
 		err,
 		pParent || !hasChanged,
 		"'has changed' passed as true, but map is not a dependency?"
 	);
-
-	//TODO maps with the same name are treated as one, even if filepath differs
-	SearchResult result =
-		addMapDepEntry(pAlloc, &pLoadCtx->table, pPath, &pStackEntry->pMap);
 	if (result == PIX_SEARCH_ADDED) {
 		PIX_ERR_ASSERT("", !pStackEntry->pMap->pNameInFile);
+		pStackEntry->pMap->onStack = true;
 		if (!strncmp(pDepName, pStackEntry->pMap->pName, pixioPathMaxGet())) {
 			pStackEntry->pMap->pNameInFile = pStackEntry->pMap->pName;
 		}
@@ -2263,6 +2281,9 @@ StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 			memcpy(pStackEntry->pMap->pNameInFile, pDepName, nameLen + 1);
 		}
 		pStackEntry->pMap->timestamp = timestamp;
+		if (!pPath) {
+			pPath = pMap->pPath;
+		}
 		I32 pathLen = (I32)strnlen(pPath, PIXIO_PATH_MAX);
 		pStackEntry->pMap->pPath = pLoadCtx->pCtx->alloc.fpMalloc(pathLen + 1);
 		memcpy(pStackEntry->pMap->pPath, pPath, pathLen + 1);
@@ -2276,20 +2297,19 @@ StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 		);
 	}
 
-	//TODO rn load errors are being both returned & passed back as enum, reconcile this
-	if (mapErr != PIX_ERR_SUCCESS || !pMap && !pPath) {
-		pStackEntry->pMap->status = STUC_MAP_ERROR;
-		return err;
-	}
 	if (pParent) {
 		I32 newIdx = 0;
 		PIXALC_DYN_ARR_ADD(void *, pAlloc, &pParent->pMap->deps, newIdx);
 		pParent->pMap->deps.pArr[newIdx] = pStackEntry->pMap;
 	}
 	if (pMap) {
-		pStackEntry->pMap->status = STUC_MAP_LOADED;
-		PIX_ERR_ASSERT("", !pStackEntry->pMap->pMap);
-		pStackEntry->pMap->pMap = pMap;
+		if (pStackEntry->pMap->pMap) {
+			PIX_ERR_ASSERT("", pStackEntry->pMap->pMap == pMap);
+		}
+		else {
+			pStackEntry->pMap->status = STUC_MAP_LOADED;
+			pStackEntry->pMap->pMap = pMap;
+		}
 		pPath = pMap->pPath;//ignore user path & use existing map path (likely the same)
 		if (hasChanged) {
 			markParentMapsPending(pStack);
@@ -2785,12 +2805,11 @@ StucErr stucMapLoadDeps(StucMapLoad *pLoadCtx) {
 
 StucErr stucMapLoad(StucMapLoad *pLoadCtx) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_THROW_IFNOT_COND(err, pLoadCtx, "state not provided", 0);
-	PIX_ERR_THROW_IFNOT_COND(
+	PIX_ERR_RETURN_IFNOT_COND(err, pLoadCtx, "state not provided");
+	PIX_ERR_RETURN_IFNOT_COND(
 		err,
 		pLoadCtx->depsPassDone,
-		"deps not loaded, call stucMapLoadDeps first",
-		0
+		"deps not loaded, call stucMapLoadDeps first"
 	);
 	const PixalcFPtrs *pAlloc = &pLoadCtx->pCtx->alloc;
 	MapDepStack stack = {0};
@@ -2801,30 +2820,31 @@ StucErr stucMapLoad(StucMapLoad *pLoadCtx) {
 			const char *pName = pParent ?
 				pParent->pMap->deps.pArr[pParent->depIdx]->pName : pLoadCtx->pName;
 			getMapDepEntry(pAlloc, &pLoadCtx->table, pName, &pStackEntry->pMap);
+			PIX_ERR_RETURN_IFNOT_COND(
+				err,
+				pStackEntry->pMap->status == STUC_MAP_LOADED ||
+				pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD,
+				""
+			);
 		}
 		PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->pMap->deps.count);
 		if (pStackEntry->depIdx != pStackEntry->pMap->deps.count) {
 			err = mapDepStackPush(&stack);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
+			PIX_ERR_RETURN_IFNOT(err, "");
 			continue;
 		}
 		if (pLoadCtx->depsPassDone) {
 			err = finaliseMapLoad(pLoadCtx, &stack);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
+			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 		err = mapDepStackPop(&stack);
-		PIX_ERR_THROW_IFNOT(err, "", 0);
+		PIX_ERR_RETURN_IFNOT(err, "");
 	} while(stack.ptr >= 0);
-	PIX_ERR_THROW_IFNOT_COND(
+	PIX_ERR_RETURN_IFNOT_COND(
 		err,
 		stack.stack[0].pMap->status == STUC_MAP_LOADED,
-		"",
-		0
+		""
 	);
-	PIX_ERR_CATCH(0, err, ;);
-	for (I32 i = 0; i <= stack.ptrMax; ++i) {
-		stucMapDepsDestroy(&pLoadCtx->pCtx->alloc, &stack.stack[i].deps);
-	}
 	return err;
 }
 
@@ -2836,19 +2856,26 @@ StucErr stucWalkMapDeps(StucMapLoad *pLoadCtx) {
 	do {
 		MapDepStackEntry *pStackEntry = stack.stack + stack.ptr;
 		if (!pStackEntry->pMap) {
-			err = getMapOrPath(pLoadCtx, &stack);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
+			StucErr mapErr = getMapOrPath(pLoadCtx, &stack);
+			if (mapErr != PIX_ERR_SUCCESS) {
+				PIX_ERR_ASSERT("", pStackEntry->pMap);
+				pStackEntry->pMap->status = STUC_MAP_ERROR;
+			}
 		}
 		PIX_ERR_ASSERT("", pStackEntry->pMap);
-		if (!pStackEntry->pMap->depsAdded) {
-			err = entryDepsLoad(pLoadCtx, &stack);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
-		}
-		PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->deps.maps.count);
-		if (pStackEntry->depIdx != pStackEntry->deps.maps.count) {
-			err = mapDepStackPush(&stack);
-			PIX_ERR_THROW_IFNOT(err, "", 0);
-			continue;
+		if (pStackEntry->pMap->status == STUC_MAP_LOADED ||
+		    pStackEntry->pMap->status == STUC_MAP_PENDING_LOAD
+		) {
+			if (!pStackEntry->pMap->depsAdded) {
+				err = entryDepsLoad(pLoadCtx, &stack);
+				PIX_ERR_THROW_IFNOT(err, "", 0);
+			}
+			PIX_ERR_ASSERT("", pStackEntry->depIdx <= pStackEntry->deps.maps.count);
+			if (pStackEntry->depIdx != pStackEntry->deps.maps.count) {
+				err = mapDepStackPush(&stack);
+				PIX_ERR_THROW_IFNOT(err, "", 0);
+				continue;
+			}
 		}
 		err = mapDepStackPop(&stack);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
