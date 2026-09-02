@@ -775,7 +775,6 @@ PixmshEdgeCorners getEdgeCorners(const void *pMeshRaw, I32 edge) {
 static
 bool splitPredicate(const void *pMeshRaw, I32 edge) {
 	I32 ret = stucCouldInEdgeIntersectMapFace(pMeshRaw, edge);
-	//return ret == 2 ? false : ret;
 	return ret;
 }
 
@@ -826,34 +825,6 @@ StucErr stucInIslandBorderMarkAsOuter(
 	return err;
 }
 
-PixuctKey inIslandBorderMakeKey(const void *pKeyRaw) {
-	return (PixuctKey){.pKey = &((BorderKey *)pKeyRaw)->edge, .size = sizeof(I32)};
-}
-
-void inIslandBorderInitEntry(
-	void *pUserData,
-	PixuctHTableEntryCore *pEntryCore,
-	const void *pKeyRaw,
-	void *pInitInfoRaw,
-	I32 idx
-) {
-	StucBorderTable *pEntry = (void *)pEntryCore;
-	const BorderKey *pKey = pKeyRaw;
-	pEntry->border = pKey->border;
-	pEntry->edge = pKey->edge;
-	pEntry->idx = pKey->idx;
-}
-
-bool inIslandBorderCmpEntry(
-	const PixuctHTableEntryCore *pEntryCore,
-	const void *pKeyRaw,
-	const void *pInitInfoRaw
-) {
-	const StucBorderTable *pEntry = (void *)pEntryCore;
-	const BorderKey *pKey = pKeyRaw;
-	return pKey->edge == pEntry->edge;
-}
-
 StucErr stucInIslandBorderAddEdge(
 	const PixalcFPtrs *pAlloc,
 	void *pIslandsRaw,
@@ -869,17 +840,24 @@ StucErr stucInIslandBorderAddEdge(
 	Border *pBorder = pIsland->core.borders.pArr + border;
 	I32 newIdx = 0;
 	PIXALC_DYN_ARR_ADD(BorderEdge, pAlloc, &pBorder->arr, newIdx);
-	pBorder->arr.pArr[newIdx] = (BorderEdge){.corner = corner, .adjIsland = adjIsland};
-	pixuctHTableGet(
+	pBorder->arr.pArr[newIdx] = (BorderEdge){.corner = corner};
+	StucBorderTable *pEntry = NULL;
+	SearchResult result = pixuctHTableBasicGet(
 		&pIsland->borderTable,
 		0,
-		&(BorderKey){.border = border, .edge = edge, .idx = newIdx},
-		NULL,
+		&corner,
+		&pEntry,
 		true,
 		NULL,
-		NULL,
-		inIslandBorderMakeKey, NULL, inIslandBorderInitEntry, inIslandBorderCmpEntry
+		stucInIslandBorderMakeKey, stucInIslandBorderCmpEntry
 	);
+	PIX_ERR_ASSERT("", result == PIX_SEARCH_ADDED);
+	*pEntry = (StucBorderTable){
+		.core = pEntry->core,
+		.corner = corner,
+		.border = border,
+		.idx = newIdx
+	};
 	return err;
 }
 

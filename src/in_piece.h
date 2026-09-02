@@ -8,9 +8,9 @@ SPDX-License-Identifier: Apache-2.0
 #include <pixenals_thread_utils.h>
 
 #include <cluster_tree_2d.h>
+#include <pixenals_structs.h>
 
 #include <job.h>
-#include <pixenals_structs.h>
 #include <mesh.h>
 
 struct MapToMeshBasic;
@@ -207,9 +207,9 @@ typedef struct TileRangeArr {
 
 typedef struct StucBorderTable {
 	PixuctHTableEntryCore core;
+	FaceCorner corner;
 	I32 border;
 	I32 idx;
-	I32 edge;
 } StucBorderTable;
 
 typedef struct IslandClustArr {
@@ -424,71 +424,4 @@ BufVertType bufMeshGetType(const BufMesh *pBufMesh, FaceCorner corner) {
 	BufFace bufFace = pBufMesh->faces.pArr[corner.face];
 	BufCorner bufCorner = pBufMesh->corners.pArr[bufFace.start + corner.corner];
 	return bufCorner.type;
-}
-
-static inline
-bool stucBorderTableCmp(
-	const PixuctHTableEntryCore *pEntry,
-	const void *pKeyData,
-	const void *pInitInfo
-) {
-	return ((StucBorderTable *)pEntry)->edge == *((I32 *)pKeyData);
-}
-
-static inline
-bool stucIsInCornerOnBorder(
-	const Mesh *pInMesh,
-	const IslandClustArr *pClustArr,
-	const FaceRange *pInFace,
-	I32 corner,
-	const StucBorderTable **ppEntry
-) {
-	const StucBorderTable *pEntry = NULL;
-	I32 edge = stucGetMeshEdge(
-		&pInMesh->core,
-		(FaceCorner){.face = pInFace->idx, .corner = corner}
-	);
-	SearchResult result = pixuctHTableGetConst(
-		&pClustArr->pIsland->borderTable,
-		0,
-		&edge,
-		(const void **)&pEntry,
-		pixuctKeyFromI32, stucBorderTableCmp
-	);
-	if (ppEntry) {
-		*ppEntry = pEntry;
-	}
-	return result == PIX_SEARCH_FOUND;
-}
-
-static inline
-bool stucIsInFaceOnBorder(
-	const Mesh *pInMesh,
-	const IslandClustArr *pClustArr,
-	const FaceRange *pInFace,
-	const StucBorderTable **ppEntry
-) {
-	const StucBorderTable *pEntry = NULL;
-	SearchResult result = 0;
-	PIX_ERR_ASSERT("", pInFace->range.size > 0);
-	for (I32 i = 0; i < pInFace->range.size; ++i) {
-		I32 edge = stucGetMeshEdge(
-			&pInMesh->core,
-			(FaceCorner){.face = pInFace->idx, .corner = i}
-		);
-		result = pixuctHTableGetConst(
-			&pClustArr->pIsland->borderTable,
-			0,
-			&edge,
-			(const void **)&pEntry,
-			pixuctKeyFromI32, stucBorderTableCmp
-		);
-		if (result == PIX_SEARCH_FOUND) {
-			break;
-		}
-	}
-	if (ppEntry) {
-		*ppEntry = pEntry;
-	}
-	return result == PIX_SEARCH_FOUND;
 }

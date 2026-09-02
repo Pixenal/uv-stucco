@@ -277,6 +277,35 @@ PixtyV2_F32 stucClustFaceUv(const void *pFaceRaw, I32 localCorner) {
 }
 
 static
+bool isInFaceOnBorder(
+	const Mesh *pInMesh,
+	const IslandClustArr *pClustArr,
+	const FaceRange *pInFace,
+	const StucBorderTable **ppEntry
+) {
+	const StucBorderTable *pEntry = NULL;
+	SearchResult result = 0;
+	PIX_ERR_ASSERT("", pInFace->range.size > 0);
+	for (I32 i = 0; i < pInFace->range.size; ++i) {
+		result = pixuctHTableGetConst(
+			&pClustArr->pIsland->borderTable,
+			0,
+			&(FaceCorner){.face = pInFace->idx, .corner = i},
+			(const void **)&pEntry,
+			stucInIslandBorderMakeKey, stucInIslandBorderCmpEntry
+		);
+		if (result == PIX_SEARCH_FOUND) {
+			break;
+		}
+	}
+	if (ppEntry) {
+		*ppEntry = pEntry;
+	}
+	return result == PIX_SEARCH_FOUND;
+}
+
+
+static
 StucErr getEncasedFacesPerFace(FindEncasedFacesJobArgs *pArgs, FaceRange *pInFace) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT("", pInFace->range.size == 3 || pInFace->range.size == 4);
@@ -302,7 +331,7 @@ StucErr getEncasedFacesPerFace(FindEncasedFacesJobArgs *pArgs, FaceRange *pInFac
 		.pArgs = pArgs,
 		.inFace = *pInFace,
 		.inFaceWind = inFaceWind,
-		stucIsInFaceOnBorder(pBasic->pInMesh, pArgs->pClustArr, pInFace, NULL)
+		.borderFace = isInFaceOnBorder(pBasic->pInMesh, pArgs->pClustArr, pInFace, NULL)
 	};
 	ClutreArr clustArr = {.pUserData = &clustInfo, .fpAdd = inPieceAddFace};
 	err = clutreSampleForFace(

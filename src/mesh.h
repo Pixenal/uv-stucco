@@ -81,7 +81,6 @@ typedef struct TriCache {
 
 typedef struct BorderEdge {
 	FaceCorner corner;
-	I32 adjIsland;
 } BorderEdge;
 
 typedef struct BorderEdgeArr {

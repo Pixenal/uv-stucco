@@ -213,12 +213,6 @@ StucErr StucSplitMeshToIslands(
 void stucInIslandsBorderArrDestroy(const StucCtx *pCtx, BorderArr *pArr);
 void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr);
 
-typedef struct BorderKey {
-	I32 border;
-	I32 edge;
-	I32 idx;
-} BorderKey;
-
 StucErr stucInIslandFacesInit(
 	const PixalcFPtrs *pAlloc,
 	void *pIslandsRaw,
@@ -249,6 +243,23 @@ StucErr stucInIslandAdd(
 );
 StucErr stucInIslandRangeSet(void *pIslandsRaw, I32 island, PixtyRange range);
 void stucLogStageInstAdd(JobArgs *pJobArgs, StucStage stage);
+
+static inline
+PixuctKey stucInIslandBorderMakeKey(const void *pKeyRaw) {
+	return (PixuctKey){.pKey = pKeyRaw, .size = sizeof(FaceCorner)};
+}
+static inline
+bool stucInIslandBorderCmpEntry(
+	const PixuctHTableEntryCore *pEntryCore,
+	const void *pKeyRaw,
+	const void *pInitInfoRaw
+) {
+	const StucBorderTable *pEntry = (void *)pEntryCore;
+	const FaceCorner *pKey = pKeyRaw;
+	return
+		pEntry->corner.face == pKey->face &&
+		pEntry->corner.corner == pKey->corner;
+}
 
 static inline
 PixtyV2_F32 stucClustUv(const void *pMeshRaw, I32 corner) {
@@ -290,6 +301,7 @@ bool stucGetIfPreserveEdge(const Mesh *pMesh, I32 edge) {
 	return pMesh->pEdgePreserve ? pMesh->pEdgePreserve[edge] : false;
 }
 
+//2 if preserve && !(mat-border || seam), 1 if preserve || mat-border || seam, 0 if none
 static inline
 I32 stucCouldInEdgeIntersectMapFace(const Mesh *pMesh, I32 edge) {
 	bool preserve = stucGetIfPreserveEdge(pMesh, edge);
