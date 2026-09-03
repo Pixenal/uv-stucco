@@ -29,7 +29,7 @@
 				{\
 					.name = "island",\
 					.desc = CARK_COMP_DESC_ID,\
-					.type = CARK_TYPE_I32,\
+					.type = CARK_TYPE_I32\
 				}\
 			}\
 		},\
@@ -37,17 +37,19 @@
 			.name = "corner",\
 			.desc = CARK_DESC_CORNER,\
 			.compCount = 1,\
-			.pCompArr = &(CarkCompInfo){\
-				.name = "vert",\
-				.desc = CARK_COMP_DESC_IDX,\
-				.type = CARK_TYPE_I32,\
-				.refCount = 1,\
-				.refArr = {\
-					{\
-						.stageIdx = -1,\
-						.structIdx = 2,\
-						.compIdx = -1\
-					},\
+			.pCompArr = (CarkCompInfo[]){\
+				{\
+					.name = "vert",\
+					.desc = CARK_COMP_DESC_IDX,\
+					.type = CARK_TYPE_I32,\
+					.refCount = 1,\
+					.refArr = {\
+						{\
+							.stageIdx = -1,\
+							.structIdx = 2,\
+							.compIdx = -1\
+						}\
+					}\
 				}\
 			}\
 		},\
@@ -119,7 +121,7 @@
 					.type = CARK_TYPE_I32\
 				},\
 				{\
-					.name = "island",\
+					.name = "cluster",\
 					.desc = CARK_COMP_DESC_ID,\
 					.type = CARK_TYPE_I32\
 				}\
@@ -128,7 +130,7 @@
 		{\
 			.name = "corner",\
 			.desc = CARK_DESC_CORNER,\
-			.compCount = 1,\
+			.compCount = 2,\
 			.pCompArr = (CarkCompInfo[]){\
 				{\
 					.name = "vert",\
@@ -141,6 +143,11 @@
 						}\
 					},\
 					.desc = CARK_COMP_DESC_IDX,\
+					.type = CARK_TYPE_I32\
+				},\
+				{\
+					.name = "in-face",\
+					.desc = CARK_COMP_DESC_ID,\
 					.type = CARK_TYPE_I32\
 				}\
 			}\
