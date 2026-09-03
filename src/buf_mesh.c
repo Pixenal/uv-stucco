@@ -397,6 +397,7 @@ static
 PixErr logBufClipCornerAndVert(
 	StucCark *pCark,
 	I32 thread,
+	I32 inFace,
 	BufVertType type,
 	I32 inst,
 	I32 corner,
@@ -430,6 +431,8 @@ PixErr logBufClipCornerAndVert(
 			PIX_ERR_ASSERT("invalid buf-mesh vert type", false);
 	}
 	err = carkOutLogComp(&log, 0, &refArr, &vert);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = carkOutLogComp(&log, 1, NULL, &inFace);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogEnd(&log);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -623,6 +626,7 @@ static
 PixErr bufMeshAddFace(
 	JobArgs *pArgs,
 	V2_I16 tile,
+	I32 cluster,
 	bool wind,
 	BufMesh *pBufMesh,
 	I32 start,
@@ -650,7 +654,7 @@ PixErr bufMeshAddFace(
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogComp(&log, 1, NULL, &faceSize);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	err = carkOutLogComp(&log, 2, NULL, &(I32){0});
+	err = carkOutLogComp(&log, 2, NULL, &cluster);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = carkOutLogEnd(&log);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -744,7 +748,8 @@ I32 addMapVert(
 	const FaceRange *pMapFace,
 	I32 mapCorner,
 	BufVertType *pType,
-	bool wind
+	bool wind,
+	I32 *pInFace
 ) {
 	const MapToMeshBasic *pBasic = pArgs->pShared;
 	FaceCorner corner = {0};
@@ -762,6 +767,9 @@ I32 addMapVert(
 	);
 	if (status == STUC_INSIDE_STATUS_OUTSIDE) {
 		return -1;
+	}
+	if (pInFace) {
+		*pInFace = corner.face;
 	}
 	I32 vert = 0;
 	switch (status) {
@@ -833,6 +841,7 @@ StucErr bufMeshAddVert(
 	const MapToMeshBasic *pBasic = pArgs->pShared;
 	BufVertType type = 0;
 	I32 vert = -1;
+	I32 inFace = -1;//passed back here for logging corner
 	switch (pCorner->type) {
 		case PLYCUT_ORIGIN_SUBJECT:
 			vert = addMapVert(
@@ -843,7 +852,8 @@ StucErr bufMeshAddVert(
 				pBufMesh,
 				pMapFace, pCorner->info.origin.corner.corner,
 				&type,
-				wind
+				wind,
+				&inFace
 			);
 			PIX_ERR_RETURN_QUIET_IFNOT_COND(
 				err,
@@ -890,6 +900,7 @@ StucErr bufMeshAddVert(
 			err = logBufClipCornerAndVert(
 				pArgs->pCark,
 				pArgs->threadId,
+				inFace,
 				type,
 				pArgs->logInst,
 				bufCorner,
@@ -939,6 +950,7 @@ StucErr addFaceToBufMesh(
 	err = bufMeshAddFace(
 		pArgs,
 		pInPiece->tile,
+		pInPiece->pList->cluster,
 		wind,
 		pBufMesh,
 		faceStart,
@@ -1041,6 +1053,7 @@ StucErr addNonClipInPieceToBufMesh(
 	StucErr err = PIX_ERR_SUCCESS;
 	const MapToMeshBasic *pBasic = pArgs->pShared;
 	I32 bufFaceStart = pBufMesh->corners.count;
+	I32 inFace = -1;//passed back here for logging corner
 	for (I32 i = 0; i < pMapFace->range.size; ++i) {	
 		BufVertType type = 0;
 		I32 vert = 0;
@@ -1053,7 +1066,8 @@ StucErr addNonClipInPieceToBufMesh(
 			pMapFace,
 			i,
 			&type,
-			wind
+			wind,
+			&inFace
 		);
 		if (vert != -1) {
 			I32 bufCorner = 0;
@@ -1062,6 +1076,7 @@ StucErr addNonClipInPieceToBufMesh(
 				err = logBufClipCornerAndVert(
 					pArgs->pCark,
 					pArgs->threadId,
+					inFace,
 					type,
 					pArgs->logInst,
 					bufCorner,
@@ -1079,9 +1094,10 @@ StucErr addNonClipInPieceToBufMesh(
 		);
 		return err;
 	}
-	bufMeshAddFace(
+	err = bufMeshAddFace(
 		pArgs,
 		pInPiece->tile,
+		pInPiece->pList->cluster,
 		wind,
 		pBufMesh,
 		bufFaceStart,
@@ -1774,8 +1790,8 @@ PixErr stucIslandClustAddStart(
 		tile.d[1] > (I32)INT16_MIN && tile.d[1] < (I32)INT16_MAX
 	);
 	V2_I32 size = {
-		pArr->start.end.d[0] - pArr->start.start.d[0] + 1,
-		pArr->start.end.d[1] - pArr->start.start.d[1] + 1
+		pArr->start.end.d[0] - pArr->start.start.d[0],
+		pArr->start.end.d[1] - pArr->start.start.d[1]
 	};
 	V2_I32 tileNorm = {
 		tile.d[0] - pArr->start.start.d[0],
