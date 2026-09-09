@@ -94,25 +94,30 @@ typedef struct TPieceVertSearch {
 	SearchResult result;
 } TPieceVertSearch;
 
+typedef struct TPieceVertSearchArr {
+	TPieceVertSearch *pArr;
+	I32 size;
+	I32 count;
+} TPieceVertSearchArr;
 
 static
 void getLowestTPiece(
 	const TPieceBufArr *pTPieces,
-	const TPieceVertSearch *pEntries,
+	const TPieceVertSearchArr *pEntryArr,
 	FaceRange *pFace,
 	I32 *pLowestTPiece
 ) {
 	for (I32 i = 0; i < pFace->range.size; ++i) {
-		if (pEntries[i].result != PIX_SEARCH_FOUND) {
+		if (pEntryArr->pArr[i].result != PIX_SEARCH_FOUND) {
 			continue;
 		}
-		I32 tPieceIdx = pEntries[i].pEntry->tPiece;
+		I32 tPieceIdx = pEntryArr->pArr[i].pEntry->tPiece;
 		while (pTPieces->pArr[tPieceIdx].merged) {
 			tPieceIdx = pTPieces->pArr[tPieceIdx].mergedWith;
 		}
 		PIX_ERR_ASSERT(
 			"if t-piece is merged, it should be with a piece of a lower idx",
-			tPieceIdx <= pEntries[i].pEntry->tPiece
+			tPieceIdx <= pEntryArr->pArr[i].pEntry->tPiece
 		);
 		if (tPieceIdx < *pLowestTPiece) {
 			*pLowestTPiece = tPieceIdx;
@@ -123,27 +128,27 @@ void getLowestTPiece(
 static
 void setVertsAndMergeTPieces(
 	TPieceBufArr *pTPieces,
-	TPieceVertSearch *pEntries,
+	TPieceVertSearchArr *pEntryArr,
 	FaceRange *pFace,
 	I32 tPiece
 ) {
 	for (I32 i = 0; i < pFace->range.size; ++i) {
-		if (pEntries[i].result == PIX_SEARCH_FOUND &&
-			pEntries[i].pEntry->tPiece != tPiece
+		if (pEntryArr->pArr[i].result == PIX_SEARCH_FOUND &&
+			pEntryArr->pArr[i].pEntry->tPiece != tPiece
 		) {
 			PIX_ERR_ASSERT(
 				"we only merge to pieces with a lower idx",
-				pEntries[i].pEntry->tPiece > tPiece
+				pEntryArr->pArr[i].pEntry->tPiece > tPiece
 			);
-			TPieceBuf *pTPiece = pTPieces->pArr + pEntries[i].pEntry->tPiece;
+			TPieceBuf *pTPiece = pTPieces->pArr + pEntryArr->pArr[i].pEntry->tPiece;
 			pTPiece->merged = true;
 			pTPiece->mergedWith = tPiece;
 			//even if the vert's current tpiece was merged,
 			// updating the vert entry reduces time spent walking merge chains
-			pEntries[i].pEntry->tPiece = tPiece;
+			pEntryArr->pArr[i].pEntry->tPiece = tPiece;
 		}
-		else if (pEntries[i].result == PIX_SEARCH_ADDED) {
-			pEntries[i].pEntry->tPiece = tPiece;
+		else if (pEntryArr->pArr[i].result == PIX_SEARCH_ADDED) {
+			pEntryArr->pArr[i].pEntry->tPiece = tPiece;
 		}
 	}
 }
@@ -154,18 +159,24 @@ void addOrMergeFaceTPieces(
 	const Mesh *pInMesh,
 	TPieceBufArr *pTPieces,
 	PixuctHTable *pVertTable,
+	TPieceVertSearchArr *pVertEntryArr,
 	I32 faceIdx,
 	bool add
 ) {
 	const StucMesh *pMesh = &pInMesh->core;
 	FaceRange face = stucGetFaceRange(&pInMesh->core, faceIdx);
-	TPieceVertSearch vertEntries[4] = {0};
+	PIXALC_DYN_ARR_RESIZE_ZERO(
+		TPieceVertSearch,
+		&pCtx->alloc,
+		pVertEntryArr,
+		face.range.size
+	);
 	for (I32 i = 0; i < face.range.size; ++i) {
-		vertEntries[i].result = pixuctHTableGet(
+		pVertEntryArr->pArr[i].result = pixuctHTableGet(
 			pVertTable,
 			0,
 			pMesh->pCorners + face.range.start + i,
-			(void **)&vertEntries[i].pEntry,
+			(void **)&pVertEntryArr->pArr[i].pEntry,
 			add,
 			NULL,
 			NULL,
@@ -173,7 +184,7 @@ void addOrMergeFaceTPieces(
 		);
 	}
 	I32 lowestTPiece = INT32_MAX;
-	getLowestTPiece(pTPieces, vertEntries, &face, &lowestTPiece);
+	getLowestTPiece(pTPieces, pVertEntryArr, &face, &lowestTPiece);
 	I32 tPiece = -1;
 	if (lowestTPiece == INT32_MAX) {
 		if (!add) {
@@ -187,7 +198,7 @@ void addOrMergeFaceTPieces(
 		tPiece = lowestTPiece;
 	}
 	PIX_ERR_ASSERT("", tPiece >= 0 && tPiece < pTPieces->count);
-	setVertsAndMergeTPieces(pTPieces, vertEntries, &face, tPiece);
+	setVertsAndMergeTPieces(pTPieces, pVertEntryArr, &face, tPiece);
 }
 
 static
@@ -198,6 +209,7 @@ void buildTPiecesForBufVerts(
 	PixalcLinAlloc *pMergeAlloc,
 	TPieceBufArr *pTPieces,
 	PixuctHTable *pVertTable,
+	TPieceVertSearchArr *pVertEntryArr,
 	bool *pChecked
 ) {
 	PixalcLinAllocIter iter = {0};
@@ -219,7 +231,15 @@ void buildTPiecesForBufVerts(
 			srcFaces.in >= 0 && srcFaces.in < pInMesh->core.faceCount
 		);
 		if (!pChecked[srcFaces.in]) {
-			addOrMergeFaceTPieces(pCtx, pInMesh, pTPieces, pVertTable, srcFaces.in, true);
+			addOrMergeFaceTPieces(
+				pCtx,
+				pInMesh,
+				pTPieces,
+				pVertTable,
+				pVertEntryArr,
+				srcFaces.in,
+				true
+			);
 			pChecked[srcFaces.in] = true;
 		}
 	}
@@ -248,6 +268,7 @@ void buildTPieces(
 	bool *pChecked =
 		pCtx->alloc.fpCalloc(pInMesh->core.faceCount, sizeof(bool));
 	TPieceBufArr tPiecesBuf = {0};
+	TPieceVertSearchArr vertEntryMem = {0};
 	buildTPiecesForBufVerts(
 		pCtx,
 		pInMesh,
@@ -255,6 +276,7 @@ void buildTPieces(
 		pMergeAlloc,
 		&tPiecesBuf,
 		&vertTable,
+		&vertEntryMem,
 		pChecked
 	);
 	buildTPiecesForBufVerts(
@@ -264,6 +286,7 @@ void buildTPieces(
 		pMergeAllocIntersect,
 		&tPiecesBuf,
 		&vertTable,
+		&vertEntryMem,
 		pChecked
 	);
 	PIX_ERR_ASSERT("map-to-mesh should have returned earlier if empty", tPiecesBuf.pArr);
@@ -271,10 +294,19 @@ void buildTPieces(
 	const StucMesh *pInCore = &pInMesh->core;
 	for (I32 i = 0; i < pInCore->faceCount; ++i) {
 		if (!pChecked[i]) {
-			addOrMergeFaceTPieces(pCtx, pInMesh, &tPiecesBuf, &vertTable, i, false);
+			addOrMergeFaceTPieces(
+				pCtx,
+				pInMesh,
+				&tPiecesBuf,
+				&vertTable,
+				&vertEntryMem,
+				i,
+				false
+			);
 			pChecked[i] = true;
 		}
 	}
+	PIXALC_DYN_ARR_DESTROY(TPieceVertSearchArr, &pCtx->alloc, &vertEntryMem);
 	pCtx->alloc.fpFree(pChecked);
 	
 	for (I32 i = 0; i < pInCore->faceCount; ++i) {
