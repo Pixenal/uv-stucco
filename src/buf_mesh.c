@@ -1739,6 +1739,15 @@ PixtyV2_F32 stucBorderPos(const void *pBorderRaw, I32 idx) {
 }
 
 static
+PixtyV2_F32 stucBorderPosForWind(
+	const void *pMesh,
+	const PixmshFaceRange face,
+	int32_t corner
+) {
+	return stucBorderPos(pMesh, corner);
+}
+
+static
 PixErr stucIslandClustAdd(
 	const PixalcFPtrs *pAlloc,
 	void *pArrRaw,
@@ -1890,6 +1899,12 @@ StucErr stucMapMeshForIsland(void *pArgsRaw) {
 			.fpPos = stucBorderPos,
 			.size = pBorder->arr.count
 		};
+		clustFace.wind = pixmshCalcFaceWind(
+			(PixmshFaceRange){.start = 0, .size = pBorder->arr.count},
+			&borderInfo,
+			stucBorderPosForWind
+		);
+		PIX_ERR_RETURN_IFNOT_COND(err, clustFace.wind != 2, "island border is degenerate");
 		clustArr.count = 0;
 		clustArr.tiles.count = 0;
 		clustArr.pIsland = NULL;
