@@ -66,13 +66,11 @@ static inline void stucMapDepsClear(StucMapDeps *pDeps) {
 	pDeps->maps.count = 0;
 }
 static inline void stucMapDepsDestroy(const StucAlloc *pAlloc, StucMapDeps *pDeps) {
-	if (pDeps->maps.pArr) {
-		for (I32 i = 0; i < pDeps->maps.count; ++i) {
-			if (pDeps->maps.pArr[i].pStr) {
-				pAlloc->fpFree(pDeps->maps.pArr[i].pStr);
-			}
+	for (I32 i = 0; i < pDeps->maps.count; ++i) {
+		if (pDeps->maps.pArr[i].pStr) {
+			pAlloc->fpFree(pDeps->maps.pArr[i].pStr);
 		}
-		pAlloc->fpFree(pDeps->maps.pArr);
 	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pDeps->maps);
 	*pDeps = (StucMapDeps){0};
 }

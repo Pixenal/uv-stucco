@@ -87,9 +87,7 @@ typedef struct AdjBucket {
 static
 void adjTableDestroyBuckets(const StucAlloc *pAlloc, I32 count, AdjBucket *pAdjTable) {
 	for (I32 i = 0; i < count; ++i) {
-		if (pAdjTable[i].pArr) {
-			pAlloc->fpFree(pAdjTable[i].pArr);
-		}
+		PIXALC_DYN_ARR_DESTROY(pAlloc, pAdjTable + i);
 	}
 }
 
@@ -786,7 +784,7 @@ StucErr stucInIslandFacesInit(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucInIslandArr *pIslands = pIslandsRaw;
-	PIXALC_DYN_ARR_RESIZE(I32, pAlloc, &pIslands->faces, count);
+	PIXALC_DYN_ARR_RESIZE(pAlloc, &pIslands->faces, count);
 	*ppOut = pIslands->faces.pArr;
 	return err;
 }
@@ -797,7 +795,7 @@ StucErr stucInIslandBorderInit(const PixalcFPtrs *pAlloc, void *pIslandsRaw, I32
 	StucInIsland *pIsland = pIslandArr->pArr + island;
 	I32 oldSize = pIsland->core.borders.size;
 	I32 newIdx = 0;
-	PIXALC_DYN_ARR_ADD(Border, pAlloc, &pIsland->core.borders, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, &pIsland->core.borders, newIdx);
 	if (newIdx >= oldSize) {
 		memset(
 			pIsland->core.borders.pArr + oldSize,
@@ -839,7 +837,7 @@ StucErr stucInIslandBorderAddEdge(
 	StucInIsland *pIsland = pIslandArr->pArr + island;
 	Border *pBorder = pIsland->core.borders.pArr + border;
 	I32 newIdx = 0;
-	PIXALC_DYN_ARR_ADD(BorderEdge, pAlloc, &pBorder->arr, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, &pBorder->arr, newIdx);
 	pBorder->arr.pArr[newIdx] = (BorderEdge){.corner = corner};
 	StucBorderTable *pEntry = NULL;
 	SearchResult result = pixuctHTableBasicGet(
@@ -871,7 +869,7 @@ StucErr stucInIslandAdd(
 	StucInIslandArr *pIslands = pIslandsRaw;
 	I32 newIdx = 0;
 	I32 oldSize = pIslands->size;
-	PIXALC_DYN_ARR_ADD(StucInIsland, pAlloc, pIslands, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, pIslands, newIdx);
 	if (oldSize < pIslands->size) {
 		memset(
 			pIslands->pArr + oldSize,
@@ -1293,20 +1291,14 @@ StucErr StucSplitMeshToIslands(
 }
 
 void stucInIslandsBorderArrDestroy(const StucCtx *pCtx, BorderArr *pArr) {
-	if (pArr->pArr) {
-		for (I32 i = 0; i < pArr->count; ++i) {
-			if (pArr->pArr[i].arr.pArr) {
-				pCtx->alloc.fpFree(pArr->pArr[i].arr.pArr);
-			}
-		}
-		pCtx->alloc.fpFree(pArr->pArr);
+	for (I32 i = 0; i < pArr->count; ++i) {
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].arr);
 	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 }
 
 void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr) {
-	if (pArr->faces.pArr) {
-		pCtx->alloc.fpFree(pArr->faces.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->faces);
 	if (pArr->pFaceTable) {
 		pCtx->alloc.fpFree(pArr->pFaceTable);
 	}
@@ -1334,14 +1326,13 @@ void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr) {
 		}
 	}
 	pixuctHTableMemDestroy(&pCtx->alloc, &pArr->tableMem);
-	pCtx->alloc.fpFree(pArr->pArr);
-	*pArr = (StucInIslandArr){0};
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 }
 
 StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 newSize = pMesh->vertAttribs.count + pMesh->cornerAttribs.count;
-	PIXALC_DYN_ARR_RESIZE(StucAttrib, &pCtx->alloc, &pMesh->vertAttribs, newSize);
+	PIXALC_DYN_ARR_RESIZE(&pCtx->alloc, &pMesh->vertAttribs, newSize);
 	memcpy(
 		pMesh->vertAttribs.pArr + pMesh->vertAttribs.count,
 		pMesh->cornerAttribs.pArr,

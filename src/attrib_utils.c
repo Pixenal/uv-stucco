@@ -1795,7 +1795,7 @@ AttribIndexed *stucAppendIndexedAttrib(
 	StucAttribUse use
 ) {
 	I32 newIdx;
-	PIXALC_DYN_ARR_ADD(StucAttribIndexed, &pCtx->alloc, pIndexedAttribArr, newIdx);
+	PIXALC_DYN_ARR_ADD(&pCtx->alloc, pIndexedAttribArr, newIdx);
 	AttribIndexed *pIndexedAttrib = pIndexedAttribArr->pArr + newIdx;
 	stucInitAttribCore(&pCtx->alloc, &pIndexedAttrib->core, pName, dataLen, type, use);
 	if (dataLen) {

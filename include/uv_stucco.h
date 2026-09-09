@@ -805,9 +805,7 @@ StucErr stucThreadPoolLogDump(StucCtx *pCtx, const char *pPath) {
 	err = pixioFileClose(pFile);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err, ;);
-	if (log.pArr) {
-		pCtx->alloc.fpFree(log.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &log);
 	return err;
 }
 #endif

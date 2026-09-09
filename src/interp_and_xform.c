@@ -423,7 +423,7 @@ void cacheAttribPairs(
 		stucGetAttribArrFromDomainConst(&pBasic->pMap->pMesh->core, domain);
 	const AttribArray *pInAttribArr =
 		stucGetAttribArrFromDomainConst(&pBasic->pInMesh->core, domain);
-	PIXALC_DYN_ARR_RESIZE(AttribPair, &pBasic->pCtx->alloc, pCache, pOutAttribArr->count);
+	PIXALC_DYN_ARR_RESIZE(&pBasic->pCtx->alloc, pCache, pOutAttribArr->count);
 	pCache->count = 0;
 	for (I32 i = 0; i < pOutAttribArr->count; ++i) {
 		AttribPair *pEntry = pCache->pArr + pCache->count;
@@ -605,9 +605,7 @@ void xformNormals(StucMesh *pMesh, I32 idx, const M3x3 *pTbn, StucDomain domain)
 
 static
 void attribCacheDestroy(const PixalcFPtrs *pAlloc, AttribCache *pCache) {
-	if (pCache->pArr) {
-		pAlloc->fpFree(pCache->pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, pCache);
 }
 
 static

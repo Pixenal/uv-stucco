@@ -79,7 +79,7 @@ void encasedMapFaceInit(
 	pEntry->tile = inPieceKeyGetTile(*pKey);
 	pEntry->border = pInitInfo->border;
 	InFaceMem *pInFaces = pInitInfo->pInFaces;
-	PIXALC_DYN_ARR_ADD(InFaceIdxArr, pAlloc, pInFaces, pEntry->inFaces);
+	PIXALC_DYN_ARR_ADD(pAlloc, pInFaces, pEntry->inFaces);
 	if (pEntry->inFaces >= pInFaces->initCount) {
 		PIX_ERR_ASSERT("", pEntry->inFaces == pInFaces->initCount);
 		pInFaces->pArr[pEntry->inFaces] = (InFaceIdxArr){0};
@@ -89,7 +89,7 @@ void encasedMapFaceInit(
 		pInFaces->pArr[pEntry->inFaces].count = 0;
 	}
 	I32 newIdx = 0;
-	PIXALC_DYN_ARR_ADD(I32, pAlloc, pInFaces->pArr + pEntry->inFaces, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, pInFaces->pArr + pEntry->inFaces, newIdx);
 	pInFaces->pArr[pEntry->inFaces].pArr[newIdx] = (InFaceIdx){
 		.idx = (U32)pInitInfo->pInFace->idx,
 		.wind = pInitInfo->inFaceWind,
@@ -122,7 +122,7 @@ void appendToEncasedEntry(
 	const StucAlloc *pAlloc = &((const MapToMeshBasic *)pArgs->core.pShared)->pCtx->alloc;
 	InFaceIdxArr *pInFaces = pArgs->inFaces.pArr + pEntry->inFaces;
 	I32 newIdx = 0;
-	PIXALC_DYN_ARR_ADD(I32, pAlloc, pInFaces, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, pInFaces, newIdx);
 	pInFaces->pArr[newIdx] = (InFaceIdx){
 		.idx = (U32)pInFace->idx,
 		.wind = wind,
@@ -541,10 +541,10 @@ void linkEncasedTableEntries(
 		return;
 	}
 	if (size) {
-		PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceArr, size);
+		PIXALC_DYN_ARR_RESIZE(pAlloc, pInPieceArr, size);
 	}
 	if (sizeClip) {
-		PIXALC_DYN_ARR_RESIZE(InPiece, pAlloc, pInPieceClipArr, sizeClip);
+		PIXALC_DYN_ARR_RESIZE(pAlloc, pInPieceClipArr, sizeClip);
 	}
 	PixuctHTable idxTable = {0};
 	pixuctHTableInit(

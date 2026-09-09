@@ -210,7 +210,7 @@ PixErr addBufFaceToOutMesh(
 		I32 idx = reverseWind ? pOutBuf->final.count - i - 1 : i;
 		I32 outCorner = stucMeshAddCorner(pBasic->pCtx, &pBasic->outMesh, NULL);
 		I32 newIdx = -1;
-		PIXALC_DYN_ARR_ADD(OutBufIdx, pAlloc, pOutBufIdxArr, newIdx);
+		PIXALC_DYN_ARR_ADD(pAlloc, pOutBufIdxArr, newIdx);
 		PIX_ERR_ASSERT("", newIdx != -1);
 		pOutBufIdxArr->pArr[newIdx] = (OutBufIdx){
 			.corner = pOutBuf->final.pArr[idx].bufCorner,
@@ -259,11 +259,7 @@ void stucAddFacesAndCornersToOutMesh(
 		pRange->outCorners.end = pBasic->outMesh.core.cornerCount;
 		++pBufOutTable->count;
 	}
-	if (outBuf.buf.pArr) {
-		pBasic->pCtx->alloc.fpFree(outBuf.buf.pArr);
-	}
-	if (outBuf.final.pArr) {
-		pBasic->pCtx->alloc.fpFree(outBuf.final.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pBasic->pCtx->alloc, &outBuf.buf);
+	PIXALC_DYN_ARR_DESTROY(&pBasic->pCtx->alloc, &outBuf.final);
 }
 

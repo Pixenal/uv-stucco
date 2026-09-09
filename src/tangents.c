@@ -165,12 +165,7 @@ void addOrMergeFaceTPieces(
 ) {
 	const StucMesh *pMesh = &pInMesh->core;
 	FaceRange face = stucGetFaceRange(&pInMesh->core, faceIdx);
-	PIXALC_DYN_ARR_RESIZE_ZERO(
-		TPieceVertSearch,
-		&pCtx->alloc,
-		pVertEntryArr,
-		face.range.size
-	);
+	PIXALC_DYN_ARR_RESIZE_ZERO(&pCtx->alloc, pVertEntryArr, face.range.size);
 	for (I32 i = 0; i < face.range.size; ++i) {
 		pVertEntryArr->pArr[i].result = pixuctHTableGet(
 			pVertTable,
@@ -191,7 +186,7 @@ void addOrMergeFaceTPieces(
 			return; //no entries were found for this face
 		}
 		//all entries are new, so append new tPiece to arr
-		PIXALC_DYN_ARR_ADD(TPieceBuf, &pCtx->alloc, pTPieces, tPiece);
+		PIXALC_DYN_ARR_ADD(&pCtx->alloc, pTPieces, tPiece);
 		pTPieces->pArr[tPiece] = (TPieceBuf) {0};
 	}
 	else {
@@ -306,7 +301,7 @@ void buildTPieces(
 			pChecked[i] = true;
 		}
 	}
-	PIXALC_DYN_ARR_DESTROY(TPieceVertSearchArr, &pCtx->alloc, &vertEntryMem);
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &vertEntryMem);
 	pCtx->alloc.fpFree(pChecked);
 	
 	for (I32 i = 0; i < pInCore->faceCount; ++i) {
@@ -334,14 +329,13 @@ void buildTPieces(
 			pEntry->tPiece = bufIdx;
 			TPieceBuf *pBuf = tPiecesBuf.pArr + bufIdx;
 			if (!pBuf->added) {
-				PIXALC_DYN_ARR_ADD(TPiece, &pCtx->alloc, pTPieces, pBuf->idx);
+				PIXALC_DYN_ARR_ADD(&pCtx->alloc, pTPieces, pBuf->idx);
 				pTPieces->pArr[pBuf->idx] = (TPiece) {0};
 				pBuf->added = true;
 			}
 			PIX_ERR_ASSERT("", pBuf->idx >= 0u && pBuf->idx < (U32)pTPieces->count);
 			I32 faceArrIdx = -1;
 			PIXALC_DYN_ARR_ADD(
-				TPieceInFace,
 				&pCtx->alloc,
 				(&pTPieces->pArr[pBuf->idx].inFaces),
 				faceArrIdx
@@ -425,12 +419,7 @@ StucErr stucBuildTangentsForInPieces(
 			PIX_ERR_ASSERT("", tPieces.pArr[i].inFaces.pArr);
 			for (I32 j = 0; j < tPieces.pArr[i].inFaces.count; ++j) {
 				I32 faceJobLocal = -1;
-				PIXALC_DYN_ARR_ADD(
-					I32,
-					&pCtx->alloc,
-					(&jobArgs[job].faces),
-					faceJobLocal
-				);
+				PIXALC_DYN_ARR_ADD(&pCtx->alloc, (&jobArgs[job].faces), faceJobLocal);
 				PIX_ERR_ASSERT("", faceJobLocal != -1);
 				jobArgs[job].faces.pArr[faceJobLocal] = jobArgs[job].cornerCount;
 

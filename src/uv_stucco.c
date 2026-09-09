@@ -167,10 +167,7 @@ StucErr stucContextDestroy(StucCtx *pCtx) {
 	if (pCtx->threadPool.fpDestroy) {
 		pCtx->threadPool.fpDestroy(&pCtx->threadPool.handle);
 	}
-	if (pCtx->logPath.pArr) {
-		PIX_ERR_ASSERT("", pCtx->logPath.size > 0);
-		pCtx->alloc.fpFree(pCtx->logPath.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pCtx->logPath);
 	*pCtx = (StucCtx){0};
 	return PIX_ERR_SUCCESS;
 }
@@ -284,25 +281,6 @@ StucErr stucQueryCommonAttribs(
 	return err;
 }
 
-/*
-StucErr stucDestroyBlendOptArr(
-	StucCtx *pCtx,
-	StucBlendOptArr *pOptArr
-) {
-	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pOptArr, "");
-	for (I32 domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_MESH; ++domain) {
-		StucBlendOptArr *pArr = pOptArr + domain;
-		if (pArr) {
-			pCtx->alloc.fpFree(pArr->pArr);
-			pArr->pArr = NULL;
-		}
-		pArr->count = pArr->size = 0;
-	}
-	return err;
-}
-*/
-
 static
 void collapseInPieceArr(
 	const PixalcFPtrs *pAlloc,
@@ -318,7 +296,7 @@ void collapseInPieceArr(
 	if (!count) {
 		return;
 	}
-	PIXALC_DYN_ARR_RESIZE(BufMesh, pAlloc, pDest, count);
+	PIXALC_DYN_ARR_RESIZE(pAlloc, pDest, count);
 	for (I32 i = 1; i < jobCount; ++i) {
 		const BufMeshArr *pSrc = clip ?
 			&pJobArgs[i].bufMeshClipArr : &pJobArgs[i].bufMeshArr;
@@ -372,7 +350,6 @@ StucErr mapToMeshInternal(
 		.maskIdx = maskIdx,
 		.pInFaceTable = pInFaceTable,
 	};
-	//printf("A\n");
 	if (pInFaceTable) {
 		pixalcLinAllocInit(
 			&pCtx->alloc,
@@ -429,13 +406,11 @@ StucErr mapToMeshInternal(
 		clustForIslandJobCount,
 		true
 	);
-	//printf("B\n");
 
 	PixuctHTable mergeTable = {0};
 	stucVertMergeTableInit(&basic, pBufMeshArr, pBufMeshClipArr, &mergeTable);
 	stucMergeVerts(&basic, pBufMeshArr, false, &mergeTable);
 	stucMergeVerts(&basic, pBufMeshClipArr, true, &mergeTable);
-	//printf("E\n");
 
 	//TODO implement vert snapping
 	//(also func doesn't currently account for InPieceArr->pNext)
@@ -449,7 +424,6 @@ StucErr mapToMeshInternal(
 		&snappedVerts
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	//printf("F\n");
 	*/
 
 	stucInitOutMesh(&basic, &mergeTable/*, snappedVerts*/);
@@ -480,7 +454,6 @@ StucErr mapToMeshInternal(
 		goto cleanUp;
 	}
 	stucMeshSetLastFace(pCtx, &basic.outMesh);
-	//printf("G\n");
 
 	err = stucBuildTangentsForInPieces(
 		pCtx,
@@ -490,7 +463,6 @@ StucErr mapToMeshInternal(
 		&mergeTable
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	//printf("H\n");
 	
 	err = stucXFormAndInterpVerts(
 		&basic,
@@ -537,7 +509,6 @@ StucErr mapToMeshInternal(
 		STUC_DOMAIN_CORNER, stucInterpCornerAttribs
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	//printf("I\n");
 	if (pCark->valid) {
 		err = CARK_STAGE_END(*pCark, STUC_STAGE_OUTMESH);
 		PIX_ERR_RETURN_IFNOT(err, "")
@@ -545,14 +516,9 @@ StucErr mapToMeshInternal(
 
 	stucReallocMeshToFit(pCtx, &basic.outMesh);
 	*pOutMesh = basic.outMesh.core;
-	//printf("J\n");
 cleanUp:
-	if (outBufIdxArr.pArr) {
-		pCtx->alloc.fpFree(outBufIdxArr.pArr);
-	}
-	if (bufOutTable.pArr) {
-		pCtx->alloc.fpFree(bufOutTable.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &outBufIdxArr);
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &bufOutTable);
 	pixuctHTableDestroy(&mergeTable);
 	if (pBufMeshArr->pArr) {
 		stucBufMeshArrDestroy(pCtx, pBufMeshArr);
@@ -560,7 +526,6 @@ cleanUp:
 	if (pBufMeshClipArr->pArr) {
 		stucBufMeshArrDestroy(pCtx, pBufMeshClipArr);
 	}
-	//printf("K\n");
 	return err;
 }
 
@@ -1268,9 +1233,7 @@ StucErr mapMapArrToMesh(
 		}
 		pCtx->alloc.fpFree(pOutBufArr);
 	}
-	if (outObjWrapArr.pArr) {
-		pCtx->alloc.fpFree(outObjWrapArr.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &outObjWrapArr);
 	return err;
 }
 
@@ -1322,22 +1285,10 @@ void destroyAppendedSpAttribs(StucCtx *pCtx, StucMesh *pMesh, UBitField32 flags)
 			}
 		}
 	}
-	if (pMesh->faceAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->faceAttribs.pArr);
-		pMesh->faceAttribs.pArr = NULL;
-	}
-	if (pMesh->cornerAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->cornerAttribs.pArr);
-		pMesh->cornerAttribs.pArr = NULL;
-	}
-	if (pMesh->edgeAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->edgeAttribs.pArr);
-		pMesh->edgeAttribs.pArr = NULL;
-	}
-	if (pMesh->vertAttribs.pArr) {
-		pCtx->alloc.fpFree(pMesh->vertAttribs.pArr);
-		pMesh->vertAttribs.pArr = NULL;
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pMesh->faceAttribs);
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pMesh->cornerAttribs);
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pMesh->edgeAttribs);
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pMesh->vertAttribs);
 }
 
 static
@@ -1516,10 +1467,7 @@ StucErr stucAttribArrDestroy(const StucCtx *pCtx, StucAttribArray *pArr) {
 			pCtx->alloc.fpFree(pArr->pArr[i].core.pData);
 		}
 	}
-	if (pArr->pArr) {
-		pCtx->alloc.fpFree(pArr->pArr);
-	}
-	*pArr = (StucAttribArray){0};
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 	return PIX_ERR_SUCCESS;
 }
 
@@ -1747,30 +1695,19 @@ StucErr stucAttribIndexedArrDestroy(StucCtx *pCtx, StucAttribIndexedArr *pArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pArr, "");
 	PIX_ERR_ASSERT("", !(!pArr->pArr ^ !pArr->count));
-	if (pArr->pArr) {
-		for (I32 i = 0; i < pArr->count; ++i) {
-			if (pArr->pArr[i].core.pData) {
-				pCtx->alloc.fpFree(pArr->pArr[i].core.pData);
-			}
+	for (I32 i = 0; i < pArr->count; ++i) {
+		if (pArr->pArr[i].core.pData) {
+			pCtx->alloc.fpFree(pArr->pArr[i].core.pData);
 		}
-		pCtx->alloc.fpFree(pArr->pArr);
 	}
-	*pArr = (StucAttribIndexedArr){0};
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 	return err;
 }
 
 StucErr stucMapArrDestroy(StucCtx *pCtx, StucMapArr *pMapArr) {
 	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCtx && pMapArr, "");
-	if (pMapArr->pArr) {
-		/*
-		for (I32 i = 0; i < pMapArr->count; ++i) {
-			stucDestroyBlendOptArr(pCtx, pMapArr->pArr[i].blendOptArr);
-		}
-		*/
-		pCtx->alloc.fpFree(pMapArr->pArr);
-	}
-	*pMapArr = (StucMapArr){0};
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pMapArr);
 	return err;
 }
 
@@ -1801,7 +1738,7 @@ StucErr stucLogPathSet(StucCtx *pCtx, const char *pPath) {
 	I32 lenMax = pixioPathMaxGet();
 	I32 len = strnlen(pPath, lenMax);
 	PIX_ERR_RETURN_IFNOT_COND(err, len > 0 && len < lenMax, "invalid path")
-	PIXALC_DYN_ARR_RESIZE(char, &pCtx->alloc, &pCtx->logPath, len + 1);
+	PIXALC_DYN_ARR_RESIZE(&pCtx->alloc, &pCtx->logPath, len + 1);
 	memcpy(pCtx->logPath.pArr, pPath, len + 1);
 	return err;
 }

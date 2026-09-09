@@ -101,7 +101,7 @@ SearchResult inFaceCacheGet(
 	if (addEntry) {
 		inFaceCacheEntryBb(pBasic, pEntry, face, pInPiece->tile);
 		I32 newCount = pCache->corners.count + pEntry->face.range.size;
-		PIXALC_DYN_ARR_RESIZE(HalfPlane, &pBasic->pCtx->alloc, &pCache->corners, newCount);
+		PIXALC_DYN_ARR_RESIZE(&pBasic->pCtx->alloc, &pCache->corners, newCount);
 		pEntry->cornersStart = pCache->corners.count;
 		initHalfPlaneLookup(
 			pBasic->pInMesh,
@@ -330,7 +330,7 @@ static
 I32 bufMeshAllocInOrMapVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertInOrMapArr *pVertArr = &pBufMesh->inOrMapVerts;
 	I32 newVert = -1;
-	PIXALC_DYN_ARR_ADD(InOrMapVert, &pBasic->pCtx->alloc, pVertArr, newVert);
+	PIXALC_DYN_ARR_ADD(&pBasic->pCtx->alloc, pVertArr, newVert);
 	PIX_ERR_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -339,7 +339,7 @@ static
 I32 bufMeshAllocOnEdgeVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertOnEdgeArr *pVertArr = &pBufMesh->onEdgeVerts;
 	I32 newVert = -1;
-	PIXALC_DYN_ARR_ADD(BufVertOnEdge, &pBasic->pCtx->alloc, pVertArr, newVert);
+	PIXALC_DYN_ARR_ADD(&pBasic->pCtx->alloc, pVertArr, newVert);
 	PIX_ERR_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -348,7 +348,7 @@ static
 I32 bufMeshAllocOverlapVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertOverlapArr *pVertArr = &pBufMesh->overlapVerts;
 	I32 newVert = -1;
-	PIXALC_DYN_ARR_ADD(OverlapVert, &pBasic->pCtx->alloc, pVertArr, newVert);
+	PIXALC_DYN_ARR_ADD(&pBasic->pCtx->alloc, pVertArr, newVert);
 	PIX_ERR_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -357,7 +357,7 @@ static
 I32 bufMeshAllocIntersectVert(const MapToMeshBasic *pBasic, BufMesh *pBufMesh) {
 	BufVertIntersectArr *pVertArr = &pBufMesh->intersectVerts;
 	I32 newVert = -1;
-	PIXALC_DYN_ARR_ADD(IntersectVert, &pBasic->pCtx->alloc, pVertArr, newVert);
+	PIXALC_DYN_ARR_ADD(&pBasic->pCtx->alloc, pVertArr, newVert);
 	PIX_ERR_ASSERT("", newVert >= 0);
 	return newVert;
 }
@@ -635,7 +635,7 @@ PixErr bufMeshAddFace(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	I32 newIdx = -1;
-	PIXALC_DYN_ARR_ADD(BufFace, &pArgs->pCtx->alloc, (&pBufMesh->faces), newIdx);
+	PIXALC_DYN_ARR_ADD(&pArgs->pCtx->alloc, (&pBufMesh->faces), newIdx);
 	PIX_ERR_ASSERT("", newIdx != -1);
 	pBufMesh->faces.pArr[newIdx].start = start;
 	pBufMesh->faces.pArr[newIdx].size = faceSize;
@@ -816,7 +816,7 @@ PixErr bufMeshAddCorner(
 	const MapToMeshBasic *pBasic = pArgs->pShared;
 	BufCornerArr *pCorners = &pBufMesh->corners;
 	I32 newCorner = -1;
-	PIXALC_DYN_ARR_ADD(BufCorner, &pBasic->pCtx->alloc, pCorners, newCorner);
+	PIXALC_DYN_ARR_ADD(&pBasic->pCtx->alloc, pCorners, newCorner);
 	PIX_ERR_ASSERT("", newCorner >= 0);
 	pCorners->pArr[newCorner].type = type;
 	pCorners->pArr[newCorner].vert = vert;
@@ -1111,25 +1111,15 @@ StucErr addNonClipInPieceToBufMesh(
 static
 void borderCacheDestroy(const StucAlloc *pAlloc, BorderCache *pCache) {
 	for (I32 i = 0; i < pCache->arr.size; ++i) {
-		if (pCache->ordered.pArr[i].pArr) {
-			pAlloc->fpFree(pCache->ordered.pArr[i].pArr);
-		}
+		PIXALC_DYN_ARR_DESTROY(pAlloc, pCache->ordered.pArr + i);
 	}
-	if (pCache->arr.pArr) {
-		pAlloc->fpFree(pCache->arr.pArr);
-	}
-	if (pCache->ordered.pArr) {
-		pAlloc->fpFree(pCache->ordered.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pCache->arr);
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pCache->ordered);
 	if (pCache->alloc.valid) {
 		pixalcLinAllocDestroy(&pCache->alloc);
 	}
-	if (pCache->inFaceCache.corners.pArr) {
-		pAlloc->fpFree(pCache->inFaceCache.corners.pArr);
-	}
-	if (pCache->borderSizes.pArr) {
-		pAlloc->fpFree(pCache->borderSizes.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pCache->inFaceCache.corners);
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pCache->borderSizes);
 	*pCache = (BorderCache){0};
 }
 
@@ -1352,7 +1342,6 @@ StucErr stucClipMapFace(
 		StucInIsland *pPieceIsland = pBorderCache->pieceIslands.pArr + i;
 		I32 borderCount = pPieceIsland->core.borders.count;
 		PIXALC_DYN_ARR_RESIZE(
-			I32,
 			&pBasic->pCtx->alloc,
 			&pBorderCache->borderSizes,
 			borderCount
@@ -1522,9 +1511,7 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 	plycutMemDestroy(&plycutAlc);
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	borderCacheDestroy(pAlloc, &borderCache);
-	if (orderCache.pArr) {
-		pAlloc->fpFree(orderCache.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &orderCache);
 	return err;
 }
 
@@ -1629,7 +1616,6 @@ void bufMeshArrMoveToInPieces(
 ) {
 	if (jobCount) {
 		PIXALC_DYN_ARR_RESIZE(
-			BufMesh,
 			pAlloc,
 			pBufMeshArr,
 			pBufMeshArr->count + jobCount
@@ -1697,28 +1683,14 @@ void stucBufMeshArrDestroy(StucCtx *pCtx, BufMeshArr *pArr) {
 		return;
 	}
 	for (I32 i = 0; i < pArr->count; ++i) {
-		if (pArr->pArr[i].faces.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].faces.pArr);
-		}
-		if (pArr->pArr[i].corners.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].corners.pArr);
-		}
-		if (pArr->pArr[i].inOrMapVerts.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].inOrMapVerts.pArr);
-		}
-		if (pArr->pArr[i].onEdgeVerts.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].onEdgeVerts.pArr);
-		}
-		if (pArr->pArr[i].overlapVerts.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].overlapVerts.pArr);
-		}
-		if (pArr->pArr[i].intersectVerts.pArr) {
-			pCtx->alloc.fpFree(pArr->pArr[i].intersectVerts.pArr);
-		}
-		pArr->pArr[i] = (BufMesh) {0};
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].faces);
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].corners);
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].inOrMapVerts);
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].onEdgeVerts);
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].overlapVerts);
+		PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->pArr[i].intersectVerts);
 	}
-	pCtx->alloc.fpFree(pArr->pArr);
-	*pArr = (BufMeshArr){0};
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 }
 
 typedef struct BorderInfo {
@@ -1765,13 +1737,13 @@ PixErr stucIslandClustAdd(
 	PIX_ERR_ASSERT("", status > 0 && status < 4);
 	V2_I16 tile16 = {tile.d[0], tile.d[1]};
 	I32 newIdx = 0;
-	PIXALC_DYN_ARR_ADD(ClustIdx, pAlloc, pArr, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, pArr, newIdx);
 	pArr->pArr[newIdx] = (ClustIdx){.idx = (U32)idx, .type = (U32)status};
 	if (!pArr->tiles.count ||
 		!_(pArr->tiles.pArr[pArr->tiles.count - 1].tile V2I16EQL tile16)
 	) {
 		I32 tileIdx = 0;
-		PIXALC_DYN_ARR_ADD(TileRange, pAlloc, &pArr->tiles, tileIdx);
+		PIXALC_DYN_ARR_ADD(pAlloc, &pArr->tiles, tileIdx);
 		pArr->tiles.pArr[tileIdx] = (TileRange){
 			.tile = tile16,
 			.range = {.start = newIdx, .end = newIdx + 1}
@@ -1829,16 +1801,9 @@ bool bufMeshArrIsEmpty(const BufMeshArr *pBufMeshArr) {
 
 static
 void clustArrDestroy(const PixalcFPtrs *pAlloc, IslandClustArr *pClustArr) {
-	if (pClustArr->start.arr.pArr) {
-		pAlloc->fpFree(pClustArr->start.arr.pArr);
-	}
-	if (pClustArr->pArr) {
-		pAlloc->fpFree(pClustArr->pArr);
-	}
-	if (pClustArr->tiles.pArr) {
-		pAlloc->fpFree(pClustArr->tiles.pArr);
-	}
-	*pClustArr = (IslandClustArr){0};
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pClustArr->start.arr);
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &pClustArr->tiles);
+	PIXALC_DYN_ARR_DESTROY(pAlloc, pClustArr);
 }
 
 static
@@ -1857,9 +1822,7 @@ void findEncasedFacesJobArgsDestroy(
 			);
 			pAlloc->fpFree(pInFaces->pArr[j].pArr);
 		}
-		if (pInFaces->pArr) {
-			pAlloc->fpFree(pInFaces->pArr);
-		}
+		PIXALC_DYN_ARR_DESTROY(pAlloc, pInFaces);
 	}
 	pAlloc->fpFree(pArgs);
 }
@@ -1919,7 +1882,7 @@ StucErr stucMapMeshForIsland(void *pArgsRaw) {
 		I32 arrSize = clutreStartArrSize(&clustArr.start);
 		{
 			I32 oldSize = clustArr.start.arr.size;
-			PIXALC_DYN_ARR_RESIZE(ClutreValidIdx, pAlloc, &clustArr.start.arr, arrSize);
+			PIXALC_DYN_ARR_RESIZE(pAlloc, &clustArr.start.arr, arrSize);
 			if (oldSize < clustArr.start.arr.size) {
 				memset(
 					clustArr.start.arr.pArr + oldSize,

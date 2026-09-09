@@ -413,10 +413,7 @@ void stucBufMeshArrDestroy(StucCtx *pCtx, BufMeshArr *pArr);
 
 static inline
 void inPieceArrDestroy(const StucCtx *pCtx, InPieceArr *pArr) {
-	if (pArr->pArr) {
-		pCtx->alloc.fpFree(pArr->pArr);
-	}
-	*pArr = (InPieceArr){0};
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 }
 
 static inline

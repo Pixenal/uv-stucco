@@ -468,15 +468,10 @@ PixErr encodeActiveAttribs(
 
 static
 void destroyIdxTableArr(StucAlloc *pAlloc, StucIdxTableArr *pArr) {
-	if (pArr->pArr) {
-		for (I32 i = 0; i < pArr->count; ++i) {
-			if (pArr->pArr[i].table.pArr) {
-				pAlloc->fpFree(pArr->pArr[i].table.pArr);
-			}
-		}
-		pAlloc->fpFree(pArr->pArr);
+	for (I32 i = 0; i < pArr->count; ++i) {
+		PIXALC_DYN_ARR_DESTROY(pAlloc, &pArr->pArr[i].table);
 	}
-	*pArr = (StucIdxTableArr){0};
+	PIXALC_DYN_ARR_DESTROY(pAlloc, pArr);
 }
 
 static
@@ -668,13 +663,11 @@ void optsFinalEncode(
 	pixioByteArrWrite(pAlloc, pData, &header, BITLEN(MAPPING_OPT_HEADER));
 	pixioByteArrWrite(pAlloc, pData, &pMatMapEntry->linIdx, BITLEN(MAPPING_OPT_IDX));
 	if (blendOptOverride) {
-		PIXALC_DYN_ARR_RESIZE(U8, pAlloc, pData, pData->byteIdx + pBlendOpt->byteIdx);
+		PIXALC_DYN_ARR_RESIZE(pAlloc, pData, pData->byteIdx + pBlendOpt->byteIdx);
 		memcpy(pData->pArr + pData->byteIdx, pBlendOpt->pArr, pBlendOpt->byteIdx);
 		pData->byteIdx += pBlendOpt->byteIdx;
 	}
-	if (pBlendOpt->pArr) {
-		pAlloc->fpFree(pBlendOpt->pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, pBlendOpt);
 	if (wScaleOverride) {
 		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->wScale, BITLEN(MAPPING_OPT_WSCALE));
 	}
@@ -995,9 +988,7 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 	if (file.pFile) {
 		err = pHandle->pCtx->io.fpClose(&file);
 	}
-	if (header.pArr) {
-		pAlloc->fpFree(header.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(pAlloc, &header);
 	if (pCompressed) {
 		pAlloc->fpFree(pCompressed);
 	}
@@ -1386,7 +1377,7 @@ StucErr decodeStucHeader(
 				I32 len = (I32)strnlen(pBuf, pathMax);
 				PIX_ERR_THROW_IFNOT_COND(err, len != pathMax, "", 0);
 				I32 newIdx = 0;
-				PIXALC_DYN_ARR_ADD(PixtyStr, &pCtx->alloc, &pDeps->maps, newIdx);
+				PIXALC_DYN_ARR_ADD(&pCtx->alloc, &pDeps->maps, newIdx);
 				pDeps->maps.pArr[newIdx].pStr = pCtx->alloc.fpMalloc(len + 1);
 				memcpy(pDeps->maps.pArr[newIdx].pStr, pBuf, len + 1);
 				break;
@@ -1452,6 +1443,16 @@ StucErr loadIdxRedirects(
 }
 
 static
+PixErr attribArrInit(const StucCtx *pCtx, PixioByteArr *pData, AttribArray *pAttribArr) {
+	PixErr err = PIX_ERR_SUCCESS;
+	pixioByteArrRead(pData, &pAttribArr->count, BITLEN(ATTRIB_COUNT));
+	PIXALC_DYN_ARR_RESIZE_ZERO(&pCtx->alloc, pAttribArr, pAttribArr->count);
+	err = decodeAttribMeta(pData, pAttribArr);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+static
 StucErr loadObj(
 	StucCtx *pCtx,
 	StucObject *pObj,
@@ -1490,35 +1491,17 @@ StucErr loadObj(
 	}
 	err = isDataTagInvalid(pData, TAG_MESH_HEADER);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	pixioByteArrRead(pData, &pMesh->meshAttribs.count, BITLEN(ATTRIB_COUNT));
-	pMesh->meshAttribs.pArr = pMesh->meshAttribs.count ?
-		pCtx->alloc.fpCalloc(pMesh->meshAttribs.count, sizeof(StucAttrib)) : NULL;
-	err = decodeAttribMeta(pData, &pMesh->meshAttribs);
-	PIX_ERR_THROW_IFNOT(err, "Failed to decode mesh attrib meta", 0);
 
-	pixioByteArrRead(pData, &pMesh->faceAttribs.count, BITLEN(ATTRIB_COUNT));
-	pMesh->faceAttribs.pArr = pMesh->faceAttribs.count ?
-		pCtx->alloc.fpCalloc(pMesh->faceAttribs.count, sizeof(StucAttrib)) : NULL;
-	err = decodeAttribMeta(pData, &pMesh->faceAttribs);
-	PIX_ERR_THROW_IFNOT(err, "Failed to decode face attrib meta", 0);
-
-	pixioByteArrRead(pData, &pMesh->cornerAttribs.count, BITLEN(ATTRIB_COUNT));
-	pMesh->cornerAttribs.pArr = pMesh->cornerAttribs.count ?
-		pCtx->alloc.fpCalloc(pMesh->cornerAttribs.count, sizeof(StucAttrib)) : NULL;
-	err = decodeAttribMeta(pData, &pMesh->cornerAttribs);
-	PIX_ERR_THROW_IFNOT(err, "Failed to decode corner attrib meta", 0);
-
-	pixioByteArrRead(pData, &pMesh->edgeAttribs.count, BITLEN(ATTRIB_COUNT));
-	pMesh->edgeAttribs.pArr = pMesh->edgeAttribs.count ?
-		pCtx->alloc.fpCalloc(pMesh->edgeAttribs.count, sizeof(StucAttrib)) : NULL;
-	err = decodeAttribMeta(pData, &pMesh->edgeAttribs);
-	PIX_ERR_THROW_IFNOT(err, "Failed to decode edge meta", 0);
-
-	pixioByteArrRead(pData, &pMesh->vertAttribs.count, BITLEN(ATTRIB_COUNT));
-	pMesh->vertAttribs.pArr = pMesh->vertAttribs.count ?
-		pCtx->alloc.fpCalloc(pMesh->vertAttribs.count, sizeof(StucAttrib)) : NULL;
-	err = decodeAttribMeta(pData, &pMesh->vertAttribs);
-	PIX_ERR_THROW_IFNOT(err, "Failed to decode vert attrib meta", 0);
+	err = attribArrInit(pCtx, pData, &pMesh->meshAttribs);
+	PIX_ERR_THROW_IFNOT(err, "failed to decode mesh attrib meta", 0);
+	err = attribArrInit(pCtx, pData, &pMesh->faceAttribs);
+	PIX_ERR_THROW_IFNOT(err, "failed to decode face attrib meta", 0);
+	err = attribArrInit(pCtx, pData, &pMesh->cornerAttribs);
+	PIX_ERR_THROW_IFNOT(err, "failed to decode corner attrib meta", 0);
+	err = attribArrInit(pCtx, pData, &pMesh->edgeAttribs);
+	PIX_ERR_THROW_IFNOT(err, "failed to decode edge attrib meta", 0);
+	err = attribArrInit(pCtx, pData, &pMesh->vertAttribs);
+	PIX_ERR_THROW_IFNOT(err, "failed to decode vert attrib meta", 0);
 
 	pixioByteArrRead(pData, &pMesh->faceCount, BITLEN(MESH_COMP_COUNT));
 	pixioByteArrRead(pData, &pMesh->cornerCount, BITLEN(MESH_COMP_COUNT));
@@ -1654,7 +1637,7 @@ StucErr loadMapOverrides(
 		return err;
 	}
 	I32 newIdx = 0;
-	PIXALC_DYN_ARR_ADD(ObjMapOpts, pAlloc, pMapOptsArr, newIdx);
+	PIXALC_DYN_ARR_ADD(pAlloc, pMapOptsArr, newIdx);
 	ObjMapOpts *pOpts = pMapOptsArr->pArr + newIdx;
 	pOpts->obj = objIdx;
 	pOpts->arr.size = pOpts->arr.count = count;
@@ -1906,14 +1889,13 @@ StucErr importMapHeader(
 	StucMapDeps *pDeps
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PixioByteArr headerPixioByteArr = {0};
-	I32 headerSize = 0;
-	err = pCtx->io.fpRead(pFile, &headerSize, BITLEN(HEADER_SIZE) / 8);
+	PixioByteArr headerByteArr = {0};
+	err = pCtx->io.fpRead(pFile, &headerByteArr.size, BITLEN(HEADER_SIZE) / 8);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	headerPixioByteArr.pArr = pCtx->alloc.fpMalloc(headerSize);
-	err = pCtx->io.fpRead(pFile, headerPixioByteArr.pArr, headerSize);
+	headerByteArr.pArr = pCtx->alloc.fpMalloc(headerByteArr.size);
+	err = pCtx->io.fpRead(pFile, headerByteArr.pArr, headerByteArr.size);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = decodeStucHeader(pCtx, &headerPixioByteArr, pHeader, pDeps);
+	err = decodeStucHeader(pCtx, &headerByteArr, pHeader, pDeps);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_THROW_IFNOT_COND(
 		err,
@@ -1928,9 +1910,7 @@ StucErr importMapHeader(
 		0
 	);
 	PIX_ERR_CATCH(0, err, ;);
-	if (headerPixioByteArr.pArr) {
-		pCtx->alloc.fpFree(headerPixioByteArr.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &headerByteArr);
 	return err;
 }
 
@@ -2028,9 +2008,7 @@ StucErr stucMapImport(
 	if (pDataRaw) {
 		pCtx->alloc.fpFree(pDataRaw);
 	}
-	if (dataPixioByteArr.pArr) {
-		pCtx->alloc.fpFree(dataPixioByteArr.pArr);
-	}
+	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &dataPixioByteArr);
 	return err;
 }
 
@@ -2299,7 +2277,7 @@ StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 
 	if (pParent) {
 		I32 newIdx = 0;
-		PIXALC_DYN_ARR_ADD(void *, pAlloc, &pParent->pMap->deps, newIdx);
+		PIXALC_DYN_ARR_ADD(pAlloc, &pParent->pMap->deps, newIdx);
 		pParent->pMap->deps.pArr[newIdx] = pStackEntry->pMap;
 	}
 	if (pMap) {
@@ -2375,14 +2353,9 @@ StucErr initFlatCutoff(
 static
 void destroyMapOptsArr(const StucAlloc *pAlloc, ObjMapOptsArr *pArr) {
 	for (I32 i = 0; i < pArr->count; ++i) {
-		if (pArr->pArr[i].arr.pArr) {
-			pAlloc->fpFree(pArr->pArr[i].arr.pArr);
-		}
+		PIXALC_DYN_ARR_DESTROY(pAlloc, &pArr->pArr[i].arr);
 	}
-	if (pArr->pArr) {
-		pAlloc->fpFree(pArr->pArr);
-	}
-	*pArr = (ObjMapOptsArr){0};
+	PIXALC_DYN_ARR_DESTROY(pAlloc, pArr);
 }
 
 static inline
@@ -2748,9 +2721,7 @@ StucErr stucMapLoadDestroy(StucMapLoad *pLoadCtx) {
 	pixalcLinAllocIterInit(pLinAlloc, (PixtyRange){0, INT32_MAX}, &iter);
 	for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
 		StucMapDepEntry *pEntry = pixalcLinAllocGetItem(&iter);
-		if (pEntry->deps.pArr) {
-			pLoadCtx->pCtx->alloc.fpFree(pEntry->deps.pArr);
-		}
+		PIXALC_DYN_ARR_DESTROY(&pLoadCtx->pCtx->alloc, &pEntry->deps);
 		if (pEntry->pNameInFile != pEntry->pName) {
 			pLoadCtx->pCtx->alloc.fpFree(pEntry->pNameInFile);
 		}
