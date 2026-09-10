@@ -216,6 +216,7 @@ bool isClustOnBorder(
 	PIX_ERR_ASSERT("", tileRange.start >= 0 && tileRange.end > tileRange.start);
 	PixtyRange range = tileRange;
 	I32 rangeSize;
+	//find which island cluster this one resides in
 	while ((rangeSize = range.end - range.start) / 2) {
 		I32 mid = range.start + rangeSize / 2;
 		PixtyRange midFaces = {0};
@@ -233,7 +234,11 @@ bool isClustOnBorder(
 		pArr->pArr[range.start].idx,
 		&parentFaces
 	);
-	PIX_ERR_ASSERT("", faces.start >= parentFaces.start && faces.end <= parentFaces.end);
+	PIX_ERR_ASSERT(
+		"if this fails, the cluster lies outside the clusters that were\
+		sampled for this island, this usually happens if the island's border is invalid",
+		faces.start >= parentFaces.start && faces.end <= parentFaces.end
+	);
 	ClutreIntersect type = (ClutreIntersect)pArr->pArr[range.start].type;
 	return type == CLUTRE_INTERSECT || type == CLUTRE_ENCLOSED;
 }
