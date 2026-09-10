@@ -649,7 +649,7 @@ StucErr stucAttribArrDestroy(const StucCtx *pCtx, StucAttribArray *pArr);
 STUC_EXPORT
 StucErr stucMeshDestroy(const StucCtx *pCtx, StucMesh *pMesh);
 STUC_EXPORT
-StucErr stucContextDestroy(StucCtx *pCtx);
+StucErr stucCtxDestroy(StucCtx *pCtx);
 STUC_EXPORT
 StucErr stucGetAttribSize(const StucAttribCore *pAttrib, int32_t *pSize);
 STUC_EXPORT

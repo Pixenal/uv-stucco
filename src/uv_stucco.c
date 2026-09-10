@@ -157,13 +157,13 @@ StucErr stucInit(
 	//TODO add ability to set custom specialAttrib names
 
 	PIX_ERR_CATCH(0, err,
-		stucContextDestroy(pCtx);
+		stucCtxDestroy(pCtx);
 	);
 	return err;
 }
 
 //TODO rename to stucDestroy
-StucErr stucContextDestroy(StucCtx *pCtx) {
+StucErr stucCtxDestroy(StucCtx *pCtx) {
 	if (pCtx->threadPool.fpDestroy) {
 		pCtx->threadPool.fpDestroy(&pCtx->threadPool.handle);
 	}
