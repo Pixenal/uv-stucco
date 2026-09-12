@@ -1375,6 +1375,7 @@ StucErr stucClipMapFace(
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
 	void *pPlycutAlc,
+	void *pClipOut,
 	PixtyI32Arr *pOrderCache
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -1409,19 +1410,18 @@ StucErr stucClipMapFace(
 				.boundaries = 1,
 				.pUserData = &mapFace
 			};
-			PlycutFaceArr out = {0};
 			pBorderCache->activeBorder = -1;
 			err = plycutClip(
 				&pBasic->pCtx->alloc,
 				pBasic,
 				pBorderCache, inInput, getBorderCornerPos,
 				NULL, mapInput, getMapCornerPos,
-				&out,
+				pClipOut,
 				NULL,
 				pPlycutAlc
 			);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
-			if (out.count) {
+			if (((PlycutFaceArr *)pClipOut)->count) {
 				addFacesToBufMesh(
 					pArgs,
 					pInFaceArr,
@@ -1431,14 +1431,14 @@ StucErr stucClipMapFace(
 					pBufMesh,
 					pOrderCache,
 					&mapFace,
-					&out,
+					pClipOut,
 					pClustArr->pIsland->wind
 				);
 			}
 			PIX_ERR_CATCH(0, err, 
 				err = PIX_ERR_SUCCESS; //skipping this face, reset err
 			);
-			plycutFaceArrDestroy(&pBasic->pCtx->alloc, &out);
+			plycutFaceArrClear(pClipOut);
 		}
 	}
 	return err;
@@ -1453,6 +1453,7 @@ StucErr stucAddMapFaceToBufMesh(
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
 	void *pPlycutAlc, //unused, needed for function callback
+	void *pClipOut, // same as ^
 	PixtyI32Arr *pOrderCache //same as ^
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -1499,6 +1500,7 @@ typedef struct BufMeshInitJobArgs {
 		BufMesh *,
 		BorderCache *,
 		void *,
+		void *,
 		PixtyI32Arr *
 	);
 	const InPieceArr *pInPiecesSplit;
@@ -1523,6 +1525,7 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 	PixuctHTableMem hTableAlc = {0};
 	PlycutMem plycutAlc = {0};
 	PixtyI32Arr orderCache = {0};
+	PlycutFaceArr clipOut = {0};
 	for (I32 i = 0; i < rangeSize; ++i) {
 		I32 inPieceIdx = pArgs->core.range.start + i;
 		const InPiece *pInPiece = pArgs->pInPiecesSplit->pArr + inPieceIdx;
@@ -1553,15 +1556,17 @@ StucErr stucBufMeshInit(void *pArgsVoid) {
 			&pArgs->bufMesh,
 			&borderCache,
 			&plycutAlc,
+			&clipOut,
 			&orderCache
 		);
 		pixuctHTableDestroy(&borderCache.inFaceCache.table);
 		pixuctHTableMemClear(&borderCache.pieceIslands.tableMem);
 	}
+	plycutFaceArrDestroy(&pBasic->pCtx->alloc, &clipOut);
 	pixmshSplitMemDestroy(&pBasic->pCtx->alloc, &splitMem);
 	stucInIslandsDestroy(pBasic->pCtx, &borderCache.pieceIslands);
 	pixuctHTableMemDestroy(&pBasic->pCtx->alloc, &hTableAlc);
-	plycutMemDestroy(&plycutAlc);
+	plycutMemDestroy(&pBasic->pCtx->alloc, &plycutAlc);
 	const StucAlloc *pAlloc = &pBasic->pCtx->alloc;
 	borderCacheDestroy(pAlloc, &borderCache);
 	PIXALC_DYN_ARR_DESTROY(pAlloc, &orderCache);
@@ -1634,6 +1639,7 @@ typedef struct BufMeshJobInitInfo {
 		BufMesh *,
 		BorderCache *,
 		void *,
+		void *,
 		PixtyI32Arr *
 	);
 } BufMeshJobInitInfo;
@@ -1694,6 +1700,7 @@ StucErr stucInPieceArrInitBufMeshes(
 		const InPiece *,
 		BufMesh *,
 		BorderCache *,
+		void *,
 		void *,
 		PixtyI32Arr *
 	)

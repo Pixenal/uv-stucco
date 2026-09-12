@@ -145,6 +145,7 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 	hitEdges.size = pMesh->core.edgeCount;
 	hitEdges.pTable = pAlloc->fpCalloc(hitEdges.size, sizeof(HitEdge));
 	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
+	PixmshTriMem mem = {0};
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMesh->core, i);
 		V3_F32 tri[3] = {0};
@@ -161,7 +162,8 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 		}
 		else {
 			PIX_ERR_ASSERT("invalid face size", face.range.size <= PIXMSH_NGON_MAX_SIZE);
-			I32 triCount = stucTriangulateFaceFromVerts(pAlloc, &face, pMesh, triBuf);
+			I32 triCount =
+				stucTriangulateFaceFromVerts(pAlloc, &mem, &face, pMesh, triBuf);
 			for (I32 j = 0; j < triCount; ++j) {
 				I32 triStart = j * 3;
 				getTri(
@@ -177,6 +179,7 @@ bool stucIsPointInsideMesh(const StucAlloc *pAlloc, V3_F32 pointV3, Mesh *pMesh)
 			}
 		}
 	}
+	pixmshTriMemDestroy(pAlloc, &mem);
 	return wind % 2;
 }
 

@@ -616,6 +616,7 @@ StucErr stucMeshTriangulate(StucCtx *pCtx, StucMesh *pMesh) {
 	bufMesh.faceCount = 0;
 	bufMesh.cornerCount = 0;
 	U8 triBuf[PIXMSH_NGON_MAX_SIZE];
+	PixmshTriMem mem = {0};
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pMesh, i);
 		if (face.range.size == 3) {
@@ -630,12 +631,14 @@ StucErr stucMeshTriangulate(StucCtx *pCtx, StucMesh *pMesh) {
 				"invalid face size",
 				face.range.size > 4 && face.range.size <= PIXMSH_NGON_MAX_SIZE
 			);
-			I32 count = stucTriangulateFaceFromVerts(&pCtx->alloc, &face, &wrap, triBuf);
+			I32 count =
+				stucTriangulateFaceFromVerts(&pCtx->alloc, &mem, &face, &wrap, triBuf);
 			for (I32 j = 0; j < count; ++j) {
 				addTri(&bufMesh, pMesh, &face, triBuf + j * 3);
 			}
 		}
 	}
+	pixmshTriMemDestroy(&pCtx->alloc, &mem);
 	/*
 	if (pMesh->pEdges) {
 		pCtx->alloc.fpFree(pMesh->pEdges);

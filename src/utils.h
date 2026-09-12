@@ -285,11 +285,12 @@ I32 stucClustVert(const void *pMeshRaw, I32 corner) {
 static inline
 I32 stucTriangulateFaceFromVerts(
 	const StucAlloc *pAlloc,
+	PixmshTriMem *pMem,
 	const FaceRange *pFace,
 	const Mesh *pMesh,
 	U8 *pTris
 ) {
-	return pixmshTriangulateFace(pAlloc, pFace->range, pMesh, stucGetVertPos, pTris);
+	return pixmshTriangulateFace(pAlloc, pMem, pFace->range, pMesh, stucGetVertPos, pTris);
 }
 
 static inline

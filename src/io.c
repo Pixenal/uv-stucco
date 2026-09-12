@@ -2306,13 +2306,15 @@ void triCacheBuild(const StucAlloc *pAlloc, StucMap *pMap) {
 	pMap->triCache.pArr =
 		pAlloc->fpCalloc(pMap->pMesh->core.faceCount, sizeof(FaceTriangulated));
 	pixalcLinAllocInit(pAlloc, &pMap->triCache.alloc, 3, 16, false);
+	PixmshTriMem mem = {0};
 	for (I32 i = 0; i < pMap->pMesh->core.faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(&pMap->pMesh->core, i);
 		if (face.range.size <= 4) {
 			continue;
 		}
 		FaceTriangulated *pTris = pMap->triCache.pArr + i;
-		pTris->count = stucTriangulateFaceFromVerts(pAlloc, &face, pMap->pMesh, triBuf);
+		pTris->count =
+			stucTriangulateFaceFromVerts(pAlloc, &mem, &face, pMap->pMesh, triBuf);
 		if (!pTris->count) {
 			continue;
 		}
@@ -2320,6 +2322,7 @@ void triCacheBuild(const StucAlloc *pAlloc, StucMap *pMap) {
 		pTris->idx = pixalcLinAlloc(&pMap->triCache.alloc, &pTrisMem, pTris->count);
 		memcpy(pTrisMem, triBuf, pTris->count * 3);
 	}
+	pixmshTriMemDestroy(pAlloc, &mem);
 }
 
 static

@@ -363,6 +363,7 @@ StucErr stucClipMapFace(
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
 	void *pPlycutAlc,
+	void *pClipOut,
 	PixtyI32Arr *pOrderCache
 );
 StucErr stucAddMapFaceToBufMesh(
@@ -374,6 +375,7 @@ StucErr stucAddMapFaceToBufMesh(
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
 	void *pPlycutAlc,
+	void *pClipOut,
 	PixtyI32Arr *pOrderCache
 );
 StucErr stucBufMeshInit(void *pArgsVoid);
@@ -400,6 +402,7 @@ StucErr stucInPieceArrInitBufMeshes(
 		const InPiece *,
 		BufMesh *,
 		BorderCache *,
+		void *,
 		void *,
 		PixtyI32Arr *
 	)
