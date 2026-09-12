@@ -1236,6 +1236,7 @@ StucErr StucSplitMeshToIslands(
 		&splitMem,
 		&splitMesh,
 		&splitIslands,
+		true,
 		splitPredicate
 	);
 	pixmshSplitMemDestroy(&pCtx->alloc, &splitMem);

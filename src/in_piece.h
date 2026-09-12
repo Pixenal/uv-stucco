@@ -230,6 +230,7 @@ typedef struct InFaceMem {
 
 typedef struct InFaceMemArr {
 	InFaceMem arr[PIXTH_MAX_SUB_MAPPING_JOBS];
+	I32 size;
 	I32 count;
 } InFaceMemArr;
 
@@ -361,7 +362,6 @@ StucErr stucClipMapFace(
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
-	void *pHTableAlc,
 	void *pPlycutAlc,
 	PixtyI32Arr *pOrderCache
 );
@@ -373,7 +373,6 @@ StucErr stucAddMapFaceToBufMesh(
 	const InPiece *pInPiece,
 	BufMesh *pBufMesh,
 	BorderCache *pBorderCache,
-	void *pHTableAlc,
 	void *pPlycutAlc,
 	PixtyI32Arr *pOrderCache
 );
@@ -401,7 +400,6 @@ StucErr stucInPieceArrInitBufMeshes(
 		const InPiece *,
 		BufMesh *,
 		BorderCache *,
-		void *,
 		void *,
 		PixtyI32Arr *
 	)
