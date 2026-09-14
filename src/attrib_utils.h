@@ -385,7 +385,7 @@ bool stucCmpAttribs(AttribArray *pDest, I32 iDest, AttribArray *pSrc, I32 iSrc) 
 	for (I32 i = 0; i < pSrc->count; ++i) {
 		AttribCore *pDestAttrib = &pDest->pArr[pDest->count + i].core;
 		AttribCore *pSrcAttrib = &pSrc->pArr[i].core;
-		if (!memcmp(
+		if (memcmp(
 			stucAttribAsVoid(pDestAttrib, iDest),
 			stucAttribAsVoid(pSrcAttrib, iSrc),
 			stucGetAttribSizeIntern(pSrcAttrib->type)
