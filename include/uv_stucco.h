@@ -764,8 +764,9 @@ StucErr stucObjectInit(
 	StucMesh *pMesh,
 	const Stuc_M4x4 *pTransform
 );
+//splits vertices with different corner attribs, unless split-all is true
 STUC_EXPORT
-StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh);
+StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh, bool splitAll);
 STUC_EXPORT
 StucErr stucMeshBuildTangentsForTris(StucCtx *pCtx, StucMesh *pMesh);
 STUC_EXPORT

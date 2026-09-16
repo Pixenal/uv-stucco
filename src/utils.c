@@ -1333,7 +1333,7 @@ void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr) {
 	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, pArr);
 }
 
-StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh) {
+StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh, bool splitAll) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 newSize = pMesh->vertAttribs.count + pMesh->cornerAttribs.count;
 	PIXALC_DYN_ARR_RESIZE(&pCtx->alloc, &pMesh->vertAttribs, newSize);
@@ -1359,7 +1359,9 @@ StucErr stucMeshAttribsCornerToVert(StucCtx *pCtx, StucMesh *pMesh) {
 			stucCopyAttribs(&pMesh->vertAttribs, vert, &pMesh->cornerAttribs, i);
 			continue;
 		}
-		bool split = !stucCmpAttribs(&pMesh->vertAttribs, vert, &pMesh->cornerAttribs, i);
+		bool split =
+			splitAll ||
+			!stucCmpAttribs(&pMesh->vertAttribs, vert, &pMesh->cornerAttribs, i);
 		if (split) {
 			stucReallocVertAttribsIfNeeded(pCtx, pMesh, &vertSize);
 			stucCopyInSameAttrib(&pMesh->vertAttribs, pMesh->vertCount, vert);
