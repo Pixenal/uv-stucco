@@ -1258,11 +1258,23 @@ StucErr StucSplitMeshToIslands(
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 	}
-	pIslands->pFaceTable = pCtx->alloc.fpMalloc(sizeof(I32) * pMesh->core.faceCount);
+	pIslands->pFaceIsland = pCtx->alloc.fpCalloc(
+		pMesh->core.faceCount,
+		PIXALC_ITEMSIZE(pIslands->pFaceIsland)
+	);
+	I32 island = 0;
 	for (I32 i = 0; i < pMesh->core.faceCount; ++i) {
+		PIX_ERR_ASSERT("", i <= pIslands->pArr[island].core.faces.end);
+		if (i == pIslands->pArr[island].core.faces.end) {
+			++island;
+			PIX_ERR_ASSERT(
+				"",
+				island < pIslands->count && i == pIslands->pArr[island].core.faces.start
+			);
+		}
 		I32 face = pIslands->faces.pArr[i];
 		PIX_ERR_ASSERT("", face >= 0 && face < pMesh->core.faceCount);
-		pIslands->pFaceTable[face] = i;
+		pIslands->pFaceIsland[face] = island;
 	}
 #ifdef STUC_USE_SUB_ISLANDS
 	SubIslandJobShared shared = {.pCtx = pCtx, .pInMesh = pMesh};
@@ -1287,10 +1299,6 @@ StucErr StucSplitMeshToIslands(
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 #endif
 	PIX_ERR_CATCH(0, err, ;);
-	if (pIslands->pFaceTable) {
-		pCtx->alloc.fpFree(pIslands->pFaceTable);
-		pIslands->pFaceTable = NULL;
-	}
 	return err;
 }
 
@@ -1303,8 +1311,8 @@ void stucInIslandsBorderArrDestroy(const StucCtx *pCtx, BorderArr *pArr) {
 
 void stucInIslandsDestroy(const StucCtx *pCtx, StucInIslandArr *pArr) {
 	PIXALC_DYN_ARR_DESTROY(&pCtx->alloc, &pArr->faces);
-	if (pArr->pFaceTable) {
-		pCtx->alloc.fpFree(pArr->pFaceTable);
+	if (pArr->pFaceIsland) {
+		pCtx->alloc.fpFree(pArr->pFaceIsland);
 	}
 	if (!pArr->pArr) {
 		*pArr = (StucInIslandArr){0};

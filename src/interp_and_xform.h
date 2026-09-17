@@ -52,6 +52,7 @@ typedef struct InterpCacheLimited {
 	StucDomain domain;
 	const StucAttribOrigin origin;
 	InterpCache cache;
+	I32 originFace;
 } InterpCacheLimited;
 
 typedef struct InterpCaches {

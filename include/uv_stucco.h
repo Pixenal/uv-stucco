@@ -91,6 +91,7 @@ typedef enum StucAttribUse {
 	STUC_ATTRIB_USE_EDGE_CORNERS,
 	//TODO remove _NORMALS_VERT and just used _NORMAL with a different active attrib
 	STUC_ATTRIB_USE_NORMALS_VERT,
+	STUC_ATTRIB_USE_TBMAG,
 	STUC_ATTRIB_USE_SP_ENUM_COUNT,//denotes number of sp uses
 	STUC_ATTRIB_USE_COLOR,
 	STUC_ATTRIB_USE_MASK,
@@ -143,6 +144,17 @@ typedef enum StucDomain {
 	STUC_DOMAIN_VERT,
 	STUC_DOMAIN_MESH
 } StucDomain;
+
+typedef enum StucWMode {
+	STUC_W_NONE,
+	STUC_W_AVERAGE,
+	STUC_W_TANGENT,
+	STUC_W_BITANGENT,
+	STUC_W_AVERAGE_UNIFORM,
+	STUC_W_TANGENT_UNIFORM,
+	STUC_W_BITANGENT_UNIFORM,
+	STUC_W_ENUM_COUNT
+} StucWMode;
 
 typedef PixErr StucErr;
 
@@ -622,6 +634,7 @@ StucErr stucQueueMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	float wScale,
 	float receiveLen,
 	bool triangulate
@@ -635,6 +648,7 @@ StucErr stucMapToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	float wScale,
 	float receiveLen,
 	bool keepExistingIdxAttribs,

@@ -62,6 +62,7 @@ typedef struct MapToMeshBasic {
 	InFaceTable *pInFaceTable;
 	const StucBlendOptArr *pOptArr;
 	I32 inFaceSize;
+	StucWMode wMode;
 	const F32 wScale;
 	const F32 receiveLen;
 	const I8 maskIdx;

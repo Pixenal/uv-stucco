@@ -165,6 +165,7 @@ void interpBufVertIn(
 					pVert->in.inFace, pVert->in.inCorner,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = pVert->in.inFace;
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyIn.a);
 			break;
@@ -179,6 +180,7 @@ void interpBufVertIn(
 					mapFace, pVert->in.tri,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = mapFace;
 			}
 			stucTriInterpolateAttrib(
 				pDest, iDest,
@@ -216,6 +218,7 @@ void interpBufVertMap(
 					pVert->map.inFace,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = pVert->map.inFace;
 			}
 			stucTriInterpolateAttrib(
 				pDest, iDest,
@@ -235,6 +238,7 @@ void interpBufVertMap(
 					mapFace, pVert->map.mapCorner,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = mapFace;
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyMap.a);
 			break;
@@ -263,6 +267,7 @@ void interpBufVertEdgeIn(
 					pVert->in.inFace, pVert->in.inCorner,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = pVert->in.inFace;
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyIn.a);
 			break;
@@ -276,6 +281,7 @@ void interpBufVertEdgeIn(
 					pVert->in.tMapEdge,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = mapFace;
 			}
 			stucLerpAttrib(
 				pDest, iDest,
@@ -310,6 +316,7 @@ void interpBufVertEdgeMap(
 					pVert->map.tInEdge,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = pVert->map.inFace;
 			}
 			stucLerpAttrib(
 				pDest, iDest,
@@ -327,6 +334,7 @@ void interpBufVertEdgeMap(
 					mapFace, pVert->map.mapCorner,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = mapFace;
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyMap.a);
 			break;
@@ -354,6 +362,7 @@ void interpBufVertOverlap(
 					pVert->inFace, pVert->inCorner,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = pVert->inFace;
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyIn.a);
 			break;
@@ -366,6 +375,7 @@ void interpBufVertOverlap(
 					mapFace, pVert->mapCorner,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = mapFace;
 			}
 			stucCopyAttribCore(pDest, iDest, pSrc, pInterpCache->cache.copyMap.a);
 			break;
@@ -394,6 +404,7 @@ void interpBufVertIntersect(
 					pVert->tInEdge,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = pVert->inFace;
 			}
 			stucLerpAttrib(
 				pDest, iDest,
@@ -412,6 +423,7 @@ void interpBufVertIntersect(
 					pVert->tMapEdge,
 					&pInterpCache->cache
 				);
+				pInterpCache->originFace = mapFace;
 			}
 			stucLerpAttrib(
 				pDest, iDest,

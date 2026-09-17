@@ -255,6 +255,59 @@ StucErr mapUvwToXyzFlat(
 }
 
 static
+PixErr wScaleGetFromTbMag(
+	const MapToMeshBasic *pBasic,
+	V2_I16 tile,
+	const BufMesh *pBufMesh,
+	FaceCorner bufCorner,
+	InterpCaches *pInterpCaches,
+	F32 *pWScale
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	V2_F32 tbMags = {0};//scale of tangent & bitangent in xyz compared to uvw
+	if (pBasic->wMode >= STUC_W_AVERAGE_UNIFORM) {
+		I32 island = pBasic->pInIslands->pFaceIsland[pInterpCaches->in.originFace];
+		tbMags = pBasic->pInIslands->pArr[island].tbMag;
+	}
+	else {
+		err = interpActiveAttrib(
+			pBasic,
+			tile,
+			pBufMesh,
+			bufCorner,
+			&pInterpCaches->in,
+			&tbMags,
+			STUC_ATTRIB_V2_F32,
+			STUC_ATTRIB_USE_TBMAG
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	switch (pBasic->wMode) {
+		case STUC_W_NONE:
+			*pWScale = 1.0f;
+			break;
+		case STUC_W_AVERAGE:
+			// v fallthrough v
+		case STUC_W_AVERAGE_UNIFORM:
+			*pWScale = (tbMags.d[0] + tbMags.d[1]) / 2.0f; 
+			break;
+		case STUC_W_TANGENT:
+			// v fallthrough v
+		case STUC_W_TANGENT_UNIFORM:
+			*pWScale = tbMags.d[0];
+			break;
+		case STUC_W_BITANGENT:
+			// v fallthrough v
+		case STUC_W_BITANGENT_UNIFORM:
+			*pWScale = tbMags.d[1];
+			break;
+		default:
+			PIX_ERR_ASSERT("invalid w mode", false);
+	}
+	return err;
+}
+
+static
 StucErr xformVertFromUvwToXyz(
 	xformAndInterpVertsJobArgs *pArgs,
 	V2_I16 tile,
@@ -342,8 +395,13 @@ StucErr xformVertFromUvwToXyz(
 		*(V3_F32 *)&tbn.d[2] = pixmV3F32Normalize(*(V3_F32 *)&tbn.d[2]);
 		PIX_ERR_RETURN_IFNOT_COND(err, !_(*(V3_F32 *)&tbn.d[2] V3EQL (V3_F32){0}), "");
 	}
+
+	F32 wScale = .0f;
+	err = wScaleGetFromTbMag(pBasic, tile, pBufMesh, bufCorner, pInterpCaches, &wScale);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	wScale *= pBasic->wScale;//multiply by global scalar
 	pArgs->pOutMesh->pPos[vertIdx] = _(
-		xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * pBasic->wScale)
+		xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * wScale)
 	);
 	*pTbn = tbn;
 
@@ -586,8 +644,15 @@ void interpAndBlendAttribs(
 	}
 }
 
+//TODO account for stretching along bi/tangent
 static
-void xformNormals(StucMesh *pMesh, I32 idx, const M3x3 *pTbn, StucDomain domain) {
+void xformNormals(
+	StucMesh *pMesh,
+	I32 idx,
+	const M3x3 *pTbn,
+	StucDomain domain,
+	F32 wScale
+) {
 	AttribArray *pAttribArr = stucGetAttribArrFromDomain(pMesh, domain);
 	for (I32 i = 0; i < pAttribArr->count; ++i) {
 		Attrib *pAttrib = pAttribArr->pArr + i;
@@ -598,7 +663,8 @@ void xformNormals(StucMesh *pMesh, I32 idx, const M3x3 *pTbn, StucDomain domain)
 				continue;
 			}
 			V3_F32 *pNormal = stucAttribAsVoid(&pAttrib->core, idx);
-			*pNormal = _(*pNormal V3MULM3X3 pTbn);
+			*pNormal = pixmV3F32Lerp((V3_F32){.0f, .0f, 1.0f}, *pNormal, wScale);
+			*pNormal = _(pixmV3F32Normalize(*pNormal) V3MULM3X3 pTbn);
 		}
 	}
 }
@@ -715,7 +781,8 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			&pArgs->pOutMesh->core,
 			pEntry->outVert,
 			&pEntry->transform.tbn,
-			STUC_DOMAIN_VERT
+			STUC_DOMAIN_VERT,
+			pBasic->wScale
 		);
 	}
 	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
@@ -857,11 +924,13 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				&tbn
 			);
 			PIX_ERR_RETURN_IFNOT(err, "");
+
 			xformNormals(
 				&pArgs->pOutMesh->core,
 				corner,
 				&tbn,
-				STUC_DOMAIN_CORNER
+				STUC_DOMAIN_CORNER,
+				pBasic->wScale
 			);
 			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
 			if (pCark->valid) {

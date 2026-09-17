@@ -30,6 +30,7 @@ typedef struct Mesh {
 	Stuc_V3_F32 *pNormals;
 	Stuc_V3_F32 *pTangents;
 	F32 *pTSigns;
+	V2_F32 *pTbMags;
 	F32 *pWScale;
 	Stuc_V2_F32 *pUvs;
 	I8 *pEdgePreserve;
@@ -124,13 +125,14 @@ typedef struct StucInIsland {
 	PixuctHTable borderTable;
 	ClutreBb bb;
 	I32 wind;
+	V2_F32 tbMag;
 } StucInIsland;
 
 typedef struct StucInIslandArr {
 	StucInIsland *pArr;
 	PixuctHTableMem tableMem;
 	I32Arr faces;
-	I32 *pFaceTable;
+	I32 *pFaceIsland;
 	I32 size;
 	I32 count;
 	I32 faceCount;

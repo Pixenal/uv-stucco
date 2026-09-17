@@ -321,17 +321,39 @@ I32 mapMeshForIslandJobsGetRange(
 }
 
 static
+void inIslandTbMagGetUniform(
+	const Mesh *pInMesh,
+	const StucInIslandArr *pIslandArr,
+	StucInIsland *pIsland
+) {
+	pIsland->tbMag = (V2_F32){0};
+	I32 weight = 0;
+	for (I32 i = pIsland->core.faces.start; i < pIsland->core.faces.end; ++i) {
+		FaceRange face = stucGetFaceRange(&pInMesh->core, pIslandArr->faces.pArr[i]);
+		for (I32 j = 0; j < face.range.size; ++j) {
+			V2_F32 mag = pInMesh->pTbMags[face.range.start + j];
+			if (mag.d[0]) {
+				_(&pIsland->tbMag V2ADDEQL mag);
+				++weight;
+			}
+		}
+	}
+	_(&pIsland->tbMag V2DIVSEQL (F32)weight);
+}
+
+static
 StucErr mapToMeshInternal(
 	StucCtx *pCtx,
 	I32 threadId,
 	StucCark *pCark,
-	const StucInIslandArr *pInIslands,
+	StucInIslandArr *pInIslands,
 	const StucMap *pMap,
 	Mesh *pMeshIn,
 	StucMesh *pOutMesh,
 	I8 maskIdx,
 	const StucBlendOptArr *pOptArr,
 	InFaceTable *pInFaceTable,
+	StucWMode wMode,
 	F32 wScale,
 	F32 receiveLen
 ) {
@@ -345,6 +367,7 @@ StucErr mapToMeshInternal(
 		.pInMesh = pMeshIn,
 		.pInIslands = pInIslands,
 		.pOptArr = pOptArr,
+		.wMode = wMode,
 		.wScale = wScale,
 		.receiveLen = receiveLen,
 		.maskIdx = maskIdx,
@@ -463,6 +486,13 @@ StucErr mapToMeshInternal(
 		&mergeTable
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	if (basic.wMode >= STUC_W_AVERAGE_UNIFORM) {
+		//if w mode is uniform, island bi/tangent mag will be used during xform,
+		//so set that now
+		for (I32 i = 0; i < pInIslands->count; ++i) {
+			inIslandTbMagGetUniform(pMeshIn, pInIslands, pInIslands->pArr + i);
+		}
+	}
 	
 	err = stucXFormAndInterpVerts(
 		&basic,
@@ -951,6 +981,7 @@ typedef struct StucMapToMeshArgs {
 	StucAttribIndexedArr *pInIndexedAttribs;
 	StucMesh *pMeshOut;
 	StucAttribIndexedArr *pOutIndexedAttribs;
+	StucWMode wMode;
 	F32 wScale;
 	F32 receiveLen;
 	bool triangulate;
@@ -967,6 +998,7 @@ StucErr mapToMeshFromJob(void *pArgsVoid, I32 threadId) {
 		pArgs->pInIndexedAttribs,
 		pArgs->pMeshOut,
 		pArgs->pOutIndexedAttribs,
+		pArgs->wMode,
 		pArgs->wScale,
 		pArgs->receiveLen,
 		false,
@@ -984,6 +1016,7 @@ StucErr stucQueueMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	F32 wScale,
 	F32 receiveLen,
 	bool triangulate
@@ -996,6 +1029,7 @@ StucErr stucQueueMapToMesh(
 		.pInIndexedAttribs = pInIndexedAttribs,
 		.pMeshOut = pMeshOut,
 		.pOutIndexedAttribs = pOutIndexedAttribs,
+		.wMode = wMode,
 		.wScale = wScale,
 		.receiveLen = receiveLen,
 		.triangulate = triangulate
@@ -1105,6 +1139,7 @@ StucErr mapMapArrToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	F32 wScale,
 	F32 receiveLen,
 	bool keepExistingIdxAttribs
@@ -1201,6 +1236,7 @@ StucErr mapMapArrToMesh(
 			matIdx,
 			pMapArr->pArr[i].blendOptArr,
 			NULL,
+			wMode,
 			wScale,
 			receiveLen
 		);
@@ -1372,32 +1408,40 @@ StucErr stucMapToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	F32 wScale,
 	F32 receiveLen,
 	bool keepExistingIdxAttribs,
 	bool triangulate
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		wMode >= 0 && wMode < STUC_W_ENUM_COUNT,
+		"invalid w mode"
+	);
+
 	StucCark cark = {0};
 	if (pCtx->logEnabled) {
 		err = initCarkOut(&pCtx->alloc, &pCtx->io, pCtx->threadCount, &cark);
 		PIX_ERR_RETURN_IFNOT(err, "");
 	}
 
-	PIX_ERR_RETURN_IFNOT_COND(err, pMeshIn, "");
-	err = stucValidateMesh(&pCtx->alloc, pMeshIn, false, false);
-	PIX_ERR_RETURN_IFNOT(err, "invalid in-mesh");
 	Mesh meshInWrap = {0};
+	bool builtEdges = false;
+	PIX_ERR_THROW_IFNOT_COND(err, pMeshIn, "", 0);
+	err = stucValidateMesh(&pCtx->alloc, pMeshIn, false, false);
+	PIX_ERR_THROW_IFNOT(err, "invalid in-mesh", 0);
 	UBitField32 spAttribsToAppend = STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
 		STUC_ATTRIB_USE_TANGENT,
 		STUC_ATTRIB_USE_TSIGN,
+		STUC_ATTRIB_USE_TBMAG,
 		STUC_ATTRIB_USE_SEAM_EDGE,
 		STUC_ATTRIB_USE_SEAM_VERT,
 		STUC_ATTRIB_USE_NUM_ADJ_PRESERVE,
 		STUC_ATTRIB_USE_EDGE_FACES,
 		STUC_ATTRIB_USE_EDGE_CORNERS
 	}));
-	bool builtEdges = false;
 	err = initMeshInWrap(
 		pCtx,
 		&meshInWrap,
@@ -1420,6 +1464,7 @@ StucErr stucMapToMesh(
 		pInIndexedAttribs,
 		pMeshOut,
 		pOutIndexedAttribs,
+		wMode,
 		wScale,
 		receiveLen,
 		keepExistingIdxAttribs

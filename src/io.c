@@ -2447,6 +2447,7 @@ StucErr stucMapLoadIntern(StucCtx *pCtx, StucMapDepEntry *pEntry) {
 				&meshOut,
 				&outIdxAttribArr,
 				//TODO wscale and receivelen are per target rn, so just using idx 0
+				STUC_W_AVERAGE,//TODO write w mode to map & use here
 				pMapArr->pArr[0].wScale,
 				pMapArr->pArr[0].receiveLen,
 				false, //TODO should this be true? if not remove option from merge func,

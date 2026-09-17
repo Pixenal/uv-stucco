@@ -64,7 +64,8 @@ static const StucAttribType spAttribTypes[STUC_ATTRIB_USE_SP_ENUM_COUNT] = {
 	STUC_ATTRIB_I8,
 	STUC_ATTRIB_V2_I32,
 	STUC_ATTRIB_V2_I8,
-	STUC_ATTRIB_V3_F32
+	STUC_ATTRIB_V3_F32,
+	STUC_ATTRIB_V2_F32
 };
 static const StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT] = {
 	STUC_DOMAIN_NONE,
@@ -85,7 +86,8 @@ static const StucDomain spAttribDomains[STUC_ATTRIB_USE_SP_ENUM_COUNT] = {
 	STUC_DOMAIN_VERT,
 	STUC_DOMAIN_EDGE,
 	STUC_DOMAIN_EDGE,
-	STUC_DOMAIN_VERT
+	STUC_DOMAIN_VERT,
+	STUC_DOMAIN_CORNER
 };
 
 #define CLAMP(a, min, max) (a <= min ? min : (a > max ? max : a))
@@ -302,6 +304,9 @@ StucErr stucAssignActiveAliases(
 				break;
 			case STUC_ATTRIB_USE_TSIGN:
 				pMesh->pTSigns = pAttrib->core.pData;
+				break;
+			case STUC_ATTRIB_USE_TBMAG:
+				pMesh->pTbMags = pAttrib->core.pData;
 				break;
 			case STUC_ATTRIB_USE_WSCALE:
 				pMesh->pWScale = pAttrib->core.pData;
