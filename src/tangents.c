@@ -306,6 +306,7 @@ void buildTPieces(
 	
 	for (I32 i = 0; i < pInCore->faceCount; ++i) {
 		FaceRange face = stucGetFaceRange(pInCore, i);
+		TPieceBuf *pBuf = NULL;
 		for (I32 j = 0; j < face.range.size; ++j) {
 			TPieceVert *pEntry = NULL;
 			SearchResult result = pixuctHTableGet(
@@ -327,24 +328,28 @@ void buildTPieces(
 			}
 			//update so future searches don't need to walk merge chain
 			pEntry->tPiece = bufIdx;
-			TPieceBuf *pBuf = tPiecesBuf.pArr + bufIdx;
-			if (!pBuf->added) {
-				PIXALC_DYN_ARR_ADD(&pCtx->alloc, pTPieces, pBuf->idx);
-				pTPieces->pArr[pBuf->idx] = (TPiece) {0};
-				pBuf->added = true;
-			}
-			PIX_ERR_ASSERT("", pBuf->idx >= 0u && pBuf->idx < (U32)pTPieces->count);
-			I32 faceArrIdx = -1;
-			PIXALC_DYN_ARR_ADD(
-				&pCtx->alloc,
-				(&pTPieces->pArr[pBuf->idx].inFaces),
-				faceArrIdx
-			);
-			PIX_ERR_ASSERT("", faceArrIdx != -1);
-			pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].idx = i;
-			pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].size = face.range.size;
-			pTPieces->faceCount++;
+			pBuf = tPiecesBuf.pArr + bufIdx;
+			break;
 		}
+		if (!pBuf) {
+			continue;
+		}
+		if (!pBuf->added) {
+			PIXALC_DYN_ARR_ADD(&pCtx->alloc, pTPieces, pBuf->idx);
+			pTPieces->pArr[pBuf->idx] = (TPiece) {0};
+			pBuf->added = true;
+		}
+		PIX_ERR_ASSERT("", pBuf->idx >= 0u && pBuf->idx < (U32)pTPieces->count);
+		I32 faceArrIdx = -1;
+		PIXALC_DYN_ARR_ADD(
+			&pCtx->alloc,
+			(&pTPieces->pArr[pBuf->idx].inFaces),
+			faceArrIdx
+		);
+		PIX_ERR_ASSERT("", faceArrIdx != -1);
+		pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].idx = i;
+		pTPieces->pArr[pBuf->idx].inFaces.pArr[faceArrIdx].size = face.range.size;
+		pTPieces->faceCount++;
 	}
 	pixuctHTableDestroy(&vertTable);
 	pCtx->alloc.fpFree(tPiecesBuf.pArr);
