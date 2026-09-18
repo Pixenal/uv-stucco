@@ -981,9 +981,6 @@ typedef struct StucMapToMeshArgs {
 	StucAttribIndexedArr *pInIndexedAttribs;
 	StucMesh *pMeshOut;
 	StucAttribIndexedArr *pOutIndexedAttribs;
-	StucWMode wMode;
-	F32 wScale;
-	F32 receiveLen;
 	bool triangulate;
 } StucMapToMeshArgs;
 
@@ -998,9 +995,6 @@ StucErr mapToMeshFromJob(void *pArgsVoid, I32 threadId) {
 		pArgs->pInIndexedAttribs,
 		pArgs->pMeshOut,
 		pArgs->pOutIndexedAttribs,
-		pArgs->wMode,
-		pArgs->wScale,
-		pArgs->receiveLen,
 		false,
 		pArgs->triangulate
 	);
@@ -1016,9 +1010,6 @@ StucErr stucQueueMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	F32 wScale,
-	F32 receiveLen,
 	bool triangulate
 ) {
 	StucMapToMeshArgs *pArgs = pCtx->alloc.fpMalloc(sizeof(StucMapToMeshArgs));
@@ -1029,9 +1020,6 @@ StucErr stucQueueMapToMesh(
 		.pInIndexedAttribs = pInIndexedAttribs,
 		.pMeshOut = pMeshOut,
 		.pOutIndexedAttribs = pOutIndexedAttribs,
-		.wMode = wMode,
-		.wScale = wScale,
-		.receiveLen = receiveLen,
 		.triangulate = triangulate
 	};
 	pixthJobsInit(pJobHandle, 1, mapToMeshFromJob, (void **)&pArgs);
@@ -1139,9 +1127,6 @@ StucErr mapMapArrToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	F32 wScale,
-	F32 receiveLen,
 	bool keepExistingIdxAttribs
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
@@ -1225,6 +1210,12 @@ StucErr mapMapArrToMesh(
 			);
 		}
 		*/
+		StucWMode wMode = pMapArr->pArr[i].wMode;
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			wMode >= 0 && wMode < STUC_W_ENUM_COUNT,
+			"invalid w mode"
+		);
 		err = mapToMeshInternal(
 			pCtx,
 			threadId,
@@ -1237,8 +1228,8 @@ StucErr mapMapArrToMesh(
 			pMapArr->pArr[i].blendOptArr,
 			NULL,
 			wMode,
-			wScale,
-			receiveLen
+			pMapArr->pArr[i].wScale,
+			pMapArr->pArr[i].receiveLen
 		);
 		PIX_ERR_THROW_IFNOT(err, "map to mesh failed", 1);
 		PIX_ERR_CATCH(1, err, ;);
@@ -1408,19 +1399,10 @@ StucErr stucMapToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	F32 wScale,
-	F32 receiveLen,
 	bool keepExistingIdxAttribs,
 	bool triangulate
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(
-		err,
-		wMode >= 0 && wMode < STUC_W_ENUM_COUNT,
-		"invalid w mode"
-	);
-
 	StucCark cark = {0};
 	if (pCtx->logEnabled) {
 		err = initCarkOut(&pCtx->alloc, &pCtx->io, pCtx->threadCount, &cark);
@@ -1464,9 +1446,6 @@ StucErr stucMapToMesh(
 		pInIndexedAttribs,
 		pMeshOut,
 		pOutIndexedAttribs,
-		wMode,
-		wScale,
-		receiveLen,
 		keepExistingIdxAttribs
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);

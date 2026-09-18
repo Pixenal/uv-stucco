@@ -294,6 +294,7 @@ typedef union StucMapOrIdx {
 typedef struct StucMapArrEntry {
 	StucMapOrIdx map;
 	StucBlendOptArr blendOptArr[STUC_DOMAIN_MESH];
+	StucWMode wMode;
 	float wScale;
 	float receiveLen;
 	int8_t matIdx;
@@ -525,9 +526,7 @@ StucErr stucMapExportTargetAdd(
 	StucMapExport *pHandle,
 	const StucMapArr *pMapArr,
 	const StucObject *pObj,
-	const StucAttribIndexedArr *pIndexedAttribs,
-	float wScale,
-	float receiveLen
+	const StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_EXPORT
 StucErr stucMapExportObjAdd(
@@ -634,9 +633,6 @@ StucErr stucQueueMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	float wScale,
-	float receiveLen,
 	bool triangulate
 );
 STUC_EXPORT
@@ -648,9 +644,6 @@ StucErr stucMapToMesh(
 	const StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pMeshOut,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	float wScale,
-	float receiveLen,
 	bool keepExistingIdxAttribs,
 	bool triangulate
 );

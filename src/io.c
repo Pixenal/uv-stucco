@@ -177,6 +177,7 @@ typedef enum FileSizeIdx {
 	FILE_MAPPING_OPT_MAT_IDX,
 	FILE_MAPPING_OPT_HEADER,
 	FILE_MAPPING_OPT_IDX,
+	FILE_MAPPING_OPT_WMODE,
 	FILE_MAPPING_OPT_WSCALE,
 	FILE_MAPPING_OPT_RECEIVE_LEN,
 	FILE_BLEND_OPT_COUNT,
@@ -231,6 +232,7 @@ void stucIoInit() {
 	BITLEN(MAPPING_OPT_MAT_IDX) = 16;
 	BITLEN(MAPPING_OPT_HEADER) = 8;
 	BITLEN(MAPPING_OPT_IDX) = 16;
+	BITLEN(MAPPING_OPT_WMODE) = 8;
 	BITLEN(MAPPING_OPT_WSCALE) = 32;
 	BITLEN(MAPPING_OPT_RECEIVE_LEN) = 32;
 	BITLEN(BLEND_OPT_COUNT) = 16;
@@ -515,7 +517,9 @@ void encodeRedirectTable(
 	}
 }
 
+//TODO put this in uv_stucco.h and use in map-arr entry struct
 typedef struct MappingOpt {
+	StucWMode wMode;
 	F32 wScale;
 	F32 receiveLen;
 } MappingOpt;
@@ -653,12 +657,17 @@ void optsFinalEncode(
 	PixioByteArr *pBlendOpt,
 	const MappingOpt *pMappingOpt,
 	bool blendOptOverride,
+	bool wModeOverride,
 	bool wScaleOverride,
 	bool receiveOverride
 ) {
 	const StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	PixioByteArr *pData = &pHandle->data;
-	UBitField8 header = !!blendOptOverride | wScaleOverride << 1 | receiveOverride << 2;
+	UBitField8 header =
+		!!blendOptOverride |
+		wModeOverride << 1 |
+		wScaleOverride << 2 |
+		receiveOverride << 3;
 	pixioByteArrWrite(pAlloc, pData, &matIdx, BITLEN(MAPPING_OPT_MAT_IDX));
 	pixioByteArrWrite(pAlloc, pData, &header, BITLEN(MAPPING_OPT_HEADER));
 	pixioByteArrWrite(pAlloc, pData, &pMatMapEntry->linIdx, BITLEN(MAPPING_OPT_IDX));
@@ -668,6 +677,9 @@ void optsFinalEncode(
 		pData->byteIdx += pBlendOpt->byteIdx;
 	}
 	PIXALC_DYN_ARR_DESTROY(pAlloc, pBlendOpt);
+	if (wModeOverride) {
+		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->wMode, BITLEN(MAPPING_OPT_WMODE));
+	}
 	if (wScaleOverride) {
 		pixioByteArrWrite(pAlloc, pData, &pMappingOpt->wScale, BITLEN(MAPPING_OPT_WSCALE));
 	}
@@ -689,9 +701,7 @@ StucErr encodeMappingOpt(
 	const StucMesh *pMesh,
 	const StucMapArr *pMapArr,
 	const AttribIndexedArr *pIdxAttribArr,
-	const StucIdxTableArr *pIdxTable,
-	F32 wScale,
-	F32 receiveLen
+	const StucIdxTableArr *pIdxTable
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
@@ -716,8 +726,9 @@ StucErr encodeMappingOpt(
 		}
 		++count;
 		MappingOpt mappingOpt = {
-			.wScale = wScale,
-			.receiveLen = receiveLen
+			.wMode = pMapArr->pArr[i].wMode,
+			.wScale = pMapArr->pArr[i].wScale,
+			.receiveLen = pMapArr->pArr[i].receiveLen
 		};
 		MatMapEntry *pEntry = NULL;
 		pixuctHTableGet(
@@ -730,8 +741,10 @@ StucErr encodeMappingOpt(
 			NULL,
 			keyFromPath, NULL, matMapEntryInit, matMapEntryCmp
 		);
-		bool wScaleOverride = wScale != 1.0f;
-		bool receiveOverride = receiveLen != -1.0f;
+		//TODO store 'default' mapping opts and compared against that
+		bool wModeOverride = mappingOpt.wMode != STUC_W_AVERAGE;
+		bool wScaleOverride = mappingOpt.wScale != 1.0f;
+		bool receiveOverride = mappingOpt.receiveLen != -1.0f;
 		bool blendOptOverride = false;//TODO should this be true?
 		PixioByteArr blendOptBuf = {0};
 		encodeBlendOpts(
@@ -747,7 +760,10 @@ StucErr encodeMappingOpt(
 			pMapArr->pArr[i].matIdx,
 			&blendOptBuf,
 			&mappingOpt,
-			blendOptOverride, wScaleOverride, receiveOverride
+			blendOptOverride,
+			wModeOverride,
+			wScaleOverride,
+			receiveOverride
 		);
 	}
 	PIX_ERR_ASSERT("", BITLEN(MAPPING_OPT_COUNT) == 16);
@@ -1094,7 +1110,7 @@ StucErr setRedirects(
 		((intptr_t)pAttrib - (intptr_t)pHandle->idxAttribs.pArr) / sizeof(AttribIndexed)
 	);
 	PIX_ERR_ASSERT("", pIdxTable->idx >= 0 && pIdxTable->idx < pHandle->idxAttribs.count);
-	pIdxTable->table.pArr = pHandle->pCtx->alloc.fpCalloc(pRef->count, 1);
+	PIXALC_DYN_ARR_RESIZE_ZERO(&pHandle->pCtx->alloc, &pIdxTable->table, pRef->count);
 	for (I32 i = 0; i < pRef->count; ++i) {
 		if (!pIdxIsUsed[i]) {
 			pIdxTable->table.pArr[i] = -2;
@@ -1132,8 +1148,8 @@ StucErr makeIdxAttribRedirects(
 
 	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
 	I8 *pIdxIsUsed = pAlloc->fpMalloc(INT8_MAX);
-	pIdxTable->size = pIdxTable->count = pIndexedAttribs->count;
-	pIdxTable->pArr = pAlloc->fpCalloc(pIdxTable->size, sizeof(StucIdxTable));
+	pIdxTable->count = pIndexedAttribs->count;
+	PIXALC_DYN_ARR_RESIZE_ZERO(pAlloc, pIdxTable, pIdxTable->count);
 	for (I32 i = 0; i < pIndexedAttribs->count; ++i) {
 		const AttribIndexed *pRef = pIndexedAttribs->pArr + i;
 		err = markUsedIndices(pHandle, pIdxIsUsed, pMesh, pRef);
@@ -1160,9 +1176,7 @@ StucErr mapExportObjAdd(
 	const StucObject *pObj,
 	const StucAttribIndexedArr *pIndexedAttribs,
 	bool isTarget,
-	const StucMapArr *pMapArr,
-	F32 wScale,
-	F32 receiveLen
+	const StucMapArr *pMapArr
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	StucIdxTableArr idxTable = {0};
@@ -1174,9 +1188,7 @@ StucErr mapExportObjAdd(
 			(StucMesh *)pObj->pData,
 			pMapArr,
 			pIndexedAttribs,
-			&idxTable,
-			wScale,
-			receiveLen
+			&idxTable
 		);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
@@ -1195,13 +1207,10 @@ StucErr stucMapExportTargetAdd(
 	StucMapExport *pHandle,
 	const StucMapArr *pMapArr,
 	const StucObject *pObj,
-	const StucAttribIndexedArr *pIndexedAttribs,
-	F32 wScale,
-	F32 receiveLen
+	const StucAttribIndexedArr *pIndexedAttribs
 ) {
 	encodeDataTag(&pHandle->pCtx->alloc, &pHandle->data, TAG_TYPE_TARGET);
-	return
-		mapExportObjAdd(pHandle, pObj, pIndexedAttribs, true, pMapArr, wScale, receiveLen);
+	return mapExportObjAdd(pHandle, pObj, pIndexedAttribs, true, pMapArr);
 }
 
 StucErr stucMapExportObjAdd(
@@ -1210,7 +1219,7 @@ StucErr stucMapExportObjAdd(
 	const StucAttribIndexedArr *pIndexedAttribs
 ) {
 	encodeDataTag(&pHandle->pCtx->alloc, &pHandle->data, TAG_TYPE_OBJECT);
-	return mapExportObjAdd(pHandle, pObj, pIndexedAttribs, false, NULL, .0f, .0f);
+	return mapExportObjAdd(pHandle, pObj, pIndexedAttribs, false, NULL);
 }
 
 StucErr stucMapExportUsgAdd(
@@ -1655,13 +1664,19 @@ StucErr loadMapOverrides(
 			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 		if (header >> 1 & 0x1) {
+			pixioByteArrRead(pData, &pEntry->wMode, BITLEN(MAPPING_OPT_WMODE));
+		}
+		else {
+			pEntry->wMode = STUC_W_AVERAGE;
+		}
+		if (header >> 2 & 0x1) {
 			pixioByteArrRead(pData, &pEntry->wScale, BITLEN(MAPPING_OPT_WSCALE));
 		}
 		else {
 			//TODO replace with default wscale
 			pEntry->wScale = 1.0f;
 		}
-		if (header >> 2 & 0x1) {
+		if (header >> 3 & 0x1) {
 			pixioByteArrRead(pData, &pEntry->receiveLen, BITLEN(MAPPING_OPT_RECEIVE_LEN));
 		}
 		else {
@@ -2446,10 +2461,6 @@ StucErr stucMapLoadIntern(StucCtx *pCtx, StucMapDepEntry *pEntry) {
 				&pMap->indexedAttribs,
 				&meshOut,
 				&outIdxAttribArr,
-				//TODO wscale and receivelen are per target rn, so just using idx 0
-				STUC_W_AVERAGE,//TODO write w mode to map & use here
-				pMapArr->pArr[0].wScale,
-				pMapArr->pArr[0].receiveLen,
 				false, //TODO should this be true? if not remove option from merge func,
 				false
 			);
