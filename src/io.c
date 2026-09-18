@@ -857,16 +857,6 @@ StucErr encodeObj(
 	return err;
 }
 
-static
-void destroyMapExport(StucMapExport *pHandle) {
-	StucAlloc *pAlloc = &pHandle->pCtx->alloc;
-	pAlloc->fpFree(pHandle->pPath);
-	pAlloc->fpFree(pHandle->data.pArr);
-	pixuctHTableDestroy(&pHandle->mapTable);
-	stucAttribIndexedArrDestroy(pHandle->pCtx, &pHandle->idxAttribs);
-	*pHandle = (StucMapExport){0};
-}
-
 StucErr stucMapExportInit(
 	StucCtx *pCtx,
 	StucMapExport *pHandle,
@@ -1008,9 +998,22 @@ StucErr stucMapExportEnd(StucMapExport *pHandle) {
 	if (pCompressed) {
 		pAlloc->fpFree(pCompressed);
 	}
-	destroyMapExport(pHandle);
 	printf("Finished STUC export\n");
 	return err;
+}
+
+void stucMapExportDestroy(StucMapExport *pHandle) {
+	if (pHandle->pCtx) {
+		pHandle->pCtx->alloc.fpFree(pHandle->pPath);
+		pHandle->pCtx->alloc.fpFree(pHandle->data.pArr);
+		if (pHandle->idxAttribs.pArr) {
+			stucAttribIndexedArrDestroy(pHandle->pCtx, &pHandle->idxAttribs);
+		}
+	}
+	if (pHandle->mapTable.pTable) {
+		pixuctHTableDestroy(&pHandle->mapTable);
+	}
+	*pHandle = (StucMapExport){0};
 }
 
 static
@@ -1198,7 +1201,7 @@ StucErr mapExportObjAdd(
 	err = encodeObj(pHandle, pObj, &idxTable, false);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	++pHandle->header.objCount;
-	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
+	PIX_ERR_CATCH(0, err, stucMapExportDestroy(pHandle););
 	destroyIdxTableArr(&pHandle->pCtx->alloc, &idxTable);
 	return err;
 }
@@ -1247,7 +1250,7 @@ StucErr stucMapExportUsgAdd(
 		pixioByteArrWrite(pAlloc, &pHandle->data, &pUsg->flatCutoff.idx, bitLen);
 	}
 	++pHandle->header.usgCount;
-	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
+	PIX_ERR_CATCH(0, err, stucMapExportDestroy(pHandle););
 	return err;
 }
 
@@ -1258,7 +1261,7 @@ StucErr stucMapExportUsgCutoffAdd(StucMapExport *pHandle, StucObject *pFlatCutof
 	err = encodeObj(pHandle, pFlatCutoff, NULL, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	++pHandle->header.cutoffCount;
-	PIX_ERR_CATCH(0, err, destroyMapExport(pHandle););
+	PIX_ERR_CATCH(0, err, stucMapExportDestroy(pHandle););
 	return err;
 }
 

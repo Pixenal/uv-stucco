@@ -522,6 +522,8 @@ StucErr stucMapExportInit(
 STUC_EXPORT
 StucErr stucMapExportEnd(StucMapExport *pHandle);
 STUC_EXPORT
+void stucMapExportDestroy(StucMapExport *pHandle);
+STUC_EXPORT
 StucErr stucMapExportTargetAdd(
 	StucMapExport *pHandle,
 	const StucMapArr *pMapArr,
