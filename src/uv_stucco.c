@@ -338,7 +338,9 @@ void inIslandTbMagGetUniform(
 			}
 		}
 	}
-	_(&pIsland->tbMag V2DIVSEQL (F32)weight);
+	if (weight) {
+		_(&pIsland->tbMag V2DIVSEQL (F32)weight);
+	}
 }
 
 static
@@ -491,6 +493,19 @@ StucErr mapToMeshInternal(
 		//so set that now
 		for (I32 i = 0; i < pInIslands->count; ++i) {
 			inIslandTbMagGetUniform(pMeshIn, pInIslands, pInIslands->pArr + i);
+		}
+		//preserve splits geo into islands,
+		//which causes issues if bi/tangent magnitude is per island.
+		//to fix this for now, average out and make mag uniform across islands.
+		//TODO if preserve split is moved into buf-mesh init, remove this.
+		//ideally uniform mag is per connected uv-island, irrespective of preserve
+		V2_F32 tbMag = {0};
+		for (I32 i = 0; i < pInIslands->count; ++i) {
+			_(&tbMag V2ADDEQL pInIslands->pArr[i].tbMag);
+		}
+		_(&tbMag V2DIVSEQL (F32)pInIslands->count);
+		for (I32 i = 0; i < pInIslands->count; ++i) {
+			pInIslands->pArr[i].tbMag = tbMag;
 		}
 	}
 	
