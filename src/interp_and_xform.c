@@ -153,8 +153,8 @@ StucErr getInterpolatedTbn(
 ) {
 	StucErr err = PIX_ERR_SUCCESS;
 	V3_F32 tangent = {0};
+	V3_F32 bitangent= {0};
 	V3_F32 normal = {0};
-	F32 tSign = .0f;
 	if (pNormal) {
 		normal = *pNormal;
 	}
@@ -188,12 +188,11 @@ StucErr getInterpolatedTbn(
 		pBufMesh,
 		bufCorner,
 		pInInterpCache,
-		&tSign,
-		STUC_ATTRIB_F32,
-		STUC_ATTRIB_USE_TSIGN
+		&bitangent,
+		STUC_ATTRIB_V3_F32,
+		STUC_ATTRIB_USE_BITANGENT
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	V3_F32 bitangent = _(_(normal V3CROSS tangent) V3MULS tSign);
 	*(V3_F32 *)&pTbn->d[0] = tangent;
 	*(V3_F32 *)&pTbn->d[1] = bitangent;
 	*(V3_F32 *)&pTbn->d[2] = normal;
@@ -255,54 +254,100 @@ StucErr mapUvwToXyzFlat(
 }
 
 static
-PixErr wScaleGetFromTbMag(
+PixErr wScaleMulByTbMag(
+	const MapToMeshBasic *pBasic,
+	const InterpCaches *pInterpCaches,
+	V2_F32 tbMagCorner,
+	F32 *pWScale
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	V2_F32 tbMag = {0};//scale of tangent & bitangent in xyz compared to uvw
+	if (pBasic->wMode >= STUC_W_AVERAGE_UNIFORM) {
+		I32 island = pBasic->pInIslands->pFaceIsland[pInterpCaches->in.originFace];
+		tbMag = pBasic->pInIslands->pArr[island].tbMag;
+	}
+	else {
+		tbMag = tbMagCorner;
+	}
+	switch (pBasic->wMode) {
+		case STUC_W_NONE:
+			*pWScale *= 1.0f;
+			break;
+		case STUC_W_AVERAGE:
+			// v fallthrough v
+		case STUC_W_AVERAGE_UNIFORM:
+			*pWScale *= (tbMag.d[0] + tbMag.d[1]) / 2.0f; 
+			break;
+		case STUC_W_TANGENT:
+			// v fallthrough v
+		case STUC_W_TANGENT_UNIFORM:
+			*pWScale *= tbMag.d[0];
+			break;
+		case STUC_W_BITANGENT:
+			// v fallthrough v
+		case STUC_W_BITANGENT_UNIFORM:
+			*pWScale *= tbMag.d[1];
+			break;
+		default:
+			PIX_ERR_ASSERT("invalid w mode", false);
+	}
+	return err;
+}
+
+static
+StucErr wScaleMulGet(
 	const MapToMeshBasic *pBasic,
 	V2_I16 tile,
 	const BufMesh *pBufMesh,
 	FaceCorner bufCorner,
-	InterpCaches *pInterpCaches,
+	InterpCacheLimited *pInVertInterpCache,
 	F32 *pWScale
 ) {
-	PixErr err = PIX_ERR_SUCCESS;
-	V2_F32 tbMags = {0};//scale of tangent & bitangent in xyz compared to uvw
-	if (pBasic->wMode >= STUC_W_AVERAGE_UNIFORM) {
-		I32 island = pBasic->pInIslands->pFaceIsland[pInterpCaches->in.originFace];
-		tbMags = pBasic->pInIslands->pArr[island].tbMag;
-	}
-	else {
+	StucErr err = PIX_ERR_SUCCESS;
+	*pWScale = pBasic->wScale;
+	if (pBasic->pInMesh->pWScale) {
+		F32 inVertWScale = 1.0;
 		err = interpActiveAttrib(
 			pBasic,
 			tile,
 			pBufMesh,
 			bufCorner,
-			&pInterpCaches->in,
-			&tbMags,
-			STUC_ATTRIB_V2_F32,
-			STUC_ATTRIB_USE_TBMAG
+			pInVertInterpCache,
+			&inVertWScale,
+			STUC_ATTRIB_F32,
+			STUC_ATTRIB_USE_WSCALE
 		);
 		PIX_ERR_RETURN_IFNOT(err, "");
+		*pWScale *= inVertWScale;
 	}
-	switch (pBasic->wMode) {
-		case STUC_W_NONE:
-			*pWScale = 1.0f;
-			break;
-		case STUC_W_AVERAGE:
-			// v fallthrough v
-		case STUC_W_AVERAGE_UNIFORM:
-			*pWScale = (tbMags.d[0] + tbMags.d[1]) / 2.0f; 
-			break;
-		case STUC_W_TANGENT:
-			// v fallthrough v
-		case STUC_W_TANGENT_UNIFORM:
-			*pWScale = tbMags.d[0];
-			break;
-		case STUC_W_BITANGENT:
-			// v fallthrough v
-		case STUC_W_BITANGENT_UNIFORM:
-			*pWScale = tbMags.d[1];
-			break;
-		default:
-			PIX_ERR_ASSERT("invalid w mode", false);
+	return err;
+}
+
+static
+StucErr scaleTbnByUvwMag(
+	const MapToMeshBasic *pBasic,
+	V2_I16 tile,
+	const BufMesh *pBufMesh,
+	FaceCorner bufCorner,
+	InterpCaches *pInterpCaches,
+	InterpCacheLimited *pInVertInterpCache,
+	M3x3 *pTbn,
+	F32 *pWScale
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	F32 wScale = .0f;
+	err = wScaleMulGet(pBasic, tile, pBufMesh, bufCorner, pInVertInterpCache, &wScale);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	V2_F32 tbMag = {
+		pixmV3F32Len(*(V3_F32 *)&pTbn->d[0]), pixmV3F32Len(*(V3_F32 *)&pTbn->d[1])
+	};
+	err = wScaleMulByTbMag(pBasic, pInterpCaches, tbMag, &wScale);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	V3_F32 normal = _(*(V3_F32 *)&pTbn->d[2] V3MULS wScale);
+	*pTbn = pixmM3x3Invert(pTbn);
+	*pTbn = pixmM3x3Transpose(pTbn);
+	if (pWScale) {
+		*pWScale = wScale;
 	}
 	return err;
 }
@@ -337,26 +382,8 @@ StucErr xformVertFromUvwToXyz(
 		STUC_ATTRIB_V3_F32,
 		STUC_ATTRIB_USE_POS
 	);
-	InterpCacheLimited inVertInterpCache = {
-		.domain = STUC_DOMAIN_VERT,
-		.origin = STUC_ATTRIB_ORIGIN_MESH_IN
-	};
-	if (pBasic->pInMesh->pWScale) {
-		F32 inVertWScale = 1.0;
-		err = interpActiveAttrib(
-			pBasic,
-			tile,
-			pBufMesh,
-			bufCorner,
-			&inVertInterpCache,
-			&inVertWScale,
-			STUC_ATTRIB_F32,
-			STUC_ATTRIB_USE_WSCALE
-		);
-		PIX_ERR_RETURN_IFNOT(err, "");
-		mapUvw.d[2] *= inVertWScale;
-	}
 	PIX_ERR_RETURN_IFNOT(err, "");
+
 	V2_F32 fTileMin = {.d = {tile.d[0], tile.d[1]}};
 	_((V2_F32 *)&mapUvw V2SUBEQL fTileMin);
 	bool aboveCutoff = false;
@@ -366,6 +393,10 @@ StucErr xformVertFromUvwToXyz(
 	}
 	V3_F32 xyzFlat = {0};
 	M3x3 tbn = {0};
+	InterpCacheLimited inVertInterpCache = {
+		.domain = STUC_DOMAIN_VERT,
+		.origin = STUC_ATTRIB_ORIGIN_MESH_IN
+	};
 	if (pUsgEntry && aboveCutoff) {
 		V2_F32 uv = *(V2_F32 *)&mapUvw;
 		stucUsgVertTransform(pUsgEntry, uv, &xyzFlat, pBasic->pInMesh, fTileMin, &tbn);
@@ -397,13 +428,23 @@ StucErr xformVertFromUvwToXyz(
 	}
 
 	F32 wScale = .0f;
-	err = wScaleGetFromTbMag(pBasic, tile, pBufMesh, bufCorner, pInterpCaches, &wScale);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	wScale *= pBasic->wScale;//multiply by global scalar
-	pArgs->pOutMesh->pPos[vertIdx] = _(
-		xyzFlat V3ADD _(*(V3_F32 *)&tbn.d[2] V3MULS mapUvw.d[2] * wScale)
+	V3_F32 normal = *(V3_F32 *)&tbn.d[2];
+	err = scaleTbnByUvwMag(
+		pBasic,
+		tile,
+		pBufMesh,
+		bufCorner,
+		pInterpCaches,
+		&inVertInterpCache,
+		&tbn,
+		&wScale
 	);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	*pTbn = tbn;
+
+	pArgs->pOutMesh->pPos[vertIdx] = _(
+		xyzFlat V3ADD _(normal V3MULS mapUvw.d[2] * wScale)
+	);
 
 	if (!pArgs->core.pCark->valid) {
 		return err;
@@ -650,8 +691,7 @@ void xformNormals(
 	StucMesh *pMesh,
 	I32 idx,
 	const M3x3 *pTbn,
-	StucDomain domain,
-	F32 wScale
+	StucDomain domain
 ) {
 	AttribArray *pAttribArr = stucGetAttribArrFromDomain(pMesh, domain);
 	for (I32 i = 0; i < pAttribArr->count; ++i) {
@@ -663,8 +703,8 @@ void xformNormals(
 				continue;
 			}
 			V3_F32 *pNormal = stucAttribAsVoid(&pAttrib->core, idx);
-			*pNormal = pixmV3F32Lerp((V3_F32){.0f, .0f, 1.0f}, *pNormal, wScale);
-			*pNormal = _(pixmV3F32Normalize(*pNormal) V3MULM3X3 pTbn);
+			//tbn may not have uniform scale, so normalise
+			*pNormal = pixmV3F32Normalize(_(*pNormal V3MULM3X3 pTbn));
 		}
 	}
 }
@@ -781,8 +821,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			&pArgs->pOutMesh->core,
 			pEntry->outVert,
 			&pEntry->transform.tbn,
-			STUC_DOMAIN_VERT,
-			pBasic->wScale
+			STUC_DOMAIN_VERT
 		);
 	}
 	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
@@ -913,6 +952,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				NULL,
 				&normal
 			);
+
 			M3x3 tbn = {0};
 			err = getInterpolatedTbn(
 				pBasic,
@@ -924,13 +964,25 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				&tbn
 			);
 			PIX_ERR_RETURN_IFNOT(err, "");
-
+			err = scaleTbnByUvwMag(
+				pBasic,
+				tile,
+				pBufMesh,
+				bufCorner,
+				&interpCaches,
+				&(InterpCacheLimited){
+					.domain = STUC_DOMAIN_VERT,
+					.origin = STUC_ATTRIB_ORIGIN_MESH_IN
+				},
+				&tbn,
+				NULL
+			);
+			PIX_ERR_RETURN_IFNOT(err, "");
 			xformNormals(
 				&pArgs->pOutMesh->core,
 				corner,
 				&tbn,
-				STUC_DOMAIN_CORNER,
-				pBasic->wScale
+				STUC_DOMAIN_CORNER
 			);
 			pArgs->pOutMesh->core.pCorners[corner] = pVertEntry->outVert;
 			if (pCark->valid) {

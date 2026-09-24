@@ -57,8 +57,7 @@ typedef struct TangentJobArgs {
 	I32Arr faces;
 	I32 cornerCount;
 	V3_F32 *pTangents;
-	F32 *pTSigns;
-	V2_F32 *pTbMags;
+	V3_F32 *pBitangents;
 	JobArgsFoot foot;
 } TangentJobArgs;
 
@@ -385,8 +384,7 @@ void copyTangentsFromJobFaces(
 		for (I32 j = 0; j < inFace.range.size; ++j) {
 			I32 jobCorner = jobFaceStart + j;
 			pInMesh->pTangents[inFace.range.start + j] = pArgs->pTangents[jobCorner];
-			pInMesh->pTSigns[inFace.range.start + j] = pArgs->pTSigns[jobCorner];
-			pInMesh->pTbMags[inFace.range.start + j] = pArgs->pTbMags[jobCorner];
+			pInMesh->pBitangents[inFace.range.start + j] = pArgs->pBitangents[jobCorner];
 		}
 	}
 }
@@ -458,8 +456,7 @@ StucErr stucBuildTangentsForInPieces(
 	for (I32 i = 0; i < jobCount; ++i) {
 		pCtx->alloc.fpFree(jobArgs[i].faces.pArr);
 		pCtx->alloc.fpFree(jobArgs[i].pTangents);
-		pCtx->alloc.fpFree(jobArgs[i].pTSigns);
-		pCtx->alloc.fpFree(jobArgs[i].pTbMags);
+		pCtx->alloc.fpFree(jobArgs[i].pBitangents);
 	}
 	pCtx->alloc.fpFree(tPieces.pInFaces);
 	return err;
@@ -592,23 +589,25 @@ void mikktSetTSpace(
 ) {
 	TangentJobArgs *pArgs = pCtx->m_pUserData;
 	I32 corner = pArgs->faces.pArr[iFace] + iVert;
-	pArgs->pTangents[corner] = *(V3_F32 *)pFvTangent;
-	pArgs->pTSigns[corner] = bIsOrientationPreserving ? 1.0f : -1.0f;
-	pArgs->pTbMags[corner] = (PixtyV2_F32){fMagT, fMagS};
+	pArgs->pTangents[corner] = _(*(V3_F32 *)pFvTangent V3MULS fMagS);
+	pArgs->pBitangents[corner] = _(*(V3_F32 *)pFvBiTangent V3MULS fMagT);
 }
 
 static
-void mikktTrisSetTSpaceBasic(
+void mikktTrisSetTSpace(
 	const SMikkTSpaceContext *pCtx,
-	const F32 *pFvTangent,
-	const F32 fSign,
+	const float *pFvTangent,
+	const float *pFvBiTangent,
+	const float fMagS,
+	const float fMagT,
+	const bool bIsOrientationPreserving,
 	const int iFace,
 	const int iVert
 ) {
 	TangentTris *pState = pCtx->m_pUserData;
 	I32 corner = iFace * 3 + iVert;
 	pState->pMesh->pTangents[corner] = *(V3_F32 *)pFvTangent;
-	pState->pMesh->pTSigns[corner] = fSign;
+	pState->pMesh->pBitangents[corner] = *(V3_F32 *)pFvBiTangent;
 }
 
 static
@@ -638,9 +637,10 @@ StucErr stucBuildTangents(void *pArgsVoid) {
 		.alloc = *pAlloc,
 		.threadId = pArgs->core.threadId
 	};
-	pArgs->pTangents = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(V3_F32));
-	pArgs->pTSigns = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(F32));
-	pArgs->pTbMags = pAlloc->fpCalloc(pArgs->cornerCount, sizeof(V2_F32));
+	pArgs->pTangents =
+		pAlloc->fpCalloc(pArgs->cornerCount, PIXALC_ITEMSIZE(pArgs->pTangents));
+	pArgs->pBitangents =
+		pAlloc->fpCalloc(pArgs->cornerCount, PIXALC_ITEMSIZE(pArgs->pBitangents));
 	err = stucBuildTangentsIntern(pArgs->core.pCtx, &mikktCtx);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
@@ -654,7 +654,7 @@ StucErr stucBuildTangentsForTris(StucCtx *pCtx, Mesh *pMesh) {
 		.m_getPosition = mikktTrisGetPos,
 		.m_getNormal = mikktTrisGetNormal,
 		.m_getTexCoord = mikktTrisGetTexCoord,
-		.m_setTSpaceBasic = mikktTrisSetTSpaceBasic
+		.m_setTSpace = mikktTrisSetTSpace
 	};
 	TangentTris state = {.pCtx = pCtx, .pMesh = pMesh};
 	SMikkTSpaceContext mikktCtx = {

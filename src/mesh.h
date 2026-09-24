@@ -29,8 +29,7 @@ typedef struct Mesh {
 	Stuc_V3_F32 *pPos;
 	Stuc_V3_F32 *pNormals;
 	Stuc_V3_F32 *pTangents;
-	F32 *pTSigns;
-	V2_F32 *pTbMags;
+	Stuc_V3_F32 *pBitangents;
 	F32 *pWScale;
 	Stuc_V2_F32 *pUvs;
 	I8 *pEdgePreserve;

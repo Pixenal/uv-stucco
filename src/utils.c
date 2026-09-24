@@ -310,14 +310,15 @@ void stucSetBitArr(UBitField8 *pArr, I32 idx, I32 value, I32 len) {
 	}
 }
 
+//this func is only called from usg.c, and is not used in interp_and_xform.c
+//TODO replace interpolation in this func with the attrib
+//interpolation funcions or macros
 M3x3 stucGetInterpolatedTbn(
 	const Mesh *pMesh,
 	const FaceRange *pFace,
 	const I8 *pTriCorners,
 	V3_F32 bc
 ) {
-	//TODO replace interpolation in this func with the attrib
-	//     interpolation funcions or macros
 	V3_F32 *pNormals = pMesh->pNormals;
 	V3_F32 normal = _(pNormals[pFace->range.start + pTriCorners[0]] V3MULS bc.d[0]);
 	_(&normal V3ADDEQL _(pNormals[pFace->range.start + pTriCorners[1]] V3MULS bc.d[1]));
@@ -328,9 +329,11 @@ M3x3 stucGetInterpolatedTbn(
 	_(&tangent V3ADDEQL _(pTangents[pFace->range.start + pTriCorners[1]] V3MULS bc.d[1]));
 	_(&tangent V3ADDEQL _(pTangents[pFace->range.start + pTriCorners[2]] V3MULS bc.d[2]));
 	_(&tangent V3DIVEQLS bc.d[0] + bc.d[1] + bc.d[2]);
-	//TODO should this be interpolated? Or are such edge cases invalid?
-	F32 tSign = pMesh->pTSigns[pFace->range.start + pTriCorners[0]];
-	V3_F32 bitangent = _(_(normal V3CROSS tangent) V3MULS tSign);
+	V3_F32 *pBitangents = pMesh->pBitangents;
+	V3_F32 bitangent = _(pBitangents[pFace->range.start + pTriCorners[0]] V3MULS bc.d[0]);
+	_(&bitangent V3ADDEQL _(pBitangents[pFace->range.start + pTriCorners[1]] V3MULS bc.d[1]));
+	_(&bitangent V3ADDEQL _(pBitangents[pFace->range.start + pTriCorners[2]] V3MULS bc.d[2]));
+	_(&bitangent V3DIVEQLS bc.d[0] + bc.d[1] + bc.d[2]);
 	M3x3 tbn = {0};
 	*(V3_F32 *)&tbn.d[0] = tangent;
 	*(V3_F32 *)&tbn.d[1] = bitangent;
@@ -1397,7 +1400,7 @@ StucErr stucMeshBuildTangentsForTris(StucCtx *pCtx, StucMesh *pMesh) {
 	wrap.core = *pMesh;
 	UBitField32 spAttribsToAppend = STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
 		STUC_ATTRIB_USE_TANGENT,
-		STUC_ATTRIB_USE_TSIGN
+		STUC_ATTRIB_USE_BITANGENT
 	}));
 	stucAppendSpAttribsToMesh(
 		pCtx,

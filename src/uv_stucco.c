@@ -331,7 +331,11 @@ void inIslandTbMagGetUniform(
 	for (I32 i = pIsland->core.faces.start; i < pIsland->core.faces.end; ++i) {
 		FaceRange face = stucGetFaceRange(&pInMesh->core, pIslandArr->faces.pArr[i]);
 		for (I32 j = 0; j < face.range.size; ++j) {
-			V2_F32 mag = pInMesh->pTbMags[face.range.start + j];
+			I32 corner = face.range.start + j;
+			V2_F32 mag = {
+				pixmV3F32Len(pInMesh->pTangents[corner]),
+				pixmV3F32Len(pInMesh->pBitangents[corner])
+			};
 			if (mag.d[0]) {
 				_(&pIsland->tbMag V2ADDEQL mag);
 				++weight;
@@ -1431,8 +1435,7 @@ StucErr stucMapToMesh(
 	PIX_ERR_THROW_IFNOT(err, "invalid in-mesh", 0);
 	UBitField32 spAttribsToAppend = STUC_ATTRIB_USE_FIELD(((StucAttribUse[]) {
 		STUC_ATTRIB_USE_TANGENT,
-		STUC_ATTRIB_USE_TSIGN,
-		STUC_ATTRIB_USE_TBMAG,
+		STUC_ATTRIB_USE_BITANGENT,
 		STUC_ATTRIB_USE_SEAM_EDGE,
 		STUC_ATTRIB_USE_SEAM_VERT,
 		STUC_ATTRIB_USE_NUM_ADJ_PRESERVE,
@@ -1775,7 +1778,7 @@ void stucLogEnableSet(StucCtx *pCtx, bool value) {
 StucErr stucLogPathSet(StucCtx *pCtx, const char *pPath) {
 	StucErr err = PIX_ERR_SUCCESS;
 	I32 lenMax = pixioPathMaxGet();
-	I32 len = strnlen(pPath, lenMax);
+	I32 len = (I32)strnlen(pPath, lenMax);
 	PIX_ERR_RETURN_IFNOT_COND(err, len > 0 && len < lenMax, "invalid path")
 	PIXALC_DYN_ARR_RESIZE(&pCtx->alloc, &pCtx->logPath, len + 1);
 	memcpy(pCtx->logPath.pArr, pPath, len + 1);
