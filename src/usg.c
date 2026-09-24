@@ -435,7 +435,6 @@ StucErr isFaceClosestToOrigin(
 		*pClosestDist = dist;
 	}
 	*pRet = false;
-	PIX_ERR_CATCH(0, err, ;);
 	return err;
 }
 

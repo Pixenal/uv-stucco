@@ -2126,7 +2126,7 @@ static
 	const char *pName;
 	if (pathIsName) {
 		pName = pFilepath;
-		nameLen = strnlen(pName, pixioPathMaxGet());
+		nameLen = (I32)strnlen(pName, pixioPathMaxGet());
 	}
 	else {
 		pName = stucNameFromPath(pFilepath, &nameLen, NULL);
@@ -2155,7 +2155,7 @@ static
 	 const char *pName,
 	 StucMapDepEntry **ppEntry
  ) {
-	I32 nameLen = strnlen(pName, pixioPathMaxGet());
+	I32 nameLen = (I32)strnlen(pName, pixioPathMaxGet());
 	SearchResult result = pixuctHTableGet(
 		pTable,
 		0,
@@ -2272,7 +2272,7 @@ StucErr getMapOrPath(StucMapLoad *pLoadCtx, MapDepStack *pStack) {
 			pStackEntry->pMap->pNameInFile = pStackEntry->pMap->pName;
 		}
 		else {
-			I32 nameLen = strnlen(pDepName, pixioPathMaxGet());
+			I32 nameLen = (I32)strnlen(pDepName, pixioPathMaxGet());
 			pStackEntry->pMap->pNameInFile = pAlloc->fpMalloc(nameLen + 1);
 			memcpy(pStackEntry->pMap->pNameInFile, pDepName, nameLen + 1);
 		}
