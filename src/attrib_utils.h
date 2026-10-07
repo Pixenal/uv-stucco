@@ -99,9 +99,10 @@ const void *stucAttribAsVoidConst(const AttribCore *pAttrib, I32 idx) {
 	return stucAttribAsVoid((AttribCore *)pAttrib, idx);
 }
 
-//TODO some of these funcs still don't use PixErr
+//TODO some of funcs still don't use PixErr
+
 static inline
-I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32 iSrc) {
+void stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32 iSrc) {
 	PIX_ERR_ASSERT("", pSrc->type == pDest->type);
 	I32 size = stucGetAttribSizeIntern(pSrc->type);
 	memcpy(
@@ -109,13 +110,12 @@ I32 stucCopyAttribCore(AttribCore *pDest, I32 iDest, const AttribCore *pSrc, I32
 		((U8 *)pSrc->pData) + iSrc * size,
 		size
 	);
-	return 0;
 }
 
 static inline
-I32 stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc) {
+void stucCopyAttrib(Attrib *pDest, I32 iDest, const Attrib *pSrc, I32 iSrc) {
 	PIX_ERR_ASSERT("", pSrc->copyOpt == STUC_ATTRIB_COPY);
-	return stucCopyAttribCore(&pDest->core, iDest, &pSrc->core, iSrc);
+	stucCopyAttribCore(&pDest->core, iDest, &pSrc->core, iSrc);
 }
 
 typedef enum SpecialBufAttrib {
@@ -219,7 +219,7 @@ void stucTriInterpolateAttrib(
 	I32 iSrcA, I32 iSrcB, I32 iSrcC,
 	V3_F32 bc
 );
-void stucBlendAttribs(
+StucErr stucBlendAttribs(
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB,

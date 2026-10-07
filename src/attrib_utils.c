@@ -98,6 +98,16 @@ F64 clamp(F64 a, F64 min, F64 max) {
 */
 
 static
+void fBlendReplace(F64 *pDest, F64 a, F64 b) {
+	*pDest = b;
+}
+static
+void iBlendReplace(I64 *pDest, I64 a, I64 b) {
+	*pDest = b;
+}
+
+
+static
 void fBlendMultiply(F64 *pDest, F64 a, F64 b) {
 	*pDest = a * b;
 }
@@ -867,10 +877,10 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 			PIX_ERR_ASSERT("invalid type", false);\
 	}
 
-#define CALL_BLEND_FUNC(\
+#define BLEND_GENERIC(\
 	t,\
 	pBlendFunc,\
-	blendConfig, clampMin, clampMax,\
+	config, clampMin, clampMax,\
 	pDestComp, destCompType,\
 	pAComp, aCompType, aIsFloat, normalizeA, aMax,\
 	pBComp, bCompType, bIsFloat, normalizeB, bMax,\
@@ -893,58 +903,14 @@ I64 getIntTypeMax(AttribType type, bool getSigned) {
 	PIX_ERR_ASSERT("", pBlendFunc);\
 	pBlendFunc(&destBuf, aComp, bComp);\
 \
-	if (blendConfig.clamp) {\
+	if (config.clamp) {\
 		destBuf = CLAMP(destBuf, clampMin, clampMax);\
 	}\
-	if (blendConfig.opacity != .0 && blendConfig.opacity != 1.0) {\
+	if (config.opacity != 1.0) {\
 		/* lerp is done in F64 regardless of t */\
-		destBuf = (t)pixmF64Lerp((F64)aComp, (F64)destBuf, (F64)blendConfig.opacity);\
+		destBuf = (t)pixmF64Lerp((F64)aComp, (F64)destBuf, (F64)config.opacity);\
 	}\
 	SET_VOID_COMP(destCompType, pDestComp, destBuf);\
-}
-
-static
-void blendComponents(
-	void (* pFBlendFunc)(F64 *,F64,F64),
-	void (* pIBlendFunc)(I64 *,I64,I64),
-	StucBlendConfig blendConfig,
-	void *pDest, AttribType destCompType, I32 destVecSize,
-	const void *pA, AttribType aCompType, I32 aVecSize, bool normalizeA, I64 aMax,
-	const void *pB, AttribType bCompType, I32 bVecSize, bool normalizeB, I64 bMax,
-	bool isSigned
-) {
-	bool aIsFloat = isAttribTypeFloat(aCompType);
-	bool bIsFloat = isAttribTypeFloat(bCompType);
-	I32 size = PIXM_MIN(PIXM_MIN(aVecSize, bVecSize), destVecSize);
-	for (I32 i = 0; i < size; ++i) {
-		void *pDestComp = (int8_t *)pDest + getAttribCompTypeSize(destCompType) * i;
-		const void *pAComp =
-			(int8_t *)pA + getAttribCompTypeSize(aCompType) * i * (aVecSize != 1);
-		const void *pBComp =
-			(int8_t *)pB + getAttribCompTypeSize(bCompType) * i * (bVecSize != 1);
-		if (isAttribTypeFloat(destCompType)) {
-			CALL_BLEND_FUNC(
-				F64,
-				pFBlendFunc,
-				blendConfig, blendConfig.fMin, blendConfig.fMax,
-				pDestComp, destCompType,
-				pAComp, aCompType, aIsFloat, normalizeA, aMax,
-				pBComp, bCompType, bIsFloat, normalizeB, bMax,
-				isSigned
-			)
-		}
-		else {
-			CALL_BLEND_FUNC(
-				I64,
-				pIBlendFunc,
-				blendConfig, blendConfig.iMin, blendConfig.iMax,
-				pDestComp, destCompType,
-				pAComp, aCompType, aIsFloat, normalizeA, aMax,
-				pBComp, bCompType, bIsFloat, normalizeB, bMax,
-				isSigned
-			)
-		}
-	}\
 }
 
 typedef struct BlendFuncs {
@@ -953,7 +919,7 @@ typedef struct BlendFuncs {
 } BlendFuncs;
 
 static BlendFuncs blendFuncs[STUC_BLEND_ENUM_COUNT] = {
-	{.f = NULL, .i = NULL},
+	{.f = fBlendReplace, .i = iBlendReplace},
 	{.f = fBlendMultiply, .i = iBlendMultiply},
 	{.f = fBlendDivide, .i = iBlendDivide},
 	{.f = fBlendAdd, .i = iBlendAdd},
@@ -968,91 +934,163 @@ static BlendFuncs blendFuncs[STUC_BLEND_ENUM_COUNT] = {
 };
 
 static
-void blendSwitch(
-	StucBlendConfig blendConfig,
-	AttribCore *pDest, I32 iDest,
-	const AttribCore *pA, I32 iA, bool normalizeA, I64 aMax,
-	const AttribCore *pB, I32 iB, bool normalizeB, I64 bMax,
-	bool isSigned
+StucErr blendComponents(
+	StucBlendConfig config,
+	void *pDest, AttribType destCompType, I32 destVecSize,
+	const void *pA, AttribType aCompType, I32 aVecSize, bool normalizeA, I64 aMax,
+	const void *pB, AttribType bCompType, I32 bVecSize, bool normalizeB, I64 bMax,
+	bool isSigned,
+	bool wIsAlpha
 ) {
-	void *pDestVal = stucAttribAsVoid(pDest, iDest);
-	const void *pBVal = stucAttribAsVoidConst(pB, iB);
+	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT(
 		"",
-		blendConfig.blend >= 0 && blendConfig.blend < STUC_BLEND_ENUM_COUNT
+		config.blend >= 0 && config.blend < STUC_BLEND_ENUM_COUNT
 	);
-	if (blendConfig.blend == STUC_BLEND_REPLACE) {
-		memcpy(pDestVal, pBVal, stucGetAttribSizeIntern(pDest->type));
-	}
-	else if (blendConfig.blend == STUC_BLEND_APPEND) {
-		//TODO
-	}
-	else {
-		const void *pAVal = stucAttribAsVoidConst(pA, iA);
-		AttribType destCompType = stucAttribGetCompTypeIntern(pDest->type);
-		AttribType aCompType = stucAttribGetCompTypeIntern(pA->type);
-		AttribType bCompType = stucAttribGetCompTypeIntern(pB->type);
-		I32 destVecSize = stucAttribTypeGetVecSizeIntern(pDest->type);
-		I32 aVecSize = stucAttribTypeGetVecSizeIntern(pA->type);
-		I32 bVecSize = stucAttribTypeGetVecSizeIntern(pB->type);
-		blendComponents(
-			blendFuncs[blendConfig.blend].f,
-			blendFuncs[blendConfig.blend].i,
-			blendConfig,
-			pDestVal, destCompType, destVecSize,
-			pAVal, aCompType, aVecSize, normalizeA, aMax,
-			pBVal, bCompType, bVecSize, normalizeB, bMax,
-			isSigned
-		);
-		if (pDest->use == STUC_ATTRIB_USE_NORMAL ||
-		    pDest->use == STUC_ATTRIB_USE_NORMALS_VERT
-		) {
-			PIX_ERR_ASSERT(
-				"this should've been checked for prior",
-				pDest->type == STUC_ATTRIB_V3_F32
-			);
-			*(PixtyV3_F32 *)pDestVal = pixmV3F32Normalize(*(PixtyV3_F32 *)pDestVal);
+	void (* fpFBlend)(F64 *,F64,F64) = blendFuncs[config.blend].f;
+	void (* fpIBlend)(I64 *,I64,I64) = blendFuncs[config.blend].i;
+	bool aIsFloat = isAttribTypeFloat(aCompType);
+	bool bIsFloat = isAttribTypeFloat(bCompType);
+	I32 size = PIXM_MIN(PIXM_MIN(aVecSize, bVecSize), destVecSize);
+	for (I32 i = 0; i < size; ++i) {
+		if (wIsAlpha && i == 3) {
+			fpFBlend = fBlendLighten;
+			fpIBlend = iBlendLighten;
+		}
+		void *pDestComp = (int8_t *)pDest + getAttribCompTypeSize(destCompType) * i;
+		const void *pAComp =
+			(int8_t *)pA + getAttribCompTypeSize(aCompType) * i * (aVecSize != 1);
+		const void *pBComp =
+			(int8_t *)pB + getAttribCompTypeSize(bCompType) * i * (bVecSize != 1);
+		if (isAttribTypeFloat(destCompType)) {
+			PIX_ERR_RETURN_IFNOT_COND(err, fpFBlend, "no f-blend func for this mode");
+			BLEND_GENERIC(
+				F64,
+				fpFBlend,
+				config, config.fMin, config.fMax,
+				pDestComp, destCompType,
+				pAComp, aCompType, aIsFloat, normalizeA, aMax,
+				pBComp, bCompType, bIsFloat, normalizeB, bMax,
+				isSigned
+			)
+		}
+		else {
+			PIX_ERR_RETURN_IFNOT_COND(err, fpIBlend, "no i-blend func for this mode");
+			BLEND_GENERIC(
+				I64,
+				fpIBlend,
+				config, config.iMin, config.iMax,
+				pDestComp, destCompType,
+				pAComp, aCompType, aIsFloat, normalizeA, aMax,
+				pBComp, bCompType, bIsFloat, normalizeB, bMax,
+				isSigned
+			)
 		}
 	}
+	return err;
 }
 
 static
-void blendUseVec(
-	StucBlendConfig blendConfig,
+StucErr blendSwitch(
+	StucBlendConfig config,
+	AttribCore *pDest, I32 iDest,
+	const AttribCore *pA, I32 iA, bool normalizeA, I64 aMax,
+	const AttribCore *pB, I32 iB, bool normalizeB, I64 bMax,
+	bool isSigned,
+	bool wIsAlpha
+) {
+	StucErr err = PIX_ERR_SUCCESS;
+	void *pDestVal = stucAttribAsVoid(pDest, iDest);
+	if (config.blend == STUC_BLEND_REPLACE) {
+		const AttribCore *pWhich =
+			config.opacity ? config.opacity == 1.0f ? pB : NULL : pA;
+		if (pWhich && pDest->type == pWhich->type) {
+			memcpy(
+				pDestVal,
+				stucAttribAsVoidConst(pWhich, pWhich == pA ? iA : iB),
+				stucGetAttribSizeIntern(pDest->type)
+			);
+			return err;
+		}
+	}
+	else if (config.blend == STUC_BLEND_APPEND) {
+		//TODO
+		return err;
+	}
+	const void *pAVal = stucAttribAsVoidConst(pA, iA);
+	const void *pBVal = stucAttribAsVoidConst(pB, iB);
+
+	AttribType destCompType = stucAttribGetCompTypeIntern(pDest->type);
+	AttribType aCompType = stucAttribGetCompTypeIntern(pA->type);
+	AttribType bCompType = stucAttribGetCompTypeIntern(pB->type);
+	I32 destVecSize = stucAttribTypeGetVecSizeIntern(pDest->type);
+	I32 aVecSize = stucAttribTypeGetVecSizeIntern(pA->type);
+	I32 bVecSize = stucAttribTypeGetVecSizeIntern(pB->type);
+	err = blendComponents(
+		config,
+		pDestVal, destCompType, destVecSize,
+		pAVal, aCompType, aVecSize, normalizeA, aMax,
+		pBVal, bCompType, bVecSize, normalizeB, bMax,
+		isSigned,
+		wIsAlpha
+	);
+	if (pDest->use == STUC_ATTRIB_USE_NORMAL ||
+		pDest->use == STUC_ATTRIB_USE_NORMALS_VERT
+	) {
+		PIX_ERR_ASSERT(
+			"this should've been checked for prior",
+			pDest->type == STUC_ATTRIB_V3_F32
+		);
+		*(PixtyV3_F32 *)pDestVal = pixmV3F32Normalize(*(PixtyV3_F32 *)pDestVal);
+	}
+	return err;
+}
+
+static
+StucErr blendUseVec(
+	StucBlendConfig config,
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB
 ) {
 	//UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
-	blendSwitch(blendConfig, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
+	StucErr err = 
+		blendSwitch(config, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true, false);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 static
-void blendUseIdx(
-	StucBlendConfig blendConfig,
+StucErr blendUseIdx(
+	StucBlendConfig config,
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_ASSERT(
 		"this should have been picked up in mesh validation",
 		pDest->type == STUC_ATTRIB_I8
 	);
-	blendConfig.opacity = 1.0f;
-	blendConfig.blend = STUC_BLEND_REPLACE;
+	config.opacity = 1.0f;
+	config.blend = STUC_BLEND_REPLACE;
 	//TODO replace literal bitflags with bitshifts enum expressions,
 	// these will break code when enum elements are moved around
 	//UBitField32 blendFlags =  0xc1;  //only replace, lighten, and darken
-	blendSwitch(blendConfig, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
+	err = 
+		blendSwitch(config, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true, false);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 static
-void blendUseColor(
-	StucBlendConfig blendConfig,
+StucErr blendUseColor(
+	StucBlendConfig config,
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	AttribCore *pFDest = pDest;
 	I32 iFDest = iDest;
 	bool destIsFloat = isAttribTypeFloat(pDest->type);
@@ -1069,16 +1107,19 @@ void blendUseColor(
 		iFDest = 0;
 	}
 	//UBitField32 blendFlags = 0x7ff;  //all blends execpt for APPEND
-	//if attrib is float, we assume it's already normalized
+	//if attrib is float, we assume it's already normalised
+	//normalised as in 255 -> 1.0, not normalized across the whole vector.
 	bool normalizeA = !isAttribTypeFloat(pA->type);
 	bool normalizeB = !isAttribTypeFloat(pB->type);
-	blendSwitch(
-		blendConfig,
+	err = blendSwitch(
+		config,
 		pFDest, iFDest,
 		pA, iA, normalizeA, normalizeA ? getIntTypeMax(pA->type, false) : 0,
 		pB, iB, normalizeB, normalizeB ? getIntTypeMax(pB->type, false) : 0,
-		false
+		false,
+		true
 	);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	if (!destIsFloat) {
 		F64 destMax = (F64)getIntTypeMax(pDest->type, false);
 		I64 iDestBuf[4] = {0};
@@ -1086,7 +1127,8 @@ void blendUseColor(
 		U8 *pDestVoid = stucAttribAsVoid(pDest, iDest);
 		I32 compSize = stucGetAttribSizeIntern(compType);
 		for (I32 i = 0; i < destVecSize; ++i) {
-			iDestBuf[i] = (I64)(destBuf[i] * destMax);
+			F64 fClamped = destBuf[i] < 1.0f ? destBuf[i] > .0f ? destBuf[i] : .0f : 1.0f;
+			iDestBuf[i] = (I64)(fClamped * destMax);
 			memcpy(
 				pDestVoid + compSize * i,
 				iDestBuf + i,
@@ -1094,55 +1136,61 @@ void blendUseColor(
 			);
 		}
 	}
+	return err;
 }
 
 static
-void blendUseScalar(
-	StucBlendConfig blendConfig,
+StucErr blendUseScalar(
+	StucBlendConfig config,
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB
 ) {
 	//replace, multiply, divide, add, subtract, lighten, and darken
 	//UBitField32 blendFlags = 0xdf;
-	blendSwitch(blendConfig, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true);
+	StucErr err =
+		blendSwitch(config, pDest, iDest, pA, iA, false, 0, pB, iB, false, 0, true, false);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
-
 //TODO this name should not be plural
-void stucBlendAttribs(
+StucErr stucBlendAttribs(
 	AttribCore *pDest, I32 iDest,
 	const AttribCore *pA, I32 iA,
 	const AttribCore *pB, I32 iB,
 	StucBlendConfig blendConfig
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	switch (pDest->use) {
 		case STUC_ATTRIB_USE_POS:
-			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		case STUC_ATTRIB_USE_UV:
-			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		case STUC_ATTRIB_USE_NORMAL:
-			blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseVec(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		case STUC_ATTRIB_USE_IDX:
-			blendUseIdx(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseIdx(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		case STUC_ATTRIB_USE_COLOR:
-			blendUseColor(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseColor(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		case STUC_ATTRIB_USE_MASK:
-			blendUseIdx(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseIdx(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		case STUC_ATTRIB_USE_SCALAR:
-			blendUseScalar(blendConfig, pDest, iDest, pA, iA, pB, iB);
+			err = blendUseScalar(blendConfig, pDest, iDest, pA, iA, pB, iB);
 			break;
 		default:
 			//blending not currently supported for this use - copying instead
 			//TODO add warning
 			stucCopyAttribCore(pDest, iDest, pA, iB);
 	}
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 void stucDivideAttribByScalarInt(AttribCore *pAttrib, I32 idx, U64 scalar) {

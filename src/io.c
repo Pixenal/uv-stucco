@@ -2517,6 +2517,7 @@ StucErr stucMapLoadIntern(StucCtx *pCtx, StucMapDepEntry *pEntry) {
 	stucSetAttribOrigins(&pMapMesh->core.edgeAttribs, STUC_ATTRIB_ORIGIN_MAP);
 	stucSetAttribOrigins(&pMapMesh->core.vertAttribs, STUC_ATTRIB_ORIGIN_MAP);
 
+	/*
 	stucSetAttribCopyOpt(
 		pCtx,
 		&pMapMesh->core,
@@ -2528,6 +2529,7 @@ StucErr stucMapLoadIntern(StucCtx *pCtx, StucMapDepEntry *pEntry) {
 			STUC_ATTRIB_USE_IDX
 		}))
 	);
+	*/
 	err = stucAssignActiveAliases(
 		pCtx,
 		pMapMesh,

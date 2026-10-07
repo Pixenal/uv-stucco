@@ -462,7 +462,7 @@ StucErr xformVertFromUvwToXyz(
 }
 
 static
-void blendCommonAttrib(
+StucErr blendCommonAttrib(
 	const MapToMeshBasic *pBasic,
 	const Attrib *pInAttrib,
 	const Attrib *pMapAttrib,
@@ -471,6 +471,7 @@ void blendCommonAttrib(
 	I32 dataIdx,
 	StucDomain domain
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	const StucBlendOpt *pOpts = stucGetBlendOpt(
 		pBasic->pOptArr,
 		outAttribIdx,
@@ -489,12 +490,14 @@ void blendCommonAttrib(
 	I8 order = blendConfig.order;
 	orderTable[0] = order ? pMapAttrib : pInAttrib;
 	orderTable[1] = !order ? pMapAttrib : pInAttrib;
-	stucBlendAttribs(
+	err = stucBlendAttribs(
 		&pOutAttrib->core, dataIdx,
 		&orderTable[0]->core, 0,
 		&orderTable[1]->core, 0,
 		blendConfig
 	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 typedef struct AttribPair {
@@ -559,7 +562,7 @@ void cacheAttribPairs(
 }
 
 static
-void interpAndBlendAttribs(
+StucErr interpAndBlendAttribs(
 	const MapToMeshBasic *pBasic,
 	AttribCache *pCache,
 	I32 dataIdx,
@@ -571,6 +574,7 @@ void interpAndBlendAttribs(
 	const SrcFaces *pSrcFaces,//faces
 	V3_F32 *pNormal
 ) {
+	StucErr err = PIX_ERR_SUCCESS;
 	if (domain == STUC_DOMAIN_FACE) {
 		PIX_ERR_ASSERT("", pSrcFaces);
 	}
@@ -664,7 +668,7 @@ void interpAndBlendAttribs(
 
 		switch (attribs.pOut->origin) {
 			case STUC_ATTRIB_ORIGIN_COMMON:
-				blendCommonAttrib(
+				err = blendCommonAttrib(
 					pBasic,
 					&inAttribWrap,
 					&mapAttribWrap,
@@ -672,6 +676,7 @@ void interpAndBlendAttribs(
 					dataIdx,
 					domain
 				);
+				PIX_ERR_RETURN_IFNOT(err, "");
 				break;
 			case STUC_ATTRIB_ORIGIN_MESH_IN:
 				stucCopyAttribCore(&attribs.pOut->core, dataIdx, &inAttribWrap.core, 0);
@@ -683,6 +688,7 @@ void interpAndBlendAttribs(
 				PIX_ERR_ASSERT("invalid origin override", false);
 		}
 	}
+	return err;
 }
 
 //TODO account for stretching along bi/tangent
@@ -805,7 +811,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 		PIX_ERR_RETURN_IFNOT(err, "");
 		//switch domain to vert for attrib interp/ blend/ copy
 		interpCacheDomainCornerToVert(&interpCaches.in, &pBasic->pInMesh->core);
-		interpAndBlendAttribs(
+		err = interpAndBlendAttribs(
 			pBasic,
 			&attribs,
 			pEntry->outVert,
@@ -817,6 +823,7 @@ StucErr xformAndInterpVertsInRange(void *pArgsVoid) {
 			NULL,
 			NULL
 		);
+		PIX_ERR_RETURN_IFNOT(err, "");
 		xformNormals(
 			&pArgs->pOutMesh->core,
 			pEntry->outVert,
@@ -940,7 +947,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				.map = {.domain = STUC_DOMAIN_CORNER, .origin = STUC_ATTRIB_ORIGIN_MAP}
 			};
 			V3_F32 normal = {0};
-			interpAndBlendAttribs(
+			err = interpAndBlendAttribs(
 				pBasic,
 				&attribs,
 				corner,
@@ -952,6 +959,7 @@ StucErr stucInterpCornerAttribs(void *pArgsVoid) {
 				NULL,
 				&normal
 			);
+			PIX_ERR_RETURN_IFNOT(err, "");
 
 			M3x3 tbn = {0};
 			err = getInterpolatedTbn(
@@ -1035,7 +1043,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 		);
 		//not actually interpolating faces,
 		//just copying
-		interpAndBlendAttribs(
+		err = interpAndBlendAttribs(
 			pBasic,
 			&attribs,
 			face,
@@ -1044,6 +1052,7 @@ StucErr stucInterpFaceAttribs(void *pArgsVoid) {
 			&srcFaces,
 			NULL
 		);
+		PIX_ERR_RETURN_IFNOT(err, "");
 		//TODO transforming face normals not supported atm
 	}
 	attribCacheDestroy(&pBasic->pCtx->alloc, &attribs);
