@@ -343,7 +343,7 @@ StucErr scaleTbnByUvwMag(
 	};
 	err = wScaleMulByTbMag(pBasic, pInterpCaches, tbMag, &wScale);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	V3_F32 normal = _(*(V3_F32 *)&pTbn->d[2] V3MULS wScale);
+	_((V3_F32 *)&pTbn->d[2] V3MULSEQL wScale);
 	*pTbn = pixmM3x3Invert(pTbn);
 	*pTbn = pixmM3x3Transpose(pTbn);
 	if (pWScale) {
